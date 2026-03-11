@@ -33,22 +33,35 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Helper: create a redirect that preserves Supabase session cookies
+  function redirectWithCookies(pathname: string) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname;
+    const redirectResponse = NextResponse.redirect(url);
+
+    // Copy all cookies from the Supabase response to the redirect response.
+    // This is critical — getUser() may have refreshed the session tokens,
+    // and those refreshed cookies live on supabaseResponse. Without copying
+    // them, the next request arrives with stale/consumed tokens → redirect loop.
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+
+    return redirectResponse;
+  }
+
   // If not logged in and trying to access protected routes, redirect to login
   if (
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
   ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return redirectWithCookies("/login");
   }
 
   // If logged in and on login page, redirect to dashboard
   if (user && request.nextUrl.pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return redirectWithCookies("/dashboard");
   }
 
   return supabaseResponse;
