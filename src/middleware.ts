@@ -43,8 +43,9 @@ export async function middleware(request: NextRequest) {
     // This is critical — getUser() may have refreshed the session tokens,
     // and those refreshed cookies live on supabaseResponse. Without copying
     // them, the next request arrives with stale/consumed tokens → redirect loop.
+    // We pass the full cookie object to preserve httpOnly, secure, path, etc.
     supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value);
+      redirectResponse.cookies.set(cookie);
     });
 
     return redirectResponse;

@@ -22,7 +22,7 @@ const contentTypeLabels: Record<string, string> = {
 export default async function ContentPiecePage({ params }: PageProps) {
   const { pieceId } = await params;
   const profile = await getUserProfile();
-  if (!profile) redirect("/login");
+  if (!profile) return null; // Layout handles the "no profile" state
 
   const supabase = await createServerSupabaseClient();
 

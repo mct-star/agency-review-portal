@@ -6,7 +6,7 @@ import type { Week, Company } from "@/types/database";
 
 export default async function WeeksPage() {
   const profile = await getUserProfile();
-  if (!profile) redirect("/login");
+  if (!profile) return null; // Layout handles the "no profile" state
 
   const supabase = await createServerSupabaseClient();
   const isAdmin = profile.role === "admin";

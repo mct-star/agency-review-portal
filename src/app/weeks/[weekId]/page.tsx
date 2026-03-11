@@ -26,7 +26,7 @@ const contentTypeColors: Record<string, string> = {
 export default async function WeekDetailPage({ params }: PageProps) {
   const { weekId } = await params;
   const profile = await getUserProfile();
-  if (!profile) redirect("/login");
+  if (!profile) return null; // Layout handles the "no profile" state
 
   const supabase = await createServerSupabaseClient();
 
