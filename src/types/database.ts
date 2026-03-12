@@ -1,3 +1,7 @@
+// ============================================================
+// Core enums (existing)
+// ============================================================
+
 export type UserRole = "admin" | "client";
 export type WeekStatus =
   | "draft"
@@ -9,12 +13,89 @@ export type ContentType =
   | "social_post"
   | "blog_article"
   | "linkedin_article"
-  | "pdf_guide";
+  | "pdf_guide"
+  | "video_script";
 export type NotificationType =
   | "content_ready"
   | "piece_approved"
   | "changes_requested"
-  | "comment_added";
+  | "comment_added"
+  | "generation_complete"
+  | "generation_failed"
+  | "publishing_complete"
+  | "publishing_failed";
+
+// ============================================================
+// New enums (content operating system)
+// ============================================================
+
+export type ServiceCategory =
+  | "image_generation"
+  | "content_generation"
+  | "blog_publishing"
+  | "social_scheduling"
+  | "video_rendering"
+  | "transcription";
+
+export type SocialPlatform =
+  | "linkedin_personal"
+  | "linkedin_company"
+  | "twitter"
+  | "bluesky"
+  | "threads"
+  | "facebook"
+  | "instagram";
+
+export type AssetType =
+  | "seo_title"
+  | "seo_meta_description"
+  | "url_slug"
+  | "excerpt"
+  | "categories_tags"
+  | "featured_image"
+  | "social_share_image"
+  | "in_article_image"
+  | "header_image"
+  | "personal_distribution_copy"
+  | "company_distribution_copy"
+  | "newsletter_name"
+  | "pdf_file"
+  | "cover_image"
+  | "page_zone_spec"
+  | "script_text"
+  | "storyboard"
+  | "intro_outro_spec"
+  | "broll_timestamps"
+  | "subtitle_cues"
+  | "platform_copy"
+  | "custom";
+
+export type GenerationJobType =
+  | "content_generation"
+  | "image_generation"
+  | "video_rendering"
+  | "transcription"
+  | "pdf_generation"
+  | "platform_adaptation";
+
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type PublishingStatus =
+  | "queued"
+  | "running"
+  | "published"
+  | "failed"
+  | "scheduled"
+  | "cancelled";
+
+// ============================================================
+// Existing interfaces
+// ============================================================
 
 export interface Company {
   id: string;
@@ -67,6 +148,7 @@ export interface ContentPiece {
   post_type: string | null;
   sort_order: number;
   approval_status: ApprovalStatus;
+  generation_job_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,7 +186,136 @@ export interface Notification {
   created_at: string;
 }
 
+// ============================================================
+// New interfaces (content operating system)
+// ============================================================
+
+export interface CompanyApiConfig {
+  id: string;
+  company_id: string;
+  service_category: ServiceCategory;
+  provider: string;
+  credentials_encrypted: string | null;
+  provider_settings: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanySocialAccount {
+  id: string;
+  company_id: string;
+  platform: SocialPlatform;
+  account_name: string | null;
+  account_id: string | null;
+  access_token_encrypted: string | null;
+  refresh_token_encrypted: string | null;
+  token_expires_at: string | null;
+  platform_metadata: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanyBlueprint {
+  id: string;
+  company_id: string;
+  version: string;
+  blueprint_content: string;
+  derived_source_context: string | null;
+  derived_brand_context: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TopicBankEntry {
+  id: string;
+  company_id: string;
+  topic_number: number;
+  title: string;
+  pillar: string | null;
+  audience_theme: string | null;
+  description: string | null;
+  source_reference: string | null;
+  is_used: boolean;
+  used_in_week_id: string | null;
+  created_at: string;
+}
+
+export interface ContentAsset {
+  id: string;
+  content_piece_id: string;
+  asset_type: AssetType;
+  text_content: string | null;
+  file_url: string | null;
+  storage_path: string | null;
+  asset_metadata: Record<string, unknown>;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface PlatformVariant {
+  id: string;
+  content_piece_id: string;
+  social_account_id: string | null;
+  platform: SocialPlatform;
+  adapted_copy: string;
+  adapted_first_comment: string | null;
+  character_count: number | null;
+  hashtags: string[];
+  mentions: string[];
+  image_ids: string[];
+  scheduled_at: string | null;
+  is_selected: boolean;
+  platform_metadata: Record<string, unknown>;
+  approval_status: ApprovalStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContentGenerationJob {
+  id: string;
+  company_id: string;
+  week_id: string | null;
+  content_piece_id: string | null;
+  job_type: GenerationJobType;
+  provider: string | null;
+  status: JobStatus;
+  input_payload: Record<string, unknown>;
+  output_payload: Record<string, unknown>;
+  error_message: string | null;
+  progress: number;
+  started_at: string | null;
+  completed_at: string | null;
+  triggered_by: string | null;
+  created_at: string;
+}
+
+export interface PublishingJob {
+  id: string;
+  company_id: string;
+  content_piece_id: string | null;
+  platform_variant_id: string | null;
+  target_platform: string;
+  api_config_id: string | null;
+  social_account_id: string | null;
+  status: PublishingStatus;
+  external_id: string | null;
+  external_url: string | null;
+  publish_payload: Record<string, unknown>;
+  response_payload: Record<string, unknown>;
+  error_message: string | null;
+  scheduled_for: string | null;
+  published_at: string | null;
+  triggered_by: string | null;
+  created_at: string;
+}
+
+// ============================================================
 // Extended types with joins
+// ============================================================
+
 export interface WeekWithPieces extends Week {
   content_pieces: ContentPiece[];
   company?: Company;
@@ -113,4 +324,21 @@ export interface WeekWithPieces extends Week {
 export interface ContentPieceWithImages extends ContentPiece {
   content_images: ContentImage[];
   comments: Comment[];
+}
+
+export interface ContentPieceWithAssets extends ContentPiece {
+  content_images: ContentImage[];
+  content_assets: ContentAsset[];
+  platform_variants: PlatformVariant[];
+  comments: Comment[];
+}
+
+export interface CompanyWithConfig extends Company {
+  company_api_configs: CompanyApiConfig[];
+  company_social_accounts: CompanySocialAccount[];
+  company_blueprints: CompanyBlueprint[];
+}
+
+export interface WeekWithGenerationJobs extends Week {
+  content_generation_jobs: ContentGenerationJob[];
 }
