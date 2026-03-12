@@ -7,6 +7,8 @@
  *   - ContentProvider: generate() — produces markdown content
  *   - ImageProvider: generate() — produces image URLs
  *   - PlatformAdaptationProvider: adapt() — produces platform variants
+ *   - VideoProvider: render() — produces video URLs
+ *   - TranscriptionProvider: transcribe() — produces text from audio/video
  *
  * The registry reads from company_api_configs to determine which provider
  * to use, then returns the correct adapter with decrypted credentials.
@@ -83,6 +85,66 @@ export interface PlatformAdaptationOutput {
 
 export interface PlatformAdaptationProvider {
   adapt(input: PlatformAdaptationInput): Promise<PlatformAdaptationOutput>;
+}
+
+export interface VideoRenderInput {
+  /** The video script/storyboard content */
+  script: string;
+  /** Intro/outro specification */
+  introOutroSpec: string | null;
+  /** B-roll timestamp markers from the script */
+  brollTimestamps: string | null;
+  /** Title overlay text */
+  title: string;
+  /** Speaker name for lower-third */
+  speakerName: string | null;
+  /** Brand colour hex for overlays */
+  brandColor: string | null;
+  /** Aspect ratio */
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  /** Duration target in seconds */
+  targetDuration?: number;
+  /** URLs of images/clips to include as B-roll */
+  mediaUrls?: string[];
+}
+
+export interface VideoRenderOutput {
+  videoUrl: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number;
+  format: string;
+  resolution: string;
+}
+
+export interface VideoProvider {
+  render(input: VideoRenderInput): Promise<VideoRenderOutput>;
+}
+
+export interface TranscriptionInput {
+  /** URL or path to the audio/video file */
+  mediaUrl: string;
+  /** Language hint (ISO 639-1, e.g. "en") */
+  language?: string;
+  /** Whether to include timestamps */
+  includeTimestamps?: boolean;
+  /** Whether to identify different speakers */
+  diarize?: boolean;
+}
+
+export interface TranscriptionOutput {
+  text: string;
+  segments: {
+    start: number;
+    end: number;
+    text: string;
+    speaker?: string;
+  }[];
+  language: string;
+  durationSeconds: number;
+}
+
+export interface TranscriptionProvider {
+  transcribe(input: TranscriptionInput): Promise<TranscriptionOutput>;
 }
 
 // ── Provider config resolution ──────────────────────────────
@@ -231,6 +293,90 @@ export async function getImageProvider(
       return {
         providerName: resolved.provider,
         provider: createOpenAIImageProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+  }
+}
+
+// ── Video provider factory ──────────────────────────────────
+
+/**
+ * Get the video rendering provider for a company.
+ * Supports Shotstack, Creatomate, or JSON2Video.
+ */
+export async function getVideoProvider(
+  companyId: string
+): Promise<{ provider: VideoProvider; providerName: string }> {
+  const resolved = await resolveProvider(companyId, "video_rendering");
+
+  if (!resolved) {
+    return {
+      providerName: "none",
+      provider: {
+        async render() {
+          throw new Error(
+            "No video rendering provider configured for this company. " +
+              "Go to Admin > Companies > [Company] > API Providers to set one up."
+          );
+        },
+      },
+    };
+  }
+
+  switch (resolved.provider) {
+    case "shotstack":
+    default: {
+      const { createShotstackVideoProvider } = await import(
+        "./video-rendering/shotstack"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createShotstackVideoProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+  }
+}
+
+// ── Transcription provider factory ──────────────────────────
+
+/**
+ * Get the transcription provider for a company.
+ * Supports OpenAI Whisper or Deepgram.
+ */
+export async function getTranscriptionProvider(
+  companyId: string
+): Promise<{ provider: TranscriptionProvider; providerName: string }> {
+  const resolved = await resolveProvider(companyId, "transcription");
+
+  if (!resolved) {
+    return {
+      providerName: "none",
+      provider: {
+        async transcribe() {
+          throw new Error(
+            "No transcription provider configured for this company. " +
+              "Go to Admin > Companies > [Company] > API Providers to set one up."
+          );
+        },
+      },
+    };
+  }
+
+  switch (resolved.provider) {
+    case "openai_whisper":
+    default: {
+      const { createWhisperTranscriptionProvider } = await import(
+        "./transcription/openai-whisper"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createWhisperTranscriptionProvider(
           resolved.credentials,
           resolved.settings
         ),
