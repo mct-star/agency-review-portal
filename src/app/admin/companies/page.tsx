@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import type { Company } from "@/types/database";
 
 export default async function CompaniesPage() {
@@ -25,13 +26,21 @@ export default async function CompaniesPage() {
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                 Brand Color
               </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                Config
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {(companies || []).map((company: Company) => (
-              <tr key={company.id}>
-                <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                  {company.name}
+              <tr key={company.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 text-sm font-medium">
+                  <Link
+                    href={`/admin/companies/${company.id}`}
+                    className="text-sky-700 hover:text-sky-900 hover:underline"
+                  >
+                    {company.name}
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-500">
                   {company.spokesperson_name || "—"}
@@ -48,6 +57,14 @@ export default async function CompaniesPage() {
                       </span>
                     </div>
                   )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Link
+                    href={`/admin/companies/${company.id}/api-providers`}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    Configure →
+                  </Link>
                 </td>
               </tr>
             ))}

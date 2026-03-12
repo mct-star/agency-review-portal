@@ -15,6 +15,8 @@ const adminNav = [
   { href: "/weeks", label: "Weeks", icon: "calendar" },
   { href: "/admin/upload", label: "Upload", icon: "upload" },
   { href: "/admin/companies", label: "Companies", icon: "building" },
+  { href: "/admin/generate", label: "Generate", icon: "sparkle" },
+  { href: "/admin/publish", label: "Publish", icon: "send" },
   { href: "/admin/users", label: "Users", icon: "users" },
 ];
 
@@ -33,6 +35,9 @@ const icons: Record<string, string> = {
     "M4 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3Zm4 3h2v2H8V6Zm6 0h-2v2h2V6ZM8 10h2v2H8v-2Zm6 0h-2v2h2v-2ZM8 14h2v2H8v-2Zm4 0h2v2h-2v-2Z",
   users:
     "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM6 8a6 6 0 1 1 12 0A6 6 0 0 1 6 8Zm-2 12a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z",
+  sparkle:
+    "M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z",
+  send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
 };
 
 export default function Sidebar({ user }: SidebarProps) {
