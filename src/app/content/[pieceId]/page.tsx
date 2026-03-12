@@ -8,6 +8,7 @@ import CommentThread from "@/components/comments/CommentThread";
 import CommentForm from "@/components/comments/CommentForm";
 import ContentAssets from "@/components/content/ContentAssets";
 import PlatformVariants from "@/components/content/PlatformVariants";
+import GenerateActions from "@/components/content/GenerateActions";
 import type { Comment, ContentImage, User } from "@/types/database";
 
 interface PageProps {
@@ -168,6 +169,14 @@ export default async function ContentPiecePage({ params }: PageProps) {
           isAdmin={profile.role === "admin"}
         />
       )}
+
+      {/* Generate Actions (admin only) */}
+      <GenerateActions
+        pieceId={piece.id}
+        companyId={piece.company_id}
+        contentType={piece.content_type}
+        isAdmin={profile.role === "admin"}
+      />
 
       {/* Approval Actions */}
       <ApprovalButtons
