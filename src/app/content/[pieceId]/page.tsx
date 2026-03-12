@@ -6,6 +6,8 @@ import MarkdownRenderer from "@/components/content/MarkdownRenderer";
 import ApprovalButtons from "@/components/content/ApprovalButtons";
 import CommentThread from "@/components/comments/CommentThread";
 import CommentForm from "@/components/comments/CommentForm";
+import ContentAssets from "@/components/content/ContentAssets";
+import PlatformVariants from "@/components/content/PlatformVariants";
 import type { Comment, ContentImage, User } from "@/types/database";
 
 interface PageProps {
@@ -17,6 +19,7 @@ const contentTypeLabels: Record<string, string> = {
   blog_article: "Blog Article",
   linkedin_article: "LinkedIn Article",
   pdf_guide: "PDF Guide",
+  video_script: "Video Script",
 };
 
 export default async function ContentPiecePage({ params }: PageProps) {
@@ -149,6 +152,21 @@ export default async function ContentPiecePage({ params }: PageProps) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Content Assets */}
+      <ContentAssets
+        pieceId={piece.id}
+        isAdmin={profile.role === "admin"}
+      />
+
+      {/* Platform Variants (only for social posts) */}
+      {(piece.content_type === "social_post" ||
+        piece.content_type === "linkedin_article") && (
+        <PlatformVariants
+          pieceId={piece.id}
+          isAdmin={profile.role === "admin"}
+        />
       )}
 
       {/* Approval Actions */}
