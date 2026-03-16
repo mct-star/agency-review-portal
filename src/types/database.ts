@@ -35,16 +35,55 @@ export type ServiceCategory =
   | "blog_publishing"
   | "social_scheduling"
   | "video_rendering"
-  | "transcription";
+  | "transcription"
+  | "newsletter_publishing"
+  | "content_syndication"
+  | "video_hosting";
 
-export type SocialPlatform =
+// All destinations where content can be distributed
+export type DistributionPlatform =
+  // Social platforms
   | "linkedin_personal"
   | "linkedin_company"
   | "twitter"
   | "bluesky"
   | "threads"
   | "facebook"
-  | "instagram";
+  | "instagram"
+  | "tiktok"
+  // Content/newsletter platforms
+  | "substack"
+  | "medium"
+  // Video platforms
+  | "youtube"
+  | "youtube_shorts";
+
+// Subset type for backward compatibility — social-only platforms
+export type SocialPlatform = Extract<
+  DistributionPlatform,
+  | "linkedin_personal"
+  | "linkedin_company"
+  | "twitter"
+  | "bluesky"
+  | "threads"
+  | "facebook"
+  | "instagram"
+  | "tiktok"
+>;
+
+export type ContentPlatform = Extract<DistributionPlatform, "substack" | "medium">;
+export type VideoPlatform = Extract<DistributionPlatform, "youtube" | "youtube_shorts">;
+
+// How content is transformed for a given platform
+export type AdaptationType =
+  | "copy_adapt"         // Single post adaptation (current default)
+  | "thread_expand"      // Multi-part thread (Twitter threads)
+  | "link_post"          // Short copy + URL for sharing articles
+  | "promo_post"         // Promotional copy for PDFs/guides
+  | "caption_generate"   // Image/video captions (Instagram, TikTok)
+  | "newsletter_format"  // Article formatted for newsletter delivery
+  | "article_syndicate"  // Article cross-posted with canonical URL
+  | "video_metadata";    // Title, description, tags for video uploads
 
 export type AssetType =
   | "seo_title"
@@ -205,7 +244,7 @@ export interface CompanyApiConfig {
 export interface CompanySocialAccount {
   id: string;
   company_id: string;
-  platform: SocialPlatform;
+  platform: DistributionPlatform;
   account_name: string | null;
   account_id: string | null;
   access_token_encrypted: string | null;
@@ -259,13 +298,17 @@ export interface PlatformVariant {
   id: string;
   content_piece_id: string;
   social_account_id: string | null;
-  platform: SocialPlatform;
+  platform: DistributionPlatform;
+  adaptation_type: AdaptationType;
   adapted_copy: string;
   adapted_first_comment: string | null;
   character_count: number | null;
   hashtags: string[];
   mentions: string[];
   image_ids: string[];
+  thread_parts: string[] | null;
+  canonical_url: string | null;
+  media_urls: string[] | null;
   scheduled_at: string | null;
   is_selected: boolean;
   platform_metadata: Record<string, unknown>;
@@ -303,12 +346,23 @@ export interface PublishingJob {
   status: PublishingStatus;
   external_id: string | null;
   external_url: string | null;
+  canonical_url: string | null;
   publish_payload: Record<string, unknown>;
   response_payload: Record<string, unknown>;
   error_message: string | null;
   scheduled_for: string | null;
   published_at: string | null;
   triggered_by: string | null;
+  created_at: string;
+}
+
+export interface ContentSyndicationLink {
+  id: string;
+  content_piece_id: string;
+  platform: DistributionPlatform;
+  external_url: string;
+  is_canonical: boolean;
+  published_at: string | null;
   created_at: string;
 }
 

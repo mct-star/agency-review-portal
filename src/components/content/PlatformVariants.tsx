@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SocialPlatform, ApprovalStatus } from "@/types/database";
+import type { DistributionPlatform, ApprovalStatus, AdaptationType } from "@/types/database";
+import { getPlatformCapability } from "@/lib/platform-registry";
 
 interface Variant {
   id: string;
   content_piece_id: string;
-  platform: SocialPlatform;
+  platform: DistributionPlatform;
+  adaptation_type: AdaptationType;
   adapted_copy: string;
   adapted_first_comment: string | null;
   character_count: number | null;
   hashtags: string[];
   mentions: string[];
+  thread_parts: string[] | null;
+  canonical_url: string | null;
   is_selected: boolean;
   approval_status: ApprovalStatus;
   scheduled_at: string | null;
@@ -22,54 +26,6 @@ interface PlatformVariantsProps {
   pieceId: string;
   isAdmin: boolean;
 }
-
-const PLATFORM_CONFIG: Record<
-  SocialPlatform,
-  { label: string; icon: string; maxChars: number; color: string }
-> = {
-  linkedin_personal: {
-    label: "LinkedIn (Personal)",
-    icon: "in",
-    maxChars: 3000,
-    color: "bg-blue-100 text-blue-700",
-  },
-  linkedin_company: {
-    label: "LinkedIn (Company)",
-    icon: "in",
-    maxChars: 3000,
-    color: "bg-blue-100 text-blue-700",
-  },
-  twitter: {
-    label: "Twitter / X",
-    icon: "X",
-    maxChars: 280,
-    color: "bg-gray-100 text-gray-900",
-  },
-  bluesky: {
-    label: "Bluesky",
-    icon: "BS",
-    maxChars: 300,
-    color: "bg-sky-100 text-sky-700",
-  },
-  threads: {
-    label: "Threads",
-    icon: "Th",
-    maxChars: 500,
-    color: "bg-gray-100 text-gray-700",
-  },
-  facebook: {
-    label: "Facebook",
-    icon: "Fb",
-    maxChars: 63206,
-    color: "bg-blue-100 text-blue-800",
-  },
-  instagram: {
-    label: "Instagram",
-    icon: "Ig",
-    maxChars: 2200,
-    color: "bg-pink-100 text-pink-700",
-  },
-};
 
 const APPROVAL_STYLES: Record<ApprovalStatus, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -163,9 +119,12 @@ export default function PlatformVariants({
 
       <div className="space-y-3">
         {variants.map((variant) => {
-          const config = PLATFORM_CONFIG[variant.platform];
+          const cap = getPlatformCapability(variant.platform);
+          const config = cap
+            ? { label: cap.label, icon: cap.shortLabel, maxChars: cap.maxChars, color: cap.color }
+            : { label: variant.platform, icon: "?", maxChars: 3000, color: "bg-gray-100 text-gray-700" };
           const isExpanded = expandedVariant === variant.id;
-          const charPercent = variant.character_count
+          const charPercent = variant.character_count && config.maxChars
             ? Math.round((variant.character_count / config.maxChars) * 100)
             : 0;
 
@@ -252,15 +211,61 @@ export default function PlatformVariants({
               {/* Expanded content */}
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 py-3 space-y-3">
-                  {/* Adapted copy */}
-                  <div>
-                    <p className="text-xs font-medium uppercase text-gray-500 mb-1">
-                      Adapted Copy
-                    </p>
-                    <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-700 whitespace-pre-wrap">
-                      {variant.adapted_copy}
+                  {/* Thread parts (for thread_expand adaptation) */}
+                  {variant.thread_parts && variant.thread_parts.length > 0 ? (
+                    <div>
+                      <p className="text-xs font-medium uppercase text-gray-500 mb-1">
+                        Thread ({variant.thread_parts.length} parts)
+                      </p>
+                      <div className="space-y-2">
+                        {variant.thread_parts.map((part, i) => (
+                          <div
+                            key={i}
+                            className="rounded-md border border-gray-200 bg-gray-50 p-3"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-400">
+                                {i + 1}/{variant.thread_parts!.length}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {part.length} chars
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {part}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Standard adapted copy */
+                    <div>
+                      <p className="text-xs font-medium uppercase text-gray-500 mb-1">
+                        Adapted Copy
+                      </p>
+                      <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                        {variant.adapted_copy}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Canonical URL (for article syndication) */}
+                  {variant.canonical_url && (
+                    <div>
+                      <p className="text-xs font-medium uppercase text-gray-500 mb-1">
+                        Canonical URL
+                      </p>
+                      <a
+                        href={variant.canonical_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-sky-600 hover:underline break-all"
+                      >
+                        {variant.canonical_url}
+                      </a>
+                    </div>
+                  )}
 
                   {/* First comment */}
                   {variant.adapted_first_comment && (

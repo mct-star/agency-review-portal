@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import type { SocialPlatform } from "@/types/database";
+import { useState, useMemo } from "react";
+import type { DistributionPlatform, AdaptationType, ContentType } from "@/types/database";
+import {
+  getPlatformsByCategory,
+  type PlatformCapability,
+} from "@/lib/platform-registry";
 
 interface GenerateActionsProps {
   pieceId: string;
@@ -10,15 +14,10 @@ interface GenerateActionsProps {
   isAdmin: boolean;
 }
 
-const SOCIAL_PLATFORMS: { value: SocialPlatform; label: string }[] = [
-  { value: "linkedin_personal", label: "LinkedIn (Personal)" },
-  { value: "linkedin_company", label: "LinkedIn (Company)" },
-  { value: "twitter", label: "Twitter/X" },
-  { value: "bluesky", label: "Bluesky" },
-  { value: "threads", label: "Threads" },
-  { value: "facebook", label: "Facebook" },
-  { value: "instagram", label: "Instagram" },
-];
+interface PlatformSelection {
+  platform: DistributionPlatform;
+  adaptationType: AdaptationType;
+}
 
 const LANGUAGES = [
   { value: "en", label: "English" },
@@ -47,10 +46,16 @@ export default function GenerateActions({
   const [imageError, setImageError] = useState<string | null>(null);
 
   // Platform adaptation state
-  const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>([]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformSelection[]>([]);
   const [generatingVariants, setGeneratingVariants] = useState(false);
   const [variantResult, setVariantResult] = useState<string | null>(null);
   const [variantError, setVariantError] = useState<string | null>(null);
+
+  // Dynamic platform list based on content type
+  const platformGroups = useMemo(
+    () => getPlatformsByCategory(contentType as ContentType),
+    [contentType]
+  );
 
   // Video rendering state
   const [videoAspect, setVideoAspect] = useState("16:9");
@@ -116,7 +121,10 @@ export default function GenerateActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contentPieceId: pieceId,
-          platforms: selectedPlatforms,
+          platforms: selectedPlatforms.map((s) => ({
+            platform: s.platform,
+            adaptationType: s.adaptationType,
+          })),
         }),
       });
 
@@ -195,11 +203,25 @@ export default function GenerateActions({
     }
   }
 
-  function togglePlatform(platform: SocialPlatform) {
+  function togglePlatform(cap: PlatformCapability) {
+    setSelectedPlatforms((prev) => {
+      const existing = prev.find((s) => s.platform === cap.platform);
+      if (existing) {
+        return prev.filter((s) => s.platform !== cap.platform);
+      }
+      return [...prev, { platform: cap.platform, adaptationType: cap.defaultAdaptationType }];
+    });
+  }
+
+  function cycleAdaptationType(platform: DistributionPlatform, cap: PlatformCapability) {
     setSelectedPlatforms((prev) =>
-      prev.includes(platform)
-        ? prev.filter((p) => p !== platform)
-        : [...prev, platform]
+      prev.map((s) => {
+        if (s.platform !== platform) return s;
+        const allTypes = [cap.defaultAdaptationType, ...cap.alternativeAdaptations];
+        const currentIdx = allTypes.indexOf(s.adaptationType);
+        const nextIdx = (currentIdx + 1) % allTypes.length;
+        return { ...s, adaptationType: allTypes[nextIdx] };
+      })
     );
   }
 
@@ -210,8 +232,10 @@ export default function GenerateActions({
     setShowTranscribeForm(false);
   }
 
-  const showVariants =
-    contentType === "social_post" || contentType === "linkedin_article";
+  const hasPlatforms =
+    platformGroups.social.length > 0 ||
+    platformGroups.content.length > 0 ||
+    platformGroups.video.length > 0;
   const showVideo = contentType === "video_script";
 
   return (
@@ -231,7 +255,7 @@ export default function GenerateActions({
         >
           {showImageForm ? "Hide" : "Generate Images"}
         </button>
-        {showVariants && (
+        {hasPlatforms && (
           <button
             onClick={() => {
               const next = !showVariantForm;
@@ -330,25 +354,129 @@ export default function GenerateActions({
 
       {/* Platform Adaptation Form */}
       {showVariantForm && (
-        <div className="mt-4 space-y-3 rounded-md border border-gray-100 bg-gray-50 p-4">
+        <div className="mt-4 space-y-4 rounded-md border border-gray-100 bg-gray-50 p-4">
           <p className="text-xs text-gray-500">
-            Select platforms to generate adapted variants:
+            Select platforms and adaptation types. Click a selected platform to
+            cycle through its available adaptations.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {SOCIAL_PLATFORMS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => togglePlatform(p.value)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  selectedPlatforms.includes(p.value)
-                    ? "bg-sky-100 text-sky-700 ring-1 ring-sky-300"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+
+          {/* Social Platforms */}
+          {platformGroups.social.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Social
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {platformGroups.social.map((cap) => {
+                  const sel = selectedPlatforms.find(
+                    (s) => s.platform === cap.platform
+                  );
+                  return (
+                    <button
+                      key={cap.platform}
+                      onClick={() =>
+                        sel
+                          ? cap.alternativeAdaptations.length > 0
+                            ? cycleAdaptationType(cap.platform, cap)
+                            : togglePlatform(cap)
+                          : togglePlatform(cap)
+                      }
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (sel) togglePlatform(cap);
+                      }}
+                      title={
+                        sel
+                          ? `${cap.label} (${sel.adaptationType}) — click to cycle, right-click to deselect`
+                          : cap.label
+                      }
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        sel
+                          ? `${cap.color} ring-1 ring-current`
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {cap.shortLabel}
+                      {sel && cap.alternativeAdaptations.length > 0 && (
+                        <span className="ml-1 text-[10px] opacity-75">
+                          {sel.adaptationType === "copy_adapt"
+                            ? "post"
+                            : sel.adaptationType === "thread_expand"
+                              ? "thread"
+                              : sel.adaptationType === "link_post"
+                                ? "link"
+                                : sel.adaptationType === "promo_post"
+                                  ? "promo"
+                                  : sel.adaptationType === "caption_generate"
+                                    ? "caption"
+                                    : sel.adaptationType}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Content Platforms */}
+          {platformGroups.content.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Content / Newsletter
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {platformGroups.content.map((cap) => {
+                  const sel = selectedPlatforms.find(
+                    (s) => s.platform === cap.platform
+                  );
+                  return (
+                    <button
+                      key={cap.platform}
+                      onClick={() => togglePlatform(cap)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        sel
+                          ? `${cap.color} ring-1 ring-current`
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {cap.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Video Platforms */}
+          {platformGroups.video.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Video
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {platformGroups.video.map((cap) => {
+                  const sel = selectedPlatforms.find(
+                    (s) => s.platform === cap.platform
+                  );
+                  return (
+                    <button
+                      key={cap.platform}
+                      onClick={() => togglePlatform(cap)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        sel
+                          ? `${cap.color} ring-1 ring-current`
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {cap.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleGenerateVariants}
             disabled={generatingVariants || selectedPlatforms.length === 0}

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import type { Company } from "@/types/database";
+import type { Company, ContentType } from "@/types/database";
+import { getPlatformsForContentType } from "@/lib/platform-registry";
 
 interface ApprovedPiece {
   id: string;
@@ -238,51 +239,38 @@ export default function PublishPage() {
                           View →
                         </Link>
                       </div>
-                      {/* Quick queue buttons */}
+                      {/* Quick queue buttons — driven by platform registry */}
                       <div className="mt-2 flex flex-wrap gap-1.5">
+                        {/* Blog publishing platforms */}
                         {piece.content_type === "blog_article" && (
                           <>
-                            <button
-                              onClick={() => handleQueueJob(piece.id, "wordpress")}
-                              className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
-                            >
-                              Queue → WordPress
-                            </button>
-                            <button
-                              onClick={() => handleQueueJob(piece.id, "wix")}
-                              className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
-                            >
-                              Queue → Wix
-                            </button>
-                            <button
-                              onClick={() => handleQueueJob(piece.id, "shopify")}
-                              className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
-                            >
-                              Queue → Shopify
-                            </button>
+                            {["wordpress", "wix", "shopify"].map((bp) => (
+                              <button
+                                key={bp}
+                                onClick={() => handleQueueJob(piece.id, bp)}
+                                className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
+                              >
+                                Queue → {bp.charAt(0).toUpperCase() + bp.slice(1)}
+                              </button>
+                            ))}
                           </>
                         )}
-                        {(piece.content_type === "social_post" ||
-                          piece.content_type === "linkedin_article") && (
-                          <>
+                        {/* Distribution platforms from registry */}
+                        {getPlatformsForContentType(
+                          piece.content_type as ContentType
+                        )
+                          .slice(0, 6)
+                          .map((cap) => (
                             <button
+                              key={cap.platform}
                               onClick={() =>
-                                handleQueueJob(piece.id, "linkedin_personal")
+                                handleQueueJob(piece.id, cap.platform)
                               }
-                              className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
+                              className={`rounded px-2 py-1 text-xs ${cap.color} hover:opacity-80`}
                             >
-                              Queue → LinkedIn
+                              → {cap.shortLabel}
                             </button>
-                            <button
-                              onClick={() =>
-                                handleQueueJob(piece.id, "twitter")
-                              }
-                              className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 hover:bg-gray-200"
-                            >
-                              Queue → Twitter/X
-                            </button>
-                          </>
-                        )}
+                          ))}
                       </div>
                     </div>
                   ))}

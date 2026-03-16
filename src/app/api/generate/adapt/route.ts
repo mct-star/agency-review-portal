@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { getPlatformAdaptationProvider } from "@/lib/providers";
-import type { SocialPlatform } from "@/types/database";
+import { getCharLimit, getDefaultAdaptationType } from "@/lib/platform-registry";
+import { resolveAdaptationStrategy } from "@/lib/providers/content-adaptation/strategies";
+import { resolveProvider } from "@/lib/providers";
+import type { AdaptationType, DistributionPlatform } from "@/types/database";
 
-const PLATFORM_CHAR_LIMITS: Record<SocialPlatform, number> = {
-  linkedin_personal: 3000,
-  linkedin_company: 3000,
-  twitter: 280,
-  bluesky: 300,
-  threads: 500,
-  facebook: 63206,
-  instagram: 2200,
-};
+interface PlatformRequest {
+  platform: DistributionPlatform;
+  adaptationType?: AdaptationType;
+}
 
 /**
  * POST /api/generate/adapt
@@ -19,11 +16,15 @@ const PLATFORM_CHAR_LIMITS: Record<SocialPlatform, number> = {
  *
  * Body: {
  *   contentPieceId: string,
- *   platforms: SocialPlatform[],  // which platforms to adapt for
+ *   platforms: DistributionPlatform[] | PlatformRequest[],
  * }
  *
- * Creates a generation job, adapts the content for each platform,
- * and stores the variants in platform_variants.
+ * Accepts either:
+ *   - Simple string array: ["twitter", "bluesky"] (uses default adaptation per platform)
+ *   - Object array: [{ platform: "twitter", adaptationType: "thread_expand" }]
+ *
+ * Creates a generation job, adapts the content for each platform using the
+ * appropriate adaptation strategy, and stores variants in platform_variants.
  */
 export async function POST(request: Request) {
   const admin = await requireAdmin();
@@ -32,14 +33,22 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { contentPieceId, platforms } = body;
+  const { contentPieceId, platforms: rawPlatforms } = body;
 
-  if (!contentPieceId || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
+  if (!contentPieceId || !rawPlatforms || !Array.isArray(rawPlatforms) || rawPlatforms.length === 0) {
     return NextResponse.json(
       { error: "contentPieceId and platforms array are required" },
       { status: 400 }
     );
   }
+
+  // Normalize to PlatformRequest[] (backward compatible with string[])
+  const platformRequests: PlatformRequest[] = rawPlatforms.map(
+    (p: string | PlatformRequest) =>
+      typeof p === "string"
+        ? { platform: p as DistributionPlatform, adaptationType: undefined }
+        : p
+  );
 
   const supabase = await createAdminSupabaseClient();
 
@@ -63,7 +72,7 @@ export async function POST(request: Request) {
       content_piece_id: contentPieceId,
       job_type: "platform_adaptation",
       status: "queued",
-      input_payload: { platforms },
+      input_payload: { platforms: platformRequests },
       progress: 0,
       triggered_by: admin.id,
     })
@@ -100,10 +109,22 @@ export async function POST(request: Request) {
       .eq("id", piece.company_id)
       .single();
 
-    // Get the adaptation provider
-    const { provider, providerName } = await getPlatformAdaptationProvider(
-      piece.company_id
-    );
+    // Resolve credentials for the content_generation provider (used by all strategies)
+    let credentials: Record<string, unknown> = {};
+    let providerSettings: Record<string, unknown> = {};
+    let providerName = "anthropic";
+    try {
+      const resolved = await resolveProvider(piece.company_id, "content_generation");
+      if (resolved) {
+        credentials = resolved.credentials;
+        providerSettings = resolved.settings;
+        providerName = resolved.provider;
+      }
+    } catch {
+      // Fall back to env var if no provider configured
+      credentials = {};
+      providerSettings = {};
+    }
 
     await supabase
       .from("content_generation_jobs")
@@ -111,41 +132,46 @@ export async function POST(request: Request) {
       .eq("id", jobId);
 
     // Adapt for each platform sequentially
-    const variants: {
-      content_piece_id: string;
-      platform: string;
-      adapted_copy: string;
-      adapted_first_comment: string | null;
-      character_count: number;
-      hashtags: string[];
-      mentions: string[];
-      is_selected: boolean;
-      approval_status: string;
-    }[] = [];
+    const variants: Record<string, unknown>[] = [];
+    const progressPerPlatform = 60 / platformRequests.length;
 
-    const progressPerPlatform = 60 / platforms.length;
+    for (let i = 0; i < platformRequests.length; i++) {
+      const { platform, adaptationType: requestedType } = platformRequests[i];
+      const adaptationType = requestedType || getDefaultAdaptationType(platform);
+      const maxChars = getCharLimit(platform) || 3000;
 
-    for (let i = 0; i < platforms.length; i++) {
-      const platform = platforms[i] as SocialPlatform;
-      const maxChars = PLATFORM_CHAR_LIMITS[platform] || 3000;
+      // Resolve the right strategy for this adaptation type
+      const strategy = await resolveAdaptationStrategy(
+        adaptationType,
+        credentials,
+        providerSettings
+      );
 
-      const result = await provider.adapt({
+      const result = await strategy.adapt({
         originalCopy: piece.markdown_body,
         originalFirstComment: piece.first_comment,
+        contentType: piece.content_type,
         platform,
+        adaptationType,
         maxChars,
         spokespersonName: company?.spokesperson_name || null,
         blueprintContent: blueprint?.blueprint_content,
+        title: piece.title,
       });
 
       variants.push({
         content_piece_id: contentPieceId,
         platform,
+        adaptation_type: adaptationType,
         adapted_copy: result.adaptedCopy,
         adapted_first_comment: result.adaptedFirstComment,
         character_count: result.characterCount,
         hashtags: result.hashtags,
         mentions: result.mentions,
+        thread_parts: result.threadParts,
+        canonical_url: result.canonicalUrl,
+        media_urls: result.mediaUrls,
+        platform_metadata: result.metadata,
         is_selected: true,
         approval_status: "pending",
       });
@@ -175,7 +201,7 @@ export async function POST(request: Request) {
         completed_at: new Date().toISOString(),
         output_payload: {
           variantCount: insertedVariants?.length || 0,
-          platforms,
+          platforms: platformRequests,
         },
       })
       .eq("id", jobId);
