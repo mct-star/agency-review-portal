@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { companyId, weekId, topicId, contentType, additionalContext } = body;
+  const { companyId, weekId, topicId, contentType, additionalContext, spokespersonName } = body;
 
   if (!companyId || !weekId || !topicId || !contentType) {
     return NextResponse.json(
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       audienceTheme: topicRes.data.audience_theme,
       contentType: contentType as ContentGenerationInput["contentType"],
       weekNumber: weekRes.data.week_number,
-      spokespersonName: companyRes.data?.spokesperson_name || null,
+      spokespersonName: spokespersonName || companyRes.data?.spokesperson_name || null,
       additionalContext,
     };
 

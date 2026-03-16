@@ -78,6 +78,7 @@ export default function GeneratePage() {
   const [selectedTopic, setSelectedTopic] = useState<TopicBankEntry | null>(null);
   const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null);
   const [additionalContext, setAdditionalContext] = useState("");
+  const [spokespersonOverride, setSpokespersonOverride] = useState("");
 
   // Generation state
   const [generating, setGenerating] = useState(false);
@@ -105,9 +106,10 @@ export default function GeneratePage() {
       .then((json) => setRecentJobs(json.data || []));
   }, []);
 
-  // Fetch weeks when company selected
+  // Fetch weeks when company selected + pre-fill spokesperson
   useEffect(() => {
     if (!selectedCompany) return;
+    setSpokespersonOverride(selectedCompany.spokesperson_name || "");
     setLoadingWeeks(true);
     fetch(`/api/weeks?companyId=${selectedCompany.id}`)
       .then((r) => r.json())
@@ -167,6 +169,7 @@ export default function GeneratePage() {
           topicId: selectedTopic.id,
           contentType: selectedContentType,
           additionalContext: additionalContext || undefined,
+          spokespersonName: spokespersonOverride || undefined,
         }),
       });
 
@@ -200,6 +203,7 @@ export default function GeneratePage() {
     setSelectedTopic(null);
     setSelectedContentType(null);
     setAdditionalContext("");
+    setSpokespersonOverride("");
     setGenerating(false);
     setJobId(null);
     setJobStatus(null);
@@ -211,7 +215,15 @@ export default function GeneratePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
+          <Link
+            href="/admin/generate/batch"
+            className="rounded-md bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200"
+          >
+            Full Week Mode
+          </Link>
+        </div>
         {step !== "company" && step !== "generating" && (
           <button
             onClick={resetForm}
@@ -514,6 +526,20 @@ export default function GeneratePage() {
                   {CONTENT_TYPES.find((ct) => ct.value === selectedContentType)?.label}
                 </span>
               </div>
+            </div>
+
+            {/* Spokesperson override */}
+            <div className="mt-4">
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                Spokesperson
+              </label>
+              <input
+                type="text"
+                value={spokespersonOverride}
+                onChange={(e) => setSpokespersonOverride(e.target.value)}
+                placeholder="Spokesperson name..."
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-300"
+              />
             </div>
 
             {/* Additional context */}
