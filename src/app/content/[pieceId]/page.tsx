@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Badge from "@/components/ui/Badge";
-import MarkdownRenderer from "@/components/content/MarkdownRenderer";
+import ContentViewTabs from "@/components/content/ContentViewTabs";
 import ApprovalButtons from "@/components/content/ApprovalButtons";
 import CommentThread from "@/components/comments/CommentThread";
 import CommentForm from "@/components/comments/CommentForm";
@@ -49,6 +49,16 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .select("*, user:users(*)")
     .eq("content_piece_id", pieceId)
     .order("created_at", { ascending: true });
+
+  // Fetch company data for LinkedIn preview (spokesperson name, brand color)
+  const { data: company } = await supabase
+    .from("companies")
+    .select("spokesperson_name, brand_color")
+    .eq("id", piece.company_id)
+    .single();
+
+  // Find the first generated image for preview (if any)
+  const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -114,22 +124,17 @@ export default async function ContentPiecePage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Content Body */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <MarkdownRenderer content={piece.markdown_body} />
-      </div>
-
-      {/* First Comment */}
-      {piece.first_comment && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-            First Comment
-          </h3>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">
-            {piece.first_comment}
-          </p>
-        </div>
-      )}
+      {/* Content Body + LinkedIn Preview (tabbed) */}
+      <ContentViewTabs
+        markdownBody={piece.markdown_body}
+        firstComment={piece.first_comment}
+        contentType={piece.content_type}
+        authorName={company?.spokesperson_name || "Author"}
+        authorTagline="Healthcare Demand Generation"
+        brandColor={company?.brand_color || "#0a66c2"}
+        postType={piece.post_type}
+        imageUrl={previewImageUrl}
+      />
 
       {/* Images */}
       {(images || []).length > 0 && (

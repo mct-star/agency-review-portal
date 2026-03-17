@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import type { ContentPiece, Company } from "@/types/database";
 import PublishButton from "@/components/weeks/PublishButton";
+import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
 
 interface PageProps {
   params: Promise<{ weekId: string }>;
@@ -97,9 +98,23 @@ export default async function WeekDetailPage({ params }: PageProps) {
           )}
         </div>
 
-        {isAdmin && week.status === "draft" && (
-          <PublishButton weekId={week.id} />
-        )}
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/review/${week.id}`}
+            className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            Review All
+          </Link>
+          {isAdmin && socialPieces.length > 0 && (
+            <MetricoolExportButton
+              weekId={week.id}
+              draft={approvedCount < totalPieces}
+            />
+          )}
+          {isAdmin && week.status === "draft" && (
+            <PublishButton weekId={week.id} />
+          )}
+        </div>
       </div>
 
       {/* Progress */}

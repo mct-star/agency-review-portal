@@ -107,6 +107,7 @@ export type AssetType =
   | "broll_timestamps"
   | "subtitle_cues"
   | "platform_copy"
+  | "image_prompt"
   | "custom";
 
 export type GenerationJobType =
