@@ -9,6 +9,7 @@ import CommentForm from "@/components/comments/CommentForm";
 import ContentAssets from "@/components/content/ContentAssets";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
+import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 
 interface PageProps {
@@ -182,6 +183,15 @@ export default async function ContentPiecePage({ params }: PageProps) {
         contentType={piece.content_type}
         isAdmin={profile.role === "admin"}
       />
+
+      {/* LinkedIn Publish (admin only, social posts only) */}
+      {profile.role === "admin" && piece.content_type === "social_post" && (
+        <LinkedInPublishButton
+          pieceId={piece.id}
+          companyId={piece.company_id}
+          isApproved={piece.approval_status === "approved"}
+        />
+      )}
 
       {/* Approval Actions */}
       <ApprovalButtons
