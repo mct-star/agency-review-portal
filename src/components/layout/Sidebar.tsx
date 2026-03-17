@@ -17,6 +17,7 @@ const adminNav = [
   { href: "/admin/companies", label: "Companies", icon: "building" },
   { href: "/admin/generate", label: "Generate", icon: "sparkle" },
   { href: "/admin/publish", label: "Publish", icon: "send" },
+  { href: "/admin/video", label: "Video", icon: "video" },
   { href: "/admin/users", label: "Users", icon: "users" },
 ];
 
@@ -38,6 +39,7 @@ const icons: Record<string, string> = {
   sparkle:
     "M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z",
   send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
+  video: "M15 8v8H5V8h10m1-2H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4V7c0-.55-.45-1-1-1z",
 };
 
 export default function Sidebar({ user }: SidebarProps) {
