@@ -38,6 +38,7 @@ export interface ContentGenerationOutput {
   firstComment: string | null;
   wordCount: number;
   postType: string | null;
+  imagePrompt: string | null;
   assets: {
     assetType: string;
     textContent: string;

@@ -4,6 +4,15 @@
  * Uses the Anthropic Messages API to generate content pieces and
  * platform-adapted variants. The provider expects credentials with
  * an `api_key` field and optional settings like `model`.
+ *
+ * The prompt is structured in three layers:
+ *   1. Voice Enforcement — explicit, non-negotiable style rules extracted
+ *      from the standardised Company Blueprint template sections (C1-C7, E3).
+ *   2. Content Type Instructions — format-specific guidance (social, blog, etc.)
+ *   3. Blueprint Context — the full document for topic expertise and detail.
+ *
+ * This avoids the "dump 23K chars and say follow it" problem. Claude gets
+ * the rules spelled out, plus the full blueprint for reference.
  */
 
 import type {
@@ -62,84 +71,222 @@ async function callClaude(
   return textBlock.text;
 }
 
-// ── Content Generation ──────────────────────────────────────
+// ── Content Type Instructions ───────────────────────────────
+//
+// Each content type gets format-specific guidance. These are combined
+// with the voice enforcement rules in buildContentPrompt().
 
 const CONTENT_TYPE_INSTRUCTIONS: Record<string, string> = {
-  social_post: `Write a LinkedIn social media post. Include:
-- A compelling hook (first line that stops the scroll)
-- 3-5 short paragraphs with insight, story, or framework
-- A clear call-to-action
-- Sign off with the spokesperson's name
-- Generate a "first comment" (a follow-up comment the author posts immediately after)
-- Post type should be one of: insight, story, framework, contrarian, list, question`,
+  social_post: `FORMAT: LinkedIn social media post.
 
-  blog_article: `Write a full blog article (800-1200 words). Include:
-- A compelling title (no colons or hyphens)
-- An engaging opening paragraph
-- 3-5 sections with subheadings (use ## for subheadings)
-- Practical takeaways
-- A conclusion with call-to-action
-- Also generate: SEO title (60 chars max), meta description (155 chars max), URL slug, excerpt (2 sentences)`,
+STRUCTURE:
+- A brilliant hook (first line that stops the scroll). Short. Sets up tension, contrast, or a specific observation. No colons or hyphens in hooks.
+- 3-6 short paragraphs. Each paragraph is 1-2 sentences MAX. Use line breaks between paragraphs.
+- At least one bracketed aside somewhere in the body (MANDATORY).
+- End with the EXACT sign-off from the blueprint (Section E3). Do not paraphrase it. Copy it verbatim.
+- Before the sign-off, include a context-appropriate engagement question related to the post topic.
+- 2-3 hashtags at the very end.
+- Post type should be one of: insight, story, framework, contrarian, list, question.
 
-  linkedin_article: `Write a LinkedIn article (600-1000 words). Include:
-- A thought-provoking title
-- An opening that frames the problem
-- 3-4 sections with clear subheadings
-- Professional insights with real-world examples
-- A conclusion that positions the author as an authority
-- Also generate: SEO title, meta description, excerpt`,
+FIRST COMMENT:
+- Generate a "first comment" to post immediately after the main post.
+- The first comment is a CTA that follows the blueprint's first-comment rules (Section E3).
+- It should link to a relevant resource from the blueprint's CTA URLs.
+- The first comment is conversational and brief (1-3 sentences + link).
 
-  pdf_guide: `Write content for an 8-page PDF guide. Include:
-- A title and subtitle
-- An executive summary (1 paragraph)
-- 4-6 main sections with actionable content
-- Bullet points and numbered lists where appropriate
-- A conclusion with next steps
-- Also generate: cover page copy, back page CTA`,
+WORD COUNT: 150-350 words (excluding sign-off and hashtags).
 
-  video_script: `Write a video script (3-5 minutes when read aloud). Include:
-- Opening hook (first 5 seconds to capture attention)
-- Main content divided into clear segments
-- Transitions between segments
-- Closing with call-to-action
-- Also generate: intro/outro spec, B-roll timestamps`,
+IMAGE PROMPT:
+- Describe a Pixar-style 3D illustration that visualises the post concept.
+- The scene should have warm lighting, depth of field, and a healthcare/business setting.
+- Include specific objects that relate to the topic (e.g., a tiny surgeon standing next to a giant procurement form).
+- No text in the image. No logos. No real people.`,
+
+  blog_article: `FORMAT: Full blog article (800-1200 words).
+
+STRUCTURE:
+- A compelling title (no colons, no hyphens, no question marks).
+- An engaging opening paragraph that frames the problem from a healthcare commercial perspective.
+- 3-5 sections with subheadings (use ## for subheadings). Subheadings should be conversational, not corporate.
+- Each section should contain practical, specific takeaways grounded in healthcare scenarios.
+- A conclusion that reflects rather than summarises. End with a thought, not a sales pitch.
+- Use the blueprint voice throughout: short sentences, hedging language, bracketed asides, UK spelling.
+- In long-form: anti-contraction style ("do not" rather than "don't").
+
+ALSO GENERATE THESE ASSETS:
+- SEO title (60 chars max, compelling, no colons)
+- Meta description (155 chars max)
+- URL slug (lowercase, hyphenated)
+- Excerpt (2 sentences that would work as a social teaser)
+
+IMAGE PROMPT:
+- Describe a hero image for the blog post.
+- Professional healthcare/business setting, editorial photography style.
+- Should capture the theme of the article without being literal.`,
+
+  linkedin_article: `FORMAT: LinkedIn article (600-1000 words).
+
+STRUCTURE:
+- A thought-provoking title that would make a healthcare marketing director click.
+- An opening that frames the problem from real-world experience.
+- 3-4 sections with clear subheadings.
+- Professional insights grounded in specific healthcare commercial scenarios.
+- A conclusion that positions the author as a thoughtful practitioner, not a guru.
+- Use the blueprint voice: hedging over declaring, observations over verdicts.
+- Anti-contraction style in long-form.
+
+ALSO GENERATE THESE ASSETS:
+- SEO title, meta description, excerpt.
+
+IMAGE PROMPT:
+- Describe a header image for a LinkedIn article.
+- Professional, clean, healthcare/business context.`,
+
+  pdf_guide: `FORMAT: 8-page PDF guide content.
+
+STRUCTURE:
+- A title and subtitle.
+- An executive summary (1 paragraph).
+- 4-6 main sections with actionable, specific content.
+- Bullet points and numbered lists where they genuinely help.
+- A conclusion with clear next steps.
+- Cover page copy (short, punchy, states the value proposition).
+- Back page CTA (drives to a specific action).
+- Voice should be slightly more structured than social posts but still conversational.
+
+IMAGE PROMPT:
+- Describe a clean, professional cover image for a PDF guide.
+- Healthcare business context, modern design aesthetic.`,
+
+  video_script: `FORMAT: Video script (3-5 minutes when read aloud).
+
+STRUCTURE:
+- Opening hook (first 5 seconds — something surprising or provocative).
+- Main content in clear segments with natural transitions.
+- Conversational delivery — this will be spoken aloud, so write for the ear, not the eye.
+- Closing with a clear CTA.
+- Intro/outro specification.
+- B-roll timestamp suggestions.
+
+IMAGE PROMPT:
+- Describe a YouTube thumbnail: bold, clear, with a visual metaphor for the topic.
+- Should work at small sizes. Describe any text overlay needed.`,
 };
+
+// ── Prompt Builder ──────────────────────────────────────────
 
 function buildContentPrompt(input: ContentGenerationInput): string {
   const typeInstructions =
     CONTENT_TYPE_INSTRUCTIONS[input.contentType] || CONTENT_TYPE_INSTRUCTIONS.social_post;
 
-  return `You are a content generation assistant. Create high-quality content based on the company's blueprint and the assigned topic.
+  const spokespersonClause = input.spokespersonName
+    ? `You are writing as ${input.spokespersonName}. The content must sound like they wrote it themselves.`
+    : "";
 
-COMPANY BLUEPRINT:
-${input.blueprintContent}
+  return `You are a content ghostwriter. ${spokespersonClause} Your job is to produce content that is INDISTINGUISHABLE from the spokesperson's own writing. Not "inspired by" — identical in voice.
+
+The company's full blueprint is provided below. You MUST study and precisely follow every voice, style, and formatting rule it contains. These are not suggestions. Every rule is a hard constraint.
+
+${"═".repeat(60)}
+VOICE ENFORCEMENT (NON-NEGOTIABLE RULES)
+${"═".repeat(60)}
+
+Read the blueprint carefully and follow these rules EXACTLY:
+
+1. VOICE CHARACTER (Blueprint Section C2)
+   Find the "Voice Character" section. Embody that description completely.
+   Pay close attention to: hedging vs declaring, sentence length, perspective,
+   and emotional register. The voice should match EXACTLY — not a generic
+   professional voice, not a motivational speaker, not a consultant's blog.
+
+2. SIGNATURE DEVICES (Blueprint Section C4)
+   You MUST include at least ONE bracketed aside in every piece.
+   Examples: "(He wasn't wrong to be annoyed, to be fair.)"
+   "(Took us a while to figure that out.)" "(Ask me how I know.)"
+   Also use: question tags, British interjections ("Blimey...", "Right then...",
+   "Fair enough", "Mind you..."), understatement, hedging phrases
+   ("I think there's...", "Probably worth...", "Fair to say..."),
+   and self-deprecating asides. These are MANDATORY, not decorative.
+
+3. BANNED VOCABULARY (Blueprint Section C5)
+   Find the "Banned Vocabulary" section. NEVER use ANY word or phrase listed there.
+   Common traps to avoid: leverage, optimise, comprehensive, robust, synergy,
+   ecosystem, best practices, impactful, game-changer, revolutionary, exciting,
+   resonates, crucial, spot on, nailed it, certainly, indeed, awesome,
+   I'm curious, best of luck, exciting times, we've all been there.
+   If you catch yourself reaching for any corporate, hype, or validation word
+   — find a different, more human way to say it.
+
+4. FORMATTING MANDATES (Blueprint Section C6)
+   - UK spelling ALWAYS: organisation, recognise, colour, behaviour, centre, programme
+   - 1-2 sentence paragraphs for social posts. Blank line between each.
+   - NO em-dashes (—) or en-dashes (–) ANYWHERE. Use commas, full stops, or line breaks.
+   - NO exclamation marks. The voice is understated, not excitable.
+   - NO emoji in body copy. Ever.
+   - NEVER open with "I" as the first word of the post. Start with a scene, fact, or observation.
+   - Digits for stats (73%, 12 minutes). Words for small counts in prose (three things).
+   - Oxford comma: yes.
+   - NO colons or hyphens in titles or hooks.
+   - Long-form: anti-contraction ("do not" not "don't", "cannot" not "can't").
+
+5. SIGN-OFF & FIRST COMMENT (Blueprint Section E3)
+   Find the EXACT sign-off text in the blueprint and reproduce it VERBATIM.
+   Do not paraphrase, abbreviate, or "improve" it. Copy it exactly as written.
+   Before the sign-off, add a context-relevant engagement question about the topic.
+   For the first comment: follow the blueprint's CTA rules. Use the specific
+   URLs and link text from the blueprint's CTA table.
+
+6. WRITING SAMPLES (Blueprint Section C7)
+   Study every writing sample in the blueprint. These are your north star.
+   Match the sentence rhythm, paragraph length, narrative arc, and emotional
+   register of these samples. When in doubt about any stylistic choice,
+   default to whatever the writing samples demonstrate.
+
+7. CONTENT GUARDRAILS
+   - ALL content must reference healthcare-specific scenarios: clinical champions,
+     procurement committees, surgeons, hospital buying processes, medical devices,
+     health tech, NHS/health system dynamics, sales access challenges.
+   - Stay in lane: healthcare marketing and demand generation ONLY.
+   - Do NOT comment on: hard science, AI/tech trends, leadership theory, general B2B.
+   - Never lecture experts on their domain (clinicians on medicine, regulators on regulation).
+   - End stories with reflective observations, not stated morals.
+   - Never punch down. Humour is warm, never cruel.
+
+${"═".repeat(60)}
+TOPIC & CONTEXT
+${"═".repeat(60)}
 
 TOPIC: ${input.topicTitle}
 ${input.topicDescription ? `DESCRIPTION: ${input.topicDescription}` : ""}
 ${input.pillar ? `CONTENT PILLAR: ${input.pillar}` : ""}
 ${input.audienceTheme ? `AUDIENCE THEME: ${input.audienceTheme}` : ""}
 WEEK: ${input.weekNumber}
-${input.spokespersonName ? `SPOKESPERSON: ${input.spokespersonName}` : ""}
 ${input.additionalContext ? `\nADDITIONAL CONTEXT:\n${input.additionalContext}` : ""}
 
-CONTENT TYPE: ${input.contentType}
+${"═".repeat(60)}
+CONTENT TYPE
+${"═".repeat(60)}
 
 ${typeInstructions}
 
-IMPORTANT RULES:
-- Write in the voice and style described in the blueprint
-- Reference healthcare-specific scenarios where relevant
-- No em-dashes or en-dashes anywhere
-- No colons or hyphens in titles or hooks
-- Every claim should be grounded in the blueprint's expertise areas
+${"═".repeat(60)}
+COMPANY BLUEPRINT (FULL DOCUMENT — READ CAREFULLY)
+${"═".repeat(60)}
+
+${input.blueprintContent}
+
+${"═".repeat(60)}
+OUTPUT FORMAT
+${"═".repeat(60)}
 
 Respond with a JSON object (no markdown code fences) matching this structure:
 {
   "title": "string",
-  "markdownBody": "string (the full content in markdown)",
-  "firstComment": "string or null",
+  "markdownBody": "string (the full content in markdown, including sign-off and hashtags for social posts)",
+  "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
   "wordCount": number,
-  "postType": "string or null (e.g. insight, story, framework)",
+  "postType": "string or null (e.g. insight, story, framework, contrarian, list, question)",
+  "imagePrompt": "string (a detailed image generation prompt — describe scene, mood, style, objects, setting — see IMAGE PROMPT instructions above)",
   "assets": [
     { "assetType": "seo_title", "textContent": "..." },
     { "assetType": "seo_meta_description", "textContent": "..." },
@@ -148,7 +295,16 @@ Respond with a JSON object (no markdown code fences) matching this structure:
   ]
 }
 
-Only include assets that are relevant to this content type.`;
+Only include assets that are relevant to this content type (social posts typically have no SEO assets).
+
+FINAL CHECK before outputting:
+- Did you use the EXACT sign-off from Section E3? Not paraphrased?
+- Did you include at least one bracketed aside?
+- Did you avoid every banned word from Section C5?
+- Is every word spelled with UK English?
+- Are there any em-dashes, en-dashes, or exclamation marks? Remove them.
+- Does the first word of the post avoid starting with "I"?
+- Does the title avoid colons and hyphens?`;
 }
 
 export function createClaudeContentProvider(
@@ -182,7 +338,12 @@ export function createClaudeContentProvider(
         .trim();
 
       try {
-        return JSON.parse(cleaned) as ContentGenerationOutput;
+        const parsed = JSON.parse(cleaned) as ContentGenerationOutput;
+        // Ensure imagePrompt has a fallback
+        if (!parsed.imagePrompt) {
+          parsed.imagePrompt = null;
+        }
+        return parsed;
       } catch {
         throw new Error(
           `Failed to parse Claude response as JSON. Raw output: ${text.substring(0, 500)}`
@@ -231,8 +392,8 @@ const PLATFORM_RULES: Record<string, string> = {
 - Maximum 3000 characters
 - Professional but personal tone
 - Hook in first 2 lines (before "see more")
-- End with sign-off
-- 3-5 hashtags`,
+- End with sign-off (use the EXACT sign-off from the blueprint)
+- 2-3 hashtags at the end`,
 
   linkedin_company: `LinkedIn Company Page rules:
 - Maximum 3000 characters
@@ -263,7 +424,9 @@ export function createClaudePlatformAdaptationProvider(
 
       const system = `You are a social media content adapter. Take the original post and adapt it for a specific platform while maintaining the core message and voice.
 
-${input.blueprintContent ? `BRAND CONTEXT:\n${input.blueprintContent}\n` : ""}
+CRITICAL: Preserve the author's voice exactly. If there are bracketed asides, keep them. If the tone is understated and hedging, keep it that way. Do not make the adapted version more "energetic" or "engaging" — match the original voice.
+
+${input.blueprintContent ? `BRAND CONTEXT (for voice reference):\n${input.blueprintContent}\n` : ""}
 ${input.spokespersonName ? `AUTHOR: ${input.spokespersonName}` : ""}
 
 PLATFORM: ${input.platform}
@@ -273,6 +436,12 @@ ORIGINAL POST:
 ${input.originalCopy}
 
 ${input.originalFirstComment ? `ORIGINAL FIRST COMMENT:\n${input.originalFirstComment}` : ""}
+
+FORMATTING RULES (apply to all platforms):
+- UK spelling (organisation, recognise, colour)
+- No em-dashes or en-dashes
+- No exclamation marks
+- No emoji in body copy (unless platform specifically requires it)
 
 Adapt this content for ${input.platform}. Respond with JSON (no code fences):
 {
