@@ -142,6 +142,7 @@ export interface Company {
   name: string;
   slug: string;
   spokesperson_name: string | null;
+  spokesperson_tagline: string | null;
   logo_url: string | null;
   brand_color: string | null;
   created_at: string;

@@ -28,27 +28,14 @@ export default async function WeekReviewPage({ params }: PageProps) {
 
   const company = week.company as Company;
 
-  // Fetch all content pieces with images and assets in parallel
-  const [piecesRes, imagesRes, assetsRes] = await Promise.all([
-    supabase
-      .from("content_pieces")
-      .select("*")
-      .eq("week_id", weekId)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("content_images")
-      .select("*")
-      .eq("content_piece_id", weekId) // This won't work — need to filter by piece IDs
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("content_assets")
-      .select("*")
-      .order("sort_order", { ascending: true }),
-  ]);
+  // Fetch content pieces first, then batch-fetch their images and assets
+  const { data: piecesData } = await supabase
+    .from("content_pieces")
+    .select("*")
+    .eq("week_id", weekId)
+    .order("sort_order", { ascending: true });
 
-  const pieces = (piecesRes.data || []) as ContentPiece[];
-
-  // Get piece IDs to fetch their images and assets
+  const pieces = (piecesData || []) as ContentPiece[];
   const pieceIds = pieces.map((p) => p.id);
 
   const [imagesForPieces, assetsForPieces] = await Promise.all([
@@ -189,7 +176,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
         articlePieces={articlePieces}
         allPieces={enrichedPieces}
         authorName={company.spokesperson_name || "Author"}
-        authorTagline="Healthcare Demand Generation"
+        authorTagline={company.spokesperson_tagline || "Healthcare Demand Generation"}
         brandColor={company.brand_color || "#0a66c2"}
       />
     </div>

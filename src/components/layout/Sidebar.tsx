@@ -62,7 +62,9 @@ export default function Sidebar({ user }: SidebarProps) {
 
       <nav className="flex-1 space-y-1 px-2 py-3">
         {nav.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          // /review/* should highlight the "Weeks" nav item since reviews are week-scoped
+          const isReviewPage = pathname.startsWith("/review/") && item.href === "/weeks";
+          const active = pathname === item.href || pathname.startsWith(item.href + "/") || isReviewPage;
           return (
             <Link
               key={item.href}

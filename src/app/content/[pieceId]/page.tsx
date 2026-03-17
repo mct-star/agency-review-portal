@@ -54,7 +54,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
   // Fetch company data for LinkedIn preview (spokesperson name, brand color)
   const { data: company } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color")
+    .select("spokesperson_name, spokesperson_tagline, brand_color")
     .eq("id", piece.company_id)
     .single();
 
@@ -131,7 +131,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
         firstComment={piece.first_comment}
         contentType={piece.content_type}
         authorName={company?.spokesperson_name || "Author"}
-        authorTagline="Healthcare Demand Generation"
+        authorTagline={company?.spokesperson_tagline || "Healthcare Demand Generation"}
         brandColor={company?.brand_color || "#0a66c2"}
         postType={piece.post_type}
         imageUrl={previewImageUrl}
