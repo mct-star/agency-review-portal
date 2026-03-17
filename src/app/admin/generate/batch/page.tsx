@@ -6,7 +6,7 @@ import type {
   Company,
   Week,
   TopicBankEntry,
-  ContentType,
+  PostingSlotWithType,
   DistributionPlatform,
 } from "@/types/database";
 import {
@@ -17,15 +17,14 @@ import {
 
 // ── Types ───────────────────────────────────────────────────
 
-interface PieceConfig {
-  id: string; // local UI key
-  topic: TopicBankEntry;
-  contentType: ContentType;
+interface SlotAssignment {
+  slotId: string;
+  topic: TopicBankEntry | null;
   additionalContext: string;
 }
 
 interface PieceResult {
-  id: string;
+  slotId: string;
   status: "pending" | "generating" | "adapting" | "completed" | "failed";
   contentPieceId: string | null;
   title: string | null;
@@ -33,17 +32,30 @@ interface PieceResult {
   progress: number;
 }
 
-type BatchStep = "company" | "week" | "pieces" | "platforms" | "review" | "generating" | "done";
+type BatchStep = "company" | "week" | "assign" | "platforms" | "review" | "generating" | "done";
 
-const CONTENT_TYPES: { value: ContentType; label: string }[] = [
-  { value: "social_post", label: "Social Post" },
-  { value: "blog_article", label: "Blog Article" },
-  { value: "linkedin_article", label: "LinkedIn Article" },
-  { value: "pdf_guide", label: "PDF Guide" },
-  { value: "video_script", label: "Video Script" },
-];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-let nextPieceId = 1;
+const ARCHETYPE_COLORS: Record<string, string> = {
+  A1_green: "border-l-green-500",
+  A1_purple: "border-l-purple-500",
+  A1_blue: "border-l-blue-500",
+  A2_editorial: "border-l-orange-500",
+  A3B_real_photo: "border-l-amber-500",
+  A4_pixar: "border-l-pink-500",
+  A5_carousel: "border-l-cyan-500",
+  A7_infographic: "border-l-indigo-500",
+};
+
+function formatTime(time: string): string {
+  const [h, m] = time.split(":");
+  const hour = parseInt(h, 10);
+  const suffix = hour >= 12 ? "pm" : "am";
+  const display = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+  return `${display}:${m}${suffix}`;
+}
+
+// ── Main Component ──────────────────────────────────────────
 
 export default function BatchGeneratePage() {
   const [step, setStep] = useState<BatchStep>("company");
@@ -54,10 +66,11 @@ export default function BatchGeneratePage() {
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<Week | null>(null);
   const [topics, setTopics] = useState<TopicBankEntry[]>([]);
+  const [slots, setSlots] = useState<PostingSlotWithType[]>([]);
   const [spokespersonName, setSpokespersonName] = useState("");
 
-  // Piece configuration
-  const [pieces, setPieces] = useState<PieceConfig[]>([]);
+  // Slot assignments
+  const [assignments, setAssignments] = useState<SlotAssignment[]>([]);
   const [results, setResults] = useState<PieceResult[]>([]);
 
   // Platform adaptation
@@ -66,9 +79,12 @@ export default function BatchGeneratePage() {
   // Loading
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [loadingWeeks, setLoadingWeeks] = useState(false);
-  const [loadingTopics, setLoadingTopics] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Topic search filter
+  const [topicSearch, setTopicSearch] = useState("");
 
   // Fetch companies
   useEffect(() => {
@@ -78,89 +94,107 @@ export default function BatchGeneratePage() {
       .finally(() => setLoadingCompanies(false));
   }, []);
 
-  // Fetch weeks + topics when company selected
+  // Fetch weeks + topics + slots when company selected
   useEffect(() => {
     if (!selectedCompany) return;
     setSpokespersonName(selectedCompany.spokesperson_name || "");
     setLoadingWeeks(true);
-    setLoadingTopics(true);
-    fetch(`/api/weeks?companyId=${selectedCompany.id}`)
-      .then((r) => r.json())
-      .then((json) => setWeeks(json.data || []))
-      .finally(() => setLoadingWeeks(false));
-    fetch(`/api/config/topic-bank?companyId=${selectedCompany.id}`)
-      .then((r) => r.json())
-      .then((json) => setTopics(json.data || []))
-      .finally(() => setLoadingTopics(false));
+    setLoadingSlots(true);
+
+    Promise.all([
+      fetch(`/api/weeks?companyId=${selectedCompany.id}`).then((r) => r.json()),
+      fetch(`/api/config/topic-bank?companyId=${selectedCompany.id}`).then((r) => r.json()),
+      fetch(`/api/config/posting-schedule?companyId=${selectedCompany.id}`).then((r) => r.json()),
+    ]).then(([weeksJson, topicsJson, schedJson]) => {
+      setWeeks(weeksJson.data || []);
+      setTopics(topicsJson.data || []);
+      setSlots(schedJson.data?.slots || []);
+      setLoadingWeeks(false);
+      setLoadingSlots(false);
+    });
   }, [selectedCompany]);
 
-  const unusedTopics = topics.filter((t) => !t.is_used);
-  const usedTopicIds = new Set(pieces.map((p) => p.topic.id));
-
-  // Auto-suggest pieces based on week pillar
-  function autoSuggestPieces() {
-    if (!selectedWeek || unusedTopics.length === 0) return;
-
-    // Pick topics matching the week's pillar, then fill with any unused
-    const pillarTopics = unusedTopics.filter(
-      (t) => t.pillar && t.pillar === selectedWeek.pillar && !usedTopicIds.has(t.id)
-    );
-    const otherTopics = unusedTopics.filter(
-      (t) => !pillarTopics.includes(t) && !usedTopicIds.has(t.id)
-    );
-    const available = [...pillarTopics, ...otherTopics];
-
-    // Standard week: 1 blog + 3-4 social posts + 1 PDF or video
-    const suggestions: PieceConfig[] = [];
-    const contentPlan: ContentType[] = [
-      "blog_article",
-      "social_post",
-      "social_post",
-      "social_post",
-      "linkedin_article",
-    ];
-
-    for (const contentType of contentPlan) {
-      const topic = available.find(
-        (t) => !suggestions.some((s) => s.topic.id === t.id)
+  // Initialize assignments when slots load
+  useEffect(() => {
+    if (slots.length > 0 && assignments.length === 0) {
+      setAssignments(
+        slots
+          .filter((s) => s.is_active)
+          .map((s) => ({
+            slotId: s.id,
+            topic: null,
+            additionalContext: "",
+          }))
       );
-      if (!topic) break;
-      suggestions.push({
-        id: `piece-${nextPieceId++}`,
-        topic,
-        contentType,
-        additionalContext: "",
-      });
+    }
+  }, [slots, assignments.length]);
+
+  const unusedTopics = topics.filter((t) => !t.is_used);
+  const assignedTopicIds = new Set(
+    assignments.filter((a) => a.topic).map((a) => a.topic!.id)
+  );
+
+  const filteredTopics = unusedTopics.filter((t) => {
+    if (assignedTopicIds.has(t.id)) return false;
+    if (!topicSearch) return true;
+    const q = topicSearch.toLowerCase();
+    return (
+      t.title.toLowerCase().includes(q) ||
+      (t.pillar && t.pillar.toLowerCase().includes(q)) ||
+      (t.description && t.description.toLowerCase().includes(q))
+    );
+  });
+
+  // Auto-assign topics based on pillar matching
+  function autoAssign() {
+    if (!selectedWeek) return;
+    const updated = [...assignments];
+
+    for (let i = 0; i < updated.length; i++) {
+      if (updated[i].topic) continue; // Already assigned
+
+      const slot = slots.find((s) => s.id === updated[i].slotId);
+      if (!slot) continue;
+
+      // Find a matching unused topic
+      const usedIds = new Set(updated.filter((a) => a.topic).map((a) => a.topic!.id));
+
+      // Prefer topics matching the week pillar, then any unused
+      const pillarTopics = unusedTopics.filter(
+        (t) =>
+          !usedIds.has(t.id) &&
+          t.pillar &&
+          selectedWeek.pillar &&
+          t.pillar === selectedWeek.pillar
+      );
+      const otherTopics = unusedTopics.filter(
+        (t) => !usedIds.has(t.id) && !pillarTopics.includes(t)
+      );
+
+      const available = [...pillarTopics, ...otherTopics];
+      if (available.length > 0) {
+        updated[i] = { ...updated[i], topic: available[0] };
+      }
     }
 
-    setPieces((prev) => [...prev, ...suggestions]);
+    setAssignments(updated);
   }
 
-  function addPiece(topic: TopicBankEntry) {
-    setPieces((prev) => [
-      ...prev,
-      {
-        id: `piece-${nextPieceId++}`,
-        topic,
-        contentType: "social_post",
-        additionalContext: "",
-      },
-    ]);
-  }
-
-  function removePiece(id: string) {
-    setPieces((prev) => prev.filter((p) => p.id !== id));
-  }
-
-  function updatePieceType(id: string, contentType: ContentType) {
-    setPieces((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, contentType } : p))
+  function assignTopic(slotId: string, topic: TopicBankEntry) {
+    setAssignments((prev) =>
+      prev.map((a) => (a.slotId === slotId ? { ...a, topic } : a))
     );
   }
 
-  function updatePieceContext(id: string, additionalContext: string) {
-    setPieces((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, additionalContext } : p))
+  function unassignTopic(slotId: string) {
+    setAssignments((prev) =>
+      prev.map((a) => (a.slotId === slotId ? { ...a, topic: null } : a))
+    );
+  }
+
+  function updateContext(slotId: string, context: string) {
+    setAssignments((prev) =>
+      prev.map((a) => (a.slotId === slotId ? { ...a, additionalContext: context } : a))
     );
   }
 
@@ -172,13 +206,12 @@ export default function BatchGeneratePage() {
     );
   }
 
-  // Get all platforms relevant to the selected content types
   function getRelevantPlatforms() {
-    const contentTypes = [...new Set(pieces.map((p) => p.contentType))];
+    const contentTypes = [...new Set(slots.map((s) => s.post_types?.content_type).filter(Boolean))];
     const seen = new Set<DistributionPlatform>();
     const result: ReturnType<typeof getPlatformsForContentType> = [];
     for (const ct of contentTypes) {
-      for (const cap of getPlatformsForContentType(ct)) {
+      for (const cap of getPlatformsForContentType(ct!)) {
         if (!seen.has(cap.platform)) {
           seen.add(cap.platform);
           result.push(cap);
@@ -188,16 +221,18 @@ export default function BatchGeneratePage() {
     return result;
   }
 
-  // Generate all pieces sequentially
+  // Generate all assigned pieces sequentially
   const handleBatchGenerate = useCallback(async () => {
-    if (!selectedCompany || !selectedWeek || pieces.length === 0) return;
+    if (!selectedCompany || !selectedWeek) return;
+    const activeAssignments = assignments.filter((a) => a.topic);
+    if (activeAssignments.length === 0) return;
+
     setGenerating(true);
     setError(null);
     setStep("generating");
 
-    // Initialise results
-    const initialResults: PieceResult[] = pieces.map((p) => ({
-      id: p.id,
+    const initialResults: PieceResult[] = activeAssignments.map((a) => ({
+      slotId: a.slotId,
       status: "pending",
       contentPieceId: null,
       title: null,
@@ -205,28 +240,44 @@ export default function BatchGeneratePage() {
       progress: 0,
     }));
     setResults(initialResults);
-
     const updatedResults = [...initialResults];
 
-    for (let i = 0; i < pieces.length; i++) {
-      const piece = pieces[i];
+    for (let i = 0; i < activeAssignments.length; i++) {
+      const assignment = activeAssignments[i];
+      const slot = slots.find((s) => s.id === assignment.slotId);
+      if (!slot || !assignment.topic) continue;
+
+      const pt = slot.post_types;
 
       // Mark as generating
       updatedResults[i] = { ...updatedResults[i], status: "generating", progress: 10 };
       setResults([...updatedResults]);
 
       try {
-        // Generate content
+        // Generate content with full slot context
         const res = await fetch("/api/generate/content", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             companyId: selectedCompany.id,
             weekId: selectedWeek.id,
-            topicId: piece.topic.id,
-            contentType: piece.contentType,
-            additionalContext: piece.additionalContext || undefined,
+            topicId: assignment.topic.id,
+            contentType: pt?.content_type || "social_post",
+            additionalContext: assignment.additionalContext || undefined,
             spokespersonName: spokespersonName || undefined,
+            // Slot-specific fields
+            postingSlotId: slot.id,
+            postTypeSlug: pt?.slug,
+            postTypeLabel: pt?.label,
+            templateInstructions: pt?.template_instructions,
+            wordCountMin: pt?.word_count_min,
+            wordCountMax: pt?.word_count_max,
+            imageArchetype: slot.image_archetype || pt?.default_image_archetype,
+            ctaUrl: slot.cta_url,
+            ctaLinkText: slot.cta_link_text,
+            dayOfWeek: slot.day_of_week,
+            scheduledTime: slot.scheduled_time,
+            slotLabel: slot.slot_label,
           }),
         });
 
@@ -237,25 +288,22 @@ export default function BatchGeneratePage() {
         }
 
         const contentPieceId = data.contentPieceId;
-        const title = data.outputPayload?.title || piece.topic.title;
 
-        // If we have platforms to adapt to, do it now
+        // Platform adaptation
         if (adaptPlatforms.length > 0 && contentPieceId) {
           updatedResults[i] = {
             ...updatedResults[i],
             status: "adapting",
             progress: 70,
             contentPieceId,
-            title,
+            title: assignment.topic.title,
           };
           setResults([...updatedResults]);
 
-          // Build platform adaptation request
           const platformsPayload = adaptPlatforms
             .filter((p) => {
-              // Only adapt to platforms that support this content type
               const cap = getPlatformCapability(p);
-              return cap && cap.supportedContentTypes.includes(piece.contentType);
+              return cap && cap.supportedContentTypes.includes(pt?.content_type || "social_post");
             })
             .map((p) => ({
               platform: p,
@@ -267,13 +315,10 @@ export default function BatchGeneratePage() {
               await fetch("/api/generate/adapt", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contentPieceId,
-                  platforms: platformsPayload,
-                }),
+                body: JSON.stringify({ contentPieceId, platforms: platformsPayload }),
               });
             } catch {
-              // Non-fatal — adaptation can be done later manually
+              // Non-fatal
             }
           }
         }
@@ -283,7 +328,7 @@ export default function BatchGeneratePage() {
           status: "completed",
           progress: 100,
           contentPieceId,
-          title,
+          title: assignment.topic.title,
         };
       } catch (err) {
         updatedResults[i] = {
@@ -299,22 +344,40 @@ export default function BatchGeneratePage() {
 
     setGenerating(false);
     setStep("done");
-  }, [selectedCompany, selectedWeek, pieces, spokespersonName, adaptPlatforms]);
+  }, [selectedCompany, selectedWeek, assignments, slots, spokespersonName, adaptPlatforms]);
 
   function resetForm() {
     setStep("company");
     setSelectedCompany(null);
     setSelectedWeek(null);
-    setPieces([]);
+    setAssignments([]);
     setResults([]);
     setAdaptPlatforms([]);
     setSpokespersonName("");
     setGenerating(false);
     setError(null);
+    setTopicSearch("");
   }
 
+  const assignedCount = assignments.filter((a) => a.topic).length;
+  const totalSlots = assignments.length;
   const completedCount = results.filter((r) => r.status === "completed").length;
   const failedCount = results.filter((r) => r.status === "failed").length;
+
+  // Group assignments by day for display
+  const slotsByDay: Record<number, { assignment: SlotAssignment; slot: PostingSlotWithType }[]> = {};
+  for (let d = 0; d < 7; d++) slotsByDay[d] = [];
+  for (const assignment of assignments) {
+    const slot = slots.find((s) => s.id === assignment.slotId);
+    if (slot) {
+      slotsByDay[slot.day_of_week]?.push({ assignment, slot });
+    }
+  }
+  for (const day of Object.keys(slotsByDay)) {
+    slotsByDay[Number(day)].sort((a, b) =>
+      a.slot.scheduled_time.localeCompare(b.slot.scheduled_time)
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -338,9 +401,9 @@ export default function BatchGeneratePage() {
 
       {/* Progress Steps */}
       <div className="flex items-center gap-2 text-xs">
-        {(["company", "week", "pieces", "platforms", "review"] as const).map((s, i) => {
-          const labels = ["Company", "Week", "Pieces", "Platforms", "Review"];
-          const stepOrder: BatchStep[] = ["company", "week", "pieces", "platforms", "review"];
+        {(["company", "week", "assign", "platforms", "review"] as const).map((s, i) => {
+          const labels = ["Company", "Week", "Assign Topics", "Platforms", "Review"];
+          const stepOrder: BatchStep[] = ["company", "week", "assign", "platforms", "review"];
           const currentIndex = stepOrder.indexOf(step);
           const isActive = step === s;
           const isDone = currentIndex > i || step === "generating" || step === "done";
@@ -415,62 +478,85 @@ export default function BatchGeneratePage() {
               &larr; Back
             </button>
           </div>
-          {loadingWeeks ? (
+          {loadingWeeks || loadingSlots ? (
             <p className="text-sm text-gray-400">Loading...</p>
           ) : weeks.length === 0 ? (
             <p className="text-sm text-gray-400">No weeks found. Create one first.</p>
           ) : (
-            <div className="space-y-2">
-              {weeks.map((week) => (
-                <button
-                  key={week.id}
-                  onClick={() => {
-                    setSelectedWeek(week);
-                    setStep("pieces");
-                  }}
-                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-4 py-3 text-left transition-colors hover:border-purple-300 hover:bg-purple-50/50"
-                >
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      Week {week.week_number}
-                      {week.title ? ` \u2014 ${week.title}` : ""}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {week.date_start} to {week.date_end}
-                      {week.pillar ? ` \u00b7 ${week.pillar}` : ""}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      week.status === "approved"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
+            <>
+              {slots.length === 0 && (
+                <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs text-amber-700">
+                    No posting schedule configured for this company.{" "}
+                    <Link
+                      href={`/admin/companies/${selectedCompany?.id}/posting-schedule`}
+                      className="font-medium underline"
+                    >
+                      Set up posting schedule
+                    </Link>{" "}
+                    first for slot-based generation.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
+                {weeks.map((week) => (
+                  <button
+                    key={week.id}
+                    onClick={() => {
+                      setSelectedWeek(week);
+                      setStep("assign");
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-4 py-3 text-left transition-colors hover:border-purple-300 hover:bg-purple-50/50"
                   >
-                    {week.status.replace("_", " ")}
-                  </span>
-                </button>
-              ))}
-            </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        Week {week.week_number}
+                        {week.title ? ` \u2014 ${week.title}` : ""}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {week.date_start} to {week.date_end}
+                        {week.pillar ? ` \u00b7 ${week.pillar}` : ""}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        week.status === "approved"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {week.status.replace("_", " ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
 
-      {/* Step 3: Configure Pieces */}
-      {step === "pieces" && (
+      {/* Step 3: Assign Topics to Slots */}
+      {step === "assign" && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">
-                Configure Content Pieces ({pieces.length} selected)
-              </h2>
+          {/* Controls bar */}
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Assign Topics to Slots ({assignedCount}/{totalSlots})
+                </h2>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Week {selectedWeek?.week_number} for {selectedCompany?.name}
+                  {selectedWeek?.pillar ? ` \u00b7 Pillar: ${selectedWeek.pillar}` : ""}
+                </p>
+              </div>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={autoSuggestPieces}
+                  onClick={autoAssign}
                   disabled={unusedTopics.length === 0}
                   className="rounded-md bg-purple-100 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-200 disabled:opacity-50"
                 >
-                  Auto-Suggest
+                  Auto-Assign
                 </button>
                 <button onClick={() => setStep("week")} className="text-xs text-gray-400 hover:text-gray-600">
                   &larr; Back
@@ -479,7 +565,7 @@ export default function BatchGeneratePage() {
             </div>
 
             {/* Spokesperson */}
-            <div className="mb-4">
+            <div className="mt-3">
               <label className="mb-1 block text-xs font-medium text-gray-500">Spokesperson</label>
               <input
                 type="text"
@@ -488,79 +574,126 @@ export default function BatchGeneratePage() {
                 className="w-full max-w-sm rounded-md border border-gray-200 px-3 py-1.5 text-sm focus:border-purple-300 focus:outline-none focus:ring-1 focus:ring-purple-300"
               />
             </div>
+          </div>
 
-            {/* Configured pieces */}
-            {pieces.length > 0 && (
-              <div className="mb-4 space-y-3">
-                {pieces.map((piece, i) => (
-                  <div
-                    key={piece.id}
-                    className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3"
-                  >
-                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-purple-100 text-xs font-bold text-purple-700">
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900">
-                          #{piece.topic.topic_number}: {piece.topic.title}
-                        </p>
-                        <button
-                          onClick={() => removePiece(piece.id)}
-                          className="text-xs text-red-400 hover:text-red-600"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={piece.contentType}
-                          onChange={(e) =>
-                            updatePieceType(piece.id, e.target.value as ContentType)
-                          }
-                          className="rounded-md border border-gray-200 px-2 py-1 text-xs focus:border-purple-300 focus:outline-none"
-                        >
-                          {CONTENT_TYPES.map((ct) => (
-                            <option key={ct.value} value={ct.value}>
-                              {ct.label}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          value={piece.additionalContext}
-                          onChange={(e) =>
-                            updatePieceContext(piece.id, e.target.value)
-                          }
-                          placeholder="Additional context..."
-                          className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs focus:border-purple-300 focus:outline-none"
-                        />
-                      </div>
+          {/* Weekly schedule with topic assignment */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {/* Left: Slot cards by day */}
+            <div className="space-y-3">
+              {DAY_NAMES.map((dayName, dayIndex) => {
+                const dayEntries = slotsByDay[dayIndex] || [];
+                if (dayEntries.length === 0) return null;
+
+                return (
+                  <div key={dayIndex} className="rounded-lg border border-gray-200 bg-white">
+                    <div className="border-b border-gray-100 px-4 py-2">
+                      <span className="text-xs font-semibold text-gray-900">{dayName}</span>
+                    </div>
+                    <div className="space-y-2 p-3">
+                      {dayEntries.map(({ assignment, slot }) => {
+                        const pt = slot.post_types;
+                        const borderColor = slot.image_archetype
+                          ? ARCHETYPE_COLORS[slot.image_archetype] || "border-l-gray-300"
+                          : "border-l-gray-200";
+
+                        return (
+                          <div
+                            key={slot.id}
+                            className={`rounded-md border border-gray-100 border-l-4 ${borderColor} bg-gray-50/50 p-3`}
+                          >
+                            {/* Slot header */}
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-medium text-gray-900">
+                                  {pt?.label || "Unknown"}
+                                </p>
+                                <p className="text-[10px] text-gray-500">
+                                  {formatTime(slot.scheduled_time)}
+                                  {pt?.word_count_min && pt?.word_count_max
+                                    ? ` \u00b7 ${pt.word_count_min}-${pt.word_count_max}w`
+                                    : ""}
+                                  {slot.image_archetype
+                                    ? ` \u00b7 ${slot.image_archetype.replace(/_/g, " ")}`
+                                    : ""}
+                                </p>
+                              </div>
+                              {assignment.topic && (
+                                <button
+                                  onClick={() => unassignTopic(slot.id)}
+                                  className="text-[10px] text-red-400 hover:text-red-600"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Assigned topic or picker */}
+                            {assignment.topic ? (
+                              <div className="mt-2 rounded bg-purple-50 px-2 py-1.5">
+                                <p className="text-xs font-medium text-purple-900">
+                                  #{assignment.topic.topic_number}: {assignment.topic.title}
+                                </p>
+                                {assignment.topic.pillar && (
+                                  <p className="text-[10px] text-purple-600">
+                                    {assignment.topic.pillar}
+                                  </p>
+                                )}
+                                <input
+                                  type="text"
+                                  value={assignment.additionalContext}
+                                  onChange={(e) => updateContext(slot.id, e.target.value)}
+                                  placeholder="Additional context..."
+                                  className="mt-1 w-full rounded border border-purple-200 bg-white px-2 py-1 text-[11px] focus:border-purple-300 focus:outline-none"
+                                />
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-[10px] italic text-gray-400">
+                                Click a topic from the bank to assign
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
 
-            {/* Add topics */}
-            {loadingTopics ? (
-              <p className="text-xs text-gray-400">Loading topics...</p>
-            ) : (
-              <div>
-                <p className="mb-2 text-xs font-medium text-gray-500">
-                  Add topics ({unusedTopics.filter((t) => !usedTopicIds.has(t.id)).length} available)
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {unusedTopics
-                    .filter((t) => !usedTopicIds.has(t.id))
-                    .slice(0, 12)
-                    .map((topic) => (
+            {/* Right: Topic bank */}
+            <div className="rounded-lg border border-gray-200 bg-white">
+              <div className="border-b border-gray-100 px-4 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-900">
+                    Topic Bank ({filteredTopics.length} available)
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={topicSearch}
+                  onChange={(e) => setTopicSearch(e.target.value)}
+                  placeholder="Search topics..."
+                  className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1 text-xs focus:border-purple-300 focus:outline-none"
+                />
+              </div>
+              <div className="max-h-[600px] overflow-y-auto p-2">
+                <div className="space-y-1">
+                  {filteredTopics.slice(0, 30).map((topic) => {
+                    // Find the first unassigned slot to assign to
+                    const firstUnassigned = assignments.find((a) => !a.topic);
+
+                    return (
                       <button
                         key={topic.id}
-                        onClick={() => addPiece(topic)}
-                        className="flex items-start gap-2 rounded-md border border-dashed border-gray-200 p-2 text-left transition-colors hover:border-purple-300 hover:bg-purple-50/30"
+                        onClick={() => {
+                          if (firstUnassigned) {
+                            assignTopic(firstUnassigned.slotId, topic);
+                          }
+                        }}
+                        disabled={!firstUnassigned}
+                        className="flex w-full items-start gap-2 rounded-md border border-dashed border-gray-200 p-2 text-left transition-colors hover:border-purple-300 hover:bg-purple-50/30 disabled:opacity-30"
                       >
-                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-gray-100 text-[10px] text-gray-500">
                           {topic.topic_number}
                         </span>
                         <div className="min-w-0">
@@ -571,22 +704,28 @@ export default function BatchGeneratePage() {
                             {topic.pillar && (
                               <span className="text-[10px] text-gray-400">{topic.pillar}</span>
                             )}
+                            {topic.audience_theme && (
+                              <span className="text-[10px] text-gray-400">
+                                \u00b7 {topic.audience_theme}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
-                    ))}
+                    );
+                  })}
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           <div className="flex justify-end">
             <button
               onClick={() => setStep("platforms")}
-              disabled={pieces.length === 0}
+              disabled={assignedCount === 0}
               className="rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
             >
-              Next: Platform Adaptation
+              Next: Platform Adaptation ({assignedCount} pieces)
             </button>
           </div>
         </div>
@@ -603,10 +742,9 @@ export default function BatchGeneratePage() {
                 </h2>
                 <p className="mt-1 text-xs text-gray-500">
                   Select platforms to auto-generate adapted versions after content creation.
-                  You can skip this and adapt manually later.
                 </p>
               </div>
-              <button onClick={() => setStep("pieces")} className="text-xs text-gray-400 hover:text-gray-600">
+              <button onClick={() => setStep("assign")} className="text-xs text-gray-400 hover:text-gray-600">
                 &larr; Back
               </button>
             </div>
@@ -667,9 +805,7 @@ export default function BatchGeneratePage() {
       {step === "review" && (
         <div className="space-y-4">
           <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-sm font-semibold text-gray-900">
-              Review Batch Generation
-            </h2>
+            <h2 className="mb-4 text-sm font-semibold text-gray-900">Review Batch Generation</h2>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-md bg-gray-50 px-4 py-2.5">
@@ -689,7 +825,7 @@ export default function BatchGeneratePage() {
               </div>
               <div className="flex items-center justify-between rounded-md bg-gray-50 px-4 py-2.5">
                 <span className="text-xs font-medium uppercase text-gray-500">Pieces</span>
-                <span className="text-sm font-medium text-gray-900">{pieces.length}</span>
+                <span className="text-sm font-medium text-gray-900">{assignedCount}</span>
               </div>
               {adaptPlatforms.length > 0 && (
                 <div className="flex items-center justify-between rounded-md bg-gray-50 px-4 py-2.5">
@@ -703,19 +839,35 @@ export default function BatchGeneratePage() {
 
             <div className="mt-4 space-y-2">
               <p className="text-xs font-medium text-gray-500">Content pieces to generate:</p>
-              {pieces.map((piece, i) => (
-                <div key={piece.id} className="flex items-center gap-2 rounded-md bg-purple-50/50 px-3 py-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-purple-100 text-xs font-bold text-purple-700">
-                    {i + 1}
-                  </span>
-                  <span className="text-sm text-gray-900">
-                    #{piece.topic.topic_number}: {piece.topic.title}
-                  </span>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
-                    {CONTENT_TYPES.find((ct) => ct.value === piece.contentType)?.label}
-                  </span>
-                </div>
-              ))}
+              {assignments
+                .filter((a) => a.topic)
+                .map((assignment) => {
+                  const slot = slots.find((s) => s.id === assignment.slotId);
+                  const pt = slot?.post_types;
+                  return (
+                    <div
+                      key={assignment.slotId}
+                      className="flex items-center gap-2 rounded-md bg-purple-50/50 px-3 py-2"
+                    >
+                      <span className="flex h-5 shrink-0 items-center justify-center rounded bg-purple-100 px-1.5 text-[10px] font-bold text-purple-700">
+                        {slot ? DAY_NAMES[slot.day_of_week].slice(0, 3) : "?"}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-gray-900">
+                          #{assignment.topic!.topic_number}: {assignment.topic!.title}
+                        </span>
+                      </div>
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">
+                        {pt?.label || pt?.content_type?.replace("_", " ") || "social post"}
+                      </span>
+                      {slot && (
+                        <span className="text-[10px] text-gray-400">
+                          {formatTime(slot.scheduled_time)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
 
@@ -728,13 +880,13 @@ export default function BatchGeneratePage() {
               disabled={generating}
               className="rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
             >
-              Generate {pieces.length} Pieces
+              Generate {assignedCount} Pieces
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 6: Generating */}
+      {/* Step 6: Generating / Done */}
       {(step === "generating" || step === "done") && (
         <div className="space-y-4">
           <div className="rounded-lg border border-gray-200 bg-white p-6">
@@ -742,7 +894,7 @@ export default function BatchGeneratePage() {
               <h2 className="text-sm font-semibold text-gray-900">
                 {step === "generating"
                   ? "Generating Content..."
-                  : `Complete \u2014 ${completedCount}/${pieces.length} succeeded`}
+                  : `Complete \u2014 ${completedCount}/${assignedCount} succeeded`}
               </h2>
               {step === "generating" && (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
@@ -768,17 +920,18 @@ export default function BatchGeneratePage() {
               <p className="mt-1 text-xs text-gray-500">
                 {completedCount} completed
                 {failedCount > 0 ? `, ${failedCount} failed` : ""}
-                {` of ${pieces.length} pieces`}
+                {` of ${assignedCount} pieces`}
               </p>
             </div>
 
             {/* Per-piece status */}
             <div className="space-y-2">
-              {results.map((result, i) => {
-                const piece = pieces[i];
+              {results.map((result) => {
+                const assignment = assignments.find((a) => a.slotId === result.slotId);
+                const slot = slots.find((s) => s.id === result.slotId);
                 return (
                   <div
-                    key={result.id}
+                    key={result.slotId}
                     className={`flex items-center gap-3 rounded-md px-3 py-2 ${
                       result.status === "completed"
                         ? "bg-green-50"
@@ -815,17 +968,21 @@ export default function BatchGeneratePage() {
                     {/* Content */}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-gray-900">
-                        #{piece?.topic.topic_number}: {result.title || piece?.topic.title}
+                        <span className="font-medium text-gray-500">
+                          {slot ? `${DAY_NAMES[slot.day_of_week].slice(0, 3)} ${formatTime(slot.scheduled_time)}` : ""}
+                        </span>
+                        {" "}
+                        #{assignment?.topic?.topic_number}: {result.title || assignment?.topic?.title}
                       </p>
                       <p className="text-xs text-gray-500">
                         {result.status === "adapting"
                           ? "Adapting to platforms..."
                           : result.status === "generating"
-                            ? "Generating..."
+                            ? `Generating ${slot?.post_types?.label || "content"}...`
                             : result.status === "failed"
                               ? result.error
                               : result.status === "completed"
-                                ? CONTENT_TYPES.find((ct) => ct.value === piece?.contentType)?.label
+                                ? slot?.post_types?.label || "Content"
                                 : "Waiting..."}
                       </p>
                     </div>

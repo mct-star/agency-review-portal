@@ -367,6 +367,42 @@ export interface ContentSyndicationLink {
 }
 
 // ============================================================
+// Posting schedule types
+// ============================================================
+
+export interface PostType {
+  id: string;
+  slug: string;
+  label: string;
+  content_type: ContentType;
+  word_count_min: number | null;
+  word_count_max: number | null;
+  default_image_archetype: string | null;
+  template_instructions: string | null;
+  is_system: boolean;
+  created_at: string;
+}
+
+export interface PostingSlot {
+  id: string;
+  company_id: string;
+  post_type_id: string;
+  day_of_week: number;
+  scheduled_time: string;
+  slot_label: string | null;
+  image_archetype: string | null;
+  cta_url: string | null;
+  cta_link_text: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface PostingSlotWithType extends PostingSlot {
+  post_types: PostType;
+}
+
+// ============================================================
 // Extended types with joins
 // ============================================================
 

@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 interface PageProps {
   params: Promise<{ companyId: string }>;
@@ -58,6 +59,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     { label: "Social Accounts", value: socialCount || 0, href: "social-accounts" },
     { label: "Blueprint", value: blueprintCount || 0 > 0 ? "Active" : "None", href: "blueprint" },
     { label: "Topics", value: topicCount || 0, href: "topic-bank" },
+    { label: "Posting Schedule", value: "Configure", href: "posting-schedule" },
     { label: "Weeks", value: weekCount || 0, href: null },
     { label: "Content Pieces", value: pieceCount || 0, href: null },
   ];
@@ -112,20 +114,40 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-lg border border-gray-200 bg-white p-4"
-          >
-            <p className="text-xs font-medium uppercase text-gray-500">
-              {stat.label}
-            </p>
-            <p className="mt-1 text-2xl font-bold text-gray-900">
-              {stat.value}
-            </p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
+        {stats.map((stat) => {
+          const content = (
+            <>
+              <p className="text-xs font-medium uppercase text-gray-500">
+                {stat.label}
+              </p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">
+                {stat.value}
+              </p>
+            </>
+          );
+
+          if (stat.href) {
+            return (
+              <Link
+                key={stat.label}
+                href={`/admin/companies/${companyId}/${stat.href}`}
+                className="rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+              >
+                {content}
+              </Link>
+            );
+          }
+
+          return (
+            <div
+              key={stat.label}
+              className="rounded-lg border border-gray-200 bg-white p-4"
+            >
+              {content}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

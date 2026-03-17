@@ -33,7 +33,27 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { companyId, weekId, topicId, contentType, additionalContext, spokespersonName } = body;
+  const {
+    companyId,
+    weekId,
+    topicId,
+    contentType,
+    additionalContext,
+    spokespersonName,
+    // Slot-specific fields (from posting schedule)
+    postingSlotId,
+    postTypeSlug,
+    postTypeLabel,
+    templateInstructions,
+    wordCountMin,
+    wordCountMax,
+    imageArchetype,
+    ctaUrl,
+    ctaLinkText,
+    dayOfWeek,
+    scheduledTime,
+    slotLabel,
+  } = body;
 
   if (!companyId || !weekId || !topicId || !contentType) {
     return NextResponse.json(
@@ -110,7 +130,43 @@ export async function POST(request: Request) {
       .update({ provider: providerName, progress: 30 })
       .eq("id", jobId);
 
-    // 5. Call the provider
+    // 5. If a postingSlotId was provided but no template fields, look up the slot
+    let resolvedTemplate = templateInstructions;
+    let resolvedPostTypeSlug = postTypeSlug;
+    let resolvedPostTypeLabel = postTypeLabel;
+    let resolvedWordMin = wordCountMin;
+    let resolvedWordMax = wordCountMax;
+    let resolvedArchetype = imageArchetype;
+    let resolvedCtaUrl = ctaUrl;
+    let resolvedCtaLinkText = ctaLinkText;
+    let resolvedDayOfWeek = dayOfWeek;
+    let resolvedTime = scheduledTime;
+    let resolvedSlotLabel = slotLabel;
+
+    if (postingSlotId && !resolvedTemplate) {
+      const { data: slot } = await supabase
+        .from("posting_slots")
+        .select("*, post_types(*)")
+        .eq("id", postingSlotId)
+        .single();
+
+      if (slot) {
+        const pt = slot.post_types as { slug: string; label: string; template_instructions: string | null; word_count_min: number | null; word_count_max: number | null; default_image_archetype: string | null } | null;
+        resolvedTemplate = pt?.template_instructions || undefined;
+        resolvedPostTypeSlug = pt?.slug || undefined;
+        resolvedPostTypeLabel = pt?.label || undefined;
+        resolvedWordMin = pt?.word_count_min || undefined;
+        resolvedWordMax = pt?.word_count_max || undefined;
+        resolvedArchetype = slot.image_archetype || pt?.default_image_archetype || undefined;
+        resolvedCtaUrl = slot.cta_url || undefined;
+        resolvedCtaLinkText = slot.cta_link_text || undefined;
+        resolvedDayOfWeek = slot.day_of_week;
+        resolvedTime = slot.scheduled_time;
+        resolvedSlotLabel = slot.slot_label || undefined;
+      }
+    }
+
+    // 6. Call the provider
     const input: ContentGenerationInput = {
       blueprintContent: blueprintRes.data?.blueprint_content || "No blueprint configured.",
       topicTitle: topicRes.data.title,
@@ -121,6 +177,18 @@ export async function POST(request: Request) {
       weekNumber: weekRes.data.week_number,
       spokespersonName: spokespersonName || companyRes.data?.spokesperson_name || null,
       additionalContext,
+      // Slot-specific fields
+      postTypeSlug: resolvedPostTypeSlug,
+      postTypeLabel: resolvedPostTypeLabel,
+      templateInstructions: resolvedTemplate,
+      wordCountMin: resolvedWordMin,
+      wordCountMax: resolvedWordMax,
+      imageArchetype: resolvedArchetype,
+      ctaUrl: resolvedCtaUrl,
+      ctaLinkText: resolvedCtaLinkText,
+      dayOfWeek: resolvedDayOfWeek,
+      scheduledTime: resolvedTime,
+      slotLabel: resolvedSlotLabel,
     };
 
     const output = await provider.generate(input);
@@ -151,7 +219,9 @@ export async function POST(request: Request) {
         markdown_body: output.markdownBody,
         first_comment: output.firstComment,
         word_count: output.wordCount,
-        post_type: output.postType,
+        post_type: resolvedPostTypeSlug || output.postType,
+        day_of_week: resolvedDayOfWeek !== undefined ? String(resolvedDayOfWeek) : null,
+        scheduled_time: resolvedTime || null,
         pillar: topicRes.data.pillar,
         audience_theme: topicRes.data.audience_theme,
         topic_bank_ref: `#${topicRes.data.topic_number}: ${topicRes.data.title}`,

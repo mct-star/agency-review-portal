@@ -30,6 +30,18 @@ export interface ContentGenerationInput {
   weekNumber: number;
   spokespersonName: string | null;
   additionalContext?: string;
+  // Slot-specific fields (from posting_slots + post_types)
+  postTypeSlug?: string;
+  postTypeLabel?: string;
+  templateInstructions?: string;
+  wordCountMin?: number;
+  wordCountMax?: number;
+  imageArchetype?: string;
+  ctaUrl?: string;
+  ctaLinkText?: string;
+  dayOfWeek?: number;
+  scheduledTime?: string;
+  slotLabel?: string;
 }
 
 export interface ContentGenerationOutput {

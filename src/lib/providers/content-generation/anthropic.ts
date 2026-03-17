@@ -176,12 +176,43 @@ IMAGE PROMPT:
 // ── Prompt Builder ──────────────────────────────────────────
 
 function buildContentPrompt(input: ContentGenerationInput): string {
-  const typeInstructions =
-    CONTENT_TYPE_INSTRUCTIONS[input.contentType] || CONTENT_TYPE_INSTRUCTIONS.social_post;
+  // When slot-specific template instructions are provided, they OVERRIDE
+  // the generic content type instructions. This is how "Monday = Problem Post"
+  // and "Friday = Founder Friday" produce different structures.
+  const hasSlotTemplate = !!input.templateInstructions;
+  const typeInstructions = hasSlotTemplate
+    ? input.templateInstructions!
+    : CONTENT_TYPE_INSTRUCTIONS[input.contentType] || CONTENT_TYPE_INSTRUCTIONS.social_post;
 
   const spokespersonClause = input.spokespersonName
     ? `You are writing as ${input.spokespersonName}. The content must sound like they wrote it themselves.`
     : "";
+
+  // Build word count guidance from slot data or fallback
+  const wordMin = input.wordCountMin;
+  const wordMax = input.wordCountMax;
+  const wordCountClause =
+    wordMin && wordMax
+      ? `TARGET WORD COUNT: ${wordMin}-${wordMax} words.`
+      : "";
+
+  // Build CTA context from slot data
+  const ctaClause =
+    input.ctaUrl
+      ? `CTA URL: ${input.ctaUrl}${input.ctaLinkText ? ` (link text: "${input.ctaLinkText}")` : ""}\nUse this URL in the first comment CTA.`
+      : "";
+
+  // Build image archetype guidance
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const imageArchetypeClause = input.imageArchetype
+    ? `IMAGE ARCHETYPE: ${input.imageArchetype.replace(/_/g, " ")}. Generate an image prompt matching this archetype style.`
+    : "";
+
+  // Schedule context
+  const scheduleClause =
+    input.dayOfWeek !== undefined
+      ? `SCHEDULED: ${DAY_NAMES[input.dayOfWeek]}${input.scheduledTime ? ` at ${input.scheduledTime}` : ""}${input.slotLabel ? ` (${input.slotLabel})` : ""}`
+      : "";
 
   return `You are a content ghostwriter. ${spokespersonClause} Your job is to produce content that is INDISTINGUISHABLE from the spokesperson's own writing. Not "inspired by" — identical in voice.
 
@@ -261,14 +292,18 @@ ${input.topicDescription ? `DESCRIPTION: ${input.topicDescription}` : ""}
 ${input.pillar ? `CONTENT PILLAR: ${input.pillar}` : ""}
 ${input.audienceTheme ? `AUDIENCE THEME: ${input.audienceTheme}` : ""}
 WEEK: ${input.weekNumber}
+${scheduleClause}
+${wordCountClause}
+${ctaClause}
 ${input.additionalContext ? `\nADDITIONAL CONTEXT:\n${input.additionalContext}` : ""}
 
 ${"═".repeat(60)}
-CONTENT TYPE
+${hasSlotTemplate ? `POST TYPE: ${input.postTypeLabel || input.postTypeSlug || "Custom"}\nTEMPLATE INSTRUCTIONS (follow this EXACT structure)` : "CONTENT TYPE"}
 ${"═".repeat(60)}
 
 ${typeInstructions}
 
+${imageArchetypeClause ? `\n${imageArchetypeClause}\n` : ""}
 ${"═".repeat(60)}
 COMPANY BLUEPRINT (FULL DOCUMENT — READ CAREFULLY)
 ${"═".repeat(60)}
@@ -285,8 +320,8 @@ Respond with a JSON object (no markdown code fences) matching this structure:
   "markdownBody": "string (the full content in markdown, including sign-off and hashtags for social posts)",
   "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
   "wordCount": number,
-  "postType": "string or null (e.g. insight, story, framework, contrarian, list, question)",
-  "imagePrompt": "string (a detailed image generation prompt — describe scene, mood, style, objects, setting — see IMAGE PROMPT instructions above)",
+  "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
+  "imagePrompt": "string (a detailed image generation prompt — describe scene, mood, style, objects, setting${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""})",
   "assets": [
     { "assetType": "seo_title", "textContent": "..." },
     { "assetType": "seo_meta_description", "textContent": "..." },
@@ -304,7 +339,8 @@ FINAL CHECK before outputting:
 - Is every word spelled with UK English?
 - Are there any em-dashes, en-dashes, or exclamation marks? Remove them.
 - Does the first word of the post avoid starting with "I"?
-- Does the title avoid colons and hyphens?`;
+- Does the title avoid colons and hyphens?
+${wordCountClause ? `- Is the word count between ${wordMin} and ${wordMax}?` : ""}`;
 }
 
 export function createClaudeContentProvider(
