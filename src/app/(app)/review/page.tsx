@@ -70,7 +70,7 @@ export default async function WeeksPage() {
                 <tr key={week.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <Link
-                      href={`/weeks/${week.id}`}
+                      href={`/review/${week.id}`}
                       className="font-medium text-sky-600 hover:text-sky-700"
                     >
                       Week {week.week_number}

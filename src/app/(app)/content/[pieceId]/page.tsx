@@ -65,12 +65,12 @@ export default async function ContentPiecePage({ params }: PageProps) {
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/weeks" className="hover:text-gray-700">
+        <Link href="/review" className="hover:text-gray-700">
           Weeks
         </Link>
         <span>/</span>
         <Link
-          href={`/weeks/${piece.week_id}`}
+          href={`/review/${piece.week_id}`}
           className="hover:text-gray-700"
         >
           Week {piece.week?.week_number}

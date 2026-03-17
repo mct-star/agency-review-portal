@@ -87,7 +87,7 @@ export default async function DashboardPage() {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Recent Weeks</h2>
           <Link
-            href="/weeks"
+            href="/review"
             className="text-sm text-sky-600 hover:text-sky-700"
           >
             View all
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
               return (
                 <Link
                   key={week.id}
-                  href={`/weeks/${week.id}`}
+                  href={`/review/${week.id}`}
                   className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
                 >
                   <div className="flex items-start justify-between">

@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { getUser, getUserProfile } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
 
-export default async function WeeksLayout({
+/**
+ * Authenticated layout for the three main sections: Setup, Generate, Review.
+ * All routes under (app)/ require authentication.
+ * Admin-only restrictions are handled per-page, not at the layout level.
+ */
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;

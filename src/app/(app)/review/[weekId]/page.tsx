@@ -86,11 +86,11 @@ export default async function WeekReviewPage({ params }: PageProps) {
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/weeks" className="hover:text-gray-700">
+        <Link href="/review" className="hover:text-gray-700">
           Weeks
         </Link>
         <span>/</span>
-        <Link href={`/weeks/${weekId}`} className="hover:text-gray-700">
+        <Link href={`/review/${weekId}`} className="hover:text-gray-700">
           Week {week.week_number}
         </Link>
         <span>/</span>
@@ -136,7 +136,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
               />
             )}
             <Link
-              href={`/weeks/${weekId}`}
+              href={`/review/${weekId}`}
               className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
             >
               Week Detail

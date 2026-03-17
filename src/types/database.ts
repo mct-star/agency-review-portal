@@ -137,6 +137,15 @@ export type PublishingStatus =
 // Existing interfaces
 // ============================================================
 
+export type ContentStrategyMode = "cohesive" | "variety";
+
+export type ImageGenerationStatus =
+  | "pending"
+  | "generating"
+  | "completed"
+  | "failed"
+  | "skipped";
+
 export interface Company {
   id: string;
   name: string;
@@ -145,6 +154,7 @@ export interface Company {
   spokesperson_tagline: string | null;
   logo_url: string | null;
   brand_color: string | null;
+  content_strategy_mode: ContentStrategyMode;
   created_at: string;
 }
 
@@ -167,6 +177,7 @@ export interface Week {
   title: string | null;
   pillar: string | null;
   theme: string | null;
+  subject: string | null;
   status: WeekStatus;
   created_at: string;
   updated_at: string;
@@ -190,6 +201,7 @@ export interface ContentPiece {
   sort_order: number;
   approval_status: ApprovalStatus;
   generation_job_id: string | null;
+  image_generation_status: ImageGenerationStatus;
   created_at: string;
   updated_at: string;
 }
@@ -402,6 +414,76 @@ export interface PostingSlot {
 
 export interface PostingSlotWithType extends PostingSlot {
   post_types: PostType;
+}
+
+// ============================================================
+// Setup section types
+// ============================================================
+
+export interface CompanySignoff {
+  id: string;
+  company_id: string;
+  label: string;
+  signoff_text: string;
+  first_comment_template: string | null;
+  applies_to_post_types: string[];
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface CompanyCtaUrl {
+  id: string;
+  company_id: string;
+  label: string;
+  url: string;
+  link_text: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export type VoiceSource = "manual" | "linkedin_scan";
+
+export interface CompanyVoiceProfile {
+  id: string;
+  company_id: string;
+  source: VoiceSource;
+  voice_description: string | null;
+  writing_samples: string | null;
+  banned_vocabulary: string | null;
+  signature_devices: string | null;
+  emotional_register: string | null;
+  raw_analysis: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ContentTheme {
+  id: string;
+  company_id: string;
+  theme_name: string;
+  pillar: string | null;
+  quarter: number | null;
+  month: number | null;
+  year: number | null;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface SetupProgress {
+  id: string;
+  company_id: string;
+  step_strategy: boolean;
+  step_schedule: boolean;
+  step_topics: boolean;
+  step_voice: boolean;
+  step_signoffs: boolean;
+  step_urls: boolean;
+  step_api_keys: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================
