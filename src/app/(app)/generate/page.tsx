@@ -30,6 +30,16 @@ interface PostType {
   default_image_archetype: string | null;
 }
 
+interface TopicEntry {
+  id: string;
+  topic_number: number;
+  title: string;
+  pillar: string | null;
+  audience_theme: string | null;
+  description: string | null;
+  is_used: boolean;
+}
+
 interface GenerationStatus {
   phase: "idle" | "preparing" | "generating" | "images" | "complete" | "error";
   current: number;
@@ -95,6 +105,10 @@ export default function GeneratePage() {
   // Single post config
   const [singleTopic, setSingleTopic] = useState("");
   const [singlePostType, setSinglePostType] = useState("");
+  // Topic bank
+  const [topics, setTopics] = useState<TopicEntry[]>([]);
+  const [selectedTopicId, setSelectedTopicId] = useState("");
+  const [topicMode, setTopicMode] = useState<"bank" | "custom">("bank");
   const [status, setStatus] = useState<GenerationStatus>({
     phase: "idle",
     current: 0,
@@ -120,24 +134,35 @@ export default function GeneratePage() {
       });
   }, []);
 
-  // Fetch weeks + post types when company selected
+  // Fetch weeks + post types + topics when company selected
   useEffect(() => {
     if (!selectedCompanyId) return;
     fetch(`/api/weeks?companyId=${selectedCompanyId}`)
       .then((r) => r.json())
       .then((d) => setWeeks(d.data || []));
-    // Fetch post types for single post generation
     fetch(`/api/post-types?companyId=${selectedCompanyId}`)
       .then((r) => r.json())
       .then((d) => setPostTypes(d.data || []))
       .catch(() => setPostTypes([]));
+    fetch(`/api/config/topic-bank?companyId=${selectedCompanyId}`)
+      .then((r) => r.json())
+      .then((d) => setTopics(d.data || []))
+      .catch(() => setTopics([]));
   }, [selectedCompanyId]);
 
   const handleSelectCompany = (id: string) => {
     setSelectedCompanyId(id);
     setSelectedWeekId("");
     setSelectedScope("");
+    setSelectedTopicId("");
+    setSingleTopic("");
     setStep("scope");
+  };
+
+  const handleSelectTopic = (topicId: string) => {
+    setSelectedTopicId(topicId);
+    const topic = topics.find((t) => t.id === topicId);
+    if (topic) setSingleTopic(topic.title);
   };
 
   const handleSelectScope = (scope: GenerationScope) => {
@@ -488,16 +513,76 @@ export default function GeneratePage() {
               <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
                 <div>
                   <label className="text-sm font-medium text-gray-900">Topic or subject</label>
-                  <input
-                    type="text"
-                    value={singleTopic}
-                    onChange={(e) => setSingleTopic(e.target.value)}
-                    placeholder={selectedScope === "single_blog"
-                      ? "e.g. Why clinical champions are the hidden buyers in MedTech"
-                      : "e.g. The 12-minute supplier meeting problem"
-                    }
-                    className="mt-1.5 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-                  />
+
+                  {/* Mode toggle — only show if the company has topics loaded */}
+                  {topics.length > 0 && (
+                    <div className="mt-1.5 flex rounded-md border border-gray-200 p-0.5 bg-gray-50 w-fit">
+                      <button
+                        type="button"
+                        onClick={() => { setTopicMode("bank"); setSingleTopic(""); setSelectedTopicId(""); }}
+                        className={`rounded px-3 py-1 text-xs font-medium transition-colors ${topicMode === "bank" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                      >
+                        From topic bank
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setTopicMode("custom"); setSelectedTopicId(""); }}
+                        className={`rounded px-3 py-1 text-xs font-medium transition-colors ${topicMode === "custom" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                      >
+                        Custom topic
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Topic bank selector */}
+                  {topicMode === "bank" && topics.length > 0 ? (
+                    <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                      {topics.map((topic) => (
+                        <button
+                          key={topic.id}
+                          type="button"
+                          onClick={() => handleSelectTopic(topic.id)}
+                          className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                            selectedTopicId === topic.id
+                              ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
+                              : topic.is_used
+                              ? "border-gray-100 bg-gray-50 opacity-60 hover:opacity-80 hover:border-gray-200"
+                              : "border-gray-200 hover:border-sky-300 hover:bg-sky-50/30"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] text-gray-400 font-mono">#{topic.topic_number}</span>
+                              <p className="text-sm font-medium text-gray-900 leading-snug mt-0.5">{topic.title}</p>
+                              {topic.description && (
+                                <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{topic.description}</p>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              {topic.pillar && (
+                                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{topic.pillar}</span>
+                              )}
+                              {topic.is_used && (
+                                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">Used</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Custom topic text input */
+                    <input
+                      type="text"
+                      value={singleTopic}
+                      onChange={(e) => setSingleTopic(e.target.value)}
+                      placeholder={selectedScope === "single_blog"
+                        ? "e.g. Why clinical champions are the hidden buyers in MedTech"
+                        : "e.g. The 12-minute supplier meeting problem"
+                      }
+                      className="mt-1.5 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                    />
+                  )}
                 </div>
                 {selectedScope === "single_post" && postTypes.length > 0 && (
                   <div>
@@ -636,7 +721,8 @@ export default function GeneratePage() {
               <button
                 onClick={handleGenerate}
                 disabled={
-                  (isSingleMode && !singleTopic.trim()) ||
+                  (isSingleMode && topicMode === "bank" && !selectedTopicId) ||
+                  (isSingleMode && topicMode === "custom" && !singleTopic.trim()) ||
                   (isWeekMode && !selectedWeekId) ||
                   (isWeekMode && isCohesive && !weekSubject.trim())
                 }

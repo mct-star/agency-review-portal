@@ -16,6 +16,7 @@ interface NavItem {
   label: string;
   icon: string;
   adminOnly?: boolean;
+  publisherOnly?: boolean;
   highlight?: boolean;
 }
 
@@ -28,20 +29,20 @@ const sections: NavSection[] = [
   {
     title: "Setup",
     items: [
-      { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
+      { href: "/setup", label: "Companies", icon: "building" },
     ],
   },
   {
     title: "Generate",
     items: [
-      { href: "/generate", label: "Generate Week", icon: "sparkle", adminOnly: true, highlight: true },
+      { href: "/generate", label: "Generate Content", icon: "sparkle", highlight: true },
     ],
   },
   {
     title: "Review",
     items: [
       { href: "/review", label: "Content", icon: "calendar" },
-      { href: "/publish", label: "Publish", icon: "send", adminOnly: true },
+      { href: "/publish", label: "Post", icon: "send", publisherOnly: true },
     ],
   },
 ];
@@ -63,6 +64,7 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
+  const canPublish = isAdmin || (user.can_publish ?? false);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -123,7 +125,7 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
       <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-2">
         {sections.map((section) => {
           const visibleItems = section.items.filter(
-            (item) => !item.adminOnly || isAdmin
+            (item) => (!item.adminOnly || isAdmin) && (!item.publisherOnly || canPublish)
           );
           if (visibleItems.length === 0) return null;
 

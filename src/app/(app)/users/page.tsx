@@ -11,6 +11,7 @@ export default function UsersPage() {
   const [inviteName, setInviteName] = useState("");
   const [inviteCompanyId, setInviteCompanyId] = useState("");
   const [inviteRole, setInviteRole] = useState<"client" | "admin">("client");
+  const [inviteCanPublish, setInviteCanPublish] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export default function UsersPage() {
           full_name: inviteName || null,
           company_id: inviteCompanyId || null,
           role: inviteRole,
+          can_publish: inviteCanPublish,
         },
         { onConflict: "email" }
       );
@@ -86,6 +88,7 @@ export default function UsersPage() {
 
       setInviteEmail("");
       setInviteName("");
+      setInviteCanPublish(false);
       await loadData();
     } catch {
       setMessage({ text: "Failed to create invitation.", type: "error" });
@@ -214,6 +217,17 @@ export default function UsersPage() {
               <option value="admin">Admin</option>
             </select>
           </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={inviteCanPublish}
+              onChange={(e) => setInviteCanPublish(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-sky-500 focus:ring-sky-400"
+            />
+            <span className="text-sm text-gray-600">
+              Can post to LinkedIn <span className="text-xs text-gray-400">(grants access to Post section)</span>
+            </span>
+          </label>
           <button
             type="submit"
             disabled={loading}
@@ -240,6 +254,9 @@ export default function UsersPage() {
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                 Company
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Post
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                 Actions
@@ -270,6 +287,15 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">
                     {user.company ? (user.company as Company).name : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {user.role === "admin" ? (
+                      <span className="text-xs text-gray-400">always</span>
+                    ) : user.can_publish ? (
+                      <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Yes</span>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">

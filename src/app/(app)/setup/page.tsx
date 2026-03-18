@@ -1,9 +1,17 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import Link from "next/link";
 import AddCompanyButton from "./AddCompanyButton";
 import type { Company } from "@/types/database";
 
 export default async function CompaniesPage() {
+  const profile = await getUserProfile();
+
+  // Non-admin clients go straight to their own company setup
+  if (profile && profile.role !== "admin" && profile.company_id) {
+    redirect(`/setup/${profile.company_id}`);
+  }
+
   const supabase = await createServerSupabaseClient();
   const { data: companies } = await supabase
     .from("companies")

@@ -165,6 +165,7 @@ export interface User {
   full_name: string | null;
   role: UserRole;
   company_id: string | null;
+  can_publish: boolean;
   created_at: string;
 }
 
