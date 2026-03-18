@@ -57,9 +57,9 @@ export async function POST(request: Request) {
     slotLabel,
   } = body;
 
-  if (!companyId || !weekId || !topicId || !contentType) {
+  if (!companyId || !weekId || !contentType) {
     return NextResponse.json(
-      { error: "companyId, weekId, topicId, and contentType are required" },
+      { error: "companyId, weekId, and contentType are required" },
       { status: 400 }
     );
   }
@@ -99,7 +99,8 @@ export async function POST(request: Request) {
       .update({ status: "running", started_at: new Date().toISOString(), progress: 10 })
       .eq("id", jobId);
 
-    // 3. Fetch company, blueprint, topic, week, spokesperson
+    // 3. Fetch company, blueprint, topic (optional), week
+    const isValidTopicId = topicId && topicId !== "auto" && topicId !== "null";
     const [companyRes, blueprintRes, topicRes, weekRes] = await Promise.all([
       supabase.from("companies").select("*").eq("id", companyId).single(),
       supabase
@@ -108,16 +109,18 @@ export async function POST(request: Request) {
         .eq("company_id", companyId)
         .eq("is_active", true)
         .single(),
-      supabase.from("topic_bank").select("*").eq("id", topicId).single(),
+      isValidTopicId
+        ? supabase.from("topic_bank").select("*").eq("id", topicId).single()
+        : Promise.resolve({ data: null, error: null }),
       supabase.from("weeks").select("*").eq("id", weekId).single(),
     ]);
 
-    if (!topicRes.data) {
-      throw new Error("Topic not found");
-    }
     if (!weekRes.data) {
       throw new Error("Week not found");
     }
+
+    // Topic is optional — in cohesive mode, the topic title comes from the request body
+    const topic = topicRes.data;
 
     await supabase
       .from("content_generation_jobs")
@@ -171,10 +174,10 @@ export async function POST(request: Request) {
     // 6. Call the provider
     const input: ContentGenerationInput = {
       blueprintContent: blueprintRes.data?.blueprint_content || "No blueprint configured.",
-      topicTitle: topicRes.data.title,
-      topicDescription: topicRes.data.description,
-      pillar: topicRes.data.pillar,
-      audienceTheme: topicRes.data.audience_theme,
+      topicTitle: topic?.title || slotLabel || "Content piece",
+      topicDescription: topic?.description || additionalContext || null,
+      pillar: topic?.pillar || null,
+      audienceTheme: topic?.audience_theme || null,
       contentType: contentType as ContentGenerationInput["contentType"],
       weekNumber: weekRes.data.week_number,
       spokespersonName: spokespersonName || companyRes.data?.spokesperson_name || null,
@@ -224,9 +227,9 @@ export async function POST(request: Request) {
         post_type: resolvedPostTypeSlug || output.postType,
         day_of_week: resolvedDayOfWeek !== undefined ? String(resolvedDayOfWeek) : null,
         scheduled_time: resolvedTime || null,
-        pillar: topicRes.data.pillar,
-        audience_theme: topicRes.data.audience_theme,
-        topic_bank_ref: `#${topicRes.data.topic_number}: ${topicRes.data.title}`,
+        pillar: topic?.pillar || null,
+        audience_theme: topic?.audience_theme || null,
+        topic_bank_ref: topic ? `#${topic.topic_number}: ${topic.title}` : (slotLabel || null),
         sort_order: nextSort,
         approval_status: "pending",
         generation_job_id: jobId,
@@ -271,11 +274,13 @@ export async function POST(request: Request) {
       await supabase.from("content_assets").insert(assetRows);
     }
 
-    // 8. Mark topic as used
-    await supabase
-      .from("topic_bank")
-      .update({ is_used: true, used_in_week_id: weekId })
-      .eq("id", topicId);
+    // 8. Mark topic as used (only if we have a valid topic)
+    if (isValidTopicId) {
+      await supabase
+        .from("topic_bank")
+        .update({ is_used: true, used_in_week_id: weekId })
+        .eq("id", topicId);
+    }
 
     // 9. Complete the job
     await supabase

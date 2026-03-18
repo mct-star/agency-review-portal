@@ -87,9 +87,17 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
             src={platformLogoUrl}
             alt="Platform"
             className="h-8 max-w-[160px] object-contain"
+            onError={(e) => {
+              // If logo fails to load, hide it and show text
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
           />
-        ) : (
-          <h2 className="text-sm font-bold text-gray-900">Content Platform</h2>
+        ) : null}
+        {!platformLogoUrl && (
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Copy Magic</h2>
+            <p className="text-[10px] text-gray-400">Content Platform</p>
+          </div>
         )}
       </div>
 

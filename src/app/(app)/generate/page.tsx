@@ -189,12 +189,22 @@ export default function GeneratePage() {
         }
       }
 
-      setStatus({
-        phase: "complete",
-        current: piecesCreated,
-        total,
-        currentLabel: `Generated ${piecesCreated} pieces${imagesCreated ? ` + ${imagesCreated} images` : ""}`,
-      });
+      if (piecesCreated === 0) {
+        setStatus({
+          phase: "error",
+          current: 0,
+          total,
+          currentLabel: "",
+          error: `Generation failed for all ${total} pieces. Check that your Anthropic API key is valid in Setup > API Keys.`,
+        });
+      } else {
+        setStatus({
+          phase: "complete",
+          current: piecesCreated,
+          total,
+          currentLabel: `Generated ${piecesCreated}/${total} pieces${imagesCreated ? ` + ${imagesCreated} images` : ""}`,
+        });
+      }
     } catch (err) {
       setStatus({
         phase: "error",
