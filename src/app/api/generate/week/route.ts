@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { getContentProvider, getImageProvider } from "@/lib/providers";
+import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
 import { assignTopicsToSlots } from "@/lib/generation/topic-assigner";
+import { generateWithValidation } from "@/lib/generation/validated-generator";
 import type { ContentGenerationInput } from "@/lib/providers";
 import type { PostingSlotWithType, TopicBankEntry } from "@/types/database";
 
@@ -147,11 +148,21 @@ export async function POST(request: Request) {
 
   // ── 3. Resolve providers ───────────────────────────────────
   let contentProvider;
+  let fixProvider;
   let imageProvider;
 
   try {
     const cp = await getContentProvider(companyId);
     contentProvider = cp.provider;
+
+    // Create fix provider for the validation loop
+    const resolved = await resolveProvider(companyId, "content_generation");
+    if (resolved) {
+      const { createClaudeFixProvider } = await import(
+        "@/lib/providers/content-generation/anthropic"
+      );
+      fixProvider = createClaudeFixProvider(resolved.credentials, resolved.settings);
+    }
   } catch (err) {
     return NextResponse.json(
       { error: `Content provider error: ${err instanceof Error ? err.message : "Unknown"}` },
@@ -187,6 +198,9 @@ export async function POST(request: Request) {
     title: string;
     imageGenerated: boolean;
     error: string | null;
+    qualityPassed?: boolean;
+    qualityIterations?: number;
+    qualityFailures?: string[];
   }[] = [];
 
   let piecesCreated = 0;
@@ -233,8 +247,12 @@ export async function POST(request: Request) {
           : undefined,
       };
 
-      // Generate content
-      const output = await contentProvider.generate(input);
+      // Generate content with recursive quality validation (Copy Magic)
+      const { output, validation, iterations, fixHistory } = await generateWithValidation(
+        contentProvider,
+        input,
+        fixProvider || undefined
+      );
 
       // Create the content piece
       const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -361,6 +379,9 @@ export async function POST(request: Request) {
         title: output.title,
         imageGenerated,
         error: null,
+        qualityPassed: validation.allPassed,
+        qualityIterations: iterations,
+        qualityFailures: validation.allPassed ? [] : fixHistory.map((h) => h.failures).flat(),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

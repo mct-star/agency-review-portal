@@ -490,6 +490,78 @@ export function createClaudeContentProvider(
   };
 }
 
+/**
+ * Creates a "fix provider" that takes content + specific failure messages
+ * and asks Claude to fix only the identified issues without rewriting.
+ */
+export function createClaudeFixProvider(
+  credentials: Record<string, unknown>,
+  settings: Record<string, unknown>
+) {
+  const apiKey = credentials.api_key as string;
+  if (!apiKey) throw new Error("Fix provider requires API key");
+  const model = (settings.model as string) || DEFAULT_MODEL;
+
+  return {
+    async fix(
+      content: ContentGenerationOutput,
+      fixInstructions: string
+    ): Promise<ContentGenerationOutput> {
+      const system = `You are a content editor. Fix ONLY the specific issues identified below. Do NOT rewrite the content. Make minimal, targeted changes.
+
+CURRENT CONTENT:
+Title: ${content.title}
+Body: ${content.markdownBody}
+First Comment: ${content.firstComment || "(none)"}
+Word Count: ${content.wordCount}
+
+QUALITY TEST FAILURES:
+${fixInstructions}
+
+Return the FIXED content as JSON (no code fences):
+{
+  "title": "string",
+  "markdownBody": "string",
+  "firstComment": "string or null",
+  "wordCount": number,
+  "postType": "${content.postType || "null"}",
+  "imagePrompt": ${content.imagePrompt ? `"${content.imagePrompt.substring(0, 100)}..."` : "null"},
+  "assets": ${JSON.stringify(content.assets || [])}
+}
+
+RULES:
+- Fix ONLY the listed failures
+- Preserve the voice, structure, and meaning
+- Keep the same image prompt and assets unless specifically flagged
+- If word count is wrong, trim or expand naturally (not with filler)`;
+
+      const text = await callClaude(
+        apiKey,
+        model,
+        system,
+        [{ role: "user", content: "Fix the issues now." }],
+        8192
+      );
+
+      const cleaned = text
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      try {
+        const parsed = JSON.parse(cleaned) as ContentGenerationOutput;
+        if (!parsed.imagePrompt) parsed.imagePrompt = content.imagePrompt;
+        if (!parsed.assets || parsed.assets.length === 0) parsed.assets = content.assets;
+        return parsed;
+      } catch {
+        // If parsing fails, return original content unchanged
+        return content;
+      }
+    },
+  };
+}
+
 // ── Platform Adaptation ─────────────────────────────────────
 
 const PLATFORM_RULES: Record<string, string> = {
