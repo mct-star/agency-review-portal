@@ -48,6 +48,39 @@ export default function WeekReviewTabs({
   const [activeTab, setActiveTab] = useState<ReviewTab>("social");
   // Track which social posts are expanded (show full LinkedIn preview)
   const [expandedPieces, setExpandedPieces] = useState<Set<string>>(new Set());
+  // Track image generation state per piece
+  const [generatingImage, setGeneratingImage] = useState<Set<string>>(new Set());
+  const [generatedImages, setGeneratedImages] = useState<Map<string, string>>(new Map());
+
+  const handleGenerateImage = async (pieceId: string, companyId: string) => {
+    // Find the image prompt from the piece's assets
+    const piece = allPieces.find((p) => p.id === pieceId);
+    const imagePromptAsset = piece?.assets.find((a) => a.asset_type === "image_prompt");
+    if (!imagePromptAsset?.text_content) return;
+
+    setGeneratingImage((prev) => new Set(prev).add(pieceId));
+    try {
+      const res = await fetch("/api/generate/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          contentPieceId: pieceId,
+          prompts: [imagePromptAsset.text_content],
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.images?.[0]?.url) {
+        setGeneratedImages((prev) => new Map(prev).set(pieceId, data.images[0].url));
+      }
+    } finally {
+      setGeneratingImage((prev) => {
+        const next = new Set(prev);
+        next.delete(pieceId);
+        return next;
+      });
+    }
+  };
 
   // Build tabs based on what content exists
   const tabs: { id: ReviewTab; label: string; count: number }[] = [
@@ -120,7 +153,10 @@ export default function WeekReviewTabs({
           ) : (
             sortedSocialPieces.map((piece) => {
               const isExpanded = expandedPieces.has(piece.id);
-              const previewImage = piece.images.length > 0 ? piece.images[0].public_url : null;
+              const previewImage = generatedImages.get(piece.id) || (piece.images.length > 0 ? piece.images[0].public_url : null);
+              const hasImagePrompt = piece.assets.some((a) => a.asset_type === "image_prompt");
+              const needsImage = !previewImage && hasImagePrompt;
+              const isGenerating = generatingImage.has(piece.id);
 
               return (
                 <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
@@ -160,6 +196,27 @@ export default function WeekReviewTabs({
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      {/* Image thumbnail */}
+                      {previewImage && (
+                        <img src={previewImage} alt="" className="h-10 w-10 rounded-md object-cover border border-gray-200" />
+                      )}
+                      {/* Generate Image button */}
+                      {needsImage && (
+                        <button
+                          onClick={() => handleGenerateImage(piece.id, piece.company_id)}
+                          disabled={isGenerating}
+                          className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          {isGenerating ? (
+                            <span className="flex items-center gap-1">
+                              <span className="h-3 w-3 animate-spin rounded-full border border-amber-300 border-t-amber-600" />
+                              Generating...
+                            </span>
+                          ) : (
+                            "Generate Image"
+                          )}
+                        </button>
+                      )}
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                           STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending

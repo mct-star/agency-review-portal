@@ -100,7 +100,7 @@ export default function ImageUploader({
           <img
             src={imageUrl}
             alt={label}
-            className={`h-full w-full object-cover ${rounded ? "rounded-full" : "rounded-xl"}`}
+            className={`h-full w-full ${rounded ? "object-cover rounded-full" : "object-contain p-1 rounded-xl"}`}
           />
         ) : (
           <div className={`flex h-full w-full items-center justify-center bg-gray-50 ${rounded ? "rounded-full" : "rounded-xl"}`}>
