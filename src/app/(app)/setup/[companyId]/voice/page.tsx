@@ -106,33 +106,28 @@ export default function VoiceProfilePage() {
         </p>
       </div>
 
-      {/* LinkedIn Scanner */}
+      {/* Voice Scanner — Multiple Sources */}
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-blue-900">Scan LinkedIn</h3>
+            <h3 className="text-sm font-semibold text-blue-900">Scan Voice</h3>
             <p className="mt-1 text-xs text-blue-700">
-              Enter a LinkedIn profile URL and we&apos;ll analyse their writing style, or paste posts manually.
+              Analyse writing or speaking samples to extract voice patterns automatically.
             </p>
           </div>
-          {/* Mode toggle */}
-          <div className="flex gap-1 rounded-md bg-blue-100 p-0.5">
-            <button
-              onClick={() => setScanMode("url")}
-              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
-                scanMode === "url" ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
-              }`}
-            >
-              URL
-            </button>
-            <button
-              onClick={() => setScanMode("paste")}
-              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
-                scanMode === "paste" ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
-              }`}
-            >
-              Paste
-            </button>
+          {/* Source toggle */}
+          <div className="flex gap-0.5 rounded-md bg-blue-100 p-0.5">
+            {(["url", "paste", "blog", "video"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setScanMode(mode as "url" | "paste")}
+                className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                  scanMode === mode ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
+                }`}
+              >
+                {mode === "url" ? "LinkedIn" : mode === "paste" ? "Paste" : mode === "blog" ? "Blog" : "Video"}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -146,7 +141,7 @@ export default function VoiceProfilePage() {
               className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
             <p className="mt-1 text-[10px] text-blue-400">
-              We&apos;ll analyse their public posts to extract voice patterns and signature writing devices.
+              We&apos;ll analyse their LinkedIn activity to extract voice patterns.
             </p>
           </div>
         ) : (
@@ -159,12 +154,53 @@ export default function VoiceProfilePage() {
           />
         )}
 
+        {scanMode === ("blog" as string) && (
+          <div className="mt-3">
+            <input
+              type="url"
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder="https://example.com/blog/article-title"
+              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <p className="mt-1 text-[10px] text-blue-400">
+              Paste a blog URL and we&apos;ll extract the text and analyse the writing style.
+            </p>
+          </div>
+        )}
+
+        {scanMode === ("video" as string) && (
+          <div className="mt-3">
+            <input
+              type="url"
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder="https://youtube.com/watch?v=... or podcast URL"
+              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <p className="mt-1 text-[10px] text-blue-400">
+              Paste a video or podcast URL. We&apos;ll transcribe it and analyse their speaking style.
+            </p>
+          </div>
+        )}
+
+        {/* Error display — prominent */}
+        {message && (
+          <div className={`mt-2 rounded-md p-2 text-xs ${
+            message.includes("Error") || message.includes("failed") || message.includes("Could not")
+              ? "bg-red-50 text-red-700 border border-red-200"
+              : "bg-green-50 text-green-700 border border-green-200"
+          }`}>
+            {message}
+          </div>
+        )}
+
         <button
           onClick={handleScanLinkedIn}
-          disabled={scanning || (scanMode === "url" ? !linkedinUrl.trim() : !scanPosts.trim())}
+          disabled={scanning || (!linkedinUrl.trim() && !scanPosts.trim())}
           className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {scanning ? "Analysing..." : scanMode === "url" ? "Scan Profile" : "Analyse Posts"}
+          {scanning ? "Analysing..." : "Analyse Voice"}
         </button>
       </div>
 

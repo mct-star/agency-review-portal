@@ -48,12 +48,27 @@ export async function POST(request: Request) {
   // If a LinkedIn URL was provided, use Claude to extract posts from the profile
   let postsToAnalyse = posts || "";
 
-  // Resolve the Claude provider for this company
-  const resolved = await resolveProvider(companyId, "content_generation");
+  // Resolve the Claude provider — try this company first, then fall back to any company
+  let resolved = await resolveProvider(companyId, "content_generation");
+
+  if (!resolved) {
+    // Fall back: find ANY company with a content generation provider
+    const supabase = await createAdminSupabaseClient();
+    const { data: configs } = await supabase
+      .from("company_api_configs")
+      .select("company_id")
+      .eq("service_category", "content_generation")
+      .eq("is_active", true)
+      .limit(1);
+
+    if (configs && configs.length > 0) {
+      resolved = await resolveProvider(configs[0].company_id, "content_generation");
+    }
+  }
 
   if (!resolved) {
     return NextResponse.json(
-      { error: "No content generation provider configured. Add an Anthropic API key in Setup > API Keys." },
+      { error: "No AI provider configured. Add an Anthropic API key in any company's Setup > API Keys." },
       { status: 400 }
     );
   }
