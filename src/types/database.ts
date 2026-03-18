@@ -153,6 +153,7 @@ export interface Company {
   spokesperson_name: string | null;
   spokesperson_tagline: string | null;
   logo_url: string | null;
+  profile_picture_url: string | null;
   brand_color: string | null;
   content_strategy_mode: ContentStrategyMode;
   created_at: string;

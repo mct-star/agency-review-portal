@@ -4,12 +4,12 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 /**
  * POST /api/upload/logo
  *
- * Uploads a company logo (PNG, SVG, JPG) to Supabase Storage
- * and updates the company's logo_url field.
+ * Uploads a company logo or profile picture to Supabase Storage.
  *
  * Accepts multipart/form-data with:
- * - file: the logo image
+ * - file: the image
  * - companyId: string
+ * - type: "logo" | "profile_picture" (default: "logo")
  */
 export async function POST(request: Request) {
   const admin = await requireAdmin();
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const companyId = formData.get("companyId") as string | null;
+  const uploadType = (formData.get("type") as string) || "logo";
 
   if (!file || !companyId) {
     return NextResponse.json({ error: "file and companyId required" }, { status: 400 });
@@ -36,7 +37,8 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
   const ext = file.name.split(".").pop() || "png";
-  const storagePath = `logos/${companyId}/logo.${ext}`;
+  const filename = uploadType === "profile_picture" ? "profile" : "logo";
+  const storagePath = `logos/${companyId}/${filename}.${ext}`;
 
   const arrayBuffer = await file.arrayBuffer();
 
@@ -56,9 +58,10 @@ export async function POST(request: Request) {
   const publicUrl = urlData.publicUrl;
 
   // Update company record
+  const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
   await supabase
     .from("companies")
-    .update({ logo_url: publicUrl })
+    .update({ [updateField]: publicUrl })
     .eq("id", companyId);
 
   return NextResponse.json({ url: publicUrl, storagePath });
