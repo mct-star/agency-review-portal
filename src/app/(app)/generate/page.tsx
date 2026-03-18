@@ -82,7 +82,13 @@ export default function GeneratePage() {
   const handleSelectWeek = (id: string) => {
     setSelectedWeekId(id);
     const week = weeks.find((w) => w.id === id);
-    if (week?.subject) setWeekSubject(week.subject);
+    // Auto-populate subject: use existing subject, or derive from theme
+    if (week?.subject) {
+      setWeekSubject(week.subject);
+    } else if (week?.theme) {
+      // Use the week's theme as the starting subject (user can override)
+      setWeekSubject(week.theme);
+    }
     setStep("configure");
   };
 
@@ -267,10 +273,29 @@ export default function GeneratePage() {
           {/* Cohesive mode: enter subject */}
           {isCohesive && (
             <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
-              <h3 className="text-sm font-semibold text-gray-900">Week Subject</h3>
-              <p className="mt-1 text-xs text-gray-500">
-                All posts this week will explore this subject from different angles.
-              </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Week Subject</h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Every post this week explores this subject from a different angle.
+                    {selectedWeek.theme && (
+                      <span className="ml-1 text-sky-600">
+                        Auto-filled from your content strategy theme.
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {/* Tooltip */}
+                <div className="group relative">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-200 text-[10px] font-bold text-sky-700 cursor-help">?</div>
+                  <div className="absolute right-0 top-7 z-10 hidden w-72 rounded-lg bg-gray-900 p-3 text-xs text-gray-100 shadow-lg group-hover:block">
+                    <p className="font-semibold text-white">How does this work?</p>
+                    <p className="mt-1">In cohesive mode, the Monday Problem Post, Tuesday Launch Story, Friday Founder post, etc. all explore the SAME subject from their unique structural angle. This creates a connected week where readers get a complete picture.</p>
+                    <p className="mt-2">The subject is pre-filled from your content strategy theme. Refine it to be more specific if needed.</p>
+                    <div className="absolute -top-1 right-3 h-2 w-2 rotate-45 bg-gray-900" />
+                  </div>
+                </div>
+              </div>
               <input
                 type="text"
                 value={weekSubject}
@@ -278,6 +303,12 @@ export default function GeneratePage() {
                 placeholder="e.g. Patient referral pathways in MedTech procurement"
                 className="mt-2 block w-full rounded-md border border-sky-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
               />
+              {selectedWeek.theme && weekSubject === selectedWeek.theme && (
+                <p className="mt-1.5 text-[10px] text-sky-500">
+                  Tip: Make this more specific. Instead of &quot;{selectedWeek.theme}&quot;, try something like
+                  &quot;{selectedWeek.theme} in procurement decision-making&quot;
+                </p>
+              )}
             </div>
           )}
 

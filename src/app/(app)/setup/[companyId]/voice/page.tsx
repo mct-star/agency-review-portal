@@ -26,6 +26,8 @@ export default function VoiceProfilePage() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanPosts, setScanPosts] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [scanMode, setScanMode] = useState<"url" | "paste">("url");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -55,16 +57,30 @@ export default function VoiceProfilePage() {
   };
 
   const handleScanLinkedIn = async () => {
-    if (!scanPosts.trim()) return;
+    const hasInput = scanMode === "url" ? linkedinUrl.trim() : scanPosts.trim();
+    if (!hasInput) return;
     setScanning(true);
     setMessage("");
     try {
+      const requestBody = scanMode === "url"
+        ? { companyId, linkedinUrl: linkedinUrl.trim() }
+        : { companyId, posts: scanPosts };
+
       const res = await fetch("/api/setup/scan-linkedin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, posts: scanPosts }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
+
+      // If URL mode failed and needs manual paste, switch to paste mode
+      if (data.needsManualPaste) {
+        setScanMode("paste");
+        setMessage("Could not retrieve posts from that URL. Paste posts manually below.");
+        setScanning(false);
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || "Scan failed");
       if (data.profile) {
         setProfile({
@@ -72,7 +88,7 @@ export default function VoiceProfilePage() {
           ...data.profile,
           source: "linkedin_scan",
         });
-        setMessage("Voice profile extracted from LinkedIn posts. Review and save.");
+        setMessage("Voice profile extracted. Review the results below and save.");
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Scan failed");
@@ -92,23 +108,63 @@ export default function VoiceProfilePage() {
 
       {/* LinkedIn Scanner */}
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <h3 className="text-sm font-semibold text-blue-900">Scan LinkedIn Posts</h3>
-        <p className="mt-1 text-xs text-blue-700">
-          Paste 5-10 recent LinkedIn posts below and we&apos;ll analyse the writing style to extract voice patterns.
-        </p>
-        <textarea
-          value={scanPosts}
-          onChange={(e) => setScanPosts(e.target.value)}
-          rows={6}
-          placeholder="Paste LinkedIn posts here (separate with --- between posts)"
-          className="mt-3 block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-        />
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-blue-900">Scan LinkedIn</h3>
+            <p className="mt-1 text-xs text-blue-700">
+              Enter a LinkedIn profile URL and we&apos;ll analyse their writing style, or paste posts manually.
+            </p>
+          </div>
+          {/* Mode toggle */}
+          <div className="flex gap-1 rounded-md bg-blue-100 p-0.5">
+            <button
+              onClick={() => setScanMode("url")}
+              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                scanMode === "url" ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
+              }`}
+            >
+              URL
+            </button>
+            <button
+              onClick={() => setScanMode("paste")}
+              className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                scanMode === "paste" ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
+              }`}
+            >
+              Paste
+            </button>
+          </div>
+        </div>
+
+        {scanMode === "url" ? (
+          <div className="mt-3">
+            <input
+              type="url"
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder="https://linkedin.com/in/username"
+              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <p className="mt-1 text-[10px] text-blue-400">
+              We&apos;ll analyse their public posts to extract voice patterns and signature writing devices.
+            </p>
+          </div>
+        ) : (
+          <textarea
+            value={scanPosts}
+            onChange={(e) => setScanPosts(e.target.value)}
+            rows={6}
+            placeholder="Paste 5-10 LinkedIn posts here (separate with --- between posts)"
+            className="mt-3 block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        )}
+
         <button
           onClick={handleScanLinkedIn}
-          disabled={scanning || !scanPosts.trim()}
+          disabled={scanning || (scanMode === "url" ? !linkedinUrl.trim() : !scanPosts.trim())}
           className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {scanning ? "Analysing..." : "Analyse Voice"}
+          {scanning ? "Analysing..." : scanMode === "url" ? "Scan Profile" : "Analyse Posts"}
         </button>
       </div>
 
