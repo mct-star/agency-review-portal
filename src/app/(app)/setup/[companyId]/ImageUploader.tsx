@@ -47,27 +47,29 @@ export default function ImageUploader({
 
       if (res.ok && data.url) {
         setImageUrl(data.url);
+        setUploading(false);
         return;
       }
 
-      // If storage upload failed, fall back to base64 data URL stored directly
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = reader.result as string;
-        // Store the data URL directly on the company record
-        const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
-        const updateRes = await fetch("/api/companies", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: companyId, [updateField]: dataUrl }),
-        });
-        if (updateRes.ok) {
-          setImageUrl(dataUrl);
-        } else {
-          setError(data.error || "Upload failed. Create a 'media' storage bucket in Supabase.");
-        }
-      };
-      reader.readAsDataURL(file);
+      // Storage upload failed — fall back to base64 stored directly on company record
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
+      const updateRes = await fetch("/api/companies", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: companyId, [updateField]: dataUrl }),
+      });
+
+      if (updateRes.ok) {
+        setImageUrl(dataUrl);
+      } else {
+        setError("Upload failed. Create a 'media' bucket in Supabase Storage.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
