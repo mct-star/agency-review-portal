@@ -487,6 +487,33 @@ export interface SetupProgress {
 }
 
 // ============================================================
+// Story bank + review documents
+// ============================================================
+
+export interface StoryBankEntry {
+  id: string;
+  company_id: string;
+  title: string;
+  story_text: string;
+  category: string;
+  tags: string[];
+  pillar: string | null;
+  is_used: boolean;
+  used_count: number;
+  last_used_in_week_id: string | null;
+  created_at: string;
+}
+
+export interface ReviewDocument {
+  id: string;
+  week_id: string;
+  company_id: string;
+  compiled_content: string;
+  quality_summary: Record<string, unknown>;
+  compiled_at: string;
+}
+
+// ============================================================
 // Extended types with joins
 // ============================================================
 

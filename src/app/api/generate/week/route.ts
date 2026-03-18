@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const supabase = await createAdminSupabaseClient();
 
   // ── 1. Fetch company, week, blueprint, slots, topics, setup data ───────
-  const [companyRes, weekRes, blueprintRes, slotsRes, topicsRes, signoffRes, voiceRes] = await Promise.all([
+  const [companyRes, weekRes, blueprintRes, slotsRes, topicsRes, storiesRes, signoffRes, voiceRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("weeks").select("*").eq("id", weekId).single(),
     supabase
@@ -81,6 +81,11 @@ export async function POST(request: Request) {
       .eq("company_id", companyId)
       .eq("is_used", false)
       .order("topic_number"),
+    supabase
+      .from("story_bank")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("used_count", { ascending: true }),
     supabase
       .from("company_signoffs")
       .select("*")
@@ -112,6 +117,7 @@ export async function POST(request: Request) {
   const sourceContext = blueprintRes.data?.derived_source_context || "";
   const slots = (slotsRes.data || []) as PostingSlotWithType[];
   const unusedTopics = (topicsRes.data || []) as TopicBankEntry[];
+  const stories = (storiesRes.data || []) as { id: string; title: string; story_text: string; pillar: string | null; tags: string[] }[];
 
   // Setup data (may be null if not configured yet — that is OK)
   const signoff = signoffRes.data;
@@ -242,9 +248,29 @@ export async function POST(request: Request) {
         dayOfWeek: assignment.dayOfWeek,
         scheduledTime: assignment.scheduledTime,
         slotLabel: assignment.slotLabel,
-        additionalContext: assignment.angle
-          ? `WEEK SUBJECT: ${subject}\nANGLE FOR THIS POST: ${assignment.angle}`
-          : undefined,
+        additionalContext: (() => {
+          const parts: string[] = [];
+          if (assignment.angle) {
+            parts.push(`WEEK SUBJECT: ${subject}`);
+            parts.push(`ANGLE FOR THIS POST: ${assignment.angle}`);
+          }
+          // Find relevant stories for this piece (match by pillar or topic keywords)
+          const relevantStories = stories
+            .filter((s) => {
+              if (s.pillar && assignment.topicPillar && s.pillar === assignment.topicPillar) return true;
+              const topicLower = assignment.topicTitle.toLowerCase();
+              return s.tags.some((t) => topicLower.includes(t.toLowerCase())) ||
+                s.title.toLowerCase().includes(topicLower.substring(0, 20));
+            })
+            .slice(0, 2); // Max 2 stories per piece
+          if (relevantStories.length > 0) {
+            parts.push("PROOF POINTS / STORIES TO WEAVE IN:");
+            for (const story of relevantStories) {
+              parts.push(`- ${story.title}: ${story.story_text.substring(0, 300)}${story.story_text.length > 300 ? "..." : ""}`);
+            }
+          }
+          return parts.length > 0 ? parts.join("\n") : undefined;
+        })(),
       };
 
       // Generate content with recursive quality validation (Copy Magic)
