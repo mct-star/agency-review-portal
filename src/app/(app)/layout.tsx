@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUser, getUserProfile } from "@/lib/supabase/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
 
 /**
@@ -34,9 +35,31 @@ export default async function AppLayout({
     );
   }
 
+  // Fetch platform logo (from the first company, or the user's company)
+  const supabase = await createServerSupabaseClient();
+  const companyId = profile.company_id;
+  let platformLogoUrl: string | null = null;
+
+  if (companyId) {
+    const { data: company } = await supabase
+      .from("companies")
+      .select("logo_url")
+      .eq("id", companyId)
+      .single();
+    platformLogoUrl = company?.logo_url || null;
+  } else if (profile.role === "admin") {
+    // Admin without a company — fetch the first company's logo
+    const { data: companies } = await supabase
+      .from("companies")
+      .select("logo_url")
+      .order("created_at")
+      .limit(1);
+    platformLogoUrl = companies?.[0]?.logo_url || null;
+  }
+
   return (
     <div className="flex h-screen">
-      <Sidebar user={profile} />
+      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} />
       <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
     </div>
   );

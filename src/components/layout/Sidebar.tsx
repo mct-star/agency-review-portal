@@ -8,6 +8,7 @@ import type { User } from "@/types/database";
 
 interface SidebarProps {
   user: User;
+  platformLogoUrl?: string | null;
 }
 
 interface NavItem {
@@ -58,7 +59,7 @@ const icons: Record<string, string> = {
   send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
 };
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
@@ -80,9 +81,16 @@ export default function Sidebar({ user }: SidebarProps) {
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
       {/* Brand */}
-      <div className="border-b border-gray-200 px-4 py-4">
-        <h2 className="text-sm font-bold text-gray-900">AGENCY Bristol</h2>
-        <p className="text-xs text-gray-500">Content Platform</p>
+      <div className="border-b border-gray-200 px-4 py-3">
+        {platformLogoUrl ? (
+          <img
+            src={platformLogoUrl}
+            alt="Platform"
+            className="h-8 max-w-[160px] object-contain"
+          />
+        ) : (
+          <h2 className="text-sm font-bold text-gray-900">Content Platform</h2>
+        )}
       </div>
 
       {/* Dashboard link */}
