@@ -22,6 +22,8 @@ import type { ServiceCategory } from "@/types/database";
 
 export interface ContentGenerationInput {
   blueprintContent: string;
+  /** Full source context doc (production rules, voice DNA, quality tests) */
+  sourceContext?: string;
   topicTitle: string;
   topicDescription: string | null;
   pillar: string | null;

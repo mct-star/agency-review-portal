@@ -374,6 +374,16 @@ ${"═".repeat(60)}
 
 ${input.blueprintContent}
 
+${input.sourceContext ? `
+${"═".repeat(60)}
+SOURCE CONTEXT — PRODUCTION RULES (AGENCY Copy Magic DNA)
+${"═".repeat(60)}
+These are the battle-tested production rules that make content
+sound authentic. They override any conflicting generic guidance.
+Every rule here has been validated across 10+ weeks of live production.
+
+${input.sourceContext}
+` : ""}
 ${"═".repeat(60)}
 OUTPUT FORMAT
 ${"═".repeat(60)}

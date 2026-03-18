@@ -135,9 +135,14 @@ export default function GeneratePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Generate Content</h1>
+          <span className="rounded-full bg-gradient-to-r from-purple-500 to-sky-500 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+            Copy Magic
+          </span>
+        </div>
         <p className="mt-1 text-sm text-gray-500">
-          Follow your content strategy to generate a full week of posts with images.
+          Powered by your content strategy, voice profile, and production-tested atom templates.
         </p>
       </div>
 

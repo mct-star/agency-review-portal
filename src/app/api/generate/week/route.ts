@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     supabase.from("weeks").select("*").eq("id", weekId).single(),
     supabase
       .from("company_blueprints")
-      .select("blueprint_content")
+      .select("blueprint_content, derived_source_context")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .single(),
@@ -108,6 +108,7 @@ export async function POST(request: Request) {
   const company = companyRes.data;
   const week = weekRes.data;
   const blueprintContent = blueprintRes.data?.blueprint_content || "";
+  const sourceContext = blueprintRes.data?.derived_source_context || "";
   const slots = (slotsRes.data || []) as PostingSlotWithType[];
   const unusedTopics = (topicsRes.data || []) as TopicBankEntry[];
 
@@ -196,6 +197,7 @@ export async function POST(request: Request) {
       // Build the generation input with full context
       const input: ContentGenerationInput = {
         blueprintContent,
+        sourceContext,
         topicTitle: assignment.topicTitle,
         topicDescription: assignment.topicDescription,
         pillar: assignment.topicPillar,
