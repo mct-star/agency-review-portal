@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
@@ -63,6 +64,9 @@ export async function POST(request: Request) {
     .from("companies")
     .update({ [updateField]: publicUrl })
     .eq("id", companyId);
+
+  // Revalidate layouts so the sidebar picks up the new logo
+  revalidatePath("/", "layout");
 
   return NextResponse.json({ url: publicUrl, storagePath });
 }

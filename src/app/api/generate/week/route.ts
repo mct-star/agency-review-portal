@@ -6,6 +6,10 @@ import { generateWithValidation } from "@/lib/generation/validated-generator";
 import type { ContentGenerationInput } from "@/lib/providers";
 import type { PostingSlotWithType, TopicBankEntry } from "@/types/database";
 
+// Vercel Pro allows up to 300 seconds (5 minutes).
+// Week generation needs time for 11+ Claude API calls sequentially.
+export const maxDuration = 300;
+
 /**
  * POST /api/generate/week
  *

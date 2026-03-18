@@ -3,6 +3,8 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider } from "@/lib/providers";
 import type { ContentGenerationInput } from "@/lib/providers";
 
+export const maxDuration = 120;
+
 /**
  * POST /api/generate/content
  * Start a content generation job.

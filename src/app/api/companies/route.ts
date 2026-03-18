@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
@@ -93,6 +94,9 @@ export async function PUT(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Revalidate layouts so sidebar picks up logo/name changes
+  revalidatePath("/", "layout");
 
   return NextResponse.json({ data });
 }
