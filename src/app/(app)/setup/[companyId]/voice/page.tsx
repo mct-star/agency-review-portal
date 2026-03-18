@@ -45,12 +45,21 @@ export default function VoiceProfilePage() {
       const res = await fetch("/api/config/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, ...profile }),
+        body: JSON.stringify({
+          companyId,
+          voice_description: profile.voice_description,
+          writing_samples: profile.writing_samples,
+          banned_vocabulary: profile.banned_vocabulary,
+          signature_devices: profile.signature_devices,
+          emotional_register: profile.emotional_register,
+          source: profile.source,
+        }),
       });
-      if (!res.ok) throw new Error("Save failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
       setMessage("Voice profile saved");
-    } catch {
-      setMessage("Error saving");
+    } catch (err) {
+      setMessage(`Error saving: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
       setSaving(false);
     }
@@ -117,7 +126,7 @@ export default function VoiceProfilePage() {
           </div>
           {/* Source toggle */}
           <div className="flex gap-0.5 rounded-md bg-blue-100 p-0.5">
-            {(["url", "paste", "blog", "video"] as const).map((mode) => (
+            {(["url", "paste", "blog", "video", "pdf"] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setScanMode(mode as "url" | "paste")}
@@ -125,7 +134,7 @@ export default function VoiceProfilePage() {
                   scanMode === mode ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
                 }`}
               >
-                {mode === "url" ? "LinkedIn" : mode === "paste" ? "Paste" : mode === "blog" ? "Blog" : "Video"}
+                {mode === "url" ? "LinkedIn" : mode === "paste" ? "Paste" : mode === "blog" ? "Blog" : mode === "video" ? "Video" : "PDF"}
               </button>
             ))}
           </div>
@@ -180,6 +189,22 @@ export default function VoiceProfilePage() {
             />
             <p className="mt-1 text-[10px] text-blue-400">
               Paste a video or podcast URL. We&apos;ll transcribe it and analyse their speaking style.
+            </p>
+          </div>
+        )}
+
+        {scanMode === ("pdf" as string) && (
+          <div className="mt-3">
+            <textarea
+              value={scanPosts}
+              onChange={(e) => setScanPosts(e.target.value)}
+              rows={6}
+              placeholder="Paste the text content from a PDF, whitepaper, or document. Copy and paste the text here."
+              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <p className="mt-1 text-[10px] text-blue-400">
+              Paste text from a PDF, whitepaper, case study, or any document they&apos;ve written.
+              The more text, the better the voice analysis.
             </p>
           </div>
         )}

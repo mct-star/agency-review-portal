@@ -323,8 +323,35 @@ export default function GeneratePage() {
                 </button>
               ))}
             {weeks.filter((w) => w.status === "draft").length === 0 && (
-              <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center">
-                <p className="text-gray-500">No draft weeks available. Create a week first.</p>
+              <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
+                <svg className="mx-auto h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 2a1 1 0 0 0-1 1v1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V3a1 1 0 1 0-2 0v1H7V3a1 1 0 0 0-1-1Zm0 6h12v10H6V8Z" />
+                </svg>
+                <h3 className="mt-3 text-sm font-semibold text-gray-900">No draft weeks to generate</h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  Content is generated into a weekly container. Create a new week first,
+                  then come back here to generate content for it.
+                </p>
+                <div className="mt-4 flex justify-center gap-2">
+                  <a
+                    href="/admin/upload"
+                    className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                  >
+                    Create Week
+                  </a>
+                  <a
+                    href="/review"
+                    className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    View Existing Weeks
+                  </a>
+                </div>
+                {weeks.length > 0 && (
+                  <p className="mt-3 text-[10px] text-gray-400">
+                    You have {weeks.length} week(s) but they are all already published or in review.
+                    Create a new draft week to generate fresh content.
+                  </p>
+                )}
               </div>
             )}
           </div>
