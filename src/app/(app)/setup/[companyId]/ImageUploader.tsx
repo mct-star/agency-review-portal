@@ -25,10 +25,14 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
   const [imageUrl, setImageUrl] = useState(currentUrl);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
+    setError(null);
+
+    // Try server upload first
     const formData = new FormData();
     formData.append("file", file);
     formData.append("companyId", companyId);
@@ -40,11 +44,32 @@ export default function ImageUploader({
         body: formData,
       });
       const data = await res.json();
+
       if (res.ok && data.url) {
         setImageUrl(data.url);
+        return;
       }
-    } catch {
-      // Upload failed silently
+
+      // If storage upload failed, fall back to base64 data URL stored directly
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const dataUrl = reader.result as string;
+        // Store the data URL directly on the company record
+        const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
+        const updateRes = await fetch("/api/companies", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: companyId, [updateField]: dataUrl }),
+        });
+        if (updateRes.ok) {
+          setImageUrl(dataUrl);
+        } else {
+          setError(data.error || "Upload failed. Create a 'media' storage bucket in Supabase.");
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -102,6 +127,9 @@ export default function ImageUploader({
           </div>
         )}
       </button>
+      {error && (
+        <p className="mt-1 max-w-[120px] text-[9px] text-red-500 leading-tight">{error}</p>
+      )}
     </>
   );
 }
