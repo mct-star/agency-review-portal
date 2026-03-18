@@ -25,7 +25,7 @@ export default async function WeeksPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Content Weeks</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Content</h1>
         {isAdmin && (
           <Link
             href="/admin/upload"
@@ -51,11 +51,50 @@ export default async function WeeksPage() {
                 href={`/review/${week.id}`}
                 className="group rounded-xl border border-gray-200 bg-white overflow-hidden transition-all hover:shadow-lg hover:border-gray-300"
               >
-                {/* Brand bar */}
+                {/* Brand bar — thicker, branded */}
                 <div
-                  className="h-1.5"
+                  className="h-2"
                   style={{ backgroundColor: company?.brand_color || "#e5e7eb" }}
                 />
+
+                {/* Company header — admin only, prominent */}
+                {isAdmin && company && (
+                  <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-3">
+                    {company.logo_url ? (
+                      <img
+                        src={company.logo_url}
+                        alt={company.name}
+                        className="h-8 w-8 rounded object-contain flex-shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-sm font-bold text-white"
+                        style={{ backgroundColor: company.brand_color || "#94a3b8" }}
+                      >
+                        {company.name[0]}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-800">
+                        {company.name}
+                      </p>
+                      {company.spokesperson_name && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {company.profile_picture_url ? (
+                            <img
+                              src={company.profile_picture_url}
+                              alt={company.spokesperson_name}
+                              className="h-3.5 w-3.5 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : null}
+                          <span className="truncate text-xs text-gray-400">
+                            {company.spokesperson_name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-5">
                   {/* Week number + status */}
@@ -71,43 +110,7 @@ export default async function WeeksPage() {
                     <Badge status={week.status} />
                   </div>
 
-                  {/* Company + person */}
-                  {isAdmin && company && (
-                    <div className="mt-3 flex items-center gap-2">
-                      {company.logo_url ? (
-                        <img
-                          src={company.logo_url}
-                          alt={company.name}
-                          className="h-5 w-5 rounded object-contain"
-                        />
-                      ) : (
-                        <div
-                          className="flex h-5 w-5 items-center justify-center rounded text-[8px] font-bold text-white"
-                          style={{ backgroundColor: company.brand_color || "#94a3b8" }}
-                        >
-                          {company.name[0]}
-                        </div>
-                      )}
-                      <span className="text-sm text-gray-500">{company.name}</span>
-                      {company.spokesperson_name && (
-                        <>
-                          <span className="text-gray-300">|</span>
-                          <div className="flex items-center gap-1.5">
-                            {company.profile_picture_url ? (
-                              <img
-                                src={company.profile_picture_url}
-                                alt={company.spokesperson_name}
-                                className="h-4 w-4 rounded-full object-cover"
-                              />
-                            ) : null}
-                            <span className="text-xs text-gray-400">{company.spokesperson_name}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Dates + pillar */}
+                  {/* Dates */}
                   <div className="mt-3 text-xs text-gray-400">
                     {week.date_start} — {week.date_end}
                   </div>

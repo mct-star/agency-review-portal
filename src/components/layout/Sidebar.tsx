@@ -40,7 +40,7 @@ const sections: NavSection[] = [
   {
     title: "Review",
     items: [
-      { href: "/review", label: "Weeks", icon: "calendar" },
+      { href: "/review", label: "Content", icon: "calendar" },
       { href: "/publish", label: "Publish", icon: "send", adminOnly: true },
     ],
   },
@@ -83,17 +83,18 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
       {/* Brand */}
       <div className="border-b border-gray-200 px-4 py-3">
         {platformLogoUrl ? (
-          <img
-            src={platformLogoUrl}
-            alt="Platform"
-            className="h-8 max-w-[160px] object-contain"
-            onError={(e) => {
-              // If logo fails to load, hide it and show text
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        ) : null}
-        {!platformLogoUrl && (
+          <div>
+            <img
+              src={platformLogoUrl}
+              alt="Platform"
+              className="h-7 max-w-[140px] object-contain"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <p className="mt-0.5 text-[10px] text-gray-400">Content Platform</p>
+          </div>
+        ) : (
           <div>
             <h2 className="text-sm font-bold text-gray-900">Copy Magic</h2>
             <p className="text-[10px] text-gray-400">Content Platform</p>
