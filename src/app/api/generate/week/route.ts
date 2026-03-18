@@ -58,8 +58,8 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // ── 1. Fetch company, week, blueprint, slots, topics ───────
-  const [companyRes, weekRes, blueprintRes, slotsRes, topicsRes] = await Promise.all([
+  // ── 1. Fetch company, week, blueprint, slots, topics, setup data ───────
+  const [companyRes, weekRes, blueprintRes, slotsRes, topicsRes, signoffRes, voiceRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("weeks").select("*").eq("id", weekId).single(),
     supabase
@@ -80,6 +80,22 @@ export async function POST(request: Request) {
       .eq("company_id", companyId)
       .eq("is_used", false)
       .order("topic_number"),
+    supabase
+      .from("company_signoffs")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .order("sort_order")
+      .limit(1)
+      .single(),
+    supabase
+      .from("company_voice_profiles")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single(),
   ]);
 
   if (!companyRes.data) {
@@ -94,6 +110,10 @@ export async function POST(request: Request) {
   const blueprintContent = blueprintRes.data?.blueprint_content || "";
   const slots = (slotsRes.data || []) as PostingSlotWithType[];
   const unusedTopics = (topicsRes.data || []) as TopicBankEntry[];
+
+  // Setup data (may be null if not configured yet — that is OK)
+  const signoff = signoffRes.data;
+  const voiceProfile = voiceRes.data;
 
   if (slots.length === 0) {
     return NextResponse.json(
@@ -148,7 +168,18 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── 4. Generate content for each slot ──────────────────────
+  // ── 4. Sort assignments: anchor content (blog, article) FIRST, then social ──
+  // This way social posts can reference the blog URL
+  const anchorTypes = new Set(["blog_article", "linkedin_article", "pdf_guide", "video_script"]);
+  const anchorAssignments = assignments.filter((a) => anchorTypes.has(a.postTypeSlug));
+  const socialAssignments = assignments.filter((a) => !anchorTypes.has(a.postTypeSlug));
+  const orderedAssignments = [...anchorAssignments, ...socialAssignments];
+
+  // Track blog output so social posts can reference it
+  let blogTitle: string | null = null;
+  let blogUrl: string | null = null;
+
+  // ── 5. Generate content for each slot ──────────────────────
   const results: {
     slotLabel: string;
     pieceId: string | null;
@@ -160,9 +191,9 @@ export async function POST(request: Request) {
   let piecesCreated = 0;
   let imagesCreated = 0;
 
-  for (const assignment of assignments) {
+  for (const assignment of orderedAssignments) {
     try {
-      // Build the generation input
+      // Build the generation input with full context
       const input: ContentGenerationInput = {
         blueprintContent,
         topicTitle: assignment.topicTitle,
@@ -182,6 +213,16 @@ export async function POST(request: Request) {
         imageArchetype: assignment.imageArchetype || undefined,
         ctaUrl: assignment.ctaUrl || undefined,
         ctaLinkText: assignment.ctaLinkText || undefined,
+        // Inject sign-off and first comment template from setup
+        signoffText: signoff?.signoff_text || undefined,
+        firstCommentTemplate: signoff?.first_comment_template || undefined,
+        // Inject voice profile
+        voiceDescription: voiceProfile?.voice_description || undefined,
+        bannedVocabulary: voiceProfile?.banned_vocabulary || undefined,
+        signatureDevices: voiceProfile?.signature_devices || undefined,
+        // Weekly ecosystem: social posts reference the blog
+        blogTitle: blogTitle || undefined,
+        blogUrl: blogUrl || undefined,
         dayOfWeek: assignment.dayOfWeek,
         scheduledTime: assignment.scheduledTime,
         slotLabel: assignment.slotLabel,
@@ -211,7 +252,7 @@ export async function POST(request: Request) {
           post_type: assignment.postTypeSlug,
           day_of_week: DAY_NAMES[assignment.dayOfWeek] || null,
           scheduled_time: assignment.scheduledTime,
-          sort_order: assignments.indexOf(assignment),
+          sort_order: orderedAssignments.indexOf(assignment),
           approval_status: "pending",
           image_generation_status: generateImages && output.imagePrompt ? "pending" : "skipped",
         })
@@ -219,6 +260,16 @@ export async function POST(request: Request) {
         .single();
 
       if (!piece) throw new Error("Failed to create content piece");
+
+      // Capture blog output so social posts can reference it
+      if (assignment.postTypeSlug === "blog_article" && output.title) {
+        blogTitle = output.title;
+        // Build blog URL from slug asset or fallback
+        const slugAsset = output.assets?.find((a) => a.assetType === "url_slug");
+        blogUrl = slugAsset
+          ? `https://www.agencybristol.com/blog/${slugAsset.textContent}`
+          : `https://www.agencybristol.com/blog`;
+      }
 
       // Store assets (image prompt, etc.)
       if (output.assets && output.assets.length > 0) {

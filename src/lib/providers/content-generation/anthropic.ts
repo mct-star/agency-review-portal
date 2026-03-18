@@ -196,12 +196,6 @@ function buildContentPrompt(input: ContentGenerationInput): string {
       ? `TARGET WORD COUNT: ${wordMin}-${wordMax} words.`
       : "";
 
-  // Build CTA context from slot data
-  const ctaClause =
-    input.ctaUrl
-      ? `CTA URL: ${input.ctaUrl}${input.ctaLinkText ? ` (link text: "${input.ctaLinkText}")` : ""}\nUse this URL in the first comment CTA.`
-      : "";
-
   // Build image archetype guidance
   const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const imageArchetypeClause = input.imageArchetype
@@ -213,6 +207,75 @@ function buildContentPrompt(input: ContentGenerationInput): string {
     input.dayOfWeek !== undefined
       ? `SCHEDULED: ${DAY_NAMES[input.dayOfWeek]}${input.scheduledTime ? ` at ${input.scheduledTime}` : ""}${input.slotLabel ? ` (${input.slotLabel})` : ""}`
       : "";
+
+  // ── SIGN-OFF: Use explicit text if provided, otherwise instruct to find in blueprint ──
+  const signoffSection = input.signoffText
+    ? `5. SIGN-OFF (MANDATORY — use this EXACT text, copy verbatim)
+   Before the sign-off, add a context-relevant engagement question about the post topic.
+   Then copy this EXACT sign-off text:
+   "${input.signoffText}"
+   Do NOT paraphrase, shorten, or modify this text in any way.`
+    : `5. SIGN-OFF & FIRST COMMENT (Blueprint Section E3)
+   Find the EXACT sign-off text in the blueprint and reproduce it VERBATIM.
+   Do not paraphrase, abbreviate, or "improve" it. Copy it exactly as written.
+   Before the sign-off, add a context-relevant engagement question about the topic.`;
+
+  // ── FIRST COMMENT: CTA URL goes here, NOT in the post body ──
+  const firstCommentSection = (() => {
+    const parts: string[] = [];
+    parts.push("FIRST COMMENT RULES (CRITICAL):");
+    parts.push("- The first comment is posted IMMEDIATELY after the main post.");
+    parts.push("- The CTA URL goes in the FIRST COMMENT ONLY. NEVER put the CTA URL in the main post body.");
+    parts.push("- The first comment is conversational and brief (1-3 sentences + link).");
+
+    if (input.firstCommentTemplate && input.ctaUrl) {
+      const filledTemplate = input.firstCommentTemplate.replace(/\{url\}/g, input.ctaUrl);
+      parts.push(`- Use this template: "${filledTemplate}"`);
+    } else if (input.ctaUrl) {
+      parts.push(`- CTA URL to include: ${input.ctaUrl}`);
+      if (input.ctaLinkText) parts.push(`- Link text: "${input.ctaLinkText}"`);
+    }
+
+    // Blog teaser first comment is different (coffee comment, not CTA)
+    if (input.postTypeSlug === "blog_teaser") {
+      parts.length = 0;
+      parts.push("FIRST COMMENT: Coffee comment (NOT a CTA). Soft, human, 1-2 sentences.");
+      parts.push('Examples: "Coffee is on. Quiet house. Good morning for thinking."');
+    }
+
+    return parts.join("\n   ");
+  })();
+
+  // ── WEEKLY ECOSYSTEM: Cross-references to other content this week ──
+  const ecosystemClause = (() => {
+    const parts: string[] = [];
+    if (input.blogTitle && input.blogUrl) {
+      parts.push(`THIS WEEK'S BLOG: "${input.blogTitle}" at ${input.blogUrl}`);
+      if (input.postTypeSlug === "blog_teaser") {
+        parts.push("Your job is to TEASE this blog article. Make readers want to click through.");
+        parts.push(`Include the blog link: ${input.blogUrl}`);
+      }
+      if (input.postTypeSlug === "blog_cta") {
+        parts.push(`Drive readers to the blog: ${input.blogUrl}`);
+      }
+    }
+    return parts.length > 0 ? parts.join("\n") : "";
+  })();
+
+  // ── VOICE PROFILE: Inject company-specific voice rules if available ──
+  const voiceOverride = (() => {
+    const parts: string[] = [];
+    if (input.voiceDescription) {
+      parts.push(`VOICE PROFILE (from voice analysis, takes precedence over blueprint C2):\n${input.voiceDescription}`);
+    }
+    if (input.signatureDevices) {
+      parts.push(`SIGNATURE DEVICES (from voice analysis):\n${input.signatureDevices}`);
+    }
+    if (input.bannedVocabulary) {
+      parts.push(`ADDITIONAL BANNED VOCABULARY:\n${input.bannedVocabulary}`);
+    }
+    return parts.length > 0 ? parts.join("\n\n") : "";
+  })();
 
   return `You are a content ghostwriter. ${spokespersonClause} Your job is to produce content that is INDISTINGUISHABLE from the spokesperson's own writing. Not "inspired by" — identical in voice.
 
@@ -260,12 +323,7 @@ Read the blueprint carefully and follow these rules EXACTLY:
    - NO colons or hyphens in titles or hooks.
    - Long-form: anti-contraction ("do not" not "don't", "cannot" not "can't").
 
-5. SIGN-OFF & FIRST COMMENT (Blueprint Section E3)
-   Find the EXACT sign-off text in the blueprint and reproduce it VERBATIM.
-   Do not paraphrase, abbreviate, or "improve" it. Copy it exactly as written.
-   Before the sign-off, add a context-relevant engagement question about the topic.
-   For the first comment: follow the blueprint's CTA rules. Use the specific
-   URLs and link text from the blueprint's CTA table.
+${signoffSection}
 
 6. WRITING SAMPLES (Blueprint Section C7)
    Study every writing sample in the blueprint. These are your north star.
@@ -283,6 +341,12 @@ Read the blueprint carefully and follow these rules EXACTLY:
    - End stories with reflective observations, not stated morals.
    - Never punch down. Humour is warm, never cruel.
 
+${voiceOverride ? `\n${"═".repeat(60)}\nVOICE PROFILE OVERRIDE\n${"═".repeat(60)}\n\n${voiceOverride}\n` : ""}
+
+${"═".repeat(60)}
+${firstCommentSection}
+${"═".repeat(60)}
+
 ${"═".repeat(60)}
 TOPIC & CONTEXT
 ${"═".repeat(60)}
@@ -294,7 +358,7 @@ ${input.audienceTheme ? `AUDIENCE THEME: ${input.audienceTheme}` : ""}
 WEEK: ${input.weekNumber}
 ${scheduleClause}
 ${wordCountClause}
-${ctaClause}
+${ecosystemClause ? `\n${ecosystemClause}` : ""}
 ${input.additionalContext ? `\nADDITIONAL CONTEXT:\n${input.additionalContext}` : ""}
 
 ${"═".repeat(60)}
@@ -332,15 +396,42 @@ Respond with a JSON object (no markdown code fences) matching this structure:
 
 Only include assets that are relevant to this content type (social posts typically have no SEO assets).
 
-FINAL CHECK before outputting:
-- Did you use the EXACT sign-off from Section E3? Not paraphrased?
-- Did you include at least one bracketed aside?
-- Did you avoid every banned word from Section C5?
-- Is every word spelled with UK English?
-- Are there any em-dashes, en-dashes, or exclamation marks? Remove them.
-- Does the first word of the post avoid starting with "I"?
-- Does the title avoid colons and hyphens?
-${wordCountClause ? `- Is the word count between ${wordMin} and ${wordMax}?` : ""}`;
+${"═".repeat(60)}
+MASTER VALIDATION CHECKLIST (check EVERY item before outputting)
+${"═".repeat(60)}
+
+A. POST STRUCTURE
+   [ ] Sign-off is the EXACT text provided (not paraphrased)
+   [ ] Sign-off appears at the end of the post body (before hashtags)
+   [ ] Engagement question appears before the sign-off
+   [ ] CTA URL is in the FIRST COMMENT ONLY, not in the post body
+   [ ] First comment follows the template provided
+
+B. DAY-SPECIFIC RULES
+   [ ] Post follows the template structure for this post type EXACTLY
+${wordCountClause ? `   [ ] Word count is between ${wordMin} and ${wordMax}` : ""}
+   [ ] If blog teaser: teases the blog, does NOT announce it
+   [ ] If CTA post: standalone, does NOT reference other posts
+   [ ] If weekend personal: local/Bristol/timely, NOT business
+
+C. VOICE & QUALITY
+   [ ] At least one bracketed aside is present
+   [ ] No banned vocabulary used
+   [ ] UK spelling throughout
+   [ ] No em-dashes, en-dashes, or exclamation marks
+   [ ] Does not open with "I"
+   [ ] Title has no colons or hyphens
+   [ ] Healthcare-specific scenario referenced (not generic B2B)
+
+D. ANCHOR CONTENT (blog/article only)
+   [ ] Case study included (if required by template)
+   [ ] SEO assets generated (title, meta, slug, excerpt)
+   [ ] Anti-contraction style used
+
+E. ECOSYSTEM
+   [ ] Blog teaser links to this week's blog (if URL provided)
+   [ ] CTA posts link to the correct resource
+   [ ] No CTA URLs in post body (first comment only)`;
 }
 
 export function createClaudeContentProvider(

@@ -42,6 +42,15 @@ export interface ContentGenerationInput {
   dayOfWeek?: number;
   scheduledTime?: string;
   slotLabel?: string;
+  // Company-level context (from setup tables)
+  signoffText?: string;
+  firstCommentTemplate?: string;
+  voiceDescription?: string;
+  bannedVocabulary?: string;
+  signatureDevices?: string;
+  // Weekly ecosystem references
+  blogTitle?: string;
+  blogUrl?: string;
 }
 
 export interface ContentGenerationOutput {
