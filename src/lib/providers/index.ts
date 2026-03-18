@@ -298,6 +298,45 @@ export async function getImageProvider(
   }
 
   switch (resolved.provider) {
+    case "fal_flux": {
+      const { createFalImageProvider } = await import(
+        "./image-generation/fal"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createFalImageProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+
+    case "ideogram": {
+      const { createIdeogramImageProvider } = await import(
+        "./image-generation/ideogram"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createIdeogramImageProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+
+    case "runway": {
+      const { createRunwayImageProvider } = await import(
+        "./image-generation/runway"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createRunwayImageProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+
     case "openai_gpt_image":
     default: {
       const { createOpenAIImageProvider } = await import(
@@ -313,6 +352,35 @@ export async function getImageProvider(
     }
   }
 }
+
+// ── Image provider metadata (for UI) ────────────────────────
+
+export const IMAGE_PROVIDER_OPTIONS = [
+  {
+    value: "openai_gpt_image",
+    label: "OpenAI (DALL-E / GPT Image)",
+    description: "High quality, good at following prompts. ~$0.04-0.08/image",
+    costTier: "medium" as const,
+  },
+  {
+    value: "fal_flux",
+    label: "fal.ai (Flux)",
+    description: "Fast and cheap. Flux Schnell ~$0.003/image, Pro ~$0.05/image",
+    costTier: "low" as const,
+  },
+  {
+    value: "ideogram",
+    label: "Ideogram",
+    description: "Best for text-in-image (quote cards, infographics). ~$0.04-0.08/image",
+    costTier: "medium" as const,
+  },
+  {
+    value: "runway",
+    label: "Runway (Gen-3)",
+    description: "Strong at stylised visuals. Async processing. ~$0.05-0.10/image",
+    costTier: "high" as const,
+  },
+];
 
 // ── Video provider factory ──────────────────────────────────
 
