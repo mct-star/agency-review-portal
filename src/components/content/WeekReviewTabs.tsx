@@ -197,40 +197,104 @@ export default function WeekReviewTabs({
         </div>
       )}
 
-      {/* Blog tab */}
+      {/* Blog tab — full article with images inline + SEO assets */}
       {activeTab === "blog" && (
         <div className="space-y-6">
-          {blogPieces.map((piece) => (
-            <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
-              <div className="border-b border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">{piece.title}</h2>
-                    <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
-                      {piece.word_count && (
-                        <span>{piece.word_count.toLocaleString()} words</span>
-                      )}
-                      {piece.pillar && (
-                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium">
-                          {piece.pillar}
-                        </span>
-                      )}
+          {blogPieces.map((piece) => {
+            const seoAssets = piece.assets.filter(
+              (a) => a.asset_type === "seo_title" || a.asset_type === "seo_meta_description" || a.asset_type === "url_slug" || a.asset_type === "excerpt"
+            );
+            const coverImage = piece.images.find((img) => img.filename?.includes("cover") || img.sort_order === 0);
+            const inlineImages = piece.images.filter((img) => img !== coverImage);
+
+            return (
+              <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
+                {/* Blog header with cover image */}
+                {coverImage && (
+                  <img
+                    src={coverImage.public_url}
+                    alt={piece.title}
+                    className="w-full rounded-t-lg object-cover"
+                    style={{ maxHeight: "300px" }}
+                  />
+                )}
+
+                <div className="border-b border-gray-100 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">{piece.title}</h2>
+                      <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
+                        {piece.word_count && (
+                          <span>{piece.word_count.toLocaleString()} words</span>
+                        )}
+                        {piece.pillar && (
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium">
+                            {piece.pillar}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending
+                      }`}
+                    >
+                      {STATUS_LABELS[piece.approval_status] || piece.approval_status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* SEO assets bar */}
+                {seoAssets.length > 0 && (
+                  <div className="border-b border-gray-100 bg-blue-50 px-4 py-3">
+                    <p className="mb-2 text-[10px] font-semibold uppercase text-blue-500">SEO Assets</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {seoAssets.map((asset) => (
+                        <div key={asset.id} className="text-xs">
+                          <span className="font-medium text-blue-600">
+                            {asset.asset_type.replace(/_/g, " ")}:
+                          </span>
+                          <span className="ml-1 text-blue-900">{asset.text_content}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                      STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending
-                    }`}
-                  >
-                    {STATUS_LABELS[piece.approval_status] || piece.approval_status}
-                  </span>
+                )}
+
+                {/* Blog body with inline images */}
+                <div className="p-6">
+                  <MarkdownRenderer content={piece.markdown_body} />
+
+                  {/* Inline images grid */}
+                  {inlineImages.length > 0 && (
+                    <div className="mt-6 border-t border-gray-100 pt-4">
+                      <p className="mb-3 text-xs font-semibold uppercase text-gray-400">Article Images</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {inlineImages.map((img) => (
+                          <div key={img.id} className="space-y-1">
+                            <img
+                              src={img.public_url}
+                              alt={img.filename}
+                              className="rounded-lg border border-gray-200"
+                            />
+                            <p className="text-[10px] text-gray-400">{img.filename}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* First comment */}
+                {piece.first_comment && (
+                  <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase text-gray-400">First Comment</p>
+                    <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{piece.first_comment}</p>
+                  </div>
+                )}
               </div>
-              <div className="p-6">
-                <MarkdownRenderer content={piece.markdown_body} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {blogPieces.length === 0 && (
             <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center">
               <p className="text-gray-500">No blog articles in this week.</p>
@@ -239,35 +303,92 @@ export default function WeekReviewTabs({
         </div>
       )}
 
-      {/* LinkedIn Article tab */}
+      {/* LinkedIn Article tab — with images + SEO assets */}
       {activeTab === "article" && (
         <div className="space-y-6">
-          {articlePieces.map((piece) => (
-            <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
-              <div className="border-b border-gray-100 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">{piece.title}</h2>
-                    <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
-                      {piece.word_count && (
-                        <span>{piece.word_count.toLocaleString()} words</span>
-                      )}
+          {articlePieces.map((piece) => {
+            const seoAssets = piece.assets.filter(
+              (a) => a.asset_type === "seo_title" || a.asset_type === "seo_meta_description" || a.asset_type === "excerpt"
+            );
+            const headerImage = piece.images.find((img) => img.sort_order === 0);
+            const bodyImages = piece.images.filter((img) => img !== headerImage);
+
+            return (
+              <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
+                {/* Header image */}
+                {headerImage && (
+                  <img
+                    src={headerImage.public_url}
+                    alt={piece.title}
+                    className="w-full rounded-t-lg object-cover"
+                    style={{ maxHeight: "250px" }}
+                  />
+                )}
+
+                <div className="border-b border-gray-100 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">{piece.title}</h2>
+                      <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
+                        {piece.word_count && (
+                          <span>{piece.word_count.toLocaleString()} words</span>
+                        )}
+                        <span className="text-xs text-gray-400">LinkedIn Article</span>
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending
+                      }`}
+                    >
+                      {STATUS_LABELS[piece.approval_status] || piece.approval_status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* SEO assets */}
+                {seoAssets.length > 0 && (
+                  <div className="border-b border-gray-100 bg-blue-50 px-4 py-3">
+                    <p className="mb-2 text-[10px] font-semibold uppercase text-blue-500">SEO Assets</p>
+                    <div className="space-y-1">
+                      {seoAssets.map((asset) => (
+                        <div key={asset.id} className="text-xs">
+                          <span className="font-medium text-blue-600">{asset.asset_type.replace(/_/g, " ")}:</span>
+                          <span className="ml-1 text-blue-900">{asset.text_content}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                      STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending
-                    }`}
-                  >
-                    {STATUS_LABELS[piece.approval_status] || piece.approval_status}
-                  </span>
+                )}
+
+                {/* Article body */}
+                <div className="p-6">
+                  <MarkdownRenderer content={piece.markdown_body} />
+
+                  {bodyImages.length > 0 && (
+                    <div className="mt-6 border-t border-gray-100 pt-4">
+                      <p className="mb-3 text-xs font-semibold uppercase text-gray-400">In-Article Images</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {bodyImages.map((img) => (
+                          <div key={img.id} className="space-y-1">
+                            <img src={img.public_url} alt={img.filename} className="rounded-lg border border-gray-200" />
+                            <p className="text-[10px] text-gray-400">{img.filename}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {piece.first_comment && (
+                  <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase text-gray-400">First Comment</p>
+                    <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{piece.first_comment}</p>
+                  </div>
+                )}
               </div>
-              <div className="p-6">
-                <MarkdownRenderer content={piece.markdown_body} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
