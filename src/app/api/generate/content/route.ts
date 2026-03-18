@@ -296,7 +296,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       jobId,
       status: "completed",
+      pieceId: piece.id,
       contentPieceId: piece.id,
+      title: output.title,
+      imagePrompt: output.imagePrompt || null,
     });
   } catch (err) {
     // Mark job as failed

@@ -94,10 +94,11 @@ export default function GeneratePage() {
 
   const handleGenerate = useCallback(async () => {
     setStep("generating");
-    setStatus({ phase: "preparing", current: 0, total: 0, currentLabel: "Preparing generation..." });
+    setStatus({ phase: "preparing", current: 0, total: 0, currentLabel: "Getting slot assignments..." });
 
     try {
-      const res = await fetch("/api/generate/week", {
+      // Step 1: Get the plan (slot assignments) — fast, no AI calls
+      const planRes = await fetch("/api/generate/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -105,21 +106,94 @@ export default function GeneratePage() {
           weekId: selectedWeekId,
           mode: isCohesive ? "cohesive" : "variety",
           subject: isCohesive ? weekSubject : undefined,
-          generateImages,
         }),
       });
 
-      const data = await res.json();
+      const plan = await planRes.json();
+      if (!planRes.ok) throw new Error(plan.error || "Planning failed");
 
-      if (!res.ok) {
-        throw new Error(data.error || "Generation failed");
+      const assignments = plan.assignments || [];
+      const total = assignments.length;
+      let piecesCreated = 0;
+      let imagesCreated = 0;
+
+      // Step 2: Generate each piece individually (each under 60s)
+      for (let i = 0; i < assignments.length; i++) {
+        const assignment = assignments[i];
+        setStatus({
+          phase: "generating",
+          current: i,
+          total,
+          currentLabel: `Generating ${assignment.slotLabel || assignment.postTypeLabel} (${i + 1}/${total})...`,
+        });
+
+        try {
+          const contentRes = await fetch("/api/generate/content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: selectedCompanyId,
+              weekId: selectedWeekId,
+              topicId: assignment.topicId || "auto",
+              contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug)
+                ? assignment.postTypeSlug
+                : "social_post",
+              postTypeSlug: assignment.postTypeSlug,
+              postTypeLabel: assignment.postTypeLabel,
+              templateInstructions: assignment.templateInstructions,
+              wordCountMin: assignment.wordCountMin,
+              wordCountMax: assignment.wordCountMax,
+              imageArchetype: assignment.imageArchetype,
+              ctaUrl: assignment.ctaUrl,
+              ctaLinkText: assignment.ctaLinkText,
+              dayOfWeek: assignment.dayOfWeek,
+              scheduledTime: assignment.scheduledTime,
+              slotLabel: assignment.slotLabel,
+              additionalContext: assignment.angle
+                ? `WEEK SUBJECT: ${weekSubject}\nANGLE FOR THIS POST: ${assignment.angle}`
+                : undefined,
+            }),
+          });
+
+          const contentData = await contentRes.json();
+          if (contentRes.ok) {
+            piecesCreated++;
+
+            // Step 3: Generate image if enabled (each under 60s)
+            if (generateImages && contentData.imagePrompt) {
+              setStatus({
+                phase: "images",
+                current: i,
+                total,
+                currentLabel: `Generating image for ${assignment.slotLabel} (${i + 1}/${total})...`,
+              });
+
+              try {
+                const imgRes = await fetch("/api/generate/images", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    companyId: selectedCompanyId,
+                    contentPieceId: contentData.pieceId,
+                    prompts: [contentData.imagePrompt],
+                  }),
+                });
+                if (imgRes.ok) imagesCreated++;
+              } catch {
+                // Image generation failed — continue without it
+              }
+            }
+          }
+        } catch {
+          // Individual piece failed — continue with next
+        }
       }
 
       setStatus({
         phase: "complete",
-        current: data.piecesCreated || 0,
-        total: data.piecesCreated || 0,
-        currentLabel: `Generated ${data.piecesCreated} pieces${data.imagesCreated ? ` + ${data.imagesCreated} images` : ""}`,
+        current: piecesCreated,
+        total,
+        currentLabel: `Generated ${piecesCreated} pieces${imagesCreated ? ` + ${imagesCreated} images` : ""}`,
       });
     } catch (err) {
       setStatus({
