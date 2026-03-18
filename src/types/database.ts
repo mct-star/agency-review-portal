@@ -488,6 +488,24 @@ export interface SetupProgress {
 }
 
 // ============================================================
+// Spokespersons (multiple per company)
+// ============================================================
+
+export interface CompanySpokesperson {
+  id: string;
+  company_id: string;
+  name: string;
+  tagline: string | null;
+  profile_picture_url: string | null;
+  linkedin_url: string | null;
+  voice_profile_id: string | null;
+  is_primary: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+// ============================================================
 // Story bank + review documents
 // ============================================================
 

@@ -11,6 +11,8 @@ interface LinkedInPreviewProps {
   imageUrl?: string | null;
   postType?: string | null;
   brandColor?: string;
+  companyLogoUrl?: string | null;
+  linkedinProfileUrl?: string | null;
 }
 
 /**
@@ -33,6 +35,8 @@ export default function LinkedInPreview({
   imageUrl,
   postType,
   brandColor = "#0a66c2",
+  companyLogoUrl,
+  linkedinProfileUrl,
 }: LinkedInPreviewProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -70,32 +74,54 @@ export default function LinkedInPreview({
 
   const formattedText = formatLinkedInText(displayText);
 
+  const authorLink = linkedinProfileUrl || "#";
+
   return (
     <div className="mx-auto max-w-[555px]">
+      {/* Company logo (top-left, links to company) */}
+      {companyLogoUrl && (
+        <div className="mb-2 flex items-center gap-2">
+          <img
+            src={companyLogoUrl}
+            alt="Company logo"
+            className="h-6 object-contain"
+          />
+        </div>
+      )}
+
       {/* Post card */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
         {/* Author section */}
         <div className="flex items-start gap-3 p-4 pb-0">
-          {/* Avatar */}
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-            style={{ backgroundColor: brandColor }}
-          >
-            {authorAvatarUrl ? (
-              <img
-                src={authorAvatarUrl}
-                alt={authorName}
-                className="h-12 w-12 rounded-full object-cover"
-              />
-            ) : (
-              initials
-            )}
-          </div>
+          {/* Avatar — links to profile */}
+          <a href={authorLink} target="_blank" rel="noopener noreferrer" className="shrink-0">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white transition-opacity hover:opacity-80"
+              style={{ backgroundColor: brandColor }}
+            >
+              {authorAvatarUrl ? (
+                <img
+                  src={authorAvatarUrl}
+                  alt={authorName}
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+              ) : (
+                initials
+              )}
+            </div>
+          </a>
 
-          {/* Name + tagline */}
+          {/* Name + tagline — name links to profile */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-gray-900">{authorName}</span>
+              <a
+                href={authorLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-gray-900 hover:text-sky-700 hover:underline"
+              >
+                {authorName}
+              </a>
               <span className="rounded-sm border border-gray-300 px-1 text-[10px] font-medium text-gray-500">
                 1st
               </span>
