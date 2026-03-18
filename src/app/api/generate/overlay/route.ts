@@ -36,10 +36,10 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Fetch company branding
+  // Fetch company branding + profile picture
   const { data: company } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color, logo_url")
+    .select("spokesperson_name, brand_color, logo_url, profile_picture_url")
     .eq("id", companyId)
     .single();
 
@@ -47,12 +47,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Company not found" }, { status: 404 });
   }
 
+  // Also check for spokesperson from company_spokespersons table
+  const { data: primarySpokesperson } = await supabase
+    .from("company_spokespersons")
+    .select("name, photo_url, tagline, linkedin_url")
+    .eq("company_id", companyId)
+    .eq("is_primary", true)
+    .limit(1)
+    .single();
+
+  const spokespersonName = primarySpokesperson?.name || company.spokesperson_name;
+  const profilePicUrl = primarySpokesperson?.photo_url || company.profile_picture_url;
+
   try {
-    // Apply the overlay
+    // Apply the overlay — now with profile photo and CTA text
     const result = await applyBrandOverlay(imageUrl, {
       brandColor: company.brand_color || "#0a66c2",
       logoUrl: company.logo_url,
-      spokespersonName: company.spokesperson_name,
+      spokespersonName,
+      profilePictureUrl: profilePicUrl,
+      ctaText: spokespersonName ? `Follow ${spokespersonName}` : null,
       archetype: archetype || null,
       hookText: hookText || null,
     });

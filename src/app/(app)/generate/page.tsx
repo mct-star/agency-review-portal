@@ -169,16 +169,75 @@ export default function GeneratePage() {
               });
 
               try {
+                // Build image prompt with archetype-specific style prefix
+                const archetype = assignment.imageArchetype || "general";
+                const ARCHETYPE_STYLES: Record<string, { prefix: string; aspectRatio: string }> = {
+                  "pixar_scenario": {
+                    prefix: "Pixar-style 3D animated scene, warm lighting, detailed environment, cinematic composition. ",
+                    aspectRatio: "1:1",
+                  },
+                  "quote_card": {
+                    prefix: "Minimal clean background, subtle gradient, space for text overlay. ",
+                    aspectRatio: "1:1",
+                  },
+                  "tactical": {
+                    prefix: "Clean infographic style, professional diagram or process illustration. ",
+                    aspectRatio: "1:1",
+                  },
+                  "warm_candid": {
+                    prefix: "Warm natural lifestyle photography style, soft lighting, authentic moment. ",
+                    aspectRatio: "1:1",
+                  },
+                  "before_after": {
+                    prefix: "Split composition showing transformation, clear visual contrast. ",
+                    aspectRatio: "1:1",
+                  },
+                  "general": {
+                    prefix: "Pixar-style 3D animated scene, warm lighting, healthcare/business setting. ",
+                    aspectRatio: "1:1",
+                  },
+                };
+
+                const style = ARCHETYPE_STYLES[archetype] || ARCHETYPE_STYLES["general"];
+                const enrichedPrompt = typeof contentData.imagePrompt === "string"
+                  ? contentData.imagePrompt
+                  : contentData.imagePrompt.prompt || String(contentData.imagePrompt);
+
                 const imgRes = await fetch("/api/generate/images", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     companyId: selectedCompanyId,
                     contentPieceId: contentData.pieceId,
-                    prompts: [contentData.imagePrompt],
+                    prompts: [{
+                      prompt: style.prefix + enrichedPrompt,
+                      style: archetype,
+                      aspectRatio: style.aspectRatio,
+                    }],
                   }),
                 });
-                if (imgRes.ok) imagesCreated++;
+                if (imgRes.ok) {
+                  imagesCreated++;
+
+                  // Auto-apply brand overlay to the generated image
+                  const imgData = await imgRes.json();
+                  if (imgData.images?.[0]?.public_url) {
+                    try {
+                      await fetch("/api/generate/overlay", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          imageUrl: imgData.images[0].public_url,
+                          companyId: selectedCompanyId,
+                          contentPieceId: contentData.pieceId,
+                          archetype,
+                        }),
+                      });
+                    } catch {
+                      // Overlay failed — image still saved without brand mask
+                    }
+                  }
+                }
               } catch {
                 // Image generation failed — continue without it
               }
