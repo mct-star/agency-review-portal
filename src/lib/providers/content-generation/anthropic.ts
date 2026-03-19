@@ -395,7 +395,7 @@ Respond with a JSON object (no markdown code fences) matching this structure:
   "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
   "wordCount": number,
   "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
-  "imagePrompt": "string (a detailed image generation prompt — describe scene, mood, style, objects, setting${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""})",
+  "imagePrompt": "string — ALWAYS REQUIRED for every content type. A vivid, detailed image generation prompt describing scene, mood, lighting, objects, setting, visual style${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""}. Never return null or omit this field.",
   "assets": [
     { "assetType": "seo_title", "textContent": "..." },
     { "assetType": "seo_meta_description", "textContent": "..." },
@@ -404,7 +404,7 @@ Respond with a JSON object (no markdown code fences) matching this structure:
   ]
 }
 
-Only include assets that are relevant to this content type (social posts typically have no SEO assets).
+The "assets" array is content-type dependent — social posts typically have no SEO assets so return an empty array []. The imagePrompt field above is ALWAYS required regardless of content type.
 
 ${"═".repeat(60)}
 MASTER VALIDATION CHECKLIST (check EVERY item before outputting)
