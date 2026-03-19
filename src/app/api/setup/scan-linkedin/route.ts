@@ -92,7 +92,7 @@ export async function POST(request: Request) {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: (resolved.settings.model as string) || "claude-sonnet-4-20250514",
+          model: (resolved.settings.model as string) || "claude-3-5-sonnet-20241022",
           max_tokens: 4000,
           messages: [
             {
@@ -143,8 +143,9 @@ Return ONLY the posts text, separated by --- between each post. No commentary.`,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: (resolved.settings.model as string) || "claude-sonnet-4-20250514",
+        model: (resolved.settings.model as string) || "claude-3-5-sonnet-20241022",
         max_tokens: 2000,
+        system: "You are a writing style analyst. Return ONLY valid JSON with no preamble, explanation, or markdown code fences.",
         messages: [
           {
             role: "user",
@@ -162,10 +163,11 @@ Return ONLY the posts text, separated by --- between each post. No commentary.`,
     const claudeData = await claudeRes.json();
     const responseText = claudeData.content?.[0]?.text || "";
 
-    // Parse JSON from response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    // Strip markdown code fences if Claude wrapped the JSON (e.g. ```json ... ```)
+    const stripped = responseText.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "").trim();
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error("Claude did not return valid JSON");
+      throw new Error(`Voice analysis did not return valid JSON. Response: ${responseText.slice(0, 200)}`);
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
