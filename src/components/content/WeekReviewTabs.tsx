@@ -53,6 +53,7 @@ export default function WeekReviewTabs({
   // Track image generation state per piece
   const [generatingImage, setGeneratingImage] = useState<Set<string>>(new Set());
   const [generatedImages, setGeneratedImages] = useState<Map<string, string>>(new Map());
+  const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
 
   const handleGenerateImage = async (pieceId: string, companyId: string) => {
     // Find the image prompt from the piece's assets
@@ -60,7 +61,10 @@ export default function WeekReviewTabs({
     const imagePromptAsset = piece?.assets.find((a) => a.asset_type === "image_prompt");
     if (!imagePromptAsset?.text_content) return;
 
+    // Clear any previous error for this piece
+    setImageErrors((prev) => { const next = new Map(prev); next.delete(pieceId); return next; });
     setGeneratingImage((prev) => new Set(prev).add(pieceId));
+
     try {
       const res = await fetch("/api/generate/images", {
         method: "POST",
@@ -68,15 +72,26 @@ export default function WeekReviewTabs({
         body: JSON.stringify({
           companyId,
           contentPieceId: pieceId,
-          // Must be an array of objects — bare strings cause prompt to be undefined
           prompts: [{ prompt: imagePromptAsset.text_content, style: "A4_pixar", aspectRatio: "1:1" }],
         }),
       });
       const data = await res.json();
-      // API returns DB rows: field is public_url, not url
-      if (res.ok && data.images?.[0]?.public_url) {
-        setGeneratedImages((prev) => new Map(prev).set(pieceId, data.images[0].public_url));
+
+      if (!res.ok || data.status === "failed") {
+        // Show the actual error so the user knows what went wrong
+        const msg = data.error || "Image generation failed";
+        setImageErrors((prev) => new Map(prev).set(pieceId, msg));
+        return;
       }
+
+      // API returns DB rows with public_url field
+      if (data.images?.[0]?.public_url) {
+        setGeneratedImages((prev) => new Map(prev).set(pieceId, data.images[0].public_url));
+      } else {
+        setImageErrors((prev) => new Map(prev).set(pieceId, "Generation completed but no image URL was returned"));
+      }
+    } catch {
+      setImageErrors((prev) => new Map(prev).set(pieceId, "Network error — could not reach the image API"));
     } finally {
       setGeneratingImage((prev) => {
         const next = new Set(prev);
@@ -161,6 +176,7 @@ export default function WeekReviewTabs({
               const hasImagePrompt = piece.assets.some((a) => a.asset_type === "image_prompt");
               const needsImage = !previewImage && hasImagePrompt;
               const isGenerating = generatingImage.has(piece.id);
+              const imageError = imageErrors.get(piece.id);
 
               return (
                 <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
@@ -236,6 +252,16 @@ export default function WeekReviewTabs({
                       </button>
                     </div>
                   </div>
+
+                  {/* Image generation error banner */}
+                  {imageError && (
+                    <div className="border-b border-red-100 bg-red-50 px-4 py-2.5 flex items-start gap-2">
+                      <svg className="mt-0.5 h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs text-red-700">{imageError}</p>
+                    </div>
+                  )}
 
                   {/* LinkedIn preview — expandable */}
                   {isExpanded && (
