@@ -5,7 +5,7 @@ import { useState, useRef } from "react";
 interface ImageUploaderProps {
   companyId: string;
   currentUrl: string | null;
-  uploadType: "logo" | "profile_picture";
+  uploadType: "logo" | "profile_picture" | "brand_mask";
   label: string;
   size?: number;
   rounded?: boolean;
@@ -58,7 +58,8 @@ export default function ImageUploader({
         reader.readAsDataURL(file);
       });
 
-      const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
+      const fieldMap: Record<string, string> = { logo: "logo_url", profile_picture: "profile_picture_url", brand_mask: "brand_mask_url" };
+      const updateField = fieldMap[uploadType] || "logo_url";
       const updateRes = await fetch("/api/companies", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
