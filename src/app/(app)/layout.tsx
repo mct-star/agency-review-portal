@@ -35,12 +35,17 @@ export default async function AppLayout({
     );
   }
 
-  // Fetch platform logo (from the first company, or the user's company)
+  // Fetch the platform/agency logo.
+  // This is always the AGENCY's own company logo (the operator of the platform),
+  // NOT a client company's logo. The agency's company is identified by the env var
+  // PLATFORM_COMPANY_SLUG (defaults to "agency-bristol").
+  // Client users with a company_id assigned will see their own company's logo instead.
   const supabase = await createServerSupabaseClient();
   const companyId = profile.company_id;
   let platformLogoUrl: string | null = null;
 
   if (companyId) {
+    // This user is a client user tied to a specific company — show their logo
     const { data: company } = await supabase
       .from("companies")
       .select("logo_url")
@@ -48,13 +53,15 @@ export default async function AppLayout({
       .single();
     platformLogoUrl = company?.logo_url || null;
   } else if (profile.role === "admin") {
-    // Admin without a company — fetch the first company's logo
-    const { data: companies } = await supabase
+    // Admin (agency operator) — always show the agency's own company logo,
+    // NOT a random client's logo
+    const platformSlug = process.env.PLATFORM_COMPANY_SLUG || "agency-bristol";
+    const { data: agencyCompany } = await supabase
       .from("companies")
       .select("logo_url")
-      .order("created_at")
-      .limit(1);
-    platformLogoUrl = companies?.[0]?.logo_url || null;
+      .eq("slug", platformSlug)
+      .single();
+    platformLogoUrl = agencyCompany?.logo_url || null;
   }
 
   return (
