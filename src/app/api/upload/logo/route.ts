@@ -38,12 +38,17 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
   const ext = file.name.split(".").pop() || "png";
-  const filename = uploadType === "profile_picture" ? "profile" : "logo";
-  const storagePath = `logos/${companyId}/${filename}.${ext}`;
+  const filenameMap: Record<string, string> = {
+    logo: "logo",
+    profile_picture: "profile",
+    brand_mask: "brand_mask",
+  };
+  const filenameBase = filenameMap[uploadType] || "logo";
+  const storagePath = `logos/${companyId}/${filenameBase}.${ext}`;
 
   const arrayBuffer = await file.arrayBuffer();
 
-  // Upload (upsert to overwrite existing logo)
+  // Upload (upsert to overwrite existing file)
   const { error: uploadErr } = await supabase.storage
     .from("media")
     .upload(storagePath, arrayBuffer, {
@@ -59,7 +64,12 @@ export async function POST(request: Request) {
   const publicUrl = urlData.publicUrl;
 
   // Update company record with the new URL
-  const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
+  const fieldMap: Record<string, string> = {
+    logo: "logo_url",
+    profile_picture: "profile_picture_url",
+    brand_mask: "brand_mask_url",
+  };
+  const updateField = fieldMap[uploadType] || "logo_url";
   const { error: dbErr } = await supabase
     .from("companies")
     .update({ [updateField]: publicUrl })

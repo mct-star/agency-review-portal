@@ -42,6 +42,13 @@ export interface BrandOverlayConfig {
   archetype?: string | null;
   /** Optional hook text to overlay (for quote card archetypes) */
   hookText?: string | null;
+  /**
+   * URL of a transparent PNG brand mask template.
+   * When provided, this mask is composited on top of the generated image instead of
+   * (or in addition to) the dynamic SVG overlay. The mask should be 1:1 with
+   * transparent areas where the base image shows through.
+   */
+  brandMaskUrl?: string | null;
 }
 
 export interface OverlayResult {
@@ -274,7 +281,33 @@ export async function applyBrandOverlay(
     }
   }
 
-  // Apply all composites
+  // If a custom brand mask PNG is provided, use it as the top-most layer
+  // instead of the dynamic SVG composites (the mask has the brand frame baked in).
+  if (config.brandMaskUrl) {
+    try {
+      const maskRes = await fetch(config.brandMaskUrl);
+      if (maskRes.ok) {
+        const maskArrayBuffer = await maskRes.arrayBuffer();
+        const maskBuffer = await sharp(Buffer.from(maskArrayBuffer))
+          .resize(width, height, { fit: "fill" }) // stretch mask to match image dimensions
+          .png()
+          .toBuffer();
+
+        // Apply the static mask on top of the base image (clear any dynamic composites
+        // when a brand mask is present — the mask replaces the dynamic overlay)
+        const result = await sharp(imageBuffer)
+          .composite([{ input: maskBuffer, blend: "over" }])
+          .png()
+          .toBuffer();
+
+        return { buffer: result, mimeType: "image/png", width, height };
+      }
+    } catch {
+      // Mask fetch/composite failed — fall through to dynamic overlay below
+    }
+  }
+
+  // Apply dynamic SVG composites (logo, profile photo, gradient bar)
   const result = await sharp(imageBuffer)
     .composite(composites)
     .png()

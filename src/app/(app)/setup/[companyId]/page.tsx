@@ -205,6 +205,37 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* Brand Mask */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="flex items-start gap-4">
+          <ImageUploader
+            companyId={companyId}
+            currentUrl={company.brand_mask_url}
+            uploadType="brand_mask"
+            label="Image Mask"
+            size={72}
+          />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-gray-900">Image Mask</h3>
+            <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+              Upload a transparent PNG template (1024×1024 or 1080×1080). The mask is
+              composited on top of every AI-generated image. Design it with your brand frame,
+              logo placement, name bar, and any fixed graphical elements — leave transparent
+              where the base image should show through.
+            </p>
+            {company.brand_mask_url ? (
+              <p className="mt-2 text-[11px] font-medium text-green-600">
+                ✓ Mask uploaded — will be applied to all generated images
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-amber-600">
+                No mask yet — images will use the auto-generated brand overlay instead
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Setup Progress */}
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <div className="flex items-center justify-between">

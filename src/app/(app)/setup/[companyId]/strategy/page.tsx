@@ -57,16 +57,24 @@ export default function StrategyPage() {
   // Loaded strategy data
   const [strategyData, setStrategyData] = useState<StrategyData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadStrategy = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/config/strategy?companyId=${companyId}`);
       const data = await res.json();
+      if (!res.ok) {
+        setLoadError(data.error || `Failed to load strategy (${res.status})`);
+        return;
+      }
       setStrategyData(data);
       if (data.strategyMode) {
         setStrategyMode(data.strategyMode as "cohesive" | "variety");
       }
+    } catch {
+      setLoadError("Network error — could not load strategy data.");
     } finally {
       setLoading(false);
     }
@@ -257,8 +265,22 @@ export default function StrategyPage() {
         <div className="py-12 text-center text-sm text-gray-400">Loading strategy data…</div>
       )}
 
+      {/* ── Load Error ────────────────────────────────── */}
+      {!loading && loadError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+          <p className="text-sm font-medium text-red-800">Could not load strategy data</p>
+          <p className="mt-1 text-xs text-red-600">{loadError}</p>
+          <button
+            onClick={loadStrategy}
+            className="mt-3 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* ── Empty State ───────────────────────────────── */}
-      {!loading && !hasData && (
+      {!loading && !loadError && !hasData && (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
           <svg
             className="mx-auto h-10 w-10 text-gray-300"

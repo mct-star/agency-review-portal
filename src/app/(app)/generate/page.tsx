@@ -136,9 +136,15 @@ export default function GeneratePage() {
   // Single post config
   const [singleTopic, setSingleTopic] = useState("");
   const [singlePostType, setSinglePostType] = useState("");
-  // Week date selection (used by both single and full-week modes)
+  // Week date selection (full-week mode only — Sunday-aligned)
   const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
-  const [selectedDate, setSelectedDate] = useState<string>(""); // specific day within the week
+  // Single-post specific scheduling (date + time)
+  const [singleDate, setSingleDate] = useState<string>(() => {
+    // Default to today in local YYYY-MM-DD
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [singleTime, setSingleTime] = useState<string>("09:00");
   // Topic bank
   const [topics, setTopics] = useState<TopicEntry[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState("");
@@ -229,31 +235,27 @@ export default function GeneratePage() {
       : "social_post";
 
     try {
-      // Resolve week container:
-      // 1. Use an explicitly selected week (from date tiles)
-      // 2. Reuse an existing standalone week (week_number=0) for this company
-      // 3. Create a new standalone week
+      // Resolve week container for this single post.
+      // Single posts always go into a "standalone" week container (week_number=0)
+      // so they appear grouped by date in the review page.
       let weekId = selectedWeekId;
       if (!weekId) {
-        // Check if a standalone week already exists in the loaded weeks list
         const existingStandalone = weeks.find((w) => w.week_number === 0);
         if (existingStandalone) {
           weekId = existingStandalone.id;
         } else {
-          // Create a new standalone week container
-          const sunday = selectedWeekStart ? new Date(selectedWeekStart + "T00:00:00") : new Date();
-          const saturday = new Date(sunday);
-          saturday.setDate(saturday.getDate() + 6);
+          // Create a minimal standalone container using the selected single date
+          const postDate = singleDate ? new Date(singleDate + "T00:00:00") : new Date();
           const weekRes = await fetch("/api/weeks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               companyId: selectedCompanyId,
               weekNumber: 0,
-              year: sunday.getFullYear(),
-              dateStart: selectedWeekStart || toLocalISODate(sunday),
-              dateEnd: toLocalISODate(saturday),
-              title: `Standalone content`,
+              year: postDate.getFullYear(),
+              dateStart: toLocalISODate(postDate),
+              dateEnd: toLocalISODate(postDate),
+              title: "Standalone content",
               status: "draft",
             }),
           });
@@ -275,6 +277,8 @@ export default function GeneratePage() {
           weekId,
           contentType,
           postTypeSlug: singlePostType || undefined,
+          scheduledDate: singleDate || undefined,
+          scheduledTime: singleTime || undefined,
           additionalContext: singleTopic ? `TOPIC: ${singleTopic}` : undefined,
         }),
       });
@@ -284,20 +288,30 @@ export default function GeneratePage() {
 
       // Generate image if applicable
       if (generateImages && contentData.imagePrompt && contentType === "social_post") {
-        setStatus({ phase: "images", current: 0, total: 1, currentLabel: "Generating image..." });
+        setStatus({ phase: "images", current: 0, total: 1, currentLabel: "Generating image…" });
         try {
-          await fetch("/api/generate/images", {
+          const imgRes = await fetch("/api/generate/images", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               companyId: selectedCompanyId,
               contentPieceId: contentData.pieceId,
-              prompts: [typeof contentData.imagePrompt === "string"
-                ? contentData.imagePrompt
-                : contentData.imagePrompt],
+              prompts: [{
+                prompt: typeof contentData.imagePrompt === "string"
+                  ? contentData.imagePrompt
+                  : contentData.imagePrompt?.prompt || String(contentData.imagePrompt),
+                style: "vivid",
+                aspectRatio: "1:1",
+              }],
             }),
           });
-        } catch { /* image failed, continue */ }
+          if (!imgRes.ok) {
+            const imgData = await imgRes.json();
+            console.warn("Image generation failed:", imgData.error);
+          }
+        } catch (imgErr) {
+          console.warn("Image generation error:", imgErr);
+        }
       }
 
       setSelectedWeekId(weekId);
@@ -316,7 +330,7 @@ export default function GeneratePage() {
         error: err instanceof Error ? err.message : "Generation failed",
       });
     }
-  }, [selectedCompanyId, selectedWeekId, selectedScope, singleTopic, singlePostType, generateImages]);
+  }, [selectedCompanyId, selectedWeekId, selectedScope, singleTopic, singlePostType, singleDate, singleTime, generateImages, weeks]);
 
   // ─── Full week generation ──────────────────────────────
   const handleGenerateWeek = useCallback(async () => {
@@ -686,54 +700,45 @@ export default function GeneratePage() {
                 )}
               </div>
 
-              {/* Assign to a date (optional) */}
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <label className="text-sm font-medium text-gray-900">Assign to a date (optional)</label>
-                <p className="text-xs text-gray-500 mt-0.5">Pick the week this post belongs to, or leave unselected for a standalone piece.</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {getUpcomingWeekStarts(8).map((sundayStr) => {
-                    const sunday = new Date(sundayStr + "T00:00:00");
-                    const saturday = new Date(sunday);
-                    saturday.setDate(saturday.getDate() + 6);
-                    const calWeek = weeks.find((w) => w.date_start === sundayStr);
-                    const isSelected = selectedWeekStart === sundayStr;
-                    return (
-                      <button
-                        key={sundayStr}
-                        type="button"
-                        onClick={() => isSelected ? (setSelectedWeekStart(""), setSelectedWeekId("")) : handleSelectWeekDate(sundayStr)}
-                        className={`rounded-lg border p-2.5 text-left transition-colors ${
-                          isSelected
-                            ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
-                            : calWeek
-                            ? "border-gray-200 bg-white hover:border-sky-300 hover:bg-sky-50/30"
-                            : "border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-white"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-1">
-                          <div>
-                            <p className="text-xs font-semibold text-gray-900">
-                              {formatShortDate(sunday)} – {formatShortDate(saturday)}
-                            </p>
-                            {calWeek ? (
-                              <p className="mt-0.5 text-[10px] text-gray-500">Week {calWeek.week_number}</p>
-                            ) : (
-                              <p className="mt-0.5 text-[10px] text-gray-400">Standalone</p>
-                            )}
-                          </div>
-                          <div className="flex flex-col items-end gap-0.5 shrink-0">
-                            {calWeek?.pillar && (
-                              <span className="rounded bg-gray-100 px-1 py-0.5 text-[9px] font-medium text-gray-600">{calWeek.pillar}</span>
-                            )}
-                            {calWeek?.theme && (
-                              <span className="rounded bg-purple-50 px-1 py-0.5 text-[9px] font-medium text-purple-600 max-w-[80px] truncate">{calWeek.theme}</span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+              {/* Schedule this post */}
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-900">Schedule (optional)</label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Pick a date and time for this post. Leave as-is for an unscheduled draft.
+                  </p>
                 </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Date</label>
+                    <input
+                      type="date"
+                      value={singleDate}
+                      onChange={(e) => setSingleDate(e.target.value)}
+                      className="mt-1 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="w-36">
+                    <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Time</label>
+                    <input
+                      type="time"
+                      value={singleTime}
+                      onChange={(e) => setSingleTime(e.target.value)}
+                      className="mt-1 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                {singleDate && (
+                  <p className="text-xs text-sky-600">
+                    Scheduled for{" "}
+                    {new Date(singleDate + "T" + singleTime).toLocaleDateString("en-GB", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}{" "}
+                    at {singleTime}
+                  </p>
+                )}
               </div>
             </div>
           )}

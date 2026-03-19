@@ -13,7 +13,8 @@ import { getImageProvider } from "@/lib/providers";
  * }
  *
  * Creates a generation job, calls the image provider for each prompt,
- * then stores the results as content_images rows.
+ * uploads images to Supabase Storage, then stores permanent URLs as
+ * content_images rows.
  */
 export async function POST(request: Request) {
   const admin = await requireAdmin();
@@ -93,7 +94,6 @@ export async function POST(request: Request) {
 
     let nextSort = (existingImages?.[0]?.sort_order ?? -1) + 1;
 
-    // Generate images for each prompt
     const allImages: {
       content_piece_id: string;
       filename: string;
@@ -116,11 +116,22 @@ export async function POST(request: Request) {
       });
 
       for (const img of result.images) {
+        // ── Persist to Supabase Storage ──────────────────────────────
+        // Providers may return temporary URLs (DALL-E) or data URIs (base64).
+        // We always download and re-upload to guarantee a permanent URL.
+        const permanentUrl = await uploadImageToStorage(
+          supabase,
+          img.url,
+          img.filename,
+          companyId,
+          contentPieceId
+        );
+
         allImages.push({
           content_piece_id: contentPieceId,
           filename: img.filename,
-          storage_path: img.url, // For now, store the URL directly
-          public_url: img.url,
+          storage_path: permanentUrl,
+          public_url: permanentUrl,
           archetype: style || null,
           sort_order: nextSort++,
         });
@@ -179,4 +190,69 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ jobId, status: "failed", error: message }, { status: 500 });
   }
+}
+
+/**
+ * Download an image (from URL or data URI) and upload it to Supabase Storage.
+ * Returns the permanent public URL from storage.
+ *
+ * Handles three source types:
+ *   1. https:// URLs (DALL-E temporary URLs, fal.ai permanent URLs, etc.)
+ *   2. data: URIs (base64-encoded images from gpt-image-1)
+ *   3. Supabase storage URLs (already permanent — skip re-upload)
+ */
+async function uploadImageToStorage(
+  supabase: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
+  imageUrl: string,
+  filename: string,
+  companyId: string,
+  contentPieceId: string
+): Promise<string> {
+  const storageBucket = "content-assets";
+  const storagePath = `images/${companyId}/${contentPieceId}/${filename}`;
+
+  // Check if this is already a Supabase storage URL — skip re-upload
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  if (imageUrl.includes(supabaseUrl) && imageUrl.includes("/storage/")) {
+    return imageUrl;
+  }
+
+  let imageBuffer: Buffer;
+  let mimeType = "image/png";
+
+  if (imageUrl.startsWith("data:")) {
+    // Base64 data URI (gpt-image-1)
+    const [header, base64Data] = imageUrl.split(",");
+    const mime = header.match(/data:([^;]+)/)?.[1] || "image/png";
+    mimeType = mime;
+    imageBuffer = Buffer.from(base64Data, "base64");
+  } else {
+    // HTTP/HTTPS URL — download the image
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) {
+      throw new Error(`Failed to download generated image (${res.status}): ${imageUrl}`);
+    }
+    const contentType = res.headers.get("content-type");
+    if (contentType) mimeType = contentType.split(";")[0];
+    imageBuffer = Buffer.from(await res.arrayBuffer());
+  }
+
+  // Upload to Supabase Storage
+  const { error: uploadErr } = await supabase.storage
+    .from(storageBucket)
+    .upload(storagePath, imageBuffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+  if (uploadErr) {
+    throw new Error(`Failed to upload image to storage: ${uploadErr.message}`);
+  }
+
+  // Return the permanent public URL
+  const { data: urlData } = supabase.storage
+    .from(storageBucket)
+    .getPublicUrl(storagePath);
+
+  return urlData.publicUrl;
 }

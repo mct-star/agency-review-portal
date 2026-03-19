@@ -36,10 +36,10 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Fetch company branding + profile picture
+  // Fetch company branding + profile picture + mask
   const { data: company } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color, logo_url, profile_picture_url")
+    .select("spokesperson_name, brand_color, logo_url, profile_picture_url, brand_mask_url")
     .eq("id", companyId)
     .single();
 
@@ -60,7 +60,9 @@ export async function POST(request: Request) {
   const profilePicUrl = primarySpokesperson?.photo_url || company.profile_picture_url;
 
   try {
-    // Apply the overlay — now with profile photo and CTA text
+    // Apply the overlay.
+    // If a custom brand mask PNG is uploaded, it takes precedence over the
+    // dynamically generated SVG overlay (the mask already contains the brand frame).
     const result = await applyBrandOverlay(imageUrl, {
       brandColor: company.brand_color || "#0a66c2",
       logoUrl: company.logo_url,
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
       ctaText: spokespersonName ? `Follow ${spokespersonName}` : null,
       archetype: archetype || null,
       hookText: hookText || null,
+      brandMaskUrl: company.brand_mask_url || null,
     });
 
     // Store the branded image in Supabase Storage

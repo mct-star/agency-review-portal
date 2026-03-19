@@ -72,7 +72,7 @@ export default function WeekReviewTabs({
         body: JSON.stringify({
           companyId,
           contentPieceId: pieceId,
-          prompts: [{ prompt: imagePromptAsset.text_content, style: "A4_pixar", aspectRatio: "1:1" }],
+          prompts: [{ prompt: imagePromptAsset.text_content, style: "vivid", aspectRatio: "1:1" }],
         }),
       });
       const data = await res.json();
@@ -174,7 +174,8 @@ export default function WeekReviewTabs({
               const isExpanded = expandedPieces.has(piece.id);
               const previewImage = generatedImages.get(piece.id) || (piece.images.length > 0 ? piece.images[0].public_url : null);
               const hasImagePrompt = piece.assets.some((a) => a.asset_type === "image_prompt");
-              const needsImage = !previewImage && hasImagePrompt;
+              // Show generate button when no image exists, OR when there's an existing image (allow regeneration)
+              const needsImage = hasImagePrompt;
               const isGenerating = generatingImage.has(piece.id);
               const imageError = imageErrors.get(piece.id);
 
@@ -232,6 +233,8 @@ export default function WeekReviewTabs({
                               <span className="h-3 w-3 animate-spin rounded-full border border-amber-300 border-t-amber-600" />
                               Generating...
                             </span>
+                          ) : previewImage ? (
+                            "Regenerate"
                           ) : (
                             "Generate Image"
                           )}
