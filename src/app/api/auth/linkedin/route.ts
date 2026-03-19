@@ -34,8 +34,12 @@ function getLinkedInConfig() {
 
 function getRedirectUri(request: Request): string {
   const url = new URL(request.url);
-  // The redirect URI must exactly match what's registered in the LinkedIn app
-  return `${url.origin}/api/auth/linkedin`;
+  // Must exactly match what's registered in the LinkedIn Developer Portal.
+  // Reads from env var first (set in Vercel), falls back to dynamic origin.
+  return (
+    process.env.LINKEDIN_REDIRECT_URI ||
+    `${url.origin}/api/auth/linkedin/callback`
+  );
 }
 
 export async function GET(request: Request) {
