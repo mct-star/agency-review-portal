@@ -1,23 +1,25 @@
-import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr"; // used in requireAdmin for cookie-based auth check
 import { cookies } from "next/headers";
 
 /**
  * Create a Supabase client using the SERVICE_ROLE key.
- * Bypasses RLS — use only in server-side API routes where
- * you have already verified the caller is an admin.
+ * Uses @supabase/supabase-js directly so both the apikey header AND
+ * the Authorization bearer token are the service role key — this
+ * definitively bypasses RLS for all operations including Storage.
+ *
+ * Do NOT use @supabase/ssr's createServerClient here: when a user
+ * session cookie is present it swaps in the user's JWT as the
+ * Authorization header, which breaks RLS bypass for storage uploads.
  */
 export async function createAdminSupabaseClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient(
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );

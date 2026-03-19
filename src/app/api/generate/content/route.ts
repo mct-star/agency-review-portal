@@ -99,9 +99,9 @@ export async function POST(request: Request) {
       .update({ status: "running", started_at: new Date().toISOString(), progress: 10 })
       .eq("id", jobId);
 
-    // 3. Fetch company, blueprint, topic (optional), week
+    // 3. Fetch company, blueprint, topic (optional), week, and sign-offs
     const isValidTopicId = topicId && topicId !== "auto" && topicId !== "null";
-    const [companyRes, blueprintRes, topicRes, weekRes] = await Promise.all([
+    const [companyRes, blueprintRes, topicRes, weekRes, signoffsRes] = await Promise.all([
       supabase.from("companies").select("*").eq("id", companyId).single(),
       supabase
         .from("company_blueprints")
@@ -113,6 +113,13 @@ export async function POST(request: Request) {
         ? supabase.from("topic_bank").select("*").eq("id", topicId).single()
         : Promise.resolve({ data: null, error: null }),
       supabase.from("weeks").select("*").eq("id", weekId).single(),
+      // Fetch all company sign-offs so the AI uses the real configured text
+      supabase
+        .from("company_signoffs")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("sort_order")
+        .limit(10),
     ]);
 
     if (!weekRes.data) {
@@ -121,6 +128,16 @@ export async function POST(request: Request) {
 
     // Topic is optional — in cohesive mode, the topic title comes from the request body
     const topic = topicRes.data;
+
+    // Pick a sign-off to use. Rotate across configured sign-offs based on the
+    // piece's position in the week (variety without pure randomness).
+    const signoffs = signoffsRes.data || [];
+    const { count: existingPieceCount } = await supabase
+      .from("content_pieces")
+      .select("*", { count: "exact", head: true })
+      .eq("week_id", weekId);
+    const pieceIndex = existingPieceCount || 0;
+    const selectedSignoff = signoffs.length > 0 ? signoffs[pieceIndex % signoffs.length] : null;
 
     await supabase
       .from("content_generation_jobs")
@@ -194,6 +211,9 @@ export async function POST(request: Request) {
       dayOfWeek: resolvedDayOfWeek,
       scheduledTime: resolvedTime,
       slotLabel: resolvedSlotLabel,
+      // Sign-off from company_signoffs — gives AI the exact text to use verbatim
+      signoffText: selectedSignoff?.signoff_text || undefined,
+      firstCommentTemplate: selectedSignoff?.first_comment_template || undefined,
     };
 
     const output = await provider.generate(input);

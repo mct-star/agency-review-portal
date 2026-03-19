@@ -66,12 +66,14 @@ export default function WeekReviewTabs({
         body: JSON.stringify({
           companyId,
           contentPieceId: pieceId,
-          prompts: [imagePromptAsset.text_content],
+          // Must be an array of objects — bare strings cause prompt to be undefined
+          prompts: [{ prompt: imagePromptAsset.text_content, style: "A4_pixar", aspectRatio: "1:1" }],
         }),
       });
       const data = await res.json();
-      if (res.ok && data.images?.[0]?.url) {
-        setGeneratedImages((prev) => new Map(prev).set(pieceId, data.images[0].url));
+      // API returns DB rows: field is public_url, not url
+      if (res.ok && data.images?.[0]?.public_url) {
+        setGeneratedImages((prev) => new Map(prev).set(pieceId, data.images[0].public_url));
       }
     } finally {
       setGeneratingImage((prev) => {

@@ -92,6 +92,37 @@ const STEP_LABELS: Record<Step, string> = {
   generating: "Generate",
 };
 
+// ─── Date helpers ──────────────────────────────────────
+function getWeekSunday(d: Date): Date {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() - copy.getDay()); // getDay() === 0 for Sunday
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function toLocalISODate(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function formatShortDate(d: Date): string {
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function getUpcomingWeekStarts(count: number): string[] {
+  const starts: string[] = [];
+  const sunday = getWeekSunday(new Date());
+  for (let i = 0; i < count; i++) {
+    const s = new Date(sunday);
+    s.setDate(s.getDate() + i * 7);
+    starts.push(toLocalISODate(s));
+  }
+  return starts;
+}
+
 export default function GeneratePage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -105,6 +136,9 @@ export default function GeneratePage() {
   // Single post config
   const [singleTopic, setSingleTopic] = useState("");
   const [singlePostType, setSinglePostType] = useState("");
+  // Week date selection (used by both single and full-week modes)
+  const [selectedWeekStart, setSelectedWeekStart] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>(""); // specific day within the week
   // Topic bank
   const [topics, setTopics] = useState<TopicEntry[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState("");
@@ -153,6 +187,7 @@ export default function GeneratePage() {
   const handleSelectCompany = (id: string) => {
     setSelectedCompanyId(id);
     setSelectedWeekId("");
+    setSelectedWeekStart("");
     setSelectedScope("");
     setSelectedTopicId("");
     setSingleTopic("");
@@ -170,13 +205,17 @@ export default function GeneratePage() {
     setStep("configure");
   };
 
-  const handleSelectWeek = (id: string) => {
-    setSelectedWeekId(id);
-    const week = weeks.find((w) => w.id === id);
-    if (week?.subject) {
-      setWeekSubject(week.subject);
-    } else if (week?.theme) {
-      setWeekSubject(week.theme);
+  // Shared date-tile handler — used by both single post and full-week modes
+  const handleSelectWeekDate = (sundayStr: string) => {
+    setSelectedWeekStart(sundayStr);
+    // Wire up existing calendar week if one aligns with this Sunday
+    const match = weeks.find((w) => w.date_start === sundayStr);
+    if (match) {
+      setSelectedWeekId(match.id);
+      setWeekSubject(match.subject || match.theme || "");
+    } else {
+      setSelectedWeekId("");
+      setWeekSubject("");
     }
   };
 
@@ -190,24 +229,42 @@ export default function GeneratePage() {
       : "social_post";
 
     try {
-      // For single pieces, create a lightweight week container if none selected
+      // Resolve week container:
+      // 1. Use an explicitly selected week (from date tiles)
+      // 2. Reuse an existing standalone week (week_number=0) for this company
+      // 3. Create a new standalone week
       let weekId = selectedWeekId;
       if (!weekId) {
-        // Create an ad-hoc week for standalone content
-        const weekRes = await fetch("/api/weeks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyId: selectedCompanyId,
-            weekNumber: 0,
-            year: new Date().getFullYear(),
-            title: `Standalone ${contentType.replace(/_/g, " ")}`,
-            status: "draft",
-          }),
-        });
-        const weekData = await weekRes.json();
-        weekId = weekData.data?.id || weekData.id;
-        if (!weekId) throw new Error("Failed to create content container");
+        // Check if a standalone week already exists in the loaded weeks list
+        const existingStandalone = weeks.find((w) => w.week_number === 0);
+        if (existingStandalone) {
+          weekId = existingStandalone.id;
+        } else {
+          // Create a new standalone week container
+          const sunday = selectedWeekStart ? new Date(selectedWeekStart + "T00:00:00") : new Date();
+          const saturday = new Date(sunday);
+          saturday.setDate(saturday.getDate() + 6);
+          const weekRes = await fetch("/api/weeks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: selectedCompanyId,
+              weekNumber: 0,
+              year: sunday.getFullYear(),
+              dateStart: selectedWeekStart || toLocalISODate(sunday),
+              dateEnd: toLocalISODate(saturday),
+              title: `Standalone content`,
+              status: "draft",
+            }),
+          });
+          if (!weekRes.ok) {
+            const text = await weekRes.text();
+            throw new Error(`Failed to create content container (${weekRes.status}): ${text.slice(0, 200)}`);
+          }
+          const weekData = await weekRes.json();
+          weekId = weekData.data?.id;
+          if (!weekId) throw new Error("Failed to create content container");
+        }
       }
 
       const contentRes = await fetch("/api/generate/content", {
@@ -263,17 +320,45 @@ export default function GeneratePage() {
 
   // ─── Full week generation ──────────────────────────────
   const handleGenerateWeek = useCallback(async () => {
-    if (!selectedWeekId) return;
+    if (!selectedWeekStart) return;
     setStep("generating");
     setStatus({ phase: "preparing", current: 0, total: 0, currentLabel: "Getting slot assignments..." });
 
     try {
+      // Resolve week ID — use existing calendar entry, or create a new week for this date range
+      let resolvedWeekId = selectedWeekId;
+      if (!resolvedWeekId) {
+        const sunday = new Date(selectedWeekStart + "T00:00:00");
+        const saturday = new Date(sunday);
+        saturday.setDate(saturday.getDate() + 6);
+        const weekRes = await fetch("/api/weeks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: selectedCompanyId,
+            weekNumber: 0,
+            year: sunday.getFullYear(),
+            dateStart: selectedWeekStart,
+            dateEnd: toLocalISODate(saturday),
+            status: "draft",
+          }),
+        });
+        if (!weekRes.ok) {
+          const text = await weekRes.text();
+          throw new Error(`Failed to create week (${weekRes.status}): ${text.slice(0, 200)}`);
+        }
+        const weekData = await weekRes.json();
+        resolvedWeekId = weekData.data?.id;
+        if (!resolvedWeekId) throw new Error("Failed to create week container");
+        setSelectedWeekId(resolvedWeekId);
+      }
+
       const planRes = await fetch("/api/generate/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: selectedCompanyId,
-          weekId: selectedWeekId,
+          weekId: resolvedWeekId,
           mode: isCohesive ? "cohesive" : "variety",
           subject: isCohesive ? weekSubject : undefined,
         }),
@@ -302,7 +387,7 @@ export default function GeneratePage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               companyId: selectedCompanyId,
-              weekId: selectedWeekId,
+              weekId: resolvedWeekId,
               topicId: assignment.topicId || "auto",
               contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug)
                 ? assignment.postTypeSlug
@@ -388,7 +473,7 @@ export default function GeneratePage() {
     } catch (err) {
       setStatus({ phase: "error", current: 0, total: 0, currentLabel: "", error: err instanceof Error ? err.message : "Generation failed" });
     }
-  }, [selectedCompanyId, selectedWeekId, isCohesive, weekSubject, generateImages]);
+  }, [selectedCompanyId, selectedWeekId, selectedWeekStart, isCohesive, weekSubject, generateImages]);
 
   const handleGenerate = selectedScope === "full_week" || selectedScope === "full_month"
     ? handleGenerateWeek
@@ -601,25 +686,55 @@ export default function GeneratePage() {
                 )}
               </div>
 
-              {/* Optionally assign to a week */}
-              {draftWeeks.length > 0 && (
-                <div className="rounded-lg border border-gray-200 bg-white p-4">
-                  <label className="text-sm font-medium text-gray-900">Assign to a week (optional)</label>
-                  <p className="text-xs text-gray-500 mt-0.5">Leave empty for a standalone piece.</p>
-                  <select
-                    value={selectedWeekId}
-                    onChange={(e) => setSelectedWeekId(e.target.value)}
-                    className="mt-1.5 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-                  >
-                    <option value="">Standalone (no week)</option>
-                    {draftWeeks.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        Week {w.week_number} — {w.theme || w.date_start}
-                      </option>
-                    ))}
-                  </select>
+              {/* Assign to a date (optional) */}
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <label className="text-sm font-medium text-gray-900">Assign to a date (optional)</label>
+                <p className="text-xs text-gray-500 mt-0.5">Pick the week this post belongs to, or leave unselected for a standalone piece.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {getUpcomingWeekStarts(8).map((sundayStr) => {
+                    const sunday = new Date(sundayStr + "T00:00:00");
+                    const saturday = new Date(sunday);
+                    saturday.setDate(saturday.getDate() + 6);
+                    const calWeek = weeks.find((w) => w.date_start === sundayStr);
+                    const isSelected = selectedWeekStart === sundayStr;
+                    return (
+                      <button
+                        key={sundayStr}
+                        type="button"
+                        onClick={() => isSelected ? (setSelectedWeekStart(""), setSelectedWeekId("")) : handleSelectWeekDate(sundayStr)}
+                        className={`rounded-lg border p-2.5 text-left transition-colors ${
+                          isSelected
+                            ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
+                            : calWeek
+                            ? "border-gray-200 bg-white hover:border-sky-300 hover:bg-sky-50/30"
+                            : "border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-900">
+                              {formatShortDate(sunday)} – {formatShortDate(saturday)}
+                            </p>
+                            {calWeek ? (
+                              <p className="mt-0.5 text-[10px] text-gray-500">Week {calWeek.week_number}</p>
+                            ) : (
+                              <p className="mt-0.5 text-[10px] text-gray-400">Standalone</p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-0.5 shrink-0">
+                            {calWeek?.pillar && (
+                              <span className="rounded bg-gray-100 px-1 py-0.5 text-[9px] font-medium text-gray-600">{calWeek.pillar}</span>
+                            )}
+                            {calWeek?.theme && (
+                              <span className="rounded bg-purple-50 px-1 py-0.5 text-[9px] font-medium text-purple-600 max-w-[80px] truncate">{calWeek.theme}</span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -628,44 +743,54 @@ export default function GeneratePage() {
             <div className="space-y-3">
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <label className="text-sm font-medium text-gray-900">Select week</label>
-                <div className="mt-2 space-y-2">
-                  {draftWeeks.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
-                      <p className="text-sm text-gray-500">No draft weeks available.</p>
-                      <p className="mt-1 text-xs text-gray-400">Create a new week in your content calendar first, then come back here.</p>
-                      <a href="/admin/upload" className="mt-3 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
-                        Create Week
-                      </a>
-                    </div>
-                  ) : (
-                    draftWeeks.map((w) => (
+                <p className="mt-0.5 text-xs text-gray-500">Weeks start on Sunday. Calendar entries are highlighted automatically.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {getUpcomingWeekStarts(10).map((sundayStr) => {
+                    const sunday = new Date(sundayStr + "T00:00:00");
+                    const saturday = new Date(sunday);
+                    saturday.setDate(saturday.getDate() + 6);
+                    const calWeek = weeks.find((w) => w.date_start === sundayStr);
+                    const isSelected = selectedWeekStart === sundayStr;
+                    return (
                       <button
-                        key={w.id}
-                        onClick={() => handleSelectWeek(w.id)}
-                        className={`block w-full rounded-lg border p-3 text-left transition-colors ${
-                          selectedWeekId === w.id
+                        key={sundayStr}
+                        onClick={() => handleSelectWeekDate(sundayStr)}
+                        className={`rounded-lg border p-3 text-left transition-colors ${
+                          isSelected
                             ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
-                            : "border-gray-200 hover:border-sky-300"
+                            : calWeek
+                            ? "border-gray-200 bg-white hover:border-sky-300 hover:bg-sky-50/30"
+                            : "border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-white"
                         }`}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between gap-2">
                           <div>
-                            <span className="font-semibold text-gray-900">Week {w.week_number}</span>
-                            <span className="ml-2 text-sm text-gray-500">{w.date_start} — {w.date_end}</span>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {formatShortDate(sunday)} – {formatShortDate(saturday)}
+                            </p>
+                            {calWeek ? (
+                              <p className="mt-0.5 text-xs text-gray-500">Week {calWeek.week_number}</p>
+                            ) : (
+                              <p className="mt-0.5 text-xs text-gray-400">No calendar entry</p>
+                            )}
                           </div>
-                          <div className="flex gap-1">
-                            {w.pillar && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{w.pillar}</span>}
-                            {w.theme && <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">{w.theme}</span>}
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {calWeek?.pillar && (
+                              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{calWeek.pillar}</span>
+                            )}
+                            {calWeek?.theme && (
+                              <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">{calWeek.theme}</span>
+                            )}
                           </div>
                         </div>
                       </button>
-                    ))
-                  )}
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Cohesive subject for selected week */}
-              {selectedWeekId && isCohesive && (
+              {selectedWeekStart && isCohesive && (
                 <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
                   <h3 className="text-sm font-semibold text-gray-900">Week Subject</h3>
                   <p className="mt-1 text-xs text-gray-500">
@@ -723,12 +848,12 @@ export default function GeneratePage() {
                 disabled={
                   (isSingleMode && topicMode === "bank" && !selectedTopicId) ||
                   (isSingleMode && topicMode === "custom" && !singleTopic.trim()) ||
-                  (isWeekMode && !selectedWeekId) ||
+                  (isWeekMode && !selectedWeekStart) ||
                   (isWeekMode && isCohesive && !weekSubject.trim())
                 }
                 className="w-full rounded-lg bg-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 disabled:opacity-50"
               >
-                {isSingleMode ? "Generate" : `Generate Week ${selectedWeek?.week_number || ""}`}
+                {isSingleMode ? "Generate" : selectedWeek ? `Generate Week ${selectedWeek.week_number}` : "Generate Week"}
               </button>
             </>
           )}
