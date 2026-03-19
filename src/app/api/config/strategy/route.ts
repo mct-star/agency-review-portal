@@ -3,6 +3,51 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
 
 /**
+ * GET /api/config/strategy?companyId=...
+ * Return all content_themes for a company, with per-theme topic counts.
+ */
+export async function GET(request: Request) {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const companyId = searchParams.get("companyId");
+  if (!companyId) return NextResponse.json({ error: "companyId required" }, { status: 400 });
+
+  const supabase = await createAdminSupabaseClient();
+
+  const [themesRes, topicsRes, companyRes] = await Promise.all([
+    supabase
+      .from("content_themes")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("topic_bank")
+      .select("id, pillar, audience_theme, is_used")
+      .eq("company_id", companyId),
+    supabase.from("companies").select("content_strategy_mode").eq("id", companyId).single(),
+  ]);
+
+  const topics = topicsRes.data || [];
+
+  // Count topics per pillar for summary
+  const pillarCounts: Record<string, number> = {};
+  for (const t of topics) {
+    const key = t.pillar || "Untagged";
+    pillarCounts[key] = (pillarCounts[key] || 0) + 1;
+  }
+
+  return NextResponse.json({
+    themes: themesRes.data || [],
+    totalTopics: topics.length,
+    usedTopics: topics.filter((t) => t.is_used).length,
+    pillarCounts,
+    strategyMode: companyRes.data?.content_strategy_mode || "cohesive",
+  });
+}
+
+/**
  * POST /api/config/strategy
  *
  * Import a content strategy from CSV or markdown.

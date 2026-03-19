@@ -58,12 +58,19 @@ export async function POST(request: Request) {
   const { data: urlData } = supabase.storage.from("media").getPublicUrl(storagePath);
   const publicUrl = urlData.publicUrl;
 
-  // Update company record
+  // Update company record with the new URL
   const updateField = uploadType === "profile_picture" ? "profile_picture_url" : "logo_url";
-  await supabase
+  const { error: dbErr } = await supabase
     .from("companies")
     .update({ [updateField]: publicUrl })
     .eq("id", companyId);
+
+  if (dbErr) {
+    return NextResponse.json(
+      { error: `File uploaded but DB update failed: ${dbErr.message}` },
+      { status: 500 }
+    );
+  }
 
   // Revalidate layouts so the sidebar picks up the new logo
   revalidatePath("/", "layout");

@@ -18,6 +18,7 @@ export default function PeoplePage() {
   const [adding, setAdding] = useState(false);
   const [newPerson, setNewPerson] = useState({ name: "", tagline: "", linkedinUrl: "" });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +31,7 @@ export default function PeoplePage() {
   const handleAdd = async () => {
     if (!newPerson.name) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch("/api/config/spokespersons", {
         method: "POST",
@@ -47,7 +49,11 @@ export default function PeoplePage() {
         setPeople([...people, data.data]);
         setNewPerson({ name: "", tagline: "", linkedinUrl: "" });
         setAdding(false);
+      } else {
+        setSaveError(data.error || "Failed to save. The spokespersons table may not exist yet — run migration 009 in Supabase.");
       }
+    } catch {
+      setSaveError("Network error — please try again.");
     } finally {
       setSaving(false);
     }
@@ -248,6 +254,11 @@ export default function PeoplePage() {
               className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
             />
           </div>
+          {saveError && (
+            <p className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              {saveError}
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
@@ -257,7 +268,7 @@ export default function PeoplePage() {
               {saving ? "Adding..." : "Add"}
             </button>
             <button
-              onClick={() => setAdding(false)}
+              onClick={() => { setAdding(false); setSaveError(null); }}
               className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
             >
               Cancel

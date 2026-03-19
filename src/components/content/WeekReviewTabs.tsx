@@ -19,6 +19,7 @@ interface WeekReviewTabsProps {
   allPieces: PieceWithExtras[];
   authorName: string;
   authorTagline?: string;
+  authorAvatarUrl?: string;
   brandColor?: string;
 }
 
@@ -43,6 +44,7 @@ export default function WeekReviewTabs({
   allPieces,
   authorName,
   authorTagline,
+  authorAvatarUrl,
   brandColor,
 }: WeekReviewTabsProps) {
   const [activeTab, setActiveTab] = useState<ReviewTab>("social");
@@ -241,6 +243,7 @@ export default function WeekReviewTabs({
                       <LinkedInPreview
                         authorName={authorName}
                         authorTagline={authorTagline}
+                        authorAvatarUrl={authorAvatarUrl}
                         postText={piece.markdown_body}
                         firstComment={piece.first_comment}
                         postType={piece.post_type}
