@@ -90,43 +90,34 @@ function escapeXml(str: string): string {
 
 import { readFileSync } from "fs";
 import { join } from "path";
+import satori from "satori";
+import React from "react";
 
 /**
- * Load and cache the Inter Bold font as base64 for embedding in SVGs.
- * This is the only reliable way to render text on Vercel Lambda — the
- * serverless environment has zero fonts installed, so we must embed one.
+ * Load and cache the Inter Bold font data for Satori.
+ * Satori converts React elements to SVG with text rendered as <path> elements
+ * (vector outlines), so the output SVG needs zero font rendering capability.
+ * This is the ONLY reliable way to render text on Vercel Lambda.
  */
-let _fontBase64Cache: string | null = null;
-function getEmbeddedFontBase64(): string {
-  if (_fontBase64Cache) return _fontBase64Cache;
+let _fontDataCache: ArrayBuffer | null = null;
+function getFontData(): ArrayBuffer {
+  if (_fontDataCache) return _fontDataCache;
   const fontPath = join(process.cwd(), "src/lib/image/fonts/Inter-Bold.ttf");
-  const fontBuffer = readFileSync(fontPath);
-  _fontBase64Cache = fontBuffer.toString("base64");
-  return _fontBase64Cache;
+  const buffer = readFileSync(fontPath);
+  _fontDataCache = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  return _fontDataCache;
 }
 
 /**
- * Creates the bottom gradient bar with spokesperson name and CTA text.
- * Embeds the Inter Bold font directly as base64 in the SVG so text
- * renders correctly on serverless environments with no system fonts.
+ * Creates the bottom gradient bar SVG (gradient only, no text).
  */
-function createBottomBar(
+function createBottomBarGradient(
   width: number,
   height: number,
-  brandColor: string,
-  name: string | null,
-  ctaText: string | null,
-  hasProfilePhoto: boolean
+  brandColor: string
 ): string {
   const barHeight = Math.round(height * 0.14);
   const { r, g, b } = hexToRgb(brandColor);
-  const nameSize = Math.round(barHeight * 0.3);
-  const ctaSize = Math.round(barHeight * 0.2);
-  const fontBase64 = getEmbeddedFontBase64();
-
-  const textX = hasProfilePhoto
-    ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
-    : Math.round(width * 0.04);
 
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -135,29 +126,58 @@ function createBottomBar(
         <stop offset="40%" stop-color="rgba(${r},${g},${b},0.6)" />
         <stop offset="100%" stop-color="rgba(${r},${g},${b},0.92)" />
       </linearGradient>
-      <style>
-        @font-face {
-          font-family: 'Inter';
-          src: url('data:font/ttf;base64,${fontBase64}');
-          font-weight: bold;
-        }
-      </style>
     </defs>
     <rect x="0" y="${height - barHeight}" width="${width}" height="${barHeight}"
           fill="url(#bottomFade)" />
-    ${name ? `
-    <text x="${textX}" y="${height - Math.round(barHeight * 0.45)}"
-          font-family="Inter" font-size="${nameSize}"
-          font-weight="bold" fill="white">
-      ${escapeXml(name)}
-    </text>` : ""}
-    ${ctaText ? `
-    <text x="${textX}" y="${height - Math.round(barHeight * 0.18)}"
-          font-family="Inter" font-size="${ctaSize}"
-          font-weight="bold" fill="rgba(255,255,255,0.85)">
-      ${escapeXml(ctaText)}
-    </text>` : ""}
   </svg>`;
+}
+
+/**
+ * Render text as a PNG buffer using Satori (text → SVG paths) + Sharp (SVG → PNG).
+ * Satori converts text into vector path outlines using the font data directly,
+ * bypassing all system font dependencies.
+ */
+async function renderTextImage(
+  text: string,
+  fontSize: number,
+  options: {
+    bold?: boolean;
+    color?: string;
+    maxWidth: number;
+    height: number;
+  }
+): Promise<Buffer> {
+  const fontData = getFontData();
+
+  const element = React.createElement(
+    "div",
+    {
+      style: {
+        display: "flex",
+        color: options.color || "white",
+        fontSize,
+        fontFamily: "Inter",
+        fontWeight: options.bold ? 700 : 400,
+        whiteSpace: "nowrap",
+      },
+    },
+    text
+  );
+
+  const svg = await satori(element, {
+    width: options.maxWidth,
+    height: options.height,
+    fonts: [
+      {
+        name: "Inter",
+        data: fontData,
+        weight: 700,
+        style: "normal" as const,
+      },
+    ],
+  });
+
+  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 // ============================================================
@@ -206,22 +226,60 @@ export async function applyBrandOverlay(
 
   const hasProfilePhoto = !!config.profilePictureUrl;
 
-  // Layer 1: Bottom gradient bar with name + CTA (font embedded as base64)
-  const barSvg = createBottomBar(
-    width,
-    height,
-    config.brandColor,
-    config.spokespersonName || null,
-    ctaText,
-    hasProfilePhoto
-  );
+  // Layer 1: Bottom gradient bar (SVG — no text, just the gradient)
+  const barSvg = createBottomBarGradient(width, height, config.brandColor);
   composites.push({
     input: Buffer.from(barSvg),
     top: 0,
     left: 0,
   });
 
+  // Layer 1b: Text rendered via Satori (text → SVG vector paths → PNG).
+  // Satori converts text to <path> outlines using the font data directly,
+  // so no system fonts are needed at render time.
   const barHeight = Math.round(height * 0.14);
+  const nameSize = Math.round(barHeight * 0.3);
+  const ctaSize = Math.round(barHeight * 0.2);
+  const textX = hasProfilePhoto
+    ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
+    : Math.round(width * 0.04);
+  const textMaxWidth = width - textX - Math.round(width * 0.04);
+
+  if (config.spokespersonName) {
+    try {
+      const nameImg = await renderTextImage(config.spokespersonName, nameSize, {
+        bold: true,
+        color: "white",
+        maxWidth: textMaxWidth,
+        height: nameSize + 8,
+      });
+      composites.push({
+        input: nameImg,
+        top: height - barHeight + Math.round(barHeight * 0.22),
+        left: textX,
+      });
+    } catch (e) {
+      console.error("[overlay] Name text render failed:", e);
+    }
+  }
+
+  if (ctaText) {
+    try {
+      const ctaImg = await renderTextImage(ctaText, ctaSize, {
+        bold: false,
+        color: "rgba(255,255,255,0.85)",
+        maxWidth: textMaxWidth,
+        height: ctaSize + 6,
+      });
+      composites.push({
+        input: ctaImg,
+        top: height - barHeight + Math.round(barHeight * 0.55),
+        left: textX,
+      });
+    } catch (e) {
+      console.error("[overlay] CTA text render failed:", e);
+    }
+  }
 
   // Layer 2: Circular profile photo (bottom-left, inside the gradient bar)
   if (config.profilePictureUrl) {
