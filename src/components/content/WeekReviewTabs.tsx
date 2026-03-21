@@ -25,6 +25,27 @@ interface WeekReviewTabsProps {
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+// Map post_type slugs to human-readable labels
+const POST_TYPE_LABELS: Record<string, string> = {
+  insight: "Problem Diagnosis",
+  problem_post: "Problem Diagnosis",
+  launch_story: "Launch Story",
+  if_i_was: "If I Was...",
+  contrarian: "Contrarian Take",
+  tactical: "Tactical How-To",
+  founder_friday: "Founder Friday",
+  blog_teaser: "Blog Teaser",
+  experience_story: "Experience Story",
+  expert_perspective: "Expert Perspective",
+  client_result: "Client Result",
+  data_insight: "Data Insight",
+};
+
+function getPostTypeLabel(slug: string | null): string {
+  if (!slug) return "";
+  return POST_TYPE_LABELS[slug] || slug.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-gray-100 text-gray-600",
   approved: "bg-green-100 text-green-700",
@@ -200,7 +221,22 @@ export default function WeekReviewTabs({
                         <div className="flex items-center gap-2 mt-0.5">
                           {piece.post_type && (
                             <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">
-                              {piece.post_type}
+                              {getPostTypeLabel(piece.post_type)}
+                            </span>
+                          )}
+                          {piece.content_type === "social_post" && (
+                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
+                              LinkedIn
+                            </span>
+                          )}
+                          {piece.content_type === "blog_article" && (
+                            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                              Blog
+                            </span>
+                          )}
+                          {piece.content_type === "linkedin_article" && (
+                            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
+                              Article
                             </span>
                           )}
                           {piece.pillar && (
