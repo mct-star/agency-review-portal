@@ -43,15 +43,17 @@ export default async function AppLayout({
   const supabase = await createServerSupabaseClient();
   const companyId = profile.company_id;
   let platformLogoUrl: string | null = null;
+  let companyPlan: string = "free";
 
   if (companyId) {
     // This user is a client user tied to a specific company — show their logo
     const { data: company } = await supabase
       .from("companies")
-      .select("logo_url")
+      .select("logo_url, plan")
       .eq("id", companyId)
       .single();
     platformLogoUrl = company?.logo_url || null;
+    companyPlan = company?.plan || "free";
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,
     // NOT a random client's logo
@@ -66,7 +68,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} />
+      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} />
       <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
     </div>
   );

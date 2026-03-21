@@ -9,7 +9,11 @@ import type { User } from "@/types/database";
 interface SidebarProps {
   user: User;
   platformLogoUrl?: string | null;
+  companyPlan?: string;
 }
+
+type PlanTier = "free" | "starter" | "pro" | "agency";
+const PLAN_RANK: Record<PlanTier, number> = { free: 0, starter: 1, pro: 2, agency: 3 };
 
 interface NavItem {
   href: string;
@@ -18,6 +22,7 @@ interface NavItem {
   adminOnly?: boolean;
   publisherOnly?: boolean;
   highlight?: boolean;
+  minPlan?: PlanTier;
 }
 
 interface NavSection {
@@ -29,14 +34,14 @@ function buildSections(user: User): NavSection[] {
   const isAdmin = user.role === "admin";
 
   return [
-    // Setup: clients see their company, admins see the companies list
+    // Setup / Accounts
     {
-      title: "Setup",
+      title: isAdmin ? "Accounts" : "Brand Setup",
       items: [
         isAdmin
           ? { href: "/setup", label: "Companies", icon: "building" }
           : user.company_id
-          ? { href: `/setup/${user.company_id}`, label: "My Company", icon: "building" }
+          ? { href: `/setup/${user.company_id}`, label: "My Brand", icon: "building" }
           : { href: "/setup", label: "Setup", icon: "building" },
       ],
     },
@@ -44,7 +49,7 @@ function buildSections(user: User): NavSection[] {
       title: "Create",
       items: [
         { href: "/generate/quick", label: "Quick Generate", icon: "zap", highlight: true },
-        { href: "/generate", label: "Content Studio", icon: "sparkle" },
+        { href: "/generate", label: "Content Studio", icon: "sparkle", minPlan: "starter" as PlanTier },
       ],
     },
     {
@@ -56,13 +61,13 @@ function buildSections(user: User): NavSection[] {
     {
       title: "Plan",
       items: [
-        { href: "/calendar", label: "Calendar", icon: "calendarView" },
+        { href: "/calendar", label: "Calendar", icon: "calendarView", minPlan: "pro" as PlanTier },
       ],
     },
     {
       title: "Publish",
       items: [
-        { href: "/publish", label: "Post", icon: "send", publisherOnly: true },
+        { href: "/publish", label: "Post", icon: "send", publisherOnly: true, minPlan: "agency" as PlanTier },
       ],
     },
     // Admin-only section at the bottom
@@ -96,13 +101,15 @@ const icons: Record<string, string> = {
   zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
   shield:
     "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
 };
 
-export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
   const canPublish = isAdmin || (user.can_publish ?? false);
+  const planRank = PLAN_RANK[(companyPlan as PlanTier) || "free"] ?? 0;
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -113,9 +120,7 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
   function isActive(href: string): boolean {
     if (pathname === href) return true;
     if (pathname.startsWith(href + "/")) return true;
-    // /content/* pages are part of the Review section
     if (href === "/review" && pathname.startsWith("/content/")) return true;
-    // Client's company setup link should highlight for all /setup/* pages
     if (href.startsWith("/setup/") && pathname.startsWith("/setup/")) return true;
     return false;
   }
@@ -165,7 +170,7 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
       <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-2">
         {buildSections(user).map((section) => {
           const visibleItems = section.items.filter(
-            (item) => (!item.adminOnly || isAdmin) && (!item.publisherOnly || canPublish)
+            (item) => (!item.adminOnly || isAdmin) && (!item.publisherOnly || canPublish || item.minPlan)
           );
           if (visibleItems.length === 0) return null;
 
@@ -177,6 +182,27 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {
                   const active = isActive(item.href);
+                  // Admins bypass plan locks
+                  const locked = !isAdmin && item.minPlan && planRank < (PLAN_RANK[item.minPlan] ?? 0);
+
+                  if (locked) {
+                    return (
+                      <div
+                        key={item.href}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-not-allowed"
+                        title={`Requires ${item.minPlan} plan or higher`}
+                      >
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d={icons[item.icon]} />
+                        </svg>
+                        <span className="flex-1">{item.label}</span>
+                        <svg className="h-3.5 w-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d={icons.lock} />
+                        </svg>
+                      </div>
+                    );
+                  }
+
                   return (
                     <Link
                       key={item.href}

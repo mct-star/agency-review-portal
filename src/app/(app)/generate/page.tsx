@@ -225,7 +225,6 @@ export default function GeneratePage() {
         setCompanies(list);
         if (list.length === 1) {
           setSelectedCompanyId(list[0].id);
-          setStep("scope");
         }
       });
   }, []);
@@ -264,7 +263,7 @@ export default function GeneratePage() {
     setSelectedTopicId("");
     setSingleTopic("");
     setSelectedPersonId("");
-    setStep("scope");
+    // Don't auto-advance to scope — stay on "who" so user picks person too
   };
 
   const companyPlan = (selectedCompany?.plan || "free") as PlanTier;
@@ -936,65 +935,129 @@ export default function GeneratePage() {
         })}
       </div>
 
-      {/* Step 1: Company */}
+      {/* Step 1: Who — brand + person */}
       {step === "company" && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {companies.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => handleSelectCompany(c.id)}
-              className="rounded-lg border border-gray-200 bg-white p-4 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/50"
-            >
-              <h3 className="font-semibold text-gray-900">{c.name}</h3>
-              {c.spokesperson_name && (
-                <p className="mt-1 text-sm text-gray-500">{c.spokesperson_name}</p>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+        <div className="space-y-6">
+          {/* Brand selector — only show if multiple companies */}
+          {companies.length > 1 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Select brand</h2>
+              <p className="mt-1 text-sm text-gray-500">Which company are you creating content for?</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {companies.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSelectCompany(c.id)}
+                    className={`rounded-lg border bg-white p-4 text-left transition-all ${
+                      selectedCompanyId === c.id
+                        ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
+                        : "border-gray-200 hover:border-sky-300 hover:bg-sky-50/50"
+                    }`}
+                  >
+                    <h3 className="font-semibold text-gray-900">{c.name}</h3>
+                    {c.spokesperson_name && (
+                      <p className="mt-1 text-sm text-gray-500">{c.spokesperson_name}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Step 2: What to Generate */}
-      {step === "scope" && (
-        <div className="space-y-3">
-          <button onClick={() => setStep("company")} className="text-sm text-gray-400 hover:text-gray-600">
-            ← Back to companies
-          </button>
-
-          {/* Person selector */}
-          {spokespersons.length > 0 && (
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
-              <label className="text-sm font-medium text-gray-900">Posting as</label>
-              <div className="mt-2 flex flex-wrap gap-2">
+          {/* Person selector — shows once company is selected */}
+          {selectedCompanyId && spokespersons.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {companies.length > 1 ? "Posting as" : "Who are you creating content for?"}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">Select the person whose voice this content will use.</p>
+              <div className="mt-3 flex flex-wrap gap-3">
                 {spokespersons.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => setSelectedPersonId(p.id)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
+                    className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all ${
                       selectedPersonId === p.id
                         ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
                         : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
-                    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200">
                       {p.profile_picture_url ? (
                         <img src={p.profile_picture_url} alt={p.name} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-400">
+                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
                           {p.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                         </div>
                       )}
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                      {p.tagline && <p className="text-[10px] text-gray-500 truncate max-w-[160px]">{p.tagline}</p>}
+                      {p.tagline && <p className="text-xs text-gray-500 truncate max-w-[200px]">{p.tagline}</p>}
                     </div>
                     {p.is_primary && (
-                      <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[8px] font-semibold text-sky-700">Primary</span>
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[9px] font-semibold text-sky-700">Primary</span>
                     )}
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Continue button */}
+          {selectedCompanyId && selectedPersonId && (
+            <div className="pt-2">
+              <button
+                onClick={() => setStep("scope")}
+                className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+              >
+                Continue
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step 2: What to Generate */}
+      {step === "scope" && (
+        <div className="space-y-4">
+          <button onClick={() => setStep("company")} className="text-sm text-gray-400 hover:text-gray-600">
+            ← Back
+          </button>
+
+          {/* Summary of who we're generating for */}
+          {selectedPerson && (
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
+              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                {selectedPerson.profile_picture_url ? (
+                  <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-400">
+                    {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Generating for {selectedPerson.name}</p>
+                <p className="text-xs text-gray-500">{selectedCompany?.name}</p>
+              </div>
+              <button onClick={() => setStep("company")} className="ml-auto text-xs text-sky-600 hover:text-sky-700">Change</button>
+            </div>
+          )}
+
+          {/* Content strategy mode — cohesive week or standalone */}
+          {isCohesive && (
+            <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-violet-600" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+                </svg>
+                <p className="text-sm font-medium text-violet-800">Cohesive content strategy active</p>
+              </div>
+              <p className="mt-1 text-xs text-violet-600">Posts will be generated as part of a themed weekly ecosystem.</p>
             </div>
           )}
 
