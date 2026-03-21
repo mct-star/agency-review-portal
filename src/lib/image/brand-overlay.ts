@@ -320,7 +320,9 @@ export async function applyBrandOverlay(
     }
   }
 
-  // Layer 3: Logo (top-right, tinted white for visibility on dark images)
+  // Layer 3: Logo (top-right)
+  // The uploaded logo should already be designed for dark backgrounds
+  // (white text / light colours). We render it as-is without tinting.
   if (config.logoUrl) {
     try {
       const logoRes = await fetch(config.logoUrl);
@@ -330,26 +332,15 @@ export async function applyBrandOverlay(
         const logoWidth = Math.round(width * 0.12);
         const margin = Math.round(width * 0.03);
 
-        // Resize the logo, then tint it white while preserving alpha.
-        // This ensures any logo colour shows up against dark backgrounds.
-        const resized = await sharp(rawLogoBuffer)
+        const resizedLogo = await sharp(rawLogoBuffer)
           .resize(logoWidth, null, { fit: "inside" })
           .png()
           .toBuffer();
 
-        const { width: lw, height: lh } = await sharp(resized).metadata();
-        const whiteTint = Buffer.from(
-          `<svg width="${lw}" height="${lh}"><rect width="${lw}" height="${lh}" fill="white"/></svg>`
-        );
-        const whiteLogo = await sharp(resized)
-          .composite([{ input: whiteTint, blend: "in" }])
-          .png()
-          .toBuffer();
-
         composites.push({
-          input: whiteLogo,
+          input: resizedLogo,
           top: margin,
-          left: width - (lw || logoWidth) - margin,
+          left: width - logoWidth - margin,
         });
       }
     } catch {
