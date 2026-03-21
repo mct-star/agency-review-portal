@@ -37,24 +37,34 @@ export async function POST(request: Request) {
   const supabase = await createAdminSupabaseClient();
 
   // Fetch company branding + profile picture
-  const { data: company } = await supabase
+  const { data: company, error: companyErr } = await supabase
     .from("companies")
     .select("spokesperson_name, brand_color, logo_url, profile_picture_url")
     .eq("id", companyId)
     .single();
 
   if (!company) {
-    return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    console.error("[overlay] Company query failed:", { companyId, error: companyErr?.message });
+    return NextResponse.json(
+      { error: `Company not found (${companyErr?.message || "no data"})` },
+      { status: 404 }
+    );
   }
 
-  // Also check for spokesperson from company_spokespersons table
-  const { data: primarySpokesperson } = await supabase
-    .from("company_spokespersons")
-    .select("name, photo_url, tagline, linkedin_url")
-    .eq("company_id", companyId)
-    .eq("is_primary", true)
-    .limit(1)
-    .single();
+  // Also check for spokesperson from company_spokespersons table (optional — may not exist)
+  let primarySpokesperson: { name: string; photo_url: string | null; tagline: string | null; linkedin_url: string | null } | null = null;
+  try {
+    const { data } = await supabase
+      .from("company_spokespersons")
+      .select("name, photo_url, tagline, linkedin_url")
+      .eq("company_id", companyId)
+      .eq("is_primary", true)
+      .limit(1)
+      .single();
+    primarySpokesperson = data;
+  } catch {
+    // Table may not exist yet — that's fine
+  }
 
   const spokespersonName = primarySpokesperson?.name || company.spokesperson_name;
   const profilePicUrl = primarySpokesperson?.photo_url || company.profile_picture_url;
