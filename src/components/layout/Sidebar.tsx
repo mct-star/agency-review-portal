@@ -70,6 +70,7 @@ function buildSections(user: User): NavSection[] {
           {
             title: "Admin",
             items: [
+              { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
               { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
               { href: "/users", label: "Users", icon: "users", adminOnly: true },
             ],
@@ -92,6 +93,8 @@ const icons: Record<string, string> = {
   calendarView:
     "M3 5a2 2 0 0 1 2-2h2V2a1 1 0 1 1 2 0v1h6V2a1 1 0 1 1 2 0v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm16 4H5v10h14V9ZM7 11h2v2H7v-2Zm4 0h2v2h-2v-2Zm4 0h2v2h-2v-2ZM7 15h2v2H7v-2Zm4 0h2v2h-2v-2Z",
   send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
+  shield:
+    "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
 };
 
 export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {

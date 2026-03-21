@@ -7,6 +7,16 @@ interface Company {
   name: string;
   content_strategy_mode: string;
   spokesperson_name: string | null;
+  plan: string;
+}
+
+interface Spokesperson {
+  id: string;
+  company_id: string;
+  name: string;
+  tagline: string | null;
+  profile_picture_url: string | null;
+  is_primary: boolean;
 }
 
 interface Week {
@@ -79,36 +89,44 @@ type GenerationScope = "single_post" | "single_blog" | "single_article" | "full_
 
 type Step = "company" | "scope" | "configure" | "generating";
 
-const SCOPE_OPTIONS: { id: GenerationScope; label: string; description: string; icon: string }[] = [
+type PlanTier = "free" | "pro" | "agency";
+const PLAN_RANK: Record<PlanTier, number> = { free: 0, pro: 1, agency: 2 };
+
+const SCOPE_OPTIONS: { id: GenerationScope; label: string; description: string; icon: string; minPlan: PlanTier }[] = [
   {
     id: "single_post",
     label: "Single Social Post",
     description: "Generate one LinkedIn post. Pick a post type and give it a topic.",
     icon: "M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 011.037-.443 48.282 48.282 0 005.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z",
+    minPlan: "free",
   },
   {
     id: "single_blog",
     label: "Blog Article",
     description: "Generate a full blog article with SEO assets and images.",
     icon: "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z",
+    minPlan: "free",
   },
   {
     id: "single_article",
     label: "LinkedIn Article",
     description: "Generate a long-form LinkedIn article (newsletter format).",
     icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z",
+    minPlan: "free",
   },
   {
     id: "full_week",
     label: "Full Week",
     description: "Generate all posts, blog, and article for an entire week from your content calendar.",
     icon: "M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5",
+    minPlan: "pro",
   },
   {
     id: "full_month",
     label: "Full Month",
     description: "Generate 4 weeks of content in one go from your quarterly calendar.",
     icon: "M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z",
+    minPlan: "agency",
   },
 ];
 
@@ -159,6 +177,9 @@ export default function GeneratePage() {
   const [selectedScope, setSelectedScope] = useState<GenerationScope | "">("");
   const [step, setStep] = useState<Step>("company");
   const [generateImages, setGenerateImages] = useState(true);
+  const [autoOverlay, setAutoOverlay] = useState(true);
+  const [spokespersons, setSpokespersons] = useState<Spokesperson[]>([]);
+  const [selectedPersonId, setSelectedPersonId] = useState<string>("");
   const [weekSubject, setWeekSubject] = useState("");
   // Single post config
   const [singleTopic, setSingleTopic] = useState("");
@@ -209,7 +230,7 @@ export default function GeneratePage() {
       });
   }, []);
 
-  // Fetch weeks + post types + topics when company selected
+  // Fetch weeks + post types + topics + spokespersons when company selected
   useEffect(() => {
     if (!selectedCompanyId) return;
     fetch(`/api/weeks?companyId=${selectedCompanyId}`)
@@ -223,6 +244,16 @@ export default function GeneratePage() {
       .then((r) => r.json())
       .then((d) => setTopics(d.data || []))
       .catch(() => setTopics([]));
+    fetch(`/api/config/spokespersons?companyId=${selectedCompanyId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const people: Spokesperson[] = d.data || [];
+        setSpokespersons(people);
+        // Auto-select primary
+        const primary = people.find((p) => p.is_primary);
+        setSelectedPersonId(primary?.id || people[0]?.id || "");
+      })
+      .catch(() => setSpokespersons([]));
   }, [selectedCompanyId]);
 
   const handleSelectCompany = (id: string) => {
@@ -232,8 +263,12 @@ export default function GeneratePage() {
     setSelectedScope("");
     setSelectedTopicId("");
     setSingleTopic("");
+    setSelectedPersonId("");
     setStep("scope");
   };
+
+  const companyPlan = (selectedCompany?.plan || "free") as PlanTier;
+  const selectedPerson = spokespersons.find((p) => p.id === selectedPersonId);
 
   const handleSelectTopic = (topicId: string) => {
     setSelectedTopicId(topicId);
@@ -922,27 +957,95 @@ export default function GeneratePage() {
           <button onClick={() => setStep("company")} className="text-sm text-gray-400 hover:text-gray-600">
             ← Back to companies
           </button>
+
+          {/* Person selector */}
+          {spokespersons.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <label className="text-sm font-medium text-gray-900">Posting as</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {spokespersons.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedPersonId(p.id)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
+                      selectedPersonId === p.id
+                        ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                      {p.profile_picture_url ? (
+                        <img src={p.profile_picture_url} alt={p.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-400">
+                          {p.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                      {p.tagline && <p className="text-[10px] text-gray-500 truncate max-w-[160px]">{p.tagline}</p>}
+                    </div>
+                    {p.is_primary && (
+                      <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[8px] font-semibold text-sky-700">Primary</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <h2 className="text-lg font-semibold text-gray-900">What would you like to generate?</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {SCOPE_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => handleSelectScope(opt.id)}
-                className="group rounded-lg border border-gray-200 bg-white p-5 text-left transition-all hover:border-sky-300 hover:bg-sky-50/30 hover:shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors group-hover:bg-sky-100 group-hover:text-sky-600">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d={opt.icon} />
-                    </svg>
+            {SCOPE_OPTIONS.map((opt) => {
+              const locked = PLAN_RANK[companyPlan] < PLAN_RANK[opt.minPlan];
+
+              if (locked) {
+                return (
+                  <div
+                    key={opt.id}
+                    className="rounded-lg border border-gray-100 bg-gray-50/50 p-5 opacity-60"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-300">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-400">{opt.label}</h3>
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-gray-400">
+                            {opt.minPlan}+
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-400 leading-relaxed">{opt.description}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{opt.label}</h3>
-                    <p className="mt-1 text-xs text-gray-500 leading-relaxed">{opt.description}</p>
+                );
+              }
+
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => handleSelectScope(opt.id)}
+                  className="group rounded-lg border border-gray-200 bg-white p-5 text-left transition-all hover:border-sky-300 hover:bg-sky-50/30 hover:shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors group-hover:bg-sky-100 group-hover:text-sky-600">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={opt.icon} />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{opt.label}</h3>
+                      <p className="mt-1 text-xs text-gray-500 leading-relaxed">{opt.description}</p>
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1223,7 +1326,7 @@ export default function GeneratePage() {
           {/* Options + generate button */}
           {(isSingleMode || isWeekMode || (isMonthMode && selectedWeekStart)) && (
             <>
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
                 <label className="flex items-center gap-3">
                   <input
                     type="checkbox"
@@ -1236,6 +1339,20 @@ export default function GeneratePage() {
                     <p className="text-xs text-gray-500">Create the image from the image prompt after content is generated.</p>
                   </div>
                 </label>
+                {generateImages && (
+                  <label className="flex items-center gap-3 pl-7">
+                    <input
+                      type="checkbox"
+                      checked={autoOverlay}
+                      onChange={(e) => setAutoOverlay(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Apply brand overlay</span>
+                      <p className="text-xs text-gray-500">Add company logo, spokesperson photo, and name to each image.</p>
+                    </div>
+                  </label>
+                )}
               </div>
 
               {/* Translation options — week/month only */}
