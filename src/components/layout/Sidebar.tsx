@@ -37,12 +37,6 @@ function buildSections(user: User): NavSection[] {
   if (isAdmin) {
     return [
       {
-        title: "Setup",
-        items: [
-          { href: "/setup", label: "Companies", icon: "building" },
-        ],
-      },
-      {
         title: "Create",
         items: [
           { href: "/generate/quick", label: "Quick Generate", icon: "zap", highlight: true },
@@ -70,6 +64,7 @@ function buildSections(user: User): NavSection[] {
       {
         title: "Admin",
         items: [
+          { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
           { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
           { href: "/users", label: "Users", icon: "users", adminOnly: true },
         ],
