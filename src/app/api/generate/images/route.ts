@@ -192,6 +192,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error("[generate/images] Job failed:", message, err);
     await supabase
       .from("content_generation_jobs")
       .update({

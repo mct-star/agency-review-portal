@@ -61,9 +61,9 @@ export function createFalImageProvider(
             height: dims.height,
           },
           num_images: numImages,
-          // Schnell needs explicit low step count; Pro models use their own defaults
-          ...(model.includes("schnell") ? { num_inference_steps: 4 } : {}),
-          enable_safety_checker: false,
+          // Schnell-only parameters — Pro models use their own defaults and
+          // reject unknown parameters like enable_safety_checker with a 400.
+          ...(model.includes("schnell") ? { num_inference_steps: 4, enable_safety_checker: false } : {}),
         }),
       });
 
