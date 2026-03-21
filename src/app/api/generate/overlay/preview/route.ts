@@ -21,6 +21,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
+  const spokespersonId = searchParams.get("spokespersonId"); // optional: show person-specific overlay
 
   if (!companyId) {
     return NextResponse.json({ error: "companyId required" }, { status: 400 });
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
 
   const { data: company, error: companyErr } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color, logo_url, overlay_logo_url, profile_picture_url")
+    .select("name, spokesperson_name, brand_color, logo_url, overlay_logo_url, profile_picture_url")
     .eq("id", companyId)
     .single();
 
@@ -41,23 +42,50 @@ export async function GET(request: Request) {
     );
   }
 
-  // Also check for spokesperson from company_spokespersons table
-  let primarySpokesperson: { name: string; photo_url: string | null } | null = null;
-  try {
-    const { data } = await supabase
-      .from("company_spokespersons")
-      .select("name, photo_url")
-      .eq("company_id", companyId)
-      .eq("is_primary", true)
-      .limit(1)
-      .single();
-    primarySpokesperson = data;
-  } catch {
-    // Table may not exist yet
-  }
+  // If a specific spokesperson is requested, use their details
+  // Otherwise use the primary spokesperson for the preview image, but company name for CTA
+  let spokespersonName: string | null = null;
+  let profilePicUrl: string | null = null;
+  let ctaName: string | null = null; // Name shown in "Follow X" CTA
 
-  const spokespersonName = primarySpokesperson?.name || company.spokesperson_name;
-  const profilePicUrl = primarySpokesperson?.photo_url || company.profile_picture_url;
+  if (spokespersonId) {
+    // Person-specific overlay: "Follow [person name]"
+    try {
+      const { data } = await supabase
+        .from("company_spokespersons")
+        .select("name, photo_url")
+        .eq("id", spokespersonId)
+        .eq("company_id", companyId)
+        .single();
+      if (data) {
+        spokespersonName = data.name;
+        profilePicUrl = data.photo_url;
+        ctaName = data.name;
+      }
+    } catch {
+      // Fall through
+    }
+  } else {
+    // Company-level overlay: "Follow [company name]"
+    try {
+      const { data } = await supabase
+        .from("company_spokespersons")
+        .select("name, photo_url")
+        .eq("company_id", companyId)
+        .eq("is_primary", true)
+        .limit(1)
+        .single();
+      if (data) {
+        spokespersonName = data.name;
+        profilePicUrl = data.photo_url;
+      }
+    } catch {
+      // Table may not exist yet
+    }
+    spokespersonName = spokespersonName || company.spokesperson_name;
+    profilePicUrl = profilePicUrl || company.profile_picture_url;
+    ctaName = company.name; // Company name for company-level CTA
+  }
 
   try {
     // Create a sample 1024×1024 gradient image as the base
@@ -69,7 +97,7 @@ export async function GET(request: Request) {
       logoUrl: company.overlay_logo_url || company.logo_url,
       spokespersonName,
       profilePictureUrl: profilePicUrl,
-      ctaText: spokespersonName ? `Follow ${spokespersonName}` : null,
+      ctaText: ctaName ? `Follow ${ctaName}` : null,
       archetype: null,
       hookText: null,
       brandMaskUrl: null,

@@ -156,15 +156,21 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
   // Primary spokesperson for overlay preview
   const primaryPerson = (people || []).find((p: { is_primary: boolean }) => p.is_primary) || (people || [])[0];
 
-  // Show quick setup when less than half of setup is done
-  const isNewSetup = completedSteps < Math.ceil(totalSteps / 2);
+  // Count key strategy items for Quick Setup prominence
+  const strategyItemsCompleted = [
+    (voiceCount || 0) > 0,
+    (topicCount || 0) > 0,
+    (blueprintCount || 0) > 0,
+  ].filter(Boolean).length;
 
   return (
     <div className="space-y-8">
-      {/* Quick Strategy Setup — shown for new companies */}
-      {isNewSetup && (
-        <QuickStrategySetup companyId={companyId} companyName={company.name} />
-      )}
+      {/* Quick Strategy Setup — always visible, collapsible */}
+      <QuickStrategySetup
+        companyId={companyId}
+        companyName={company.name}
+        completedItems={strategyItemsCompleted}
+      />
 
       {/* Company Header — Company identity only */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">

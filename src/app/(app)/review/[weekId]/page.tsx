@@ -90,11 +90,11 @@ export default async function WeekReviewPage({ params }: PageProps) {
           Weeks
         </Link>
         <span>/</span>
-        <Link href={`/review/${weekId}`} className="hover:text-gray-700">
-          Week {week.week_number}
-        </Link>
-        <span>/</span>
-        <span className="text-gray-900">Review</span>
+        <span className="text-gray-900">
+          {week.date_start
+            ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`
+            : `Week ${week.week_number}`}
+        </span>
       </div>
 
       {/* Header */}
@@ -103,7 +103,9 @@ export default async function WeekReviewPage({ params }: PageProps) {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">
-                Week {week.week_number} Review
+                {week.date_start
+                  ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })} Review`
+                  : `Week ${week.week_number} Review`}
               </h1>
               <Badge status={week.status} />
             </div>
@@ -181,7 +183,11 @@ export default async function WeekReviewPage({ params }: PageProps) {
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-green-800">Week {week.week_number} Approved</h2>
+              <h2 className="text-lg font-bold text-green-800">
+                {week.date_start
+                  ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })} Approved`
+                  : `Week ${week.week_number} Approved`}
+              </h2>
               <p className="text-sm text-green-600">All {totalPieces} pieces approved. Ready to deliver.</p>
             </div>
           </div>

@@ -32,8 +32,10 @@ const POST_TYPE_LABELS: Record<string, string> = {
   launch_story: "Launch Story",
   if_i_was: "If I Was...",
   contrarian: "Contrarian Take",
+  contrarian_take: "Contrarian Take",
   tactical: "Tactical How-To",
-  founder_friday: "Founder Friday",
+  tactical_howto: "Tactical How-To",
+  founder_friday: "Personal Reflection",
   blog_teaser: "Blog Teaser",
   experience_story: "Experience Story",
   expert_perspective: "Expert Perspective",
@@ -350,7 +352,15 @@ export default function WeekReviewTabs({
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-lg font-bold text-gray-900">{piece.title}</h2>
-                      <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
+                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+                        {piece.post_type && (
+                          <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">
+                            {getPostTypeLabel(piece.post_type)}
+                          </span>
+                        )}
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                          Blog
+                        </span>
                         {piece.word_count && (
                           <span>{piece.word_count.toLocaleString()} words</span>
                         )}
@@ -456,11 +466,18 @@ export default function WeekReviewTabs({
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-lg font-bold text-gray-900">{piece.title}</h2>
-                      <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
+                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+                        {piece.post_type && (
+                          <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">
+                            {getPostTypeLabel(piece.post_type)}
+                          </span>
+                        )}
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600">
+                          LinkedIn Article
+                        </span>
                         {piece.word_count && (
                           <span>{piece.word_count.toLocaleString()} words</span>
                         )}
-                        <span className="text-xs text-gray-400">LinkedIn Article</span>
                       </div>
                     </div>
                     <span

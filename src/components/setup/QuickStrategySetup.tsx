@@ -5,11 +5,19 @@ import { useState } from "react";
 interface QuickStrategySetupProps {
   companyId: string;
   companyName: string;
+  /** Number of setup items completed (used to determine prominent vs collapsed state) */
+  completedItems?: number;
 }
 
 type SetupState = "idle" | "loading" | "success" | "error";
 
-export default function QuickStrategySetup({ companyId, companyName }: QuickStrategySetupProps) {
+export default function QuickStrategySetup({
+  companyId,
+  companyName,
+  completedItems = 0,
+}: QuickStrategySetupProps) {
+  const isMostlyComplete = completedItems >= 3;
+  const [isExpanded, setIsExpanded] = useState(!isMostlyComplete);
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [state, setState] = useState<SetupState>("idle");
@@ -30,7 +38,7 @@ export default function QuickStrategySetup({ companyId, companyName }: QuickStra
     setProgress("Scanning LinkedIn profile...");
 
     try {
-      const res = await fetch("/api/setup/quick-strategy", {
+      const res = await fetch("/api/setup/quick", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -76,10 +84,48 @@ export default function QuickStrategySetup({ companyId, companyName }: QuickStra
     );
   }
 
+  // Collapsed state for mostly-complete setups
+  if (!isExpanded) {
+    return (
+      <button
+        onClick={() => setIsExpanded(true)}
+        className="w-full rounded-xl border border-gray-200 bg-white px-6 py-4 text-left transition-all hover:border-violet-200 hover:bg-violet-50/30"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100">
+              <svg className="h-4 w-4 text-violet-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Quick Strategy Setup</h3>
+              <p className="text-xs text-gray-500">Paste two URLs to auto-populate your content strategy</p>
+            </div>
+          </div>
+          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+    );
+  }
+
   return (
-    <div className="rounded-xl border-2 border-dashed border-violet-200 bg-gradient-to-br from-violet-50 to-white p-8">
+    <div className={`rounded-xl border-2 ${isMostlyComplete ? "border-gray-200 bg-white" : "border-dashed border-violet-200 bg-gradient-to-br from-violet-50 to-white"} p-8`}>
       <div className="mx-auto max-w-lg">
-        <div className="text-center">
+        <div className="text-center relative">
+          {/* Collapse button */}
+          <button
+            onClick={() => setIsExpanded(false)}
+            className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+            title="Collapse"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-violet-100">
             <svg className="h-6 w-6 text-violet-600" viewBox="0 0 24 24" fill="currentColor">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
@@ -87,20 +133,20 @@ export default function QuickStrategySetup({ companyId, companyName }: QuickStra
           </div>
           <h3 className="mt-3 text-lg font-semibold text-gray-900">Quick Strategy Setup</h3>
           <p className="mt-1 text-sm text-gray-500">
-            Paste two URLs and we'll auto-populate your profile, brand, and content strategy foundations.
+            Paste two URLs to auto-populate your content strategy
           </p>
         </div>
 
         <div className="mt-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              LinkedIn profile URL <span className="text-red-400">*</span>
+              LinkedIn URL <span className="text-red-400">*</span>
             </label>
             <input
               type="url"
               value={linkedinUrl}
               onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/yourname"
+              placeholder="https://linkedin.com/in/yourname or https://linkedin.com/company/yourcompany"
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             <p className="mt-1 text-xs text-gray-400">We'll extract your name, photo, tagline, and company</p>
@@ -108,7 +154,7 @@ export default function QuickStrategySetup({ companyId, companyName }: QuickStra
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Company website URL
+              Company Website
             </label>
             <input
               type="url"
@@ -135,7 +181,7 @@ export default function QuickStrategySetup({ companyId, companyName }: QuickStra
                 {progress}
               </span>
             ) : (
-              "Auto-populate my setup"
+              "Start Setup"
             )}
           </button>
 

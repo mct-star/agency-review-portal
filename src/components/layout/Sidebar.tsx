@@ -36,6 +36,17 @@ function buildSections(user: User): NavSection[] {
 
   if (isAdmin) {
     return [
+      // Admin's own company setup (if they have one)
+      ...(cid
+        ? [
+            {
+              title: "Setup",
+              items: [
+                { href: `/setup/${cid}`, label: "My Brand", icon: "building" },
+              ],
+            },
+          ]
+        : []),
       {
         title: "Create",
         items: [

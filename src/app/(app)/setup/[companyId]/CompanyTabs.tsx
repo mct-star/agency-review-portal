@@ -9,11 +9,11 @@ const tabs = [
   { label: "People", href: "/people" },
   { label: "Sign-offs", href: "/signoffs" },
   { label: "URLs", href: "/urls" },
+  { label: "Strategy", href: "/strategy" },
   { label: "Voice", href: "/voice" },
   { label: "Topics", href: "/topics" },
   { label: "Schedule", href: "/schedule" },
   { label: "Social", href: "/social" },
-  { label: "Strategy", href: "/strategy" },
   { label: "Blueprint", href: "/blueprint" },
   { label: "API Keys", href: "/api-keys" },
 ];

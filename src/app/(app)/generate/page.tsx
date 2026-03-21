@@ -2,6 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+interface UserProfile {
+  id: string;
+  role: string;
+  company_id: string | null;
+  company?: Company | null;
+}
+
 interface Company {
   id: string;
   name: string;
@@ -137,6 +144,8 @@ const STEP_LABELS: Record<Step, string> = {
   generating: "Generate",
 };
 
+const COMPANY_PAGE_ID = "__company_page__";
+
 // ─── Date helpers ──────────────────────────────────────
 function getWeekSunday(d: Date): Date {
   const copy = new Date(d);
@@ -169,6 +178,7 @@ function getUpcomingWeekStarts(count: number): string[] {
 }
 
 export default function GeneratePage() {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [postTypes, setPostTypes] = useState<PostType[]>([]);
@@ -215,17 +225,49 @@ export default function GeneratePage() {
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
   const selectedWeek = weeks.find((w) => w.id === selectedWeekId);
   const isCohesive = selectedCompany?.content_strategy_mode === "cohesive";
+  const isAdmin = userProfile?.role === "admin";
+  const isCompanyPage = selectedPersonId === COMPANY_PAGE_ID;
 
-  // Fetch companies
+  // Fetch user profile + companies
   useEffect(() => {
-    fetch("/api/companies")
+    fetch("/api/me")
       .then((r) => r.json())
+      .then((d) => {
+        const profile: UserProfile | null = d.data || null;
+        setUserProfile(profile);
+
+        // For client users, auto-select their company and populate companies list
+        if (profile && profile.role !== "admin" && profile.company_id) {
+          setSelectedCompanyId(profile.company_id);
+          setSelectedPersonId(COMPANY_PAGE_ID);
+          // Client users can't fetch /api/companies (admin-only), so
+          // populate from the profile's embedded company data
+          if (profile.company) {
+            setCompanies((prev) => {
+              if (prev.some((c) => c.id === profile.company_id)) return prev;
+              return [profile.company as Company, ...prev];
+            });
+          }
+        }
+      })
+      .catch(() => setUserProfile(null));
+
+    fetch("/api/companies")
+      .then((r) => {
+        if (!r.ok) return { data: [] };
+        return r.json();
+      })
       .then((d) => {
         const list = d.data || [];
         setCompanies(list);
         if (list.length === 1) {
           setSelectedCompanyId(list[0].id);
         }
+      })
+      .catch(() => {
+        // Non-admin users may get 401 from /api/companies — that's OK,
+        // their company will be set from the profile fetch above
+        setCompanies([]);
       });
   }, []);
 
@@ -248,9 +290,9 @@ export default function GeneratePage() {
       .then((d) => {
         const people: Spokesperson[] = d.data || [];
         setSpokespersons(people);
-        // Auto-select primary
+        // Auto-select primary spokesperson, or fall back to Company Page
         const primary = people.find((p) => p.is_primary);
-        setSelectedPersonId(primary?.id || people[0]?.id || "");
+        setSelectedPersonId(primary?.id || people[0]?.id || COMPANY_PAGE_ID);
       })
       .catch(() => setSpokespersons([]));
   }, [selectedCompanyId]);
@@ -262,7 +304,7 @@ export default function GeneratePage() {
     setSelectedScope("");
     setSelectedTopicId("");
     setSingleTopic("");
-    setSelectedPersonId("");
+    setSelectedPersonId(COMPANY_PAGE_ID);
     // Don't auto-advance to scope — stay on "who" so user picks person too
   };
 
@@ -345,7 +387,7 @@ export default function GeneratePage() {
           companyId: selectedCompanyId,
           weekId,
           contentType,
-          spokespersonId: selectedPersonId || undefined,
+          spokespersonId: (selectedPersonId && selectedPersonId !== COMPANY_PAGE_ID) ? selectedPersonId : undefined,
           postTypeSlug: singlePostType || undefined,
           scheduledDate: singleDate || undefined,
           scheduledTime: singleTime || undefined,
@@ -474,7 +516,7 @@ export default function GeneratePage() {
             body: JSON.stringify({
               companyId: selectedCompanyId,
               weekId: resolvedWeekId,
-              spokespersonId: selectedPersonId || undefined,
+              spokespersonId: (selectedPersonId && selectedPersonId !== COMPANY_PAGE_ID) ? selectedPersonId : undefined,
               topicId: assignment.topicId || "auto",
               contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug)
                 ? assignment.postTypeSlug
@@ -742,7 +784,7 @@ export default function GeneratePage() {
               body: JSON.stringify({
                 companyId: selectedCompanyId,
                 weekId: resolvedWeekId,
-                spokespersonId: selectedPersonId || undefined,
+                spokespersonId: (selectedPersonId && selectedPersonId !== COMPANY_PAGE_ID) ? selectedPersonId : undefined,
                 topicId: assignment.topicId || "auto",
                 contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug) ? assignment.postTypeSlug : "social_post",
                 postTypeSlug: assignment.postTypeSlug,
@@ -942,11 +984,11 @@ export default function GeneratePage() {
             <h2 className="text-lg font-semibold text-gray-900">Who are you creating content for?</h2>
             <p className="mt-1 text-sm text-gray-500">Select the brand and person whose voice this content will use.</p>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              {/* Company dropdown — only for admin with multiple companies */}
-              {companies.length > 1 ? (
+            <div className={`mt-5 grid gap-4 ${isAdmin ? "sm:grid-cols-2" : "sm:grid-cols-1"}`}>
+              {/* Company dropdown — admin only */}
+              {isAdmin && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Brand</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
                   <select
                     value={selectedCompanyId}
                     onChange={(e) => handleSelectCompany(e.target.value)}
@@ -958,34 +1000,26 @@ export default function GeneratePage() {
                     ))}
                   </select>
                 </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Brand</label>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900">
-                    {selectedCompany?.name || "No company"}
-                  </div>
-                </div>
               )}
 
-              {/* Person dropdown */}
+              {/* Posting as dropdown — shown for both admin and client */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Posting as</label>
-                {spokespersons.length > 0 ? (
+                {selectedCompanyId ? (
                   <select
                     value={selectedPersonId}
                     onChange={(e) => setSelectedPersonId(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
+                    <option value={COMPANY_PAGE_ID}>
+                      {selectedCompany?.name || "Company Page"}
+                    </option>
                     {spokespersons.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}{p.is_primary ? " (Primary)" : ""}
                       </option>
                     ))}
                   </select>
-                ) : selectedCompanyId ? (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
-                    No people configured
-                  </div>
                 ) : (
                   <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-400">
                     Select a company first
@@ -995,22 +1029,38 @@ export default function GeneratePage() {
             </div>
 
             {/* Selected person preview */}
-            {selectedPerson && (
+            {selectedCompanyId && selectedPersonId && (
               <div className="mt-4 flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-3">
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200">
-                  {selectedPerson.profile_picture_url ? (
-                    <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
-                      {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                {isCompanyPage ? (
+                  <>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-100">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+                      </svg>
                     </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{selectedPerson.name}</p>
-                  {selectedPerson.tagline && <p className="text-xs text-gray-500">{selectedPerson.tagline}</p>}
-                </div>
-                <span className="ml-auto text-xs text-gray-400">{selectedCompany?.name}</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{selectedCompany?.name}</p>
+                      <p className="text-xs text-gray-500">Posting as company page</p>
+                    </div>
+                  </>
+                ) : selectedPerson ? (
+                  <>
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                      {selectedPerson.profile_picture_url ? (
+                        <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
+                          {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{selectedPerson.name}</p>
+                      {selectedPerson.tagline && <p className="text-xs text-gray-500">{selectedPerson.tagline}</p>}
+                    </div>
+                    <span className="ml-auto text-xs text-gray-400">{selectedCompany?.name}</span>
+                  </>
+                ) : null}
               </div>
             )}
           </div>
@@ -1038,20 +1088,31 @@ export default function GeneratePage() {
           </button>
 
           {/* Summary of who we're generating for */}
-          {selectedPerson && (
+          {selectedCompanyId && selectedPersonId && (
             <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
-              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray-200">
-                {selectedPerson.profile_picture_url ? (
-                  <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-400">
-                    {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                  </div>
-                )}
-              </div>
+              {isCompanyPage ? (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-100">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
+                  </svg>
+                </div>
+              ) : selectedPerson ? (
+                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                  {selectedPerson.profile_picture_url ? (
+                    <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-400">
+                      {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                    </div>
+                  )}
+                </div>
+              ) : null}
               <div>
-                <p className="text-sm font-medium text-gray-900">Generating for {selectedPerson.name}</p>
-                <p className="text-xs text-gray-500">{selectedCompany?.name}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  Generating for {isCompanyPage ? selectedCompany?.name : selectedPerson?.name}
+                </p>
+                {!isCompanyPage && <p className="text-xs text-gray-500">{selectedCompany?.name}</p>}
+                {isCompanyPage && <p className="text-xs text-gray-500">Company page</p>}
               </div>
               <button onClick={() => setStep("company")} className="ml-auto text-xs text-sky-600 hover:text-sky-700">Change</button>
             </div>

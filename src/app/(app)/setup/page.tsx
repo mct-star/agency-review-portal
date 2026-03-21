@@ -6,10 +6,11 @@ import type { Company } from "@/types/database";
 
 export default async function CompaniesPage() {
   const profile = await getUserProfile();
+  if (!profile) redirect("/login");
 
-  // Non-admin clients go straight to their own company setup
-  if (profile && profile.role !== "admin" && profile.company_id) {
-    redirect(`/setup/${profile.company_id}`);
+  // Non-admin users should never see the companies grid
+  if (profile.role !== "admin") {
+    redirect(profile.company_id ? `/setup/${profile.company_id}` : "/dashboard");
   }
 
   const supabase = await createServerSupabaseClient();

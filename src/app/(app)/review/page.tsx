@@ -101,7 +101,9 @@ export default async function WeeksPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-lg font-bold text-gray-900 group-hover:text-sky-700">
-                        Week {week.week_number}
+                        {week.date_start
+                          ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`
+                          : `Week ${week.week_number}`}
                       </h3>
                       {week.title && (
                         <p className="text-sm text-gray-600">{week.title}</p>
