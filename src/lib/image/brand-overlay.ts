@@ -88,57 +88,76 @@ function escapeXml(str: string): string {
 // SVG generators for overlay elements
 // ============================================================
 
+import { readFileSync } from "fs";
+import { join } from "path";
+
 /**
- * Creates the bottom gradient bar (no text — text is rendered separately
- * via Sharp's Pango text API which has reliable font rendering on Lambda).
+ * Load and cache the Inter Bold font as base64 for embedding in SVGs.
+ * This is the only reliable way to render text on Vercel Lambda — the
+ * serverless environment has zero fonts installed, so we must embed one.
  */
-function createBottomBarGradient(
+let _fontBase64Cache: string | null = null;
+function getEmbeddedFontBase64(): string {
+  if (_fontBase64Cache) return _fontBase64Cache;
+  const fontPath = join(process.cwd(), "src/lib/image/fonts/Inter-Bold.ttf");
+  const fontBuffer = readFileSync(fontPath);
+  _fontBase64Cache = fontBuffer.toString("base64");
+  return _fontBase64Cache;
+}
+
+/**
+ * Creates the bottom gradient bar with spokesperson name and CTA text.
+ * Embeds the Inter Bold font directly as base64 in the SVG so text
+ * renders correctly on serverless environments with no system fonts.
+ */
+function createBottomBar(
   width: number,
   height: number,
-  brandColor: string
+  brandColor: string,
+  name: string | null,
+  ctaText: string | null,
+  hasProfilePhoto: boolean
 ): string {
   const barHeight = Math.round(height * 0.14);
   const { r, g, b } = hexToRgb(brandColor);
+  const nameSize = Math.round(barHeight * 0.3);
+  const ctaSize = Math.round(barHeight * 0.2);
+  const fontBase64 = getEmbeddedFontBase64();
 
-  return `<svg width="${width}" height="${height}">
+  const textX = hasProfilePhoto
+    ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
+    : Math.round(width * 0.04);
+
+  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="rgba(${r},${g},${b},0)" />
         <stop offset="40%" stop-color="rgba(${r},${g},${b},0.6)" />
         <stop offset="100%" stop-color="rgba(${r},${g},${b},0.92)" />
       </linearGradient>
+      <style>
+        @font-face {
+          font-family: 'Inter';
+          src: url('data:font/ttf;base64,${fontBase64}');
+          font-weight: bold;
+        }
+      </style>
     </defs>
     <rect x="0" y="${height - barHeight}" width="${width}" height="${barHeight}"
           fill="url(#bottomFade)" />
+    ${name ? `
+    <text x="${textX}" y="${height - Math.round(barHeight * 0.45)}"
+          font-family="Inter" font-size="${nameSize}"
+          font-weight="bold" fill="white">
+      ${escapeXml(name)}
+    </text>` : ""}
+    ${ctaText ? `
+    <text x="${textX}" y="${height - Math.round(barHeight * 0.18)}"
+          font-family="Inter" font-size="${ctaSize}"
+          font-weight="bold" fill="rgba(255,255,255,0.85)">
+      ${escapeXml(ctaText)}
+    </text>` : ""}
   </svg>`;
-}
-
-/**
- * Render text as an image buffer using Sharp's Pango text API.
- * This is far more reliable than SVG <text> on serverless because
- * Pango uses fontconfig which can always find SOME system font.
- */
-async function renderTextImage(
-  text: string,
-  fontSize: number,
-  options: { bold?: boolean; opacity?: number; maxWidth?: number }
-): Promise<Buffer> {
-  const weight = options.bold ? "bold" : "normal";
-  const alpha = Math.round((options.opacity ?? 1) * 255);
-  const alphaHex = alpha.toString(16).padStart(2, "0");
-
-  const textInput: sharp.CreateText = {
-    text: `<span foreground="#ffffff${alphaHex}" font_weight="${weight}" font_size="${fontSize * 1024}">${escapeXml(text)}</span>`,
-    font: "sans",
-    rgba: true,
-    dpi: 72,
-  };
-
-  if (options.maxWidth) {
-    textInput.width = options.maxWidth;
-  }
-
-  return sharp({ text: textInput }).png().toBuffer();
 }
 
 // ============================================================
@@ -187,54 +206,22 @@ export async function applyBrandOverlay(
 
   const hasProfilePhoto = !!config.profilePictureUrl;
 
-  // Layer 1: Bottom gradient bar (gradient only, no text)
-  const barSvg = createBottomBarGradient(width, height, config.brandColor);
+  // Layer 1: Bottom gradient bar with name + CTA (font embedded as base64)
+  const barSvg = createBottomBar(
+    width,
+    height,
+    config.brandColor,
+    config.spokespersonName || null,
+    ctaText,
+    hasProfilePhoto
+  );
   composites.push({
     input: Buffer.from(barSvg),
     top: 0,
     left: 0,
   });
 
-  // Layer 1b: Text rendered via Sharp's Pango API (reliable on Lambda)
   const barHeight = Math.round(height * 0.14);
-  const nameSize = Math.round(barHeight * 0.3);
-  const ctaSize = Math.round(barHeight * 0.2);
-  const textX = hasProfilePhoto
-    ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
-    : Math.round(width * 0.04);
-
-  if (config.spokespersonName) {
-    try {
-      const nameImg = await renderTextImage(config.spokespersonName, nameSize, {
-        bold: true,
-        maxWidth: width - textX - Math.round(width * 0.04),
-      });
-      composites.push({
-        input: nameImg,
-        top: height - barHeight + Math.round(barHeight * 0.2),
-        left: textX,
-      });
-    } catch {
-      // Text rendering failed — continue without name
-    }
-  }
-
-  if (ctaText) {
-    try {
-      const ctaImg = await renderTextImage(ctaText, ctaSize, {
-        bold: false,
-        opacity: 0.85,
-        maxWidth: width - textX - Math.round(width * 0.04),
-      });
-      composites.push({
-        input: ctaImg,
-        top: height - barHeight + Math.round(barHeight * 0.55),
-        left: textX,
-      });
-    } catch {
-      // Text rendering failed — continue without CTA
-    }
-  }
 
   // Layer 2: Circular profile photo (bottom-left, inside the gradient bar)
   if (config.profilePictureUrl) {
