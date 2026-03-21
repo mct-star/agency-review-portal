@@ -234,46 +234,27 @@ export async function applyBrandOverlay(
     left: 0,
   });
 
-  // Layer 1b: Text rendered via Satori (text → SVG vector paths → PNG).
-  // Satori converts text to <path> outlines using the font data directly,
-  // so no system fonts are needed at render time.
+  // Layer 1b: CTA text rendered via Satori (text → SVG vector paths → PNG).
+  // Just the CTA line (e.g. "Follow Michael Colling-Tuck") — vertically
+  // centred in the gradient bar next to the profile photo.
   const barHeight = Math.round(height * 0.14);
-  const nameSize = Math.round(barHeight * 0.3);
-  const ctaSize = Math.round(barHeight * 0.2);
+  const ctaSize = Math.round(barHeight * 0.28);
   const textX = hasProfilePhoto
     ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
     : Math.round(width * 0.04);
   const textMaxWidth = width - textX - Math.round(width * 0.04);
 
-  if (config.spokespersonName) {
-    try {
-      const nameImg = await renderTextImage(config.spokespersonName, nameSize, {
-        bold: true,
-        color: "white",
-        maxWidth: textMaxWidth,
-        height: nameSize + 8,
-      });
-      composites.push({
-        input: nameImg,
-        top: height - barHeight + Math.round(barHeight * 0.22),
-        left: textX,
-      });
-    } catch (e) {
-      console.error("[overlay] Name text render failed:", e);
-    }
-  }
-
   if (ctaText) {
     try {
       const ctaImg = await renderTextImage(ctaText, ctaSize, {
-        bold: false,
-        color: "rgba(255,255,255,0.85)",
+        bold: true,
+        color: "white",
         maxWidth: textMaxWidth,
-        height: ctaSize + 6,
+        height: ctaSize + 8,
       });
       composites.push({
         input: ctaImg,
-        top: height - barHeight + Math.round(barHeight * 0.55),
+        top: height - barHeight + Math.round((barHeight - ctaSize) / 2),
         left: textX,
       });
     } catch (e) {
