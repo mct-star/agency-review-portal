@@ -90,6 +90,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     { count: signoffCount },
     { count: urlCount },
     { count: scheduleCount },
+    { count: voiceCount },
   ] = await Promise.all([
     supabase.from("company_api_configs").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_social_accounts").select("*", { count: "exact", head: true }).eq("company_id", companyId),
@@ -100,6 +101,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     supabase.from("company_signoffs").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_cta_urls").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("posting_slots").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
+    supabase.from("company_voice_profiles").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
   ]);
 
   // Calculate step completion
@@ -107,7 +109,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     strategy: { done: (blueprintCount || 0) > 0, detail: (blueprintCount || 0) > 0 ? "Active" : "Not uploaded" },
     schedule: { done: (scheduleCount || 0) > 0, detail: (scheduleCount || 0) > 0 ? `${scheduleCount} slots` : "Not configured" },
     topics: { done: (topicCount || 0) > 0, detail: `${topicCount || 0} topics` },
-    voice: { done: false, detail: "Not configured" },
+    voice: { done: (voiceCount || 0) > 0, detail: (voiceCount || 0) > 0 ? "Active" : "Not configured" },
     signoffs: { done: (signoffCount || 0) > 0, detail: (signoffCount || 0) > 0 ? "Configured" : "Not set" },
     urls: { done: (urlCount || 0) > 0, detail: `${urlCount || 0} URLs` },
     api_keys: { done: (apiConfigCount || 0) > 0, detail: `${apiConfigCount || 0} providers` },
