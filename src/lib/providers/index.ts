@@ -348,6 +348,19 @@ export async function getImageProvider(
       };
     }
 
+    case "manus": {
+      const { createManusImageProvider } = await import(
+        "./image-generation/manus"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createManusImageProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+
     case "openai_gpt_image":
     default: {
       const { createOpenAIImageProvider } = await import(
@@ -389,6 +402,12 @@ export const IMAGE_PROVIDER_OPTIONS = [
     value: "runway",
     label: "Runway (Gen-3)",
     description: "Strong at stylised visuals. Async processing. ~$0.05-0.10/image",
+    costTier: "high" as const,
+  },
+  {
+    value: "manus",
+    label: "Manus Agent",
+    description: "Autonomous agent generates images via its internal tools. Async, 1–4 min per image. Uses Manus credits (~150 credits/task).",
     costTier: "high" as const,
   },
 ];
