@@ -109,27 +109,58 @@ export async function POST(request: Request) {
       .eq("is_active", true)
       .single();
 
-    // Fetch the matching signoff for this post type
-    const { data: signoffs } = await supabase
-      .from("company_signoffs")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("is_active", true)
-      .order("sort_order");
+    // Blog teasers use CTA URLs instead of sign-offs, and have no first comment.
+    // Other post types use the standard signoff + first comment flow.
+    const isBlogTeaser = postTypeSlug === "blog_teaser";
 
-    const matchedSignoff = signoffs?.find(
-      (s) =>
-        Array.isArray(s.applies_to_post_types) &&
-        s.applies_to_post_types.length > 0 &&
-        s.applies_to_post_types.includes(postTypeSlug)
-    );
-    const defaultSignoff = signoffs?.find(
-      (s) => !Array.isArray(s.applies_to_post_types) || s.applies_to_post_types.length === 0
-    );
-    const selectedSignoff = matchedSignoff || defaultSignoff || signoffs?.[0] || null;
+    // Fetch the matching signoff for this post type (skip for blog teasers)
+    let selectedSignoff: { signoff_text?: string; first_comment_template?: string } | null = null;
+    if (!isBlogTeaser) {
+      const { data: signoffs } = await supabase
+        .from("company_signoffs")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("sort_order");
+
+      const matchedSignoff = signoffs?.find(
+        (s: Record<string, unknown>) =>
+          Array.isArray(s.applies_to_post_types) &&
+          (s.applies_to_post_types as string[]).length > 0 &&
+          (s.applies_to_post_types as string[]).includes(postTypeSlug)
+      );
+      const defaultSignoff = signoffs?.find(
+        (s: Record<string, unknown>) => !Array.isArray(s.applies_to_post_types) || (s.applies_to_post_types as string[]).length === 0
+      );
+      selectedSignoff = matchedSignoff || defaultSignoff || signoffs?.[0] || null;
+    }
+
+    // For blog teasers, fetch CTA URLs to include in the post
+    let ctaUrlContext = "";
+    if (isBlogTeaser) {
+      const { data: ctaUrls } = await supabase
+        .from("company_cta_urls")
+        .select("label, url")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("sort_order");
+
+      if (ctaUrls && ctaUrls.length > 0) {
+        ctaUrlContext = `\n\nCTA URLs AVAILABLE (include the most relevant one in the post body as a call-to-action):\n${ctaUrls.map((u: { label: string; url: string }) => `- ${u.label}: ${u.url}`).join("\n")}`;
+      }
+    }
 
     // ── 2. Generate content ───────────────────────────────────────
     const { provider: contentProvider } = await getContentProvider(companyId);
+
+    const blogTeaserContext = isBlogTeaser
+      ? `This is a Blog Teaser post. RULES:
+- Do NOT include a sign-off ("Enjoy this? Repost..." etc). Blog teasers end with a CTA link, not a sign-off.
+- Do NOT generate a first comment. Set firstComment to null.
+- Include one relevant CTA URL in the post body (not in a first comment).
+- The post should make the reader want to click through to learn more.
+- Keep it short and punchy: 60-120 words.${ctaUrlContext}`
+      : "";
 
     const contentResult = await contentProvider.generate({
       blueprintContent: blueprint?.blueprint_text || "",
@@ -143,9 +174,9 @@ export async function POST(request: Request) {
       postTypeSlug,
       postTypeLabel: POST_TYPES_LABELS[postTypeSlug] || postTypeSlug,
       imageArchetype: typeConfig.archetype,
-      signoffText: selectedSignoff?.signoff_text || undefined,
-      firstCommentTemplate: selectedSignoff?.first_comment_template || undefined,
-      additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.`,
+      signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
+      firstCommentTemplate: isBlogTeaser ? undefined : (selectedSignoff?.first_comment_template || undefined),
+      additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.${blogTeaserContext ? `\n\n${blogTeaserContext}` : ""}`,
     });
 
     // ── 3. Generate image (if provider configured) ────────────────
