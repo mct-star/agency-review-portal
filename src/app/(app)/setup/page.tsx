@@ -91,7 +91,18 @@ export default async function CompaniesPage() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">{company.slug}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">{company.slug}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                      company.plan === "agency"
+                        ? "bg-purple-100 text-purple-700"
+                        : company.plan === "pro"
+                        ? "bg-sky-100 text-sky-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}>
+                      {company.plan || "free"}
+                    </span>
+                  </div>
                   <span className="text-xs font-medium text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity">
                     Configure →
                   </span>

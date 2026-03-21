@@ -153,10 +153,13 @@ export type ImageGenerationStatus =
   | "failed"
   | "skipped";
 
+export type PlanTier = "free" | "pro" | "agency";
+
 export interface Company {
   id: string;
   name: string;
   slug: string;
+  plan: PlanTier;
   spokesperson_name: string | null;
   spokesperson_tagline: string | null;
   logo_url: string | null;

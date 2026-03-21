@@ -1,20 +1,31 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ImageUploader from "./ImageUploader";
 import OverlayPreview from "./OverlayPreview";
+import PlanSelector from "./PlanSelector";
+import type { PlanTier } from "@/types/database";
 
 interface PageProps {
   params: Promise<{ companyId: string }>;
 }
 
-const SETUP_STEPS = [
+// minPlan: the minimum tier required to access this step
+const SETUP_STEPS: {
+  key: string;
+  label: string;
+  description: string;
+  href: string;
+  icon: string;
+  minPlan: PlanTier;
+}[] = [
   {
     key: "people",
     label: "People",
     description: "Spokespersons with their own voice, photo, and social accounts",
     href: "people",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+    minPlan: "free",
   },
   {
     key: "strategy",
@@ -22,6 +33,7 @@ const SETUP_STEPS = [
     description: "Upload your content strategy to drive automated generation",
     href: "strategy",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+    minPlan: "agency",
   },
   {
     key: "schedule",
@@ -29,6 +41,7 @@ const SETUP_STEPS = [
     description: "Define which post types go on which days and times",
     href: "schedule",
     icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    minPlan: "pro",
   },
   {
     key: "topics",
@@ -36,6 +49,7 @@ const SETUP_STEPS = [
     description: "Import topics that feed into your weekly content",
     href: "topics",
     icon: "M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10",
+    minPlan: "pro",
   },
   {
     key: "signoffs",
@@ -43,6 +57,7 @@ const SETUP_STEPS = [
     description: "Set your standard sign-off text and first comment templates",
     href: "signoffs",
     icon: "M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z",
+    minPlan: "free",
   },
   {
     key: "urls",
@@ -50,6 +65,7 @@ const SETUP_STEPS = [
     description: "Destination URLs for CTAs in your content",
     href: "urls",
     icon: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
+    minPlan: "free",
   },
   {
     key: "social",
@@ -57,6 +73,7 @@ const SETUP_STEPS = [
     description: "Company-level social accounts (company LinkedIn, Facebook page)",
     href: "social",
     icon: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
+    minPlan: "free",
   },
   {
     key: "api_keys",
@@ -64,12 +81,20 @@ const SETUP_STEPS = [
     description: "Connect your AI providers for content and image generation",
     href: "api-keys",
     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
+    minPlan: "free",
   },
 ];
+
+const PLAN_RANK: Record<PlanTier, number> = { free: 0, pro: 1, agency: 2 };
+function hasPlanAccess(companyPlan: PlanTier, requiredPlan: PlanTier): boolean {
+  return PLAN_RANK[companyPlan] >= PLAN_RANK[requiredPlan];
+}
 
 export default async function CompanyOverviewPage({ params }: PageProps) {
   const { companyId } = await params;
   const supabase = await createServerSupabaseClient();
+  const profile = await getUserProfile();
+  const isAdmin = profile?.role === "admin";
 
   const { data: company } = await supabase
     .from("companies")
@@ -120,8 +145,10 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     api_keys: { done: (apiConfigCount || 0) > 0, detail: `${apiConfigCount || 0} providers` },
   };
 
-  const completedSteps = Object.values(stepStatus).filter((s) => s.done).length;
-  const totalSteps = SETUP_STEPS.length;
+  const companyPlan = (company.plan || "free") as PlanTier;
+  const accessibleSteps = SETUP_STEPS.filter((s) => hasPlanAccess(companyPlan, s.minPlan));
+  const completedSteps = accessibleSteps.filter((s) => stepStatus[s.key]?.done).length;
+  const totalSteps = accessibleSteps.length;
   const progressPercent = Math.round((completedSteps / totalSteps) * 100);
   const isReadyToGenerate = completedSteps >= 4;
 
@@ -165,6 +192,19 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-bold text-gray-900">{company.name}</h2>
+                {isAdmin ? (
+                  <PlanSelector companyId={companyId} currentPlan={company.plan || "free"} />
+                ) : (
+                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    company.plan === "agency"
+                      ? "bg-purple-100 text-purple-700"
+                      : company.plan === "pro"
+                      ? "bg-sky-100 text-sky-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {company.plan || "free"}
+                  </span>
+                )}
                 {isReadyToGenerate && (
                   <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-[10px] font-semibold text-green-700">
                     Ready to Generate
@@ -324,6 +364,33 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
         {SETUP_STEPS.map((step) => {
           const status = stepStatus[step.key];
           const isDone = status?.done;
+          const locked = !hasPlanAccess(companyPlan, step.minPlan);
+
+          if (locked) {
+            return (
+              <div
+                key={step.key}
+                className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 opacity-60"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+                    <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-gray-400">{step.label}</h4>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-gray-400">
+                        {step.minPlan}+
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-400">{step.description}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <Link

@@ -256,11 +256,11 @@ export async function POST(request: Request) {
 
 // Labels for post types (used in content generation prompt)
 const POST_TYPES_LABELS: Record<string, string> = {
-  insight: "The Mistake / Insight",
-  launch_story: "Launch Story (47 Launches)",
-  if_i_was: "If I Was...",
+  insight: "Problem Diagnosis",
+  launch_story: "Experience Story",
+  if_i_was: "Expert Perspective",
   contrarian: "Contrarian Take",
   tactical: "Tactical How-To",
-  founder_friday: "Founder Friday (Fantasy vs Reality)",
-  blog_teaser: "Blog Teaser",
+  founder_friday: "Personal Reflection",
+  blog_teaser: "Article Teaser",
 };
