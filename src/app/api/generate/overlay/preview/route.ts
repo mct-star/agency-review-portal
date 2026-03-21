@@ -128,16 +128,11 @@ async function createSampleImage(
     <circle cx="${width * 0.3}" cy="${height * 0.35}" r="40" fill="rgba(255,255,255,0.06)" />
     <circle cx="${width * 0.7}" cy="${height * 0.3}" r="30" fill="rgba(255,255,255,0.05)" />
 
-    <!-- "Sample Image" text -->
-    <text x="${width / 2}" y="${height / 2}" text-anchor="middle"
-          font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="28" fill="rgba(255,255,255,0.15)"
-          font-weight="bold">
-      SAMPLE IMAGE
-    </text>
-    <text x="${width / 2}" y="${height / 2 + 30}" text-anchor="middle"
-          font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="14" fill="rgba(255,255,255,0.1)">
-      Your AI-generated image will appear here
-    </text>
+    <!-- Subtle crosshair to indicate sample area (no text — fonts unavailable on Lambda) -->
+    <line x1="${width / 2 - 30}" y1="${height / 2}" x2="${width / 2 + 30}" y2="${height / 2}"
+          stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+    <line x1="${width / 2}" y1="${height / 2 - 30}" x2="${width / 2}" y2="${height / 2 + 30}"
+          stroke="rgba(255,255,255,0.08)" stroke-width="1" />
   </svg>`;
 
   return sharp(Buffer.from(svg)).png().toBuffer();
