@@ -26,7 +26,7 @@ const SERVICE_CATEGORIES: {
     value: "image_generation",
     label: "Image Generation",
     description: "AI-powered image creation for social posts, blog headers, and PDFs",
-    providers: ["openai_gpt_image", "replicate_flux", "stability_ai", "ideogram"],
+    providers: ["fal_flux", "openai_gpt_image", "ideogram", "runway", "manus"],
   },
   {
     value: "content_generation",
@@ -79,10 +79,11 @@ const SERVICE_CATEGORIES: {
 ];
 
 const PROVIDER_LABELS: Record<string, string> = {
-  openai_gpt_image: "OpenAI GPT Image",
-  replicate_flux: "Flux (via Replicate)",
-  stability_ai: "Stability AI",
-  ideogram: "Ideogram",
+  fal_flux: "fal.ai — Flux 1.1 Pro (recommended)",
+  openai_gpt_image: "OpenAI (DALL-E 3)",
+  ideogram: "Ideogram (best for text-in-image)",
+  runway: "Runway Gen-3",
+  manus: "Manus Agent (async, 1–4 min/image)",
   anthropic_claude: "Anthropic Claude",
   openai_gpt4: "OpenAI GPT-4",
   wordpress: "WordPress",
