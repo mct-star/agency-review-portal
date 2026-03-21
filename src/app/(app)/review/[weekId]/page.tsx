@@ -129,6 +129,14 @@ export default async function WeekReviewPage({ params }: PageProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <a
+              href={`/api/generate/report?weekId=${weekId}&companyId=${company.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
+            >
+              Strategy Report
+            </a>
             {socialPieces.length > 0 && (
               <MetricoolExportButton
                 weekId={weekId}

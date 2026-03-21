@@ -119,10 +119,22 @@ ALSO GENERATE THESE ASSETS:
 - URL slug (lowercase, hyphenated)
 - Excerpt (2 sentences that would work as a social teaser)
 
-IMAGE PROMPT:
-- Describe a hero image for the blog post.
-- Professional healthcare/business setting, editorial photography style.
-- Should capture the theme of the article without being literal.`,
+BLOG IMAGE SET (MANDATORY — generate ALL of these as separate assets):
+You MUST generate image prompts for the complete blog image package. Each prompt goes in the assets array with its own assetType.
+
+1. cover_image_prompt — The social share / og:image (1200×630). Professional, editorial photography style. Captures the theme without being literal. This appears in LinkedIn/social previews when the blog URL is shared. Must work at small sizes. No text in image.
+
+2. hero_image_prompt — The large hero image at the top of the blog (1200×800). Can be more detailed/atmospheric than the cover. Sets the visual tone for the article. Healthcare/business context.
+
+3. in_article_image_prompt_1 — Image placed after section 1. Illustrates the key concept of that section. Pixar-style 3D or editorial photography depending on brand.
+
+4. in_article_image_prompt_2 — Image placed after section 2. Visualises the scenario or framework discussed. Different visual approach from image 1.
+
+5. in_article_image_prompt_3 — Image placed after section 3. Can be more conceptual/metaphorical. Adds visual variety.
+
+6. infographic_prompt — (OPTIONAL) If the article contains a framework, process, or comparison, describe an infographic that would visualise it. Clean, professional, uses brand colours. Include what text/labels should appear.
+
+Each image prompt should be vivid and specific: describe the scene, lighting, camera angle, subjects, mood, and style. No logos. No real people unless specified.`,
 
   linkedin_article: `FORMAT: LinkedIn article (600-1000 words).
 
@@ -138,9 +150,15 @@ STRUCTURE:
 ALSO GENERATE THESE ASSETS:
 - SEO title, meta description, excerpt.
 
-IMAGE PROMPT:
-- Describe a header image for a LinkedIn article.
-- Professional, clean, healthcare/business context.`,
+ARTICLE IMAGE SET (MANDATORY — generate ALL as separate assets):
+
+1. header_image_prompt — LinkedIn article header (1200×628). Professional, clean, healthcare/business context. This appears at the top of the article and in social previews. No text in image.
+
+2. in_article_image_prompt_1 — Image after section 1. Illustrates the opening concept. Editorial or Pixar-style.
+
+3. in_article_image_prompt_2 — Image after section 2. Different visual approach. Adds depth to the argument.
+
+Each prompt should be vivid: describe scene, lighting, subjects, mood, style. No logos, no real people.`,
 
   pdf_guide: `FORMAT: 8-page PDF guide content.
 
@@ -394,16 +412,23 @@ Respond with a JSON object (no markdown code fences) matching this structure:
   "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
   "wordCount": number,
   "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
-  "imagePrompt": "string — ALWAYS REQUIRED for every content type. A vivid, detailed image generation prompt describing scene, mood, lighting, objects, setting, visual style${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""}. Never return null or omit this field.",
+  "imagePrompt": "string — ALWAYS REQUIRED for every content type. The PRIMARY image prompt (cover/hero for articles, social image for posts). Vivid, detailed, describing scene, mood, lighting, objects, setting, visual style${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""}. Never return null or omit this field.",
   "assets": [
     { "assetType": "seo_title", "textContent": "..." },
     { "assetType": "seo_meta_description", "textContent": "..." },
     { "assetType": "url_slug", "textContent": "..." },
-    { "assetType": "excerpt", "textContent": "..." }
+    { "assetType": "excerpt", "textContent": "..." },
+    { "assetType": "cover_image_prompt", "textContent": "1200x630 social share image prompt..." },
+    { "assetType": "hero_image_prompt", "textContent": "1200x800 hero image prompt..." },
+    { "assetType": "in_article_image_prompt_1", "textContent": "Section 1 image prompt..." },
+    { "assetType": "in_article_image_prompt_2", "textContent": "Section 2 image prompt..." },
+    { "assetType": "in_article_image_prompt_3", "textContent": "Section 3 image prompt..." },
+    { "assetType": "infographic_prompt", "textContent": "Infographic description (if applicable)..." }
   ]
 }
 
-The "assets" array is content-type dependent — social posts typically have no SEO assets so return an empty array []. The imagePrompt field above is ALWAYS required regardless of content type.
+CRITICAL: For blog_article and linkedin_article content types, you MUST include the image prompt assets listed in the BLOG/ARTICLE IMAGE SET instructions above. Each goes in the assets array. Social posts only need the top-level imagePrompt field and can return an empty assets array [].
+The imagePrompt field above is ALWAYS required regardless of content type — it serves as the primary/default image.
 
 ${"═".repeat(60)}
 MASTER VALIDATION CHECKLIST (check EVERY item before outputting)

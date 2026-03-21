@@ -442,52 +442,94 @@ export default function GeneratePage() {
             }
 
             if (generateImages && contentData.imagePrompt) {
-              setStatus({
-                phase: "images",
-                current: i,
-                total,
-                currentLabel: `Generating image for ${assignment.slotLabel} (${i + 1}/${total})...`,
-              });
+              const isBlogOrArticle = ["blog_article", "linkedin_article"].includes(
+                assignment.postTypeSlug
+              );
+              const archetype = assignment.imageArchetype || "general";
+              const ARCHETYPE_STYLES: Record<string, { prefix: string; aspectRatio: string }> = {
+                pixar_scenario: { prefix: "Pixar-style 3D animated scene, warm lighting, detailed environment, cinematic composition. ", aspectRatio: "1:1" },
+                quote_card: { prefix: "Minimal clean background, subtle gradient, space for text overlay. ", aspectRatio: "1:1" },
+                tactical: { prefix: "Clean infographic style, professional diagram or process illustration. ", aspectRatio: "1:1" },
+                warm_candid: { prefix: "Warm natural lifestyle photography style, soft lighting, authentic moment. ", aspectRatio: "1:1" },
+                before_after: { prefix: "Split composition showing transformation, clear visual contrast. ", aspectRatio: "1:1" },
+                general: { prefix: "Pixar-style 3D animated scene, warm lighting, healthcare/business setting. ", aspectRatio: "1:1" },
+              };
+              const style = ARCHETYPE_STYLES[archetype] || ARCHETYPE_STYLES.general;
 
-              try {
-                const archetype = assignment.imageArchetype || "general";
-                const ARCHETYPE_STYLES: Record<string, { prefix: string; aspectRatio: string }> = {
-                  pixar_scenario: { prefix: "Pixar-style 3D animated scene, warm lighting, detailed environment, cinematic composition. ", aspectRatio: "1:1" },
-                  quote_card: { prefix: "Minimal clean background, subtle gradient, space for text overlay. ", aspectRatio: "1:1" },
-                  tactical: { prefix: "Clean infographic style, professional diagram or process illustration. ", aspectRatio: "1:1" },
-                  warm_candid: { prefix: "Warm natural lifestyle photography style, soft lighting, authentic moment. ", aspectRatio: "1:1" },
-                  before_after: { prefix: "Split composition showing transformation, clear visual contrast. ", aspectRatio: "1:1" },
-                  general: { prefix: "Pixar-style 3D animated scene, warm lighting, healthcare/business setting. ", aspectRatio: "1:1" },
-                };
-
-                const style = ARCHETYPE_STYLES[archetype] || ARCHETYPE_STYLES.general;
-                const enrichedPrompt = typeof contentData.imagePrompt === "string"
-                  ? contentData.imagePrompt
-                  : contentData.imagePrompt.prompt || String(contentData.imagePrompt);
-
-                const imgRes = await fetch("/api/generate/images", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    companyId: selectedCompanyId,
-                    contentPieceId: contentData.pieceId,
-                    prompts: [{ prompt: style.prefix + enrichedPrompt, style: archetype, aspectRatio: style.aspectRatio }],
-                  }),
-                });
-                if (imgRes.ok) {
-                  imagesCreated++;
-                  const imgData = await imgRes.json();
-                  if (imgData.images?.[0]?.public_url) {
-                    try {
-                      await fetch("/api/generate/overlay", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ imageUrl: imgData.images[0].public_url, companyId: selectedCompanyId, contentPieceId: contentData.pieceId, archetype }),
-                      });
-                    } catch { /* overlay failed */ }
+              if (isBlogOrArticle && contentData.blogImagePrompts?.length > 0) {
+                // Multi-image generation for blog/article content
+                const imagePrompts = contentData.blogImagePrompts.map(
+                  (bp: { assetType: string; prompt: string }) => {
+                    const isCover = bp.assetType === "cover_image_prompt" || bp.assetType === "header_image_prompt";
+                    const isHero = bp.assetType === "hero_image_prompt";
+                    return {
+                      prompt: style.prefix + bp.prompt,
+                      style: bp.assetType,
+                      aspectRatio: isCover ? "16:9" : isHero ? "4:3" : "1:1",
+                    };
                   }
-                }
-              } catch { /* image failed */ }
+                );
+
+                setStatus({
+                  phase: "images",
+                  current: i,
+                  total,
+                  currentLabel: `Generating ${imagePrompts.length} images for ${assignment.slotLabel} (${i + 1}/${total})...`,
+                });
+
+                try {
+                  const imgRes = await fetch("/api/generate/images", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      companyId: selectedCompanyId,
+                      contentPieceId: contentData.pieceId,
+                      prompts: imagePrompts,
+                    }),
+                  });
+                  if (imgRes.ok) {
+                    const imgData = await imgRes.json();
+                    imagesCreated += imgData.imageCount || 0;
+                  }
+                } catch { /* blog images failed */ }
+              } else {
+                // Single image for social posts
+                setStatus({
+                  phase: "images",
+                  current: i,
+                  total,
+                  currentLabel: `Generating image for ${assignment.slotLabel} (${i + 1}/${total})...`,
+                });
+
+                try {
+                  const enrichedPrompt = typeof contentData.imagePrompt === "string"
+                    ? contentData.imagePrompt
+                    : contentData.imagePrompt.prompt || String(contentData.imagePrompt);
+
+                  const imgRes = await fetch("/api/generate/images", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      companyId: selectedCompanyId,
+                      contentPieceId: contentData.pieceId,
+                      prompts: [{ prompt: style.prefix + enrichedPrompt, style: archetype, aspectRatio: style.aspectRatio }],
+                    }),
+                  });
+                  if (imgRes.ok) {
+                    imagesCreated++;
+                    const imgData = await imgRes.json();
+                    if (imgData.images?.[0]?.public_url) {
+                      try {
+                        await fetch("/api/generate/overlay", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ imageUrl: imgData.images[0].public_url, companyId: selectedCompanyId, contentPieceId: contentData.pieceId, archetype }),
+                        });
+                      } catch { /* overlay failed */ }
+                    }
+                  }
+                } catch { /* image failed */ }
+              }
             }
           }
         } catch { /* piece failed */ }
@@ -612,16 +654,42 @@ export default function GeneratePage() {
             }
 
             if (generateImages && contentData.imagePrompt && contentRes.ok) {
+              const isBlogOrArticle = ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug);
               try {
-                await fetch("/api/generate/images", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    companyId: selectedCompanyId,
-                    contentPieceId: contentData.pieceId,
-                    prompts: [{ prompt: typeof contentData.imagePrompt === "string" ? contentData.imagePrompt : String(contentData.imagePrompt), style: assignment.imageArchetype || "general", aspectRatio: "1:1" }],
-                  }),
-                });
+                if (isBlogOrArticle && contentData.blogImagePrompts?.length > 0) {
+                  // Multi-image for blog/article
+                  const imagePrompts = contentData.blogImagePrompts.map(
+                    (bp: { assetType: string; prompt: string }) => {
+                      const isCover = bp.assetType === "cover_image_prompt" || bp.assetType === "header_image_prompt";
+                      const isHero = bp.assetType === "hero_image_prompt";
+                      return {
+                        prompt: bp.prompt,
+                        style: bp.assetType,
+                        aspectRatio: isCover ? "16:9" : isHero ? "4:3" : "1:1",
+                      };
+                    }
+                  );
+                  await fetch("/api/generate/images", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      companyId: selectedCompanyId,
+                      contentPieceId: contentData.pieceId,
+                      prompts: imagePrompts,
+                    }),
+                  });
+                } else {
+                  // Single image for social posts
+                  await fetch("/api/generate/images", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      companyId: selectedCompanyId,
+                      contentPieceId: contentData.pieceId,
+                      prompts: [{ prompt: typeof contentData.imagePrompt === "string" ? contentData.imagePrompt : String(contentData.imagePrompt), style: assignment.imageArchetype || "general", aspectRatio: "1:1" }],
+                    }),
+                  });
+                }
               } catch { /* image failed, continue */ }
             }
           } catch { /* piece failed, continue */ }
@@ -1089,6 +1157,16 @@ export default function GeneratePage() {
                 {selectedWeekId && (
                   <a href={`/review/${selectedWeekId}`} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
                     Review Content
+                  </a>
+                )}
+                {selectedWeekId && selectedCompanyId && (isWeekMode || isMonthMode) && (
+                  <a
+                    href={`/api/generate/report?weekId=${selectedWeekId}&companyId=${selectedCompanyId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100"
+                  >
+                    Download Report
                   </a>
                 )}
                 <button

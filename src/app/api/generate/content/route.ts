@@ -344,6 +344,23 @@ export async function POST(request: Request) {
       };
     }
 
+    // Collect blog/article image prompts from assets for multi-image generation
+    const IMAGE_PROMPT_ASSET_TYPES = [
+      "cover_image_prompt",
+      "hero_image_prompt",
+      "header_image_prompt",
+      "in_article_image_prompt_1",
+      "in_article_image_prompt_2",
+      "in_article_image_prompt_3",
+      "infographic_prompt",
+    ];
+    const blogImagePrompts = (output.assets || [])
+      .filter((a) => IMAGE_PROMPT_ASSET_TYPES.includes(a.assetType))
+      .map((a) => ({
+        assetType: a.assetType,
+        prompt: a.textContent,
+      }));
+
     return NextResponse.json({
       jobId,
       status: "completed",
@@ -351,6 +368,7 @@ export async function POST(request: Request) {
       contentPieceId: piece.id,
       title: output.title,
       imagePrompt: output.imagePrompt || null,
+      blogImagePrompts: blogImagePrompts.length > 0 ? blogImagePrompts : null,
       blogInfo,
     });
   } catch (err) {

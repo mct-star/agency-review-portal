@@ -26,10 +26,22 @@ const ASSET_TYPE_GROUPS: {
     label: "Images",
     types: [
       { value: "featured_image", label: "Featured Image" },
-      { value: "social_share_image", label: "Social Share Image" },
+      { value: "social_share_image", label: "Social Share Image (1200×630)" },
       { value: "in_article_image", label: "In-Article Image" },
       { value: "header_image", label: "Header Image" },
       { value: "cover_image", label: "Cover Image" },
+    ],
+  },
+  {
+    label: "Image Prompts (Blog/Article)",
+    types: [
+      { value: "cover_image_prompt", label: "Cover Image Prompt (1200×630 og:image)" },
+      { value: "hero_image_prompt", label: "Hero Image Prompt (1200×800)" },
+      { value: "header_image_prompt", label: "Header Image Prompt (1200×628)" },
+      { value: "in_article_image_prompt_1", label: "In-Article Image 1 Prompt" },
+      { value: "in_article_image_prompt_2", label: "In-Article Image 2 Prompt" },
+      { value: "in_article_image_prompt_3", label: "In-Article Image 3 Prompt" },
+      { value: "infographic_prompt", label: "Infographic Prompt" },
     ],
   },
   {

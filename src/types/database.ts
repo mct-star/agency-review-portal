@@ -108,6 +108,13 @@ export type AssetType =
   | "subtitle_cues"
   | "platform_copy"
   | "image_prompt"
+  | "cover_image_prompt"
+  | "hero_image_prompt"
+  | "header_image_prompt"
+  | "in_article_image_prompt_1"
+  | "in_article_image_prompt_2"
+  | "in_article_image_prompt_3"
+  | "infographic_prompt"
   | "custom";
 
 export type GenerationJobType =
