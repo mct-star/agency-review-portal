@@ -123,13 +123,13 @@ function createBottomBar(
           fill="url(#bottomFade)" />
     ${name ? `
     <text x="${textX}" y="${height - Math.round(barHeight * 0.45)}"
-          font-family="Arial, Helvetica, sans-serif" font-size="${nameSize}"
+          font-family="DejaVu Sans, Liberation Sans, Noto Sans, sans-serif" font-size="${nameSize}"
           font-weight="bold" fill="white">
       ${escapeXml(name)}
     </text>` : ""}
     ${ctaText ? `
     <text x="${textX}" y="${height - Math.round(barHeight * 0.18)}"
-          font-family="Arial, Helvetica, sans-serif" font-size="${ctaSize}"
+          font-family="DejaVu Sans, Liberation Sans, Noto Sans, sans-serif" font-size="${ctaSize}"
           font-weight="400" fill="rgba(255,255,255,0.85)">
       ${escapeXml(ctaText)}
     </text>` : ""}

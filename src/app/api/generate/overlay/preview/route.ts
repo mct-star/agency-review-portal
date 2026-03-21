@@ -129,12 +129,12 @@ async function createSampleImage(
 
     <!-- "Sample Image" text -->
     <text x="${width / 2}" y="${height / 2}" text-anchor="middle"
-          font-family="Arial, sans-serif" font-size="28" fill="rgba(255,255,255,0.15)"
+          font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="28" fill="rgba(255,255,255,0.15)"
           font-weight="bold">
       SAMPLE IMAGE
     </text>
     <text x="${width / 2}" y="${height / 2 + 30}" text-anchor="middle"
-          font-family="Arial, sans-serif" font-size="14" fill="rgba(255,255,255,0.1)">
+          font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="14" fill="rgba(255,255,255,0.1)">
       Your AI-generated image will appear here
     </text>
   </svg>`;
