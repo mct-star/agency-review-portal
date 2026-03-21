@@ -2,14 +2,18 @@
  * fal.ai Image Generation Provider
  *
  * Uses fal.ai's serverless API for image generation.
- * Supports Flux models (flux-1.1-pro, flux-schnell, etc.)
+ * Supports Flux models (flux-pro/v1.1, flux/dev, flux/schnell, etc.)
  *
  * API docs: https://fal.ai/docs
  *
  * Requires credentials: { api_key: "..." }
- * Optional settings: { model: "fal-ai/flux/schnell" }
+ * Optional settings: { model: "fal-ai/flux-pro/v1.1" }
  *
- * Cost: ~$0.003-0.05 per image depending on model
+ * Model costs (approximate):
+ *   flux-pro/v1.1       ~$0.04/image  ← default, best quality
+ *   flux-pro/v1.1-ultra ~$0.06/image  ← highest quality, slower
+ *   flux/dev            ~$0.025/image ← good balance
+ *   flux/schnell        ~$0.003/image ← fast/cheap, lower quality
  */
 
 import type {
@@ -35,8 +39,9 @@ export function createFalImageProvider(
   if (!apiKey) {
     throw new Error("fal.ai provider requires an api_key in credentials");
   }
-  // Default to flux-schnell (fastest and cheapest)
-  const model = (settings.model as string) || "fal-ai/flux/schnell";
+  // Default to flux-pro/v1.1 — best quality for Pixar-style illustration work
+  // Use "fal-ai/flux/schnell" in settings.model if you need fast/cheap previews
+  const model = (settings.model as string) || "fal-ai/flux-pro/v1.1";
 
   return {
     async generate(input: ImageGenerationInput): Promise<ImageGenerationOutput> {
@@ -56,7 +61,8 @@ export function createFalImageProvider(
             height: dims.height,
           },
           num_images: numImages,
-          num_inference_steps: model.includes("schnell") ? 4 : 28,
+          // Schnell needs explicit low step count; Pro models use their own defaults
+          ...(model.includes("schnell") ? { num_inference_steps: 4 } : {}),
           enable_safety_checker: false,
         }),
       });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { getImageProvider } from "@/lib/providers";
+import { getImageProvider, resolveProvider } from "@/lib/providers";
+import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
 
 /**
  * POST /api/generate/images
@@ -79,6 +80,10 @@ export async function POST(request: Request) {
     // Resolve the image provider
     const { provider, providerName } = await getImageProvider(companyId);
 
+    // Resolve Claude API key for prompt enhancement (fails gracefully if missing)
+    const contentProvider = await resolveProvider(companyId, "content_generation");
+    const claudeApiKey = contentProvider?.credentials?.api_key as string | undefined;
+
     await supabase
       .from("content_generation_jobs")
       .update({ provider: providerName, progress: 20 })
@@ -108,8 +113,16 @@ export async function POST(request: Request) {
     for (let i = 0; i < prompts.length; i++) {
       const { prompt, style, aspectRatio } = prompts[i];
 
+      // Enhance the prompt: Claude rewrites the descriptive concept into a
+      // technically precise Flux prompt with lighting, camera, and render specs.
+      // This is the same two-step process Manus uses internally.
+      // Falls back to the raw prompt silently if enhancement fails.
+      const enhancedPrompt = claudeApiKey
+        ? await enhanceImagePrompt(prompt, style, claudeApiKey)
+        : prompt;
+
       const result = await provider.generate({
-        prompt,
+        prompt: enhancedPrompt,
         style,
         aspectRatio: aspectRatio as "1:1" | "16:9" | "9:16" | "4:3" | undefined,
         count: 1,
