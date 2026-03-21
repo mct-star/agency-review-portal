@@ -89,6 +89,62 @@ interface SpokespersonOption {
   isPrimary: boolean;
 }
 
+interface PlatformOption {
+  id: string;
+  label: string;
+  icon: string; // SVG path
+  viewBox?: string;
+}
+
+const PLATFORMS: PlatformOption[] = [
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    icon: "M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z",
+  },
+  {
+    id: "x",
+    label: "X",
+    icon: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z",
+  },
+  {
+    id: "bluesky",
+    label: "Bluesky",
+    icon: "M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.785 2.627 3.59 3.501 6.128 3.462-3.529.105-6.507 1.272-3.44 4.665C6.356 21.597 9.652 22 12 17.248c2.348 4.752 5.644 4.349 8.688 1.126 3.067-3.393.089-4.56-3.44-4.665 2.539.039 5.343-.835 6.128-3.462C23.622 9.418 24 4.458 24 3.768c0-.688-.139-1.86-.902-2.203-.659-.3-1.664-.621-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8z",
+  },
+  {
+    id: "threads",
+    label: "Threads",
+    icon: "M12.186 24h-.007C5.965 23.97 2.2 19.98 2.2 14.07v-.2c.09-5.63 3.52-9.78 8.94-10.84a10.27 10.27 0 0 1 5.43.46 7.63 7.63 0 0 1 4.21 4.47l-1.85.85a5.84 5.84 0 0 0-3.22-3.42 8.29 8.29 0 0 0-4.37-.37c-4.44.87-7.19 4.27-7.28 8.98v.18c.06 4.73 2.87 7.95 7.32 8.37a8.67 8.67 0 0 0 5.25-1.14 5.64 5.64 0 0 0 2.62-4.55c-.04-1.68-.73-2.97-2.06-3.83a6.87 6.87 0 0 0-1.18-.62 13.48 13.48 0 0 1-.08 1.67c-.14 1.07-.5 1.98-1.06 2.69a3.55 3.55 0 0 1-2.75 1.31 3.45 3.45 0 0 1-2.63-.96 3.15 3.15 0 0 1-.81-2.42c.08-1.56.93-2.78 2.4-3.42a6.6 6.6 0 0 1 2.68-.54l.14.01c-.03-.48-.12-.94-.27-1.37a2.6 2.6 0 0 0-2.07-1.7 4.54 4.54 0 0 0-2.47.24l-.66-1.8a6.53 6.53 0 0 1 3.48-.36 4.5 4.5 0 0 1 3.52 2.93c.2.55.34 1.13.41 1.73a8.4 8.4 0 0 1 1.83.95c1.86 1.2 2.84 3.02 2.9 5.4a7.63 7.63 0 0 1-3.51 6.14A10.64 10.64 0 0 1 12.186 24zM11.4 15.42c-.52.08-.98.24-1.35.45-.83.47-1.27 1.13-1.31 1.95a1.24 1.24 0 0 0 .32.93c.29.3.72.46 1.18.44a1.6 1.6 0 0 0 1.27-.59c.37-.48.61-1.14.71-1.96.04-.3.06-.61.07-.93a4.7 4.7 0 0 0-.89-.29z",
+  },
+  {
+    id: "facebook",
+    label: "Facebook",
+    icon: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z",
+  },
+  {
+    id: "instagram",
+    label: "Instagram",
+    icon: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z",
+  },
+  {
+    id: "tiktok",
+    label: "TikTok",
+    icon: "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z",
+  },
+];
+
+// Platform brand colours for selected state
+const PLATFORM_COLORS: Record<string, string> = {
+  linkedin: "#0A66C2",
+  x: "#000000",
+  bluesky: "#0085FF",
+  threads: "#000000",
+  facebook: "#1877F2",
+  instagram: "#E4405F",
+  tiktok: "#000000",
+};
+
 interface QuickGenerateProps {
   companies: CompanyOption[];
   spokespersons?: SpokespersonOption[];
@@ -113,7 +169,7 @@ export default function QuickGenerate({
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
   const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(null);
-  const [platform, setPlatform] = useState<"linkedin" | "x" | "instagram">("linkedin");
+  const [platform, setPlatform] = useState("linkedin");
   const [state, setState] = useState<GenerationState>("idle");
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<GeneratedResult | null>(null);
@@ -153,6 +209,7 @@ export default function QuickGenerate({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: selectedCompany.id,
+          spokespersonId: selectedPerson?.id || null,
           topic: topic.trim(),
           postTypeSlug: selectedPostType.slug,
           platform,
@@ -371,20 +428,35 @@ export default function QuickGenerate({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Platform
             </label>
-            <div className="flex gap-2">
-              {(["linkedin", "x", "instagram"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPlatform(p)}
-                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-                    platform === p
-                      ? "border-violet-500 bg-violet-50 text-violet-700"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  {p === "linkedin" ? "LinkedIn" : p === "x" ? "X (Twitter)" : "Instagram"}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {PLATFORMS.map((p) => {
+                const isSelected = platform === p.id;
+                const brandColor = PLATFORM_COLORS[p.id] || "#6B7280";
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setPlatform(p.id)}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
+                      isSelected
+                        ? "border-gray-900 bg-gray-50"
+                        : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                    }`}
+                    style={isSelected ? { borderColor: brandColor, backgroundColor: `${brandColor}08` } : undefined}
+                  >
+                    <svg
+                      className="h-4 w-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      style={isSelected ? { color: brandColor } : undefined}
+                    >
+                      <path d={p.icon} />
+                    </svg>
+                    <span style={isSelected ? { color: brandColor } : undefined}>
+                      {p.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

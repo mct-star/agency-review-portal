@@ -346,6 +346,7 @@ export default function GeneratePage() {
           companyId: selectedCompanyId,
           weekId,
           contentType,
+          spokespersonId: selectedPersonId || undefined,
           postTypeSlug: singlePostType || undefined,
           scheduledDate: singleDate || undefined,
           scheduledTime: singleTime || undefined,
@@ -474,6 +475,7 @@ export default function GeneratePage() {
             body: JSON.stringify({
               companyId: selectedCompanyId,
               weekId: resolvedWeekId,
+              spokespersonId: selectedPersonId || undefined,
               topicId: assignment.topicId || "auto",
               contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug)
                 ? assignment.postTypeSlug
@@ -741,6 +743,7 @@ export default function GeneratePage() {
               body: JSON.stringify({
                 companyId: selectedCompanyId,
                 weekId: resolvedWeekId,
+                spokespersonId: selectedPersonId || undefined,
                 topicId: assignment.topicId || "auto",
                 contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug) ? assignment.postTypeSlug : "social_post",
                 postTypeSlug: assignment.postTypeSlug,

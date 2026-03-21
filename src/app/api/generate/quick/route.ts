@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { companyId, topic, postTypeSlug, platform } = body;
+  const { companyId, spokespersonId, topic, postTypeSlug, platform } = body;
 
   if (!companyId || !topic || !postTypeSlug) {
     return NextResponse.json(
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
   const typeConfig = POST_TYPE_CONFIG[postTypeSlug] || POST_TYPE_CONFIG.insight;
 
   try {
-    // ── 1. Fetch company context ──────────────────────────────────
+    // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company } = await supabase
       .from("companies")
       .select("name, spokesperson_name, brand_color, spokesperson_appearance")
@@ -108,6 +108,24 @@ export async function POST(request: Request) {
       .eq("company_id", companyId)
       .eq("is_active", true)
       .single();
+
+    // If a specific spokesperson was selected, use their details instead of company defaults
+    let activeSpokesPerson: { name: string; tagline: string | null; appearance: string | null } | null = null;
+    if (spokespersonId) {
+      const { data: person } = await supabase
+        .from("company_spokespersons")
+        .select("name, tagline, profile_picture_url")
+        .eq("id", spokespersonId)
+        .eq("company_id", companyId)
+        .single();
+      if (person) {
+        activeSpokesPerson = {
+          name: person.name,
+          tagline: person.tagline,
+          appearance: null, // TODO: add appearance field to company_spokespersons
+        };
+      }
+    }
 
     // Blog teasers use CTA URLs instead of sign-offs, and have no first comment.
     // Other post types use the standard signoff + first comment flow.
@@ -170,7 +188,7 @@ export async function POST(request: Request) {
       audienceTheme: null,
       contentType: "social_post",
       weekNumber: 0,
-      spokespersonName: company?.spokesperson_name || null,
+      spokespersonName: activeSpokesPerson?.name || company?.spokesperson_name || null,
       postTypeSlug,
       postTypeLabel: POST_TYPES_LABELS[postTypeSlug] || postTypeSlug,
       imageArchetype: typeConfig.archetype,
@@ -189,7 +207,7 @@ export async function POST(request: Request) {
       // Build an image prompt from the content + archetype style.
       // For Pixar archetypes, inject the spokesperson's appearance description
       // so the character resembles the real person's profile picture.
-      const appearance = company?.spokesperson_appearance || DEFAULT_APPEARANCE;
+      const appearance = activeSpokesPerson?.appearance || company?.spokesperson_appearance || DEFAULT_APPEARANCE;
       const resolvedStyle = typeof typeConfig.imageStyle === "function"
         ? typeConfig.imageStyle(appearance)
         : typeConfig.imageStyle;

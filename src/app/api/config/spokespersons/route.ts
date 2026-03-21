@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { companyId, name, tagline, linkedinUrl, isPrimary } = body;
+  const { companyId, name, tagline, linkedinUrl, isPrimary, profilePictureUrl } = body;
   if (!companyId || !name) return NextResponse.json({ error: "companyId and name required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
@@ -39,6 +39,28 @@ export async function POST(request: Request) {
       .eq("company_id", companyId);
   }
 
+  // Auto-enrich from LinkedIn if URL provided but no photo
+  let resolvedPhoto = profilePictureUrl || null;
+  if (linkedinUrl && !resolvedPhoto) {
+    try {
+      const apiKey = process.env.PROXYCURL_API_KEY;
+      if (apiKey) {
+        let url = linkedinUrl.trim();
+        if (!url.startsWith("http")) url = `https://${url}`;
+        const res = await fetch(
+          `https://nubela.co/proxycurl/api/v2/linkedin?url=${encodeURIComponent(url)}&use_cache=if-present`,
+          { headers: { Authorization: `Bearer ${apiKey}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile_pic_url) resolvedPhoto = data.profile_pic_url;
+        }
+      }
+    } catch {
+      // Non-critical — continue without photo
+    }
+  }
+
   const { data, error } = await supabase
     .from("company_spokespersons")
     .insert({
@@ -46,6 +68,7 @@ export async function POST(request: Request) {
       name,
       tagline: tagline || null,
       linkedin_url: linkedinUrl || null,
+      profile_picture_url: resolvedPhoto,
       is_primary: isPrimary || false,
     })
     .select()

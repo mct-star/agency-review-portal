@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     topicId,
     contentType,
     additionalContext,
+    spokespersonId,
     spokespersonName,
     // Slot-specific fields (from posting schedule)
     postingSlotId,
@@ -131,6 +132,20 @@ export async function POST(request: Request) {
       throw new Error("Week not found");
     }
 
+    // If a specific spokesperson was selected, look up their name
+    let resolvedSpokespersonName = spokespersonName;
+    if (spokespersonId && !resolvedSpokespersonName) {
+      const { data: person } = await supabase
+        .from("company_spokespersons")
+        .select("name")
+        .eq("id", spokespersonId)
+        .eq("company_id", companyId)
+        .single();
+      if (person) {
+        resolvedSpokespersonName = person.name;
+      }
+    }
+
     // Topic is optional — in cohesive mode, the topic title comes from the request body
     const topic = topicRes.data;
 
@@ -209,7 +224,7 @@ export async function POST(request: Request) {
       audienceTheme: topic?.audience_theme || null,
       contentType: contentType as ContentGenerationInput["contentType"],
       weekNumber: weekRes.data.week_number,
-      spokespersonName: spokespersonName || companyRes.data?.spokesperson_name || null,
+      spokespersonName: resolvedSpokespersonName || companyRes.data?.spokesperson_name || null,
       additionalContext,
       // Slot-specific fields
       postTypeSlug: resolvedPostTypeSlug,
