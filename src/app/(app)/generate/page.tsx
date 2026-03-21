@@ -131,7 +131,7 @@ const SCOPE_OPTIONS: { id: GenerationScope; label: string; description: string; 
 ];
 
 const STEP_LABELS: Record<Step, string> = {
-  company: "Company",
+  company: "Who",
   scope: "What to Generate",
   configure: "Configure",
   generating: "Generate",
