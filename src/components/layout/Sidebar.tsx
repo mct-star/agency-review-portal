@@ -37,7 +37,7 @@ function buildSections(user: User): NavSection[] {
   if (isAdmin) {
     return [
       {
-        title: "Accounts",
+        title: "Setup",
         items: [
           { href: "/setup", label: "Companies", icon: "building" },
         ],

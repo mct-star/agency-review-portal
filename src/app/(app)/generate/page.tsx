@@ -937,86 +937,95 @@ export default function GeneratePage() {
 
       {/* Step 1: Who — brand + person */}
       {step === "company" && (
-        <div className="space-y-6">
-          {/* Brand selector — only show if multiple companies */}
-          {companies.length > 1 && (
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Select brand</h2>
-              <p className="mt-1 text-sm text-gray-500">Which company are you creating content for?</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {companies.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleSelectCompany(c.id)}
-                    className={`rounded-lg border bg-white p-4 text-left transition-all ${
-                      selectedCompanyId === c.id
-                        ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
-                        : "border-gray-200 hover:border-sky-300 hover:bg-sky-50/50"
-                    }`}
-                  >
-                    <h3 className="font-semibold text-gray-900">{c.name}</h3>
-                    {c.spokesperson_name && (
-                      <p className="mt-1 text-sm text-gray-500">{c.spokesperson_name}</p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="space-y-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="text-lg font-semibold text-gray-900">Who are you creating content for?</h2>
+            <p className="mt-1 text-sm text-gray-500">Select the brand and person whose voice this content will use.</p>
 
-          {/* Person selector — shows once company is selected */}
-          {selectedCompanyId && spokespersons.length > 0 && (
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                {companies.length > 1 ? "Posting as" : "Who are you creating content for?"}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">Select the person whose voice this content will use.</p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                {spokespersons.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedPersonId(p.id)}
-                    className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all ${
-                      selectedPersonId === p.id
-                        ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {/* Company dropdown — only for admin with multiple companies */}
+              {companies.length > 1 ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Brand</label>
+                  <select
+                    value={selectedCompanyId}
+                    onChange={(e) => handleSelectCompany(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
-                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200">
-                      {p.profile_picture_url ? (
-                        <img src={p.profile_picture_url} alt={p.name} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
-                          {p.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                      {p.tagline && <p className="text-xs text-gray-500 truncate max-w-[200px]">{p.tagline}</p>}
-                    </div>
-                    {p.is_primary && (
-                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[9px] font-semibold text-sky-700">Primary</span>
-                    )}
-                  </button>
-                ))}
+                    <option value="">Select a company...</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Brand</label>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900">
+                    {selectedCompany?.name || "No company"}
+                  </div>
+                </div>
+              )}
+
+              {/* Person dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Posting as</label>
+                {spokespersons.length > 0 ? (
+                  <select
+                    value={selectedPersonId}
+                    onChange={(e) => setSelectedPersonId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    {spokespersons.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.is_primary ? " (Primary)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : selectedCompanyId ? (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
+                    No people configured
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-400">
+                    Select a company first
+                  </div>
+                )}
               </div>
             </div>
-          )}
+
+            {/* Selected person preview */}
+            {selectedPerson && (
+              <div className="mt-4 flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-3">
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                  {selectedPerson.profile_picture_url ? (
+                    <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
+                      {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{selectedPerson.name}</p>
+                  {selectedPerson.tagline && <p className="text-xs text-gray-500">{selectedPerson.tagline}</p>}
+                </div>
+                <span className="ml-auto text-xs text-gray-400">{selectedCompany?.name}</span>
+              </div>
+            )}
+          </div>
 
           {/* Continue button */}
           {selectedCompanyId && selectedPersonId && (
-            <div className="pt-2">
-              <button
-                onClick={() => setStep("scope")}
-                className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-700"
-              >
-                Continue
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+            <button
+              onClick={() => setStep("scope")}
+              className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+            >
+              Continue
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           )}
         </div>
       )}
