@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
   const { data: company, error: companyErr } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color, logo_url, profile_picture_url")
+    .select("spokesperson_name, brand_color, logo_url, overlay_logo_url, profile_picture_url")
     .eq("id", companyId)
     .single();
 
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
 
     const result = await applyBrandOverlay(sampleImage, {
       brandColor: company.brand_color || "#0a66c2",
-      logoUrl: company.logo_url,
+      logoUrl: company.overlay_logo_url || company.logo_url,
       spokespersonName,
       profilePictureUrl: profilePicUrl,
       ctaText: spokespersonName ? `Follow ${spokespersonName}` : null,
@@ -80,7 +80,8 @@ export async function GET(request: Request) {
       url: `data:image/png;base64,${base64}`,
       width: result.width,
       height: result.height,
-      hasLogo: !!company.logo_url,
+      hasLogo: !!(company.overlay_logo_url || company.logo_url),
+      hasOverlayLogo: !!company.overlay_logo_url,
       hasProfilePic: !!profilePicUrl,
       hasName: !!spokespersonName,
     });

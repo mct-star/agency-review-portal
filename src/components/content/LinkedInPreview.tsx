@@ -254,7 +254,15 @@ export default function LinkedInPreview({
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
               style={{ backgroundColor: brandColor }}
             >
-              {initials}
+              {authorAvatarUrl ? (
+                <img
+                  src={authorAvatarUrl}
+                  alt={authorName}
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                initials
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="rounded-xl bg-gray-50 px-3 py-2">

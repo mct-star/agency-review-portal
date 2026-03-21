@@ -25,11 +25,17 @@ import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enha
  */
 
 // Post type → archetype + image style mapping (from the atoms)
-const POST_TYPE_CONFIG: Record<string, {
+// Pixar archetypes use a dynamic character description from the company's
+// spokesperson_appearance field, so the Pixar character resembles the real person.
+const DEFAULT_APPEARANCE = "professional in smart business attire";
+
+interface PostTypeConfig {
   archetype: string;
-  imageStyle: string;
+  imageStyle: string | ((appearance: string) => string);
   dimensions: { width: number; height: number };
-}> = {
+}
+
+const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
   insight: {
     archetype: "quote_card",
     imageStyle: "Flat solid green (#CDD856) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. No scenes, people, objects, gradients, textures. The power comes from the emptiness.",
@@ -37,7 +43,8 @@ const POST_TYPE_CONFIG: Record<string, {
   },
   launch_story: {
     archetype: "pixar_healthcare",
-    imageStyle: "Pixar/Disney-adjacent 3D rendered scene in a hospital/healthcare environment. Sophisticated lighting, slightly exaggerated proportions. Main character: late 30s/early 40s, sandy/light brown hair, navy blazer, light blue open-collar shirt. NHS hospital setting with medical props.",
+    imageStyle: (appearance) =>
+      `Pixar/Disney-adjacent 3D rendered scene in a hospital/healthcare environment. Sophisticated lighting, slightly exaggerated proportions. Main character: ${appearance}. The Pixar character should clearly resemble this person. NHS hospital setting with medical props.`,
     dimensions: { width: 1080, height: 1350 },
   },
   if_i_was: {
@@ -57,7 +64,8 @@ const POST_TYPE_CONFIG: Record<string, {
   },
   founder_friday: {
     archetype: "pixar_fantasy",
-    imageStyle: "Pixar/Disney-adjacent 3D rendered scene showing a 'fantasy vs reality' moment. Split composition or contrasting elements. Main character: late 30s/early 40s, sandy/light brown hair, navy blazer. Warm, intimate lighting. Candid, reflective moment.",
+    imageStyle: (appearance) =>
+      `Pixar/Disney-adjacent 3D rendered scene showing a 'fantasy vs reality' moment. Split composition or contrasting elements. Main character: ${appearance}. The Pixar character should clearly resemble this person. Warm, intimate lighting. Candid, reflective moment.`,
     dimensions: { width: 1080, height: 1350 },
   },
   blog_teaser: {
@@ -90,7 +98,7 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context ──────────────────────────────────
     const { data: company } = await supabase
       .from("companies")
-      .select("name, spokesperson_name, brand_color")
+      .select("name, spokesperson_name, brand_color, spokesperson_appearance")
       .eq("id", companyId)
       .single();
 
@@ -147,11 +155,18 @@ export async function POST(request: Request) {
     try {
       const { provider: imgProvider } = await getImageProvider(companyId);
 
-      // Build an image prompt from the content + archetype style
+      // Build an image prompt from the content + archetype style.
+      // For Pixar archetypes, inject the spokesperson's appearance description
+      // so the character resembles the real person's profile picture.
+      const appearance = company?.spokesperson_appearance || DEFAULT_APPEARANCE;
+      const resolvedStyle = typeof typeConfig.imageStyle === "function"
+        ? typeConfig.imageStyle(appearance)
+        : typeConfig.imageStyle;
+
       const hookText = contentResult.markdownBody?.split("\n")[0] || topic;
       const rawPrompt = typeConfig.archetype.includes("quote_card")
-        ? `${typeConfig.imageStyle} Text on image: "${hookText.slice(0, 60)}"`
-        : `${typeConfig.imageStyle} Scene illustrating: ${topic.slice(0, 120)}`;
+        ? `${resolvedStyle} Text on image: "${hookText.slice(0, 60)}"`
+        : `${resolvedStyle} Scene illustrating: ${topic.slice(0, 120)}`;
 
       imagePrompt = rawPrompt;
 

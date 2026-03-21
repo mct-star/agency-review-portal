@@ -138,15 +138,28 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
 
         <div className="p-6">
           <div className="flex items-start gap-6">
-            {/* Logo */}
-            <div className="shrink-0">
-              <ImageUploader
-                companyId={companyId}
-                currentUrl={company.logo_url}
-                uploadType="logo"
-                label="Logo"
-                size={80}
-              />
+            {/* Logos */}
+            <div className="shrink-0 flex items-start gap-3">
+              <div className="text-center">
+                <ImageUploader
+                  companyId={companyId}
+                  currentUrl={company.logo_url}
+                  uploadType="logo"
+                  label="Logo"
+                  size={80}
+                />
+                <p className="mt-1 text-[9px] text-gray-400">Main</p>
+              </div>
+              <div className="text-center">
+                <ImageUploader
+                  companyId={companyId}
+                  currentUrl={company.overlay_logo_url}
+                  uploadType="overlay_logo"
+                  label="Overlay"
+                  size={80}
+                />
+                <p className="mt-1 text-[9px] text-gray-400 max-w-[80px] leading-tight">White version for images</p>
+              </div>
             </div>
 
             {/* Company info */}

@@ -21,13 +21,13 @@ export default async function DashboardPage() {
     // Admins see all companies in a dropdown
     const { data } = await supabase
       .from("companies")
-      .select("id, name, spokesperson_name, spokesperson_tagline, brand_color")
+      .select("id, name, spokesperson_name, spokesperson_tagline, brand_color, profile_picture_url")
       .order("name");
     companies = data || [];
   } else if (companyId) {
     const { data } = await supabase
       .from("companies")
-      .select("id, name, spokesperson_name, spokesperson_tagline, brand_color")
+      .select("id, name, spokesperson_name, spokesperson_tagline, brand_color, profile_picture_url")
       .eq("id", companyId)
       .single();
     if (data) companies = [data];
@@ -113,6 +113,7 @@ export default async function DashboardPage() {
             authorName: c.spokesperson_name || "Author",
             authorTagline: c.spokesperson_tagline || "",
             brandColor: c.brand_color || "#0a66c2",
+            profilePictureUrl: c.profile_picture_url || null,
           }))}
           showCompanyPicker={isAdmin && companies.length > 1}
         />

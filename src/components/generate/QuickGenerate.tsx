@@ -87,6 +87,7 @@ interface CompanyOption {
   authorName: string;
   authorTagline: string;
   brandColor: string;
+  profilePictureUrl?: string | null;
 }
 
 interface QuickGenerateProps {
@@ -389,6 +390,7 @@ export default function QuickGenerate({
             <LinkedInPreview
               authorName={selectedCompany.authorName}
               authorTagline={selectedCompany.authorTagline}
+              authorAvatarUrl={selectedCompany.profilePictureUrl || undefined}
               postText={result.postText}
               firstComment={result.firstComment}
               postType={result.postType}

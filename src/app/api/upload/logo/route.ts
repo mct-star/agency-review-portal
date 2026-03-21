@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     logo: "logo",
     profile_picture: "profile",
     brand_mask: "brand_mask",
+    overlay_logo: "overlay_logo",
   };
   const filenameBase = filenameMap[uploadType] || "logo";
   const storagePath = `logos/${companyId}/${filenameBase}.${ext}`;
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
     logo: "logo_url",
     profile_picture: "profile_picture_url",
     brand_mask: "brand_mask_url",
+    overlay_logo: "overlay_logo_url",
   };
   const updateField = fieldMap[uploadType] || "logo_url";
   const { error: dbErr } = await supabase

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   // Fetch company branding + profile picture
   const { data: company, error: companyErr } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color, logo_url, profile_picture_url")
+    .select("spokesperson_name, brand_color, logo_url, overlay_logo_url, profile_picture_url")
     .eq("id", companyId)
     .single();
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     // dynamically generated SVG overlay (the mask already contains the brand frame).
     const result = await applyBrandOverlay(imageUrl, {
       brandColor: company.brand_color || "#0a66c2",
-      logoUrl: company.logo_url,
+      logoUrl: company.overlay_logo_url || company.logo_url,
       spokespersonName,
       profilePictureUrl: profilePicUrl,
       ctaText: spokespersonName ? `Follow ${spokespersonName}` : null,
