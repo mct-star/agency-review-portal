@@ -41,11 +41,38 @@ interface TopicEntry {
 }
 
 interface GenerationStatus {
-  phase: "idle" | "preparing" | "generating" | "images" | "complete" | "error";
+  phase: "idle" | "preparing" | "generating" | "images" | "translating" | "reviewing" | "complete" | "error";
   current: number;
   total: number;
   currentLabel: string;
   error?: string;
+}
+
+interface RegReviewResults {
+  totalIssues: number;
+  criticalCount: number;
+  warningCount: number;
+  results: {
+    pieceId: string;
+    title: string;
+    contentType: string;
+    overallRisk: string;
+    issues: { flag: string; category: string; title: string; description: string; countries: string[]; suggestion: string }[];
+    summary: string;
+  }[];
+}
+
+interface TranslationResults {
+  translatedCount: number;
+  targetLanguages: string[];
+  translations: {
+    pieceId: string;
+    originalTitle: string;
+    language: string;
+    languageName: string;
+    translatedTitle: string;
+    newPieceId?: string;
+  }[];
 }
 
 type GenerationScope = "single_post" | "single_blog" | "single_article" | "full_week" | "full_month";
@@ -151,6 +178,12 @@ export default function GeneratePage() {
   const [topicMode, setTopicMode] = useState<"bank" | "custom">("bank");
   const [blogTitle, setBlogTitle] = useState<string | null>(null);
   const [blogUrl, setBlogUrl] = useState<string | null>(null);
+  // Translation & regulatory
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>(["GB"]);
+  const [runRegReview, setRunRegReview] = useState(false);
+  const [regReviewResults, setRegReviewResults] = useState<RegReviewResults | null>(null);
+  const [translationResults, setTranslationResults] = useState<TranslationResults | null>(null);
   const [status, setStatus] = useState<GenerationStatus>({
     phase: "idle",
     current: 0,
@@ -537,13 +570,59 @@ export default function GeneratePage() {
 
       if (piecesCreated === 0) {
         setStatus({ phase: "error", current: 0, total, currentLabel: "", error: `Generation failed for all ${total} pieces. Check your Anthropic API key in Setup > API Keys.` });
-      } else {
-        setStatus({ phase: "complete", current: piecesCreated, total, currentLabel: `Generated ${piecesCreated}/${total} pieces${imagesCreated ? ` + ${imagesCreated} images` : ""}` });
+        return;
       }
+
+      // ── Post-generation: Translation ──
+      if (selectedLanguages.length > 0 && resolvedWeekId) {
+        setStatus({ phase: "translating", current: 0, total: selectedLanguages.length, currentLabel: `Translating into ${selectedLanguages.length} language${selectedLanguages.length > 1 ? "s" : ""}...` });
+        try {
+          const transRes = await fetch("/api/generate/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: selectedCompanyId,
+              weekId: resolvedWeekId,
+              targetLanguages: selectedLanguages,
+              createNewPieces: true,
+            }),
+          });
+          if (transRes.ok) {
+            const transData = await transRes.json();
+            setTranslationResults(transData);
+          }
+        } catch {
+          console.warn("Translation failed, continuing...");
+        }
+      }
+
+      // ── Post-generation: Regulatory Review ──
+      if (runRegReview && resolvedWeekId) {
+        setStatus({ phase: "reviewing", current: 0, total: 1, currentLabel: `Running regulatory review across ${selectedCountries.length} market${selectedCountries.length > 1 ? "s" : ""}...` });
+        try {
+          const reviewRes = await fetch("/api/review/regulatory", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: selectedCompanyId,
+              weekId: resolvedWeekId,
+              targetCountries: selectedCountries,
+            }),
+          });
+          if (reviewRes.ok) {
+            const reviewData = await reviewRes.json();
+            setRegReviewResults(reviewData);
+          }
+        } catch {
+          console.warn("Regulatory review failed, continuing...");
+        }
+      }
+
+      setStatus({ phase: "complete", current: piecesCreated, total, currentLabel: `Generated ${piecesCreated}/${total} pieces${imagesCreated ? ` + ${imagesCreated} images` : ""}` });
     } catch (err) {
       setStatus({ phase: "error", current: 0, total: 0, currentLabel: "", error: err instanceof Error ? err.message : "Generation failed" });
     }
-  }, [selectedCompanyId, selectedWeekId, selectedWeekStart, isCohesive, weekSubject, generateImages]);
+  }, [selectedCompanyId, selectedWeekId, selectedWeekStart, isCohesive, weekSubject, generateImages, selectedLanguages, runRegReview, selectedCountries]);
 
   // ─── Full month generation ──────────────────────────────
   const handleGenerateMonth = useCallback(async () => {
@@ -696,6 +775,58 @@ export default function GeneratePage() {
         }
       }
 
+      // ── Post-generation: Translation (all weeks) ──
+      if (selectedLanguages.length > 0) {
+        setStatus({ phase: "translating", current: 0, total: selectedLanguages.length, currentLabel: `Translating ${completedPieces} pieces into ${selectedLanguages.length} language${selectedLanguages.length > 1 ? "s" : ""}...` });
+        // Translate the first week (the one the user selected) — contains all generated content
+        const firstWeekId = weeks.find((w) => w.date_start === selectedWeekStart)?.id;
+        if (firstWeekId) {
+          try {
+            const transRes = await fetch("/api/generate/translate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                companyId: selectedCompanyId,
+                weekId: firstWeekId,
+                targetLanguages: selectedLanguages,
+                createNewPieces: true,
+              }),
+            });
+            if (transRes.ok) {
+              const transData = await transRes.json();
+              setTranslationResults(transData);
+            }
+          } catch {
+            console.warn("Translation failed, continuing...");
+          }
+        }
+      }
+
+      // ── Post-generation: Regulatory Review (all weeks) ──
+      if (runRegReview) {
+        setStatus({ phase: "reviewing", current: 0, total: 1, currentLabel: `Running regulatory review across ${selectedCountries.length} market${selectedCountries.length > 1 ? "s" : ""}...` });
+        const firstWeekId = weeks.find((w) => w.date_start === selectedWeekStart)?.id;
+        if (firstWeekId) {
+          try {
+            const reviewRes = await fetch("/api/review/regulatory", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                companyId: selectedCompanyId,
+                weekId: firstWeekId,
+                targetCountries: selectedCountries,
+              }),
+            });
+            if (reviewRes.ok) {
+              const reviewData = await reviewRes.json();
+              setRegReviewResults(reviewData);
+            }
+          } catch {
+            console.warn("Regulatory review failed, continuing...");
+          }
+        }
+      }
+
       setStatus({
         phase: "complete",
         current: completedPieces,
@@ -711,7 +842,7 @@ export default function GeneratePage() {
         error: err instanceof Error ? err.message : "Month generation failed",
       });
     }
-  }, [selectedCompanyId, selectedWeekStart, isCohesive, weekSubject, generateImages, weeks]);
+  }, [selectedCompanyId, selectedWeekStart, isCohesive, weekSubject, generateImages, weeks, selectedLanguages, runRegReview, selectedCountries]);
 
   const handleGenerate = selectedScope === "full_month"
     ? handleGenerateMonth
@@ -1107,6 +1238,106 @@ export default function GeneratePage() {
                 </label>
               </div>
 
+              {/* Translation options — week/month only */}
+              {(isWeekMode || isMonthMode) && (
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-900">Translate into additional languages</span>
+                    <p className="text-xs text-gray-500 mt-0.5">After generation, translate all content into selected languages.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { code: "fr", label: "French", flag: "FR" },
+                      { code: "de", label: "German", flag: "DE" },
+                      { code: "es", label: "Spanish", flag: "ES" },
+                      { code: "it", label: "Italian", flag: "IT" },
+                      { code: "nl", label: "Dutch", flag: "NL" },
+                      { code: "pt", label: "Portuguese", flag: "PT" },
+                      { code: "pl", label: "Polish", flag: "PL" },
+                      { code: "sv", label: "Swedish", flag: "SE" },
+                      { code: "da", label: "Danish", flag: "DK" },
+                    ].map((lang) => (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLanguages((prev) =>
+                            prev.includes(lang.code)
+                              ? prev.filter((l) => l !== lang.code)
+                              : [...prev, lang.code]
+                          );
+                        }}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          selectedLanguages.includes(lang.code)
+                            ? "border-sky-400 bg-sky-50 text-sky-700"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        {lang.label}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedLanguages.length > 0 && (
+                    <p className="text-xs text-sky-600">
+                      Will translate {selectedLanguages.length} language{selectedLanguages.length > 1 ? "s" : ""} after generation
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Regulatory review — week/month only */}
+              {(isWeekMode || isMonthMode) && (
+                <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={runRegReview}
+                      onChange={(e) => setRunRegReview(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">Run legal and regulatory review</span>
+                      <p className="text-xs text-gray-500">Check content for healthcare advertising compliance issues across target markets.</p>
+                    </div>
+                  </label>
+                  {runRegReview && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-700 mb-1.5">Target markets:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { code: "GB", label: "UK" },
+                          { code: "FR", label: "France" },
+                          { code: "DE", label: "Germany" },
+                          { code: "BE", label: "Belgium" },
+                          { code: "NL", label: "Netherlands" },
+                          { code: "IT", label: "Italy" },
+                          { code: "ES", label: "Spain" },
+                        ].map((country) => (
+                          <button
+                            key={country.code}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCountries((prev) =>
+                                prev.includes(country.code)
+                                  ? prev.filter((c) => c !== country.code)
+                                  : [...prev, country.code]
+                              );
+                            }}
+                            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selectedCountries.includes(country.code)
+                                ? "border-amber-400 bg-amber-50 text-amber-700"
+                                : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            }`}
+                          >
+                            {country.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={handleGenerate}
                 disabled={
@@ -1117,7 +1348,11 @@ export default function GeneratePage() {
                 }
                 className="w-full rounded-lg bg-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 disabled:opacity-50"
               >
-                {isSingleMode ? "Generate" : selectedWeek ? `Generate Week ${selectedWeek.week_number}` : "Generate Week"}
+                {isSingleMode
+                  ? "Generate"
+                  : isMonthMode
+                  ? `Generate 4 Weeks${selectedLanguages.length > 0 ? ` + ${selectedLanguages.length} Languages` : ""}${runRegReview ? " + Reg Review" : ""}`
+                  : `Generate Week${selectedLanguages.length > 0 ? ` + ${selectedLanguages.length} Languages` : ""}${runRegReview ? " + Reg Review" : ""}`}
               </button>
             </>
           )}
@@ -1127,7 +1362,7 @@ export default function GeneratePage() {
       {/* Step 4: Generating */}
       {step === "generating" && (
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-center space-y-4">
-          {(status.phase === "preparing" || status.phase === "generating" || status.phase === "images") && (
+          {(status.phase === "preparing" || status.phase === "generating" || status.phase === "images" || status.phase === "translating" || status.phase === "reviewing") && (
             <>
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-sky-200 border-t-sky-600" />
               <p className="text-sm text-gray-600">{status.currentLabel}</p>
@@ -1153,6 +1388,87 @@ export default function GeneratePage() {
                 </svg>
               </div>
               <p className="text-sm font-semibold text-green-700">{status.currentLabel}</p>
+
+              {/* Translation results summary */}
+              {translationResults && translationResults.translatedCount > 0 && (
+                <div className="mx-auto max-w-md rounded-lg border border-sky-200 bg-sky-50 p-3 text-left">
+                  <p className="text-xs font-semibold text-sky-800">
+                    Translated {translationResults.translatedCount} piece{translationResults.translatedCount > 1 ? "s" : ""} into {translationResults.targetLanguages.length} language{translationResults.targetLanguages.length > 1 ? "s" : ""}
+                  </p>
+                  <p className="text-xs text-sky-600 mt-1">
+                    Languages: {translationResults.targetLanguages.join(", ").toUpperCase()}
+                  </p>
+                </div>
+              )}
+
+              {/* Regulatory review results */}
+              {regReviewResults && (
+                <div className="mx-auto max-w-lg space-y-3 text-left">
+                  <div className={`rounded-lg border p-3 ${
+                    regReviewResults.criticalCount > 0 ? "border-red-300 bg-red-50" :
+                    regReviewResults.warningCount > 0 ? "border-amber-300 bg-amber-50" :
+                    "border-green-300 bg-green-50"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-gray-800">Regulatory Review</p>
+                      <div className="flex gap-2">
+                        {regReviewResults.criticalCount > 0 && (
+                          <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                            {regReviewResults.criticalCount} critical
+                          </span>
+                        )}
+                        {regReviewResults.warningCount > 0 && (
+                          <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                            {regReviewResults.warningCount} warning{regReviewResults.warningCount > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {regReviewResults.totalIssues === 0 && (
+                          <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                            All clear
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {regReviewResults.results.filter((r) => r.issues.length > 0).map((result) => (
+                    <div key={result.pieceId} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-semibold text-gray-900">{result.title}</p>
+                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          result.overallRisk === "critical" ? "bg-red-100 text-red-700" :
+                          result.overallRisk === "high" ? "bg-orange-100 text-orange-700" :
+                          result.overallRisk === "medium" ? "bg-amber-100 text-amber-700" :
+                          "bg-green-100 text-green-700"
+                        }`}>
+                          {result.overallRisk} risk
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">{result.summary}</p>
+                      {result.issues.map((issue, idx) => (
+                        <div key={idx} className={`rounded border-l-2 p-2 text-xs ${
+                          issue.flag === "critical" ? "border-red-500 bg-red-50" :
+                          issue.flag === "warning" ? "border-amber-500 bg-amber-50" :
+                          "border-blue-500 bg-blue-50"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`rounded px-1 py-0.5 text-[9px] font-bold uppercase ${
+                              issue.flag === "critical" ? "bg-red-600 text-white" :
+                              issue.flag === "warning" ? "bg-amber-500 text-white" :
+                              "bg-blue-500 text-white"
+                            }`}>{issue.flag}</span>
+                            <span className="font-semibold text-gray-800">{issue.title}</span>
+                            <span className="text-gray-400">{issue.countries.join(", ")}</span>
+                          </div>
+                          <p className="mt-1 text-gray-600">{issue.description}</p>
+                          <p className="mt-1 text-gray-800 font-medium">Fix: {issue.suggestion}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex justify-center gap-3">
                 {selectedWeekId && (
                   <a href={`/review/${selectedWeekId}`} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">
@@ -1173,6 +1489,11 @@ export default function GeneratePage() {
                   onClick={() => {
                     setStep("scope");
                     setSelectedScope("");
+                    setSelectedLanguages([]);
+                    setSelectedCountries(["GB"]);
+                    setRunRegReview(false);
+                    setRegReviewResults(null);
+                    setTranslationResults(null);
                     setStatus({ phase: "idle", current: 0, total: 0, currentLabel: "" });
                   }}
                   className="rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
