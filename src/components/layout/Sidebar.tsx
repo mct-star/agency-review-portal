@@ -39,15 +39,20 @@ const sections: NavSection[] = [
     ],
   },
   {
+    title: "Review",
+    items: [
+      { href: "/review", label: "Content", icon: "calendar" },
+    ],
+  },
+  {
     title: "Plan",
     items: [
       { href: "/calendar", label: "Calendar", icon: "calendarView" },
     ],
   },
   {
-    title: "Review",
+    title: "Publish",
     items: [
-      { href: "/review", label: "Content", icon: "calendar" },
       { href: "/publish", label: "Post", icon: "send", publisherOnly: true },
     ],
   },
