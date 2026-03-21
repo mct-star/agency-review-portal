@@ -135,6 +135,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
         brandColor={company?.brand_color || "#0a66c2"}
         postType={piece.post_type}
         imageUrl={previewImageUrl}
+        companyId={piece.company_id}
+        contentPieceId={piece.id}
       />
 
       {/* Images */}

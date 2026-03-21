@@ -129,15 +129,22 @@ export async function POST(request: Request) {
     // Topic is optional — in cohesive mode, the topic title comes from the request body
     const topic = topicRes.data;
 
-    // Pick a sign-off to use. Rotate across configured sign-offs based on the
-    // piece's position in the week (variety without pure randomness).
+    // Pick a sign-off to use.
+    // Priority: a signoff whose applies_to_post_types includes the current post type slug.
+    // Fallback: a signoff with an empty applies_to_post_types array (the default).
     const signoffs = signoffsRes.data || [];
-    const { count: existingPieceCount } = await supabase
-      .from("content_pieces")
-      .select("*", { count: "exact", head: true })
-      .eq("week_id", weekId);
-    const pieceIndex = existingPieceCount || 0;
-    const selectedSignoff = signoffs.length > 0 ? signoffs[pieceIndex % signoffs.length] : null;
+    const matchedSignoff = postTypeSlug
+      ? signoffs.find(
+          (s) =>
+            Array.isArray(s.applies_to_post_types) &&
+            s.applies_to_post_types.length > 0 &&
+            s.applies_to_post_types.includes(postTypeSlug)
+        )
+      : null;
+    const defaultSignoff = signoffs.find(
+      (s) => !Array.isArray(s.applies_to_post_types) || s.applies_to_post_types.length === 0
+    );
+    const selectedSignoff = matchedSignoff || defaultSignoff || signoffs[0] || null;
 
     await supabase
       .from("content_generation_jobs")

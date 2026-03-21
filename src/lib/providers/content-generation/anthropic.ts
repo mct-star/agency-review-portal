@@ -228,19 +228,18 @@ function buildContentPrompt(input: ContentGenerationInput): string {
     parts.push("- The CTA URL goes in the FIRST COMMENT ONLY. NEVER put the CTA URL in the main post body.");
     parts.push("- The first comment is conversational and brief (1-3 sentences + link).");
 
-    if (input.firstCommentTemplate && input.ctaUrl) {
-      const filledTemplate = input.firstCommentTemplate.replace(/\{url\}/g, input.ctaUrl);
-      parts.push(`- Use this template: "${filledTemplate}"`);
+    if (input.firstCommentTemplate === "COFFEE_COMMENT" || input.postTypeSlug === "blog_teaser" || input.postTypeSlug === "sunday_post" || input.postTypeSlug === "personal" || input.postTypeSlug === "story") {
+      // Sunday / personal posts get a warm coffee comment, not a CTA
+      parts.length = 0;
+      parts.push("FIRST COMMENT: A warm, human coffee comment. NOT a CTA or pitch.");
+      parts.push('Soft and conversational, 1-2 sentences. Examples: "Coffee is on. Quiet house. Good morning for thinking." or "Sunday ritual: coffee, reading, zero notifications."');
+    } else if (input.firstCommentTemplate) {
+      const filledTemplate = input.firstCommentTemplate.replace(/\{url\}/g, input.ctaUrl || "");
+      parts.push(`- Copy this EXACT text verbatim as the first comment. Do NOT paraphrase, shorten, or modify a single word:`);
+      parts.push(`"""\n${filledTemplate}\n"""`);
     } else if (input.ctaUrl) {
       parts.push(`- CTA URL to include: ${input.ctaUrl}`);
       if (input.ctaLinkText) parts.push(`- Link text: "${input.ctaLinkText}"`);
-    }
-
-    // Blog teaser first comment is different (coffee comment, not CTA)
-    if (input.postTypeSlug === "blog_teaser") {
-      parts.length = 0;
-      parts.push("FIRST COMMENT: Coffee comment (NOT a CTA). Soft, human, 1-2 sentences.");
-      parts.push('Examples: "Coffee is on. Quiet house. Good morning for thinking."');
     }
 
     return parts.join("\n   ");

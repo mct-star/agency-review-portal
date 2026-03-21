@@ -39,6 +39,12 @@ const sections: NavSection[] = [
     ],
   },
   {
+    title: "Plan",
+    items: [
+      { href: "/calendar", label: "Calendar", icon: "calendarView" },
+    ],
+  },
+  {
     title: "Review",
     items: [
       { href: "/review", label: "Content", icon: "calendar" },
@@ -57,6 +63,8 @@ const icons: Record<string, string> = {
     "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM6 8a6 6 0 1 1 12 0A6 6 0 0 1 6 8Zm-2 12a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z",
   sparkle:
     "M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z",
+  calendarView:
+    "M3 5a2 2 0 0 1 2-2h2V2a1 1 0 1 1 2 0v1h6V2a1 1 0 1 1 2 0v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm16 4H5v10h14V9ZM7 11h2v2H7v-2Zm4 0h2v2h-2v-2Zm4 0h2v2h-2v-2ZM7 15h2v2H7v-2Zm4 0h2v2h-2v-2Z",
   send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
 };
 

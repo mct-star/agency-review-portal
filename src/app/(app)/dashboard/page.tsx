@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Badge from "@/components/ui/Badge";
+import QuickGenerate from "@/components/generate/QuickGenerate";
 import type { Week, Company, Notification } from "@/types/database";
 
 export default async function DashboardPage() {
@@ -10,6 +11,27 @@ export default async function DashboardPage() {
 
   const supabase = await createServerSupabaseClient();
   const isAdmin = profile.role === "admin";
+
+  // Fetch company data for Quick Generate
+  const companyId = profile.company_id;
+  type CompanyInfo = { id: string; name: string; spokesperson_name: string | null; spokesperson_tagline: string | null; brand_color: string | null };
+  let companies: CompanyInfo[] = [];
+
+  if (isAdmin) {
+    // Admins see all companies in a dropdown
+    const { data } = await supabase
+      .from("companies")
+      .select("id, name, spokesperson_name, spokesperson_tagline, brand_color")
+      .order("name");
+    companies = data || [];
+  } else if (companyId) {
+    const { data } = await supabase
+      .from("companies")
+      .select("id, name, spokesperson_name, spokesperson_tagline, brand_color")
+      .eq("id", companyId)
+      .single();
+    if (data) companies = [data];
+  }
 
   // Fetch weeks with company info
   let weeksQuery = supabase
@@ -80,6 +102,20 @@ export default async function DashboardPage() {
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Quick Generate */}
+      {companies.length > 0 && (
+        <QuickGenerate
+          companies={companies.map((c) => ({
+            id: c.id,
+            name: c.name,
+            authorName: c.spokesperson_name || "Author",
+            authorTagline: c.spokesperson_tagline || "",
+            brandColor: c.brand_color || "#0a66c2",
+          }))}
+          showCompanyPicker={isAdmin && companies.length > 1}
+        />
       )}
 
       {/* Recent Weeks */}

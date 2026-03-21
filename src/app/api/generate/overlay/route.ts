@@ -36,10 +36,10 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Fetch company branding + profile picture + mask
+  // Fetch company branding + profile picture
   const { data: company } = await supabase
     .from("companies")
-    .select("spokesperson_name, brand_color, logo_url, profile_picture_url, brand_mask_url")
+    .select("spokesperson_name, brand_color, logo_url, profile_picture_url")
     .eq("id", companyId)
     .single();
 
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       ctaText: spokespersonName ? `Follow ${spokespersonName}` : null,
       archetype: archetype || null,
       hookText: hookText || null,
-      brandMaskUrl: company.brand_mask_url || null,
+      brandMaskUrl: null, // TODO: re-enable once migration 011 (brand_mask_url column) is applied
     });
 
     // Store the branded image in Supabase Storage
