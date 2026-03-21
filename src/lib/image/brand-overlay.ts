@@ -94,7 +94,7 @@ import satori from "satori";
 import React from "react";
 
 /**
- * Load and cache the Inter Bold font data for Satori.
+ * Load and cache the Poppins SemiBold font data for Satori.
  * Satori converts React elements to SVG with text rendered as <path> elements
  * (vector outlines), so the output SVG needs zero font rendering capability.
  * This is the ONLY reliable way to render text on Vercel Lambda.
@@ -102,7 +102,7 @@ import React from "react";
 let _fontDataCache: ArrayBuffer | null = null;
 function getFontData(): ArrayBuffer {
   if (_fontDataCache) return _fontDataCache;
-  const fontPath = join(process.cwd(), "src/lib/image/fonts/Inter-Bold.ttf");
+  const fontPath = join(process.cwd(), "src/lib/image/fonts/Poppins-SemiBold.ttf");
   const buffer = readFileSync(fontPath);
   _fontDataCache = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   return _fontDataCache;
@@ -156,7 +156,7 @@ async function renderTextImage(
         display: "flex",
         color: options.color || "white",
         fontSize,
-        fontFamily: "Inter",
+        fontFamily: "Poppins",
         fontWeight: options.bold ? 700 : 400,
         whiteSpace: "nowrap",
       },
@@ -169,9 +169,9 @@ async function renderTextImage(
     height: options.height,
     fonts: [
       {
-        name: "Inter",
+        name: "Poppins",
         data: fontData,
-        weight: 700,
+        weight: 600,
         style: "normal" as const,
       },
     ],
@@ -238,7 +238,7 @@ export async function applyBrandOverlay(
   // Just the CTA line (e.g. "Follow Michael Colling-Tuck") — vertically
   // centred in the gradient bar next to the profile photo.
   const barHeight = Math.round(height * 0.14);
-  const ctaSize = Math.round(barHeight * 0.28);
+  const ctaSize = Math.round(barHeight * 0.2);
   const textX = hasProfilePhoto
     ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
     : Math.round(width * 0.04);
