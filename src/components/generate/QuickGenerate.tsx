@@ -296,9 +296,9 @@ export default function QuickGenerate({
       {state === "idle" || state === "error" ? (
         <div className="p-6 space-y-5">
           {/* Company + Person selector */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Company selector */}
-            {showCompanyPicker ? (
+          {showCompanyPicker ? (
+            /* Admin view: two separate dropdowns */
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Company
@@ -309,72 +309,91 @@ export default function QuickGenerate({
                     const c = companies.find((co) => co.id === e.target.value);
                     if (c) {
                       setSelectedCompany(c);
-                      setSelectedPersonId(null); // Reset person when company changes
+                      setSelectedPersonId(null);
                     }
                   }}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 >
                   {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
-            ) : (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Company
+                  Posting as
                 </label>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900">
-                  {selectedCompany.name}
-                </div>
+                {companyPeople.length > 0 ? (
+                  <select
+                    value={selectedPerson?.id || ""}
+                    onChange={(e) => setSelectedPersonId(e.target.value || null)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  >
+                    {companyPeople.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.isPrimary ? " (Primary)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
+                    {selectedCompany.authorName}
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* Person selector */}
+            </div>
+          ) : (
+            /* Client view: single combined dropdown with brand page + people */
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Posting as
               </label>
-              {companyPeople.length > 0 ? (
-                <select
-                  value={selectedPerson?.id || ""}
-                  onChange={(e) => setSelectedPersonId(e.target.value || null)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                >
-                  {companyPeople.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}{p.isPrimary ? " (Primary)" : ""}
-                    </option>
-                  ))}
-                </select>
+              <select
+                value={selectedPersonId || "__company__"}
+                onChange={(e) => {
+                  if (e.target.value === "__company__") {
+                    setSelectedPersonId(null);
+                  } else {
+                    setSelectedPersonId(e.target.value);
+                  }
+                }}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              >
+                <optgroup label="Brand Page">
+                  <option value="__company__">{selectedCompany.name} (Company Page)</option>
+                </optgroup>
+                {companyPeople.length > 0 && (
+                  <optgroup label="People">
+                    {companyPeople.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.isPrimary ? " (Primary)" : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
+
+          {/* Selected person/brand preview */}
+          <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-2.5">
+            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray-200">
+              {authorAvatar ? (
+                <img src={authorAvatar} alt={authorName} className="h-full w-full object-cover" />
               ) : (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
-                  {selectedCompany.authorName}
+                <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-bold text-gray-500">
+                  {authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Selected person preview */}
-          {selectedPerson && (
-            <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-2.5">
-              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray-200">
-                {authorAvatar ? (
-                  <img src={authorAvatar} alt={authorName} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-bold text-gray-500">
-                    {authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">{authorName}</p>
-                <p className="text-[11px] text-gray-500">{authorTagline}</p>
-              </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">{authorName}</p>
+              <p className="text-[11px] text-gray-500">{authorTagline}</p>
             </div>
-          )}
+            {!selectedPersonId && !showCompanyPicker && (
+              <span className="ml-auto rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">Company Page</span>
+            )}
+          </div>
 
           {/* Topic input */}
           <div>
