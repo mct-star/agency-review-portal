@@ -14,6 +14,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
+  const spokespersonId = searchParams.get("spokespersonId");
   if (!companyId) {
     return NextResponse.json(
       { error: "companyId is required" },
@@ -22,11 +23,20 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("company_social_accounts")
     .select("*")
-    .eq("company_id", companyId)
-    .order("platform");
+    .eq("company_id", companyId);
+
+  // Filter by spokesperson: null = company accounts only, specific ID = that person's accounts
+  if (spokespersonId === "company") {
+    query = query.is("spokesperson_id", null);
+  } else if (spokespersonId) {
+    query = query.eq("spokesperson_id", spokespersonId);
+  }
+  // No spokespersonId param = return all accounts (backwards compatible)
+
+  const { data, error } = await query.order("platform");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -66,6 +76,7 @@ export async function POST(request: Request) {
     refreshToken,
     tokenExpiresAt,
     platformMetadata,
+    spokespersonId,
   } = body;
 
   if (!companyId || !platform) {
@@ -83,6 +94,7 @@ export async function POST(request: Request) {
     account_name: accountName || null,
     account_id: accountId || null,
     platform_metadata: platformMetadata || {},
+    spokesperson_id: spokespersonId || null,
     is_active: true,
   };
 

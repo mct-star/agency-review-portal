@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import type { SocialPlatform } from "@/types/database";
 
 interface SocialAccount {
@@ -12,20 +13,21 @@ interface SocialAccount {
   account_id: string | null;
   has_tokens: boolean;
   is_active: boolean;
+  spokesperson_id: string | null;
   created_at: string;
 }
 
-const PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
-  { value: "linkedin_personal", label: "LinkedIn (Personal)", icon: "in" },
-  { value: "linkedin_company", label: "LinkedIn (Company)", icon: "in" },
-  { value: "twitter", label: "Twitter / X", icon: "X" },
-  { value: "bluesky", label: "Bluesky", icon: "BS" },
-  { value: "threads", label: "Threads", icon: "Th" },
-  { value: "facebook", label: "Facebook", icon: "Fb" },
-  { value: "instagram", label: "Instagram", icon: "Ig" },
+// Company-level platforms — pages/accounts that represent the brand
+const COMPANY_PLATFORMS: { value: SocialPlatform; label: string; icon: string }[] = [
+  { value: "linkedin_company", label: "LinkedIn (Company Page)", icon: "in" },
+  { value: "facebook", label: "Facebook Page", icon: "Fb" },
+  { value: "instagram", label: "Instagram (Brand)", icon: "Ig" },
+  { value: "twitter", label: "Twitter / X (Brand)", icon: "X" },
+  { value: "bluesky", label: "Bluesky (Brand)", icon: "BS" },
+  { value: "threads", label: "Threads (Brand)", icon: "Th" },
 ];
 
-export default function SocialAccountsPage() {
+export default function CompanySocialPage() {
   const { companyId } = useParams<{ companyId: string }>();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,8 +49,9 @@ export default function SocialAccountsPage() {
 
   async function fetchAccounts() {
     setLoading(true);
+    // Fetch only company-level accounts (no spokesperson_id)
     const res = await fetch(
-      `/api/config/social-accounts?companyId=${companyId}`
+      `/api/config/social-accounts?companyId=${companyId}&spokespersonId=company`
     );
     const json = await res.json();
     setAccounts(json.data || []);
@@ -68,6 +71,7 @@ export default function SocialAccountsPage() {
         platform: formPlatform,
         accountName: formAccountName || null,
         accountId: formAccountId || null,
+        // No spokespersonId = company-level account
       }),
     });
 
@@ -113,11 +117,18 @@ export default function SocialAccountsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Connect social platform accounts for multi-channel publishing.
-          OAuth integration coming soon — for now, add account details manually.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Company Social Accounts</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Company-level social pages and brand accounts.
+            Personal accounts (individual LinkedIn, Twitter, etc.) are managed on each{" "}
+            <Link href={`/setup/${companyId}/people`} className="text-sky-600 hover:underline">
+              person&apos;s page
+            </Link>
+            .
+          </p>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700"
@@ -129,7 +140,7 @@ export default function SocialAccountsPage() {
       {showForm && (
         <div className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
           <h3 className="text-sm font-semibold text-gray-900">
-            Add Social Account
+            Add Company Account
           </h3>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
@@ -144,7 +155,7 @@ export default function SocialAccountsPage() {
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
               >
                 <option value="">Select...</option>
-                {PLATFORMS.map((p) => (
+                {COMPANY_PLATFORMS.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
                   </option>
@@ -159,13 +170,13 @@ export default function SocialAccountsPage() {
                 type="text"
                 value={formAccountName}
                 onChange={(e) => setFormAccountName(e.target.value)}
-                placeholder="e.g. @agencybristol"
+                placeholder="e.g. AGENCY Bristol"
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700">
-                Account ID
+                Account ID / URL
               </label>
               <input
                 type="text"
@@ -194,9 +205,9 @@ export default function SocialAccountsPage() {
         </div>
       )}
 
-      {/* Connected accounts */}
+      {/* Connected company accounts */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {PLATFORMS.map((platform) => {
+        {COMPANY_PLATFORMS.map((platform) => {
           const connected = accounts.filter(
             (a) => a.platform === platform.value
           );

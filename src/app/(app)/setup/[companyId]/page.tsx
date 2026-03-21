@@ -10,6 +10,13 @@ interface PageProps {
 
 const SETUP_STEPS = [
   {
+    key: "people",
+    label: "People",
+    description: "Spokespersons with their own voice, photo, and social accounts",
+    href: "people",
+    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+  },
+  {
     key: "strategy",
     label: "Content Strategy",
     description: "Upload your content strategy to drive automated generation",
@@ -31,13 +38,6 @@ const SETUP_STEPS = [
     icon: "M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10",
   },
   {
-    key: "voice",
-    label: "Voice Profile",
-    description: "Define or scan your writing style for authentic content",
-    href: "voice",
-    icon: "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z",
-  },
-  {
     key: "signoffs",
     label: "Sign-offs and CTAs",
     description: "Set your standard sign-off text and first comment templates",
@@ -52,18 +52,18 @@ const SETUP_STEPS = [
     icon: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
   },
   {
+    key: "social",
+    label: "Company Social",
+    description: "Company-level social accounts (company LinkedIn, Facebook page)",
+    href: "social",
+    icon: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
+  },
+  {
     key: "api_keys",
     label: "API Keys",
     description: "Connect your AI providers for content and image generation",
     href: "api-keys",
     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
-  },
-  {
-    key: "social",
-    label: "Social Accounts",
-    description: "Connect LinkedIn and other platforms for direct publishing",
-    href: "social",
-    icon: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
   },
 ];
 
@@ -79,8 +79,9 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
 
   if (!company) notFound();
 
-  // Fetch completion status for each step
+  // Fetch people and completion status
   const [
+    { data: people },
     { count: apiConfigCount },
     { count: socialCount },
     { count: blueprintCount },
@@ -91,7 +92,9 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     { count: urlCount },
     { count: scheduleCount },
     { count: voiceCount },
+    { count: peopleCount },
   ] = await Promise.all([
+    supabase.from("company_spokespersons").select("*").eq("company_id", companyId).eq("is_active", true).order("sort_order"),
     supabase.from("company_api_configs").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_social_accounts").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_blueprints").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
@@ -102,36 +105,32 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     supabase.from("company_cta_urls").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("posting_slots").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
     supabase.from("company_voice_profiles").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
+    supabase.from("company_spokespersons").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
   ]);
 
   // Calculate step completion
   const stepStatus: Record<string, { done: boolean; detail: string }> = {
+    people: { done: (peopleCount || 0) > 0, detail: (peopleCount || 0) > 0 ? `${peopleCount} people` : "No people" },
     strategy: { done: (blueprintCount || 0) > 0, detail: (blueprintCount || 0) > 0 ? "Active" : "Not uploaded" },
     schedule: { done: (scheduleCount || 0) > 0, detail: (scheduleCount || 0) > 0 ? `${scheduleCount} slots` : "Not configured" },
     topics: { done: (topicCount || 0) > 0, detail: `${topicCount || 0} topics` },
-    voice: { done: (voiceCount || 0) > 0, detail: (voiceCount || 0) > 0 ? "Active" : "Not configured" },
     signoffs: { done: (signoffCount || 0) > 0, detail: (signoffCount || 0) > 0 ? "Configured" : "Not set" },
     urls: { done: (urlCount || 0) > 0, detail: `${urlCount || 0} URLs` },
-    api_keys: { done: (apiConfigCount || 0) > 0, detail: `${apiConfigCount || 0} providers` },
     social: { done: (socialCount || 0) > 0, detail: `${socialCount || 0} connected` },
+    api_keys: { done: (apiConfigCount || 0) > 0, detail: `${apiConfigCount || 0} providers` },
   };
 
   const completedSteps = Object.values(stepStatus).filter((s) => s.done).length;
   const totalSteps = SETUP_STEPS.length;
   const progressPercent = Math.round((completedSteps / totalSteps) * 100);
-  const isReadyToGenerate = completedSteps >= 4; // At least strategy, schedule, topics, API keys
+  const isReadyToGenerate = completedSteps >= 4;
 
-  // Get initials for avatar fallback
-  const initials = (company.spokesperson_name || company.name)
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  // Primary spokesperson for overlay preview
+  const primaryPerson = (people || []).find((p: { is_primary: boolean }) => p.is_primary) || (people || [])[0];
 
   return (
     <div className="space-y-8">
-      {/* Company Header with Logo + Profile */}
+      {/* Company Header — Company identity only */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         {/* Brand colour bar */}
         <div className="h-2" style={{ backgroundColor: company.brand_color || "#e5e7eb" }} />
@@ -174,27 +173,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
               </div>
               <p className="mt-0.5 text-sm text-gray-500">{company.slug}</p>
 
-              <div className="mt-3 flex items-center gap-6">
-                {/* Profile Picture */}
-                <div className="flex items-center gap-3">
-                  <ImageUploader
-                    companyId={companyId}
-                    currentUrl={company.profile_picture_url}
-                    uploadType="profile_picture"
-                    label="Photo"
-                    size={48}
-                    rounded
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {company.spokesperson_name || "No spokesperson"}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {company.spokesperson_tagline || "Add tagline"}
-                    </p>
-                  </div>
-                </div>
-
+              <div className="mt-3 flex items-center gap-4">
                 {/* Brand colour */}
                 <div className="flex items-center gap-2">
                   <span
@@ -203,6 +182,10 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   />
                   <span className="text-xs text-gray-400">{company.brand_color || "No colour"}</span>
                 </div>
+
+                {company.blog_base_url && (
+                  <span className="text-xs text-gray-400 truncate max-w-[200px]">{company.blog_base_url}</span>
+                )}
               </div>
             </div>
 
@@ -221,12 +204,92 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* People Section — Separate from company */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">People</h3>
+            <p className="text-xs text-gray-500">
+              Each person has their own profile, voice, and social accounts
+            </p>
+          </div>
+          <Link
+            href={`/setup/${companyId}/people`}
+            className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Manage People
+          </Link>
+        </div>
+
+        {(people || []).length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(people || []).map((person: { id: string; name: string; tagline: string | null; profile_picture_url: string | null; is_primary: boolean; linkedin_url: string | null }) => (
+              <Link
+                key={person.id}
+                href={`/setup/${companyId}/people/${person.id}`}
+                className={`group rounded-lg border p-3 transition-all hover:shadow-md ${
+                  person.is_primary
+                    ? "border-sky-200 bg-sky-50/50 hover:border-sky-300"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Photo */}
+                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200">
+                    {person.profile_picture_url ? (
+                      <img src={person.profile_picture_url} alt={person.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
+                        {person.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-gray-900 truncate">{person.name}</p>
+                      {person.is_primary && (
+                        <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700 shrink-0">
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-500 truncate">{person.tagline || "No tagline"}</p>
+                  </div>
+
+                  {/* Arrow */}
+                  <svg
+                    className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <Link
+            href={`/setup/${companyId}/people`}
+            className="block rounded-lg border border-dashed border-gray-300 p-6 text-center hover:border-sky-300 hover:bg-sky-50/30 transition-colors"
+          >
+            <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+            <p className="mt-2 text-sm text-gray-500">Add your first spokesperson</p>
+          </Link>
+        )}
+      </div>
+
       {/* Overlay Preview */}
       <OverlayPreview
         companyId={companyId}
         hasLogo={!!company.logo_url}
-        hasProfilePic={!!company.profile_picture_url}
-        hasName={!!company.spokesperson_name}
+        hasProfilePic={!!primaryPerson?.profile_picture_url}
+        hasName={!!primaryPerson?.name}
         brandColor={company.brand_color || ""}
       />
 

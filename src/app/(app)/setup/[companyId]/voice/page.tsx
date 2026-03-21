@@ -2,304 +2,168 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
-interface VoiceProfile {
-  id?: string;
-  voice_description: string;
-  writing_samples: string;
-  banned_vocabulary: string;
-  signature_devices: string;
-  emotional_register: string;
-  source: string;
+interface Spokesperson {
+  id: string;
+  name: string;
+  tagline: string | null;
+  profile_picture_url: string | null;
+  is_primary: boolean;
+}
+
+interface VoiceStatus {
+  spokespersonId: string;
+  hasVoice: boolean;
+  source: string | null;
 }
 
 export default function VoiceProfilePage() {
   const { companyId } = useParams<{ companyId: string }>();
-  const [profile, setProfile] = useState<VoiceProfile>({
-    voice_description: "",
-    writing_samples: "",
-    banned_vocabulary: "",
-    signature_devices: "",
-    emotional_register: "",
-    source: "manual",
-  });
-  const [saving, setSaving] = useState(false);
-  const [scanning, setScanning] = useState(false);
-  const [scanPosts, setScanPosts] = useState("");
-  const [linkedinUrl, setLinkedinUrl] = useState("");
-  const [scanMode, setScanMode] = useState<"url" | "paste">("url");
-  const [message, setMessage] = useState("");
+  const [people, setPeople] = useState<Spokesperson[]>([]);
+  const [voiceStatuses, setVoiceStatuses] = useState<VoiceStatus[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/config/voice?companyId=${companyId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.data) setProfile(d.data);
-      });
+    async function load() {
+      setLoading(true);
+      // Fetch people
+      const peopleRes = await fetch(`/api/config/spokespersons?companyId=${companyId}`);
+      const peopleData = await peopleRes.json();
+      const peopleList: Spokesperson[] = peopleData.data || [];
+      setPeople(peopleList);
+
+      // Fetch voice status for each person
+      const statuses = await Promise.all(
+        peopleList.map(async (person) => {
+          const res = await fetch(`/api/config/voice?companyId=${companyId}&spokespersonId=${person.id}`);
+          const data = await res.json();
+          return {
+            spokespersonId: person.id,
+            hasVoice: !!data.data,
+            source: data.data?.source || null,
+          };
+        })
+      );
+      setVoiceStatuses(statuses);
+      setLoading(false);
+    }
+    load();
   }, [companyId]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    setMessage("");
-    try {
-      const res = await fetch("/api/config/voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          voice_description: profile.voice_description,
-          writing_samples: profile.writing_samples,
-          banned_vocabulary: profile.banned_vocabulary,
-          signature_devices: profile.signature_devices,
-          emotional_register: profile.emotional_register,
-          source: profile.source,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Save failed");
-      setMessage("Voice profile saved");
-    } catch (err) {
-      setMessage(`Error saving: ${err instanceof Error ? err.message : "unknown"}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleScanLinkedIn = async () => {
-    const hasInput = scanMode === "url" ? linkedinUrl.trim() : scanPosts.trim();
-    if (!hasInput) return;
-    setScanning(true);
-    setMessage("");
-    try {
-      const requestBody = scanMode === "url"
-        ? { companyId, linkedinUrl: linkedinUrl.trim() }
-        : { companyId, posts: scanPosts };
-
-      const res = await fetch("/api/setup/scan-linkedin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-      const data = await res.json();
-
-      // If URL mode failed and needs manual paste, switch to paste mode
-      if (data.needsManualPaste) {
-        setScanMode("paste");
-        setMessage("Could not retrieve posts from that URL. Paste posts manually below.");
-        setScanning(false);
-        return;
-      }
-
-      if (!res.ok) throw new Error(data.error || "Scan failed");
-      if (data.profile) {
-        setProfile({
-          ...profile,
-          ...data.profile,
-          source: "linkedin_scan",
-        });
-        setMessage("Voice profile extracted. Review the results below and save.");
-      }
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Scan failed");
-    } finally {
-      setScanning(false);
-    }
+  const getVoiceStatus = (personId: string) => {
+    return voiceStatuses.find((v) => v.spokespersonId === personId);
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Voice Profile</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Voice Profiles</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Define how content should sound. Enter manually or scan LinkedIn posts to extract voice patterns.
+          Each person has their own voice profile that controls how content sounds when written in their name.
+          Click a person to configure their voice.
         </p>
       </div>
 
-      {/* Voice Scanner — Multiple Sources */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-blue-900">Scan Voice</h3>
-            <p className="mt-1 text-xs text-blue-700">
-              Analyse writing or speaking samples to extract voice patterns automatically.
-            </p>
-          </div>
-          {/* Source toggle */}
-          <div className="flex gap-0.5 rounded-md bg-blue-100 p-0.5">
-            {(["url", "paste", "blog", "video", "pdf"] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setScanMode(mode as "url" | "paste")}
-                className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
-                  scanMode === mode ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-sky-600" />
+        </div>
+      ) : people.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
+          <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+          </svg>
+          <p className="mt-2 text-sm text-gray-500">
+            Add people first, then configure their voice profiles.
+          </p>
+          <Link
+            href={`/setup/${companyId}/people`}
+            className="mt-3 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Add People
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {people.map((person) => {
+            const status = getVoiceStatus(person.id);
+            const initials = person.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+            return (
+              <Link
+                key={person.id}
+                href={`/setup/${companyId}/people/${person.id}`}
+                className={`group flex items-center gap-4 rounded-xl border p-4 transition-all hover:shadow-md ${
+                  status?.hasVoice
+                    ? "border-green-200 bg-green-50/50 hover:border-green-300"
+                    : "border-gray-200 bg-white hover:border-sky-300"
                 }`}
               >
-                {mode === "url" ? "LinkedIn" : mode === "paste" ? "Paste" : mode === "blog" ? "Blog" : mode === "video" ? "Video" : "PDF"}
-              </button>
-            ))}
-          </div>
+                {/* Photo */}
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border-2 border-gray-200">
+                  {person.profile_picture_url ? (
+                    <img src={person.profile_picture_url} alt={person.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-sm font-bold text-gray-400">
+                      {initials}
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">{person.name}</h3>
+                    {person.is_primary && (
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[9px] font-semibold text-sky-700">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  {person.tagline && <p className="text-xs text-gray-500">{person.tagline}</p>}
+                </div>
+
+                {/* Voice status */}
+                <div className="shrink-0 text-right">
+                  {status?.hasVoice ? (
+                    <div className="flex items-center gap-1.5">
+                      <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-xs font-medium text-green-600">
+                        {status.source === "linkedin_scan" ? "Scanned" : "Configured"}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">Not configured</span>
+                  )}
+                </div>
+
+                {/* Arrow */}
+                <svg
+                  className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-gray-500 transition-colors"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            );
+          })}
         </div>
-
-        {scanMode === "url" ? (
-          <div className="mt-3">
-            <input
-              type="url"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/username"
-              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
-            <p className="mt-1 text-[10px] text-blue-400">
-              We&apos;ll analyse their LinkedIn activity to extract voice patterns.
-            </p>
-          </div>
-        ) : (
-          <textarea
-            value={scanPosts}
-            onChange={(e) => setScanPosts(e.target.value)}
-            rows={6}
-            placeholder="Paste 5-10 LinkedIn posts here (separate with --- between posts)"
-            className="mt-3 block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-          />
-        )}
-
-        {scanMode === ("blog" as string) && (
-          <div className="mt-3">
-            <input
-              type="url"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://example.com/blog/article-title"
-              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
-            <p className="mt-1 text-[10px] text-blue-400">
-              Paste a blog URL and we&apos;ll extract the text and analyse the writing style.
-            </p>
-          </div>
-        )}
-
-        {scanMode === ("video" as string) && (
-          <div className="mt-3">
-            <input
-              type="url"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=... or podcast URL"
-              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
-            <p className="mt-1 text-[10px] text-blue-400">
-              Paste a video or podcast URL. We&apos;ll transcribe it and analyse their speaking style.
-            </p>
-          </div>
-        )}
-
-        {scanMode === ("pdf" as string) && (
-          <div className="mt-3">
-            <textarea
-              value={scanPosts}
-              onChange={(e) => setScanPosts(e.target.value)}
-              rows={6}
-              placeholder="Paste the text content from a PDF, whitepaper, or document. Copy and paste the text here."
-              className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
-            <p className="mt-1 text-[10px] text-blue-400">
-              Paste text from a PDF, whitepaper, case study, or any document they&apos;ve written.
-              The more text, the better the voice analysis.
-            </p>
-          </div>
-        )}
-
-        {/* Error display — prominent */}
-        {message && (
-          <div className={`mt-2 rounded-md p-2 text-xs ${
-            message.includes("Error") || message.includes("failed") || message.includes("Could not")
-              ? "bg-red-50 text-red-700 border border-red-200"
-              : "bg-green-50 text-green-700 border border-green-200"
-          }`}>
-            {message}
-          </div>
-        )}
-
-        <button
-          onClick={handleScanLinkedIn}
-          disabled={scanning || (!linkedinUrl.trim() && !scanPosts.trim())}
-          className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {scanning ? "Analysing..." : "Analyse Voice"}
-        </button>
-      </div>
-
-      {/* Manual fields */}
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Voice Description</label>
-          <textarea
-            value={profile.voice_description}
-            onChange={(e) => setProfile({ ...profile, voice_description: e.target.value })}
-            rows={4}
-            placeholder="How this person writes: confident, direct, uses short sentences..."
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Writing Samples</label>
-          <textarea
-            value={profile.writing_samples}
-            onChange={(e) => setProfile({ ...profile, writing_samples: e.target.value })}
-            rows={4}
-            placeholder="2-3 representative paragraphs that show their natural writing style"
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Signature Devices</label>
-          <textarea
-            value={profile.signature_devices}
-            onChange={(e) => setProfile({ ...profile, signature_devices: e.target.value })}
-            rows={3}
-            placeholder="Recurring phrases, structural patterns, rhetorical habits"
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Banned Vocabulary</label>
-          <textarea
-            value={profile.banned_vocabulary}
-            onChange={(e) => setProfile({ ...profile, banned_vocabulary: e.target.value })}
-            rows={2}
-            placeholder="Words and phrases they NEVER use (one per line)"
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Emotional Register</label>
-          <textarea
-            value={profile.emotional_register}
-            onChange={(e) => setProfile({ ...profile, emotional_register: e.target.value })}
-            rows={2}
-            placeholder="Understated/enthusiastic, first-person/third-person tendencies"
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      {message && (
-        <p className={`text-sm ${message.includes("Error") ? "text-red-600" : "text-green-600"}`}>
-          {message}
-        </p>
       )}
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="rounded-md bg-gray-900 px-6 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-      >
-        {saving ? "Saving..." : "Save Voice Profile"}
-      </button>
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+        <p className="text-[11px] text-gray-400 leading-relaxed">
+          Voice profiles define how content sounds when written in someone&apos;s name. Each person can have
+          their own voice description, writing samples, signature devices, and banned vocabulary. During
+          content generation, the selected spokesperson&apos;s voice profile is injected into the AI prompt
+          to ensure authentic, consistent output.
+        </p>
+      </div>
     </div>
   );
 }
