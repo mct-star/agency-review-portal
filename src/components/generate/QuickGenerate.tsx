@@ -1,24 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import LinkedInPreview from "@/components/content/LinkedInPreview";
 
 /**
  * Quick Generate — the "make me a post" experience.
  *
- * Lives on the dashboard. No planning, no weeks. User picks a topic,
- * post type, and platform, hits generate, and gets copy-ready content
- * with an image they can copy, download, or publish.
- *
- * Post type drives image archetype automatically (from the atom rules):
- *   The Mistake (Mon)  → A1 Green quote card
- *   Launch Story (Tue) → A4 Pixar healthcare scene
- *   If I Was (Wed)     → A1 Purple quote card
- *   Contrarian (Thu)   → A1 Blue quote card
- *   Tactical (Thu)     → A5 Carousel / A1 Green
- *   Founder Friday     → A4 Pixar fantasy-vs-reality
- *   Blog Teaser (Sun)  → A5 Carousel
- *   Weekend Personal   → No image gen (real photo)
+ * Lives on the dashboard. User picks a company, a person (spokesperson),
+ * a topic, post type, and platform, hits generate, and gets copy-ready
+ * content with an image.
  */
 
 interface PostTypeOption {
@@ -32,50 +22,50 @@ interface PostTypeOption {
 const POST_TYPES: PostTypeOption[] = [
   {
     slug: "insight",
-    label: "The Mistake",
-    description: "Diagnose a common mistake. 150-250 words.",
+    label: "Problem Diagnosis",
+    description: "Identify a common mistake your audience makes. 150-250 words.",
     archetype: "quote_card_green",
     color: "#CDD856",
   },
   {
     slug: "launch_story",
-    label: "Launch Story",
-    description: "Pattern from 47 launches. 200-350 words.",
+    label: "Experience Story",
+    description: "Share a real experience with pattern recognition. 200-350 words.",
     archetype: "pixar_healthcare",
     color: "#41CDA9",
   },
   {
     slug: "if_i_was",
-    label: "If I Was...",
-    description: "Advice to a specific persona. 200-300 words.",
+    label: "Expert Perspective",
+    description: "\"If I was in your role...\" practical advice. 200-300 words.",
     archetype: "quote_card_purple",
     color: "#A27BF9",
   },
   {
     slug: "contrarian",
     label: "Contrarian Take",
-    description: "Challenge a common assumption. 200-300 words.",
+    description: "Challenge a widely-held industry assumption. 200-300 words.",
     archetype: "quote_card_blue",
     color: "#41C9FE",
   },
   {
     slug: "tactical",
     label: "Tactical How-To",
-    description: "Actionable framework. 150-250 words.",
+    description: "Actionable steps to solve a specific problem. 150-250 words.",
     archetype: "carousel",
     color: "#CDD856",
   },
   {
     slug: "founder_friday",
-    label: "Founder Friday",
-    description: "Fantasy vs Reality. Vulnerability + forward motion. 250-400 words.",
+    label: "Personal Reflection",
+    description: "Behind the scenes: expectations vs reality. 250-400 words.",
     archetype: "pixar_fantasy",
     color: "#F59E0B",
   },
   {
     slug: "blog_teaser",
-    label: "Blog Teaser",
-    description: "Make the argument land in miniature. 60-120 words.",
+    label: "Article Teaser",
+    description: "Drive traffic to a longer piece of content. 60-120 words.",
     archetype: "carousel",
     color: "#A27BF9",
   },
@@ -90,8 +80,18 @@ interface CompanyOption {
   profilePictureUrl?: string | null;
 }
 
+interface SpokespersonOption {
+  id: string;
+  companyId: string;
+  name: string;
+  tagline: string;
+  profilePictureUrl: string | null;
+  isPrimary: boolean;
+}
+
 interface QuickGenerateProps {
   companies: CompanyOption[];
+  spokespersons?: SpokespersonOption[];
   showCompanyPicker?: boolean;
 }
 
@@ -106,9 +106,11 @@ interface GeneratedResult {
 
 export default function QuickGenerate({
   companies,
+  spokespersons = [],
   showCompanyPicker = false,
 }: QuickGenerateProps) {
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(companies[0]);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
   const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(null);
   const [platform, setPlatform] = useState<"linkedin" | "x" | "instagram">("linkedin");
@@ -121,6 +123,23 @@ export default function QuickGenerate({
   const [applyingOverlay, setApplyingOverlay] = useState(false);
   const [overlayError, setOverlayError] = useState<string | null>(null);
 
+  // Filter spokespersons for the selected company
+  const companyPeople = useMemo(
+    () => spokespersons.filter((s) => s.companyId === selectedCompany.id),
+    [spokespersons, selectedCompany.id]
+  );
+
+  // Selected person (or primary fallback)
+  const selectedPerson = useMemo(() => {
+    if (selectedPersonId) return companyPeople.find((p) => p.id === selectedPersonId) || null;
+    return companyPeople.find((p) => p.isPrimary) || companyPeople[0] || null;
+  }, [companyPeople, selectedPersonId]);
+
+  // Author info for preview — use selected person if available, otherwise company defaults
+  const authorName = selectedPerson?.name || selectedCompany.authorName;
+  const authorTagline = selectedPerson?.tagline || selectedCompany.authorTagline;
+  const authorAvatar = selectedPerson?.profilePictureUrl || selectedCompany.profilePictureUrl;
+
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
     setState("generating");
@@ -129,7 +148,6 @@ export default function QuickGenerate({
     setProgress("Creating content...");
 
     try {
-      // Step 1: Generate content
       const contentRes = await fetch("/api/generate/quick", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -220,26 +238,84 @@ export default function QuickGenerate({
 
       {state === "idle" || state === "error" ? (
         <div className="p-6 space-y-5">
-          {/* Company selector (admin only, multi-company) */}
-          {showCompanyPicker && (
+          {/* Company + Person selector */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Company selector */}
+            {showCompanyPicker ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Company
+                </label>
+                <select
+                  value={selectedCompany.id}
+                  onChange={(e) => {
+                    const c = companies.find((co) => co.id === e.target.value);
+                    if (c) {
+                      setSelectedCompany(c);
+                      setSelectedPersonId(null); // Reset person when company changes
+                    }
+                  }}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                >
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Company
+                </label>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900">
+                  {selectedCompany.name}
+                </div>
+              </div>
+            )}
+
+            {/* Person selector */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Company
+                Posting as
               </label>
-              <select
-                value={selectedCompany.id}
-                onChange={(e) => {
-                  const c = companies.find((co) => co.id === e.target.value);
-                  if (c) setSelectedCompany(c);
-                }}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-              >
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              {companyPeople.length > 0 ? (
+                <select
+                  value={selectedPerson?.id || ""}
+                  onChange={(e) => setSelectedPersonId(e.target.value || null)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                >
+                  {companyPeople.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{p.isPrimary ? " (Primary)" : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
+                  {selectedCompany.authorName}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Selected person preview */}
+          {selectedPerson && (
+            <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-2.5">
+              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray-200">
+                {authorAvatar ? (
+                  <img src={authorAvatar} alt={authorName} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-bold text-gray-500">
+                    {authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{authorName}</p>
+                <p className="text-[11px] text-gray-500">{authorTagline}</p>
+              </div>
             </div>
           )}
 
@@ -282,7 +358,7 @@ export default function QuickGenerate({
                       {pt.label}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 line-clamp-1">
+                  <p className="mt-1 text-xs text-gray-500 line-clamp-2">
                     {pt.description}
                   </p>
                 </button>
@@ -325,7 +401,7 @@ export default function QuickGenerate({
             disabled={!topic.trim() || !selectedPostType}
             className="w-full rounded-lg bg-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            ✦ Generate Post
+            Generate Post
           </button>
         </div>
       ) : state === "generating" ? (
@@ -366,7 +442,7 @@ export default function QuickGenerate({
                   disabled={applyingOverlay}
                   className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >
-                  {applyingOverlay ? "Applying..." : "✦ Apply overlay"}
+                  {applyingOverlay ? "Applying..." : "Apply overlay"}
                 </button>
               )}
               <button
@@ -388,9 +464,9 @@ export default function QuickGenerate({
           {/* LinkedIn Preview */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
             <LinkedInPreview
-              authorName={selectedCompany.authorName}
-              authorTagline={selectedCompany.authorTagline}
-              authorAvatarUrl={selectedCompany.profilePictureUrl || undefined}
+              authorName={authorName}
+              authorTagline={authorTagline}
+              authorAvatarUrl={authorAvatar || undefined}
               postText={result.postText}
               firstComment={result.firstComment}
               postType={result.postType}

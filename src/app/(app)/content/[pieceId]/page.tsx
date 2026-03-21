@@ -10,6 +10,7 @@ import ContentAssets from "@/components/content/ContentAssets";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
+import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 
 interface PageProps {
@@ -201,6 +202,15 @@ export default async function ContentPiecePage({ params }: PageProps) {
         weekId={piece.week_id}
         currentStatus={piece.approval_status}
       />
+
+      {/* Delete (admin only) */}
+      {profile.role === "admin" && (
+        <DeletePieceButton
+          pieceId={piece.id}
+          weekId={piece.week_id}
+          title={piece.title}
+        />
+      )}
 
       {/* Comments */}
       <div className="rounded-lg border border-gray-200 bg-white p-6">

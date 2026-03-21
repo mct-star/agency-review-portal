@@ -25,38 +25,59 @@ interface NavSection {
   items: NavItem[];
 }
 
-const sections: NavSection[] = [
-  {
-    title: "Setup",
-    items: [
-      { href: "/setup", label: "Companies", icon: "building" },
-    ],
-  },
-  {
-    title: "Generate",
-    items: [
-      { href: "/generate", label: "Generate Content", icon: "sparkle", highlight: true },
-    ],
-  },
-  {
-    title: "Review",
-    items: [
-      { href: "/review", label: "Content", icon: "calendar" },
-    ],
-  },
-  {
-    title: "Plan",
-    items: [
-      { href: "/calendar", label: "Calendar", icon: "calendarView" },
-    ],
-  },
-  {
-    title: "Publish",
-    items: [
-      { href: "/publish", label: "Post", icon: "send", publisherOnly: true },
-    ],
-  },
-];
+function buildSections(user: User): NavSection[] {
+  const isAdmin = user.role === "admin";
+
+  return [
+    // Clients see a direct link to their company setup; admins configure via Admin section
+    ...(!isAdmin && user.company_id
+      ? [
+          {
+            title: "Configure",
+            items: [
+              { href: `/setup/${user.company_id}`, label: "Company Setup", icon: "building" },
+            ],
+          },
+        ]
+      : []),
+    {
+      title: "Generate",
+      items: [
+        { href: "/generate", label: "Generate Content", icon: "sparkle", highlight: true },
+      ],
+    },
+    {
+      title: "Review",
+      items: [
+        { href: "/review", label: "Content", icon: "calendar" },
+      ],
+    },
+    {
+      title: "Plan",
+      items: [
+        { href: "/calendar", label: "Calendar", icon: "calendarView" },
+      ],
+    },
+    {
+      title: "Publish",
+      items: [
+        { href: "/publish", label: "Post", icon: "send", publisherOnly: true },
+      ],
+    },
+    // Admin-only section at the bottom
+    ...(isAdmin
+      ? [
+          {
+            title: "Admin",
+            items: [
+              { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
+              { href: "/users", label: "Users", icon: "users", adminOnly: true },
+            ],
+          },
+        ]
+      : []),
+  ];
+}
 
 const icons: Record<string, string> = {
   grid: "M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5ZM4 15a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4Z",
@@ -90,6 +111,8 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
     if (pathname.startsWith(href + "/")) return true;
     // /content/* pages are part of the Review section
     if (href === "/review" && pathname.startsWith("/content/")) return true;
+    // Client's company setup link should highlight for all /setup/* pages
+    if (href.startsWith("/setup/") && pathname.startsWith("/setup/")) return true;
     return false;
   }
 
@@ -136,7 +159,7 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
 
       {/* Sections */}
       <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-2">
-        {sections.map((section) => {
+        {buildSections(user).map((section) => {
           const visibleItems = section.items.filter(
             (item) => (!item.adminOnly || isAdmin) && (!item.publisherOnly || canPublish)
           );
@@ -174,25 +197,6 @@ export default function Sidebar({ user, platformLogoUrl }: SidebarProps) {
           );
         })}
       </nav>
-
-      {/* Admin link */}
-      {isAdmin && (
-        <div className="border-t border-gray-100 px-2 py-1">
-          <Link
-            href="/users"
-            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              pathname === "/users"
-                ? "bg-sky-50 text-sky-700"
-                : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-            }`}
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d={icons.users} />
-            </svg>
-            Users
-          </Link>
-        </div>
-      )}
 
       {/* User info */}
       <div className="border-t border-gray-200 px-4 py-3">
