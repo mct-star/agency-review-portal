@@ -32,17 +32,76 @@ interface NavSection {
 
 function buildSections(user: User): NavSection[] {
   const isAdmin = user.role === "admin";
+  const cid = user.company_id;
+
+  if (isAdmin) {
+    return [
+      {
+        title: "Accounts",
+        items: [
+          { href: "/setup", label: "Companies", icon: "building" },
+        ],
+      },
+      {
+        title: "Create",
+        items: [
+          { href: "/generate/quick", label: "Quick Generate", icon: "zap", highlight: true },
+          { href: "/generate", label: "Content Studio", icon: "sparkle" },
+        ],
+      },
+      {
+        title: "Review",
+        items: [
+          { href: "/review", label: "Content", icon: "calendar" },
+        ],
+      },
+      {
+        title: "Plan",
+        items: [
+          { href: "/calendar", label: "Calendar", icon: "calendarView" },
+        ],
+      },
+      {
+        title: "Publish",
+        items: [
+          { href: "/publish", label: "Post", icon: "send" },
+        ],
+      },
+      {
+        title: "Admin",
+        items: [
+          { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
+          { href: "/users", label: "Users", icon: "users", adminOnly: true },
+        ],
+      },
+    ];
+  }
+
+  // Client sidebar — expanded with sub-pages and plan gating
+  const base = cid ? `/setup/${cid}` : "/setup";
 
   return [
-    // Setup / Accounts
     {
-      title: isAdmin ? "Accounts" : "Brand Setup",
+      title: "Brand Setup",
       items: [
-        isAdmin
-          ? { href: "/setup", label: "Companies", icon: "building" }
-          : user.company_id
-          ? { href: `/setup/${user.company_id}`, label: "My Brand", icon: "building" }
-          : { href: "/setup", label: "Setup", icon: "building" },
+        { href: base, label: "Company Profile", icon: "building" },
+        { href: `${base}/people`, label: "People", icon: "users" },
+      ],
+    },
+    {
+      title: "Content Strategy",
+      items: [
+        { href: `${base}/voice`, label: "Voice & Tone", icon: "mic", minPlan: "starter" as PlanTier },
+        { href: `${base}/topics`, label: "Topic Bank", icon: "lightbulb", minPlan: "starter" as PlanTier },
+        { href: `${base}/schedule`, label: "Posting Schedule", icon: "clock", minPlan: "pro" as PlanTier },
+        { href: `${base}/signoffs`, label: "Sign-offs", icon: "quote", minPlan: "pro" as PlanTier },
+      ],
+    },
+    {
+      title: "Connect",
+      items: [
+        { href: `${base}/social`, label: "Social Accounts", icon: "link", minPlan: "pro" as PlanTier },
+        { href: `${base}/api-keys`, label: "API Keys", icon: "key", minPlan: "agency" as PlanTier },
       ],
     },
     {
@@ -70,18 +129,6 @@ function buildSections(user: User): NavSection[] {
         { href: "/publish", label: "Post", icon: "send", publisherOnly: true, minPlan: "agency" as PlanTier },
       ],
     },
-    // Admin-only section at the bottom
-    ...(isAdmin
-      ? [
-          {
-            title: "Admin",
-            items: [
-              { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
-              { href: "/users", label: "Users", icon: "users", adminOnly: true },
-            ],
-          },
-        ]
-      : []),
   ];
 }
 
@@ -99,6 +146,12 @@ const icons: Record<string, string> = {
     "M3 5a2 2 0 0 1 2-2h2V2a1 1 0 1 1 2 0v1h6V2a1 1 0 1 1 2 0v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm16 4H5v10h14V9ZM7 11h2v2H7v-2Zm4 0h2v2h-2v-2Zm4 0h2v2h-2v-2ZM7 15h2v2H7v-2Zm4 0h2v2h-2v-2Z",
   send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
   zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
+  mic: "M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4Zm-1 18.93A7.01 7.01 0 0 1 5 13h2a5 5 0 0 0 10 0h2a7.01 7.01 0 0 1-6 6.93V22h4v2H7v-2h4v-2.07Z",
+  lightbulb: "M12 2a7 7 0 0 0-4 12.72V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.28A7 7 0 0 0 12 2ZM9 20h6v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1Z",
+  clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10a1 1 0 0 1-.3.7l-3 3-1.4-1.4L11 11.58V6h2v6Z",
+  quote: "M6 17h3l2-4V7H5v6h3l-2 4Zm8 0h3l2-4V7h-6v6h3l-2 4Z",
+  link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
+  key: "M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78ZM15.5 7.5l2 2L21 6l-3-3-3.5 3.5 2 2Z",
   shield:
     "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
   lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
@@ -121,7 +174,9 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
     if (pathname === href) return true;
     if (pathname.startsWith(href + "/")) return true;
     if (href === "/review" && pathname.startsWith("/content/")) return true;
-    if (href.startsWith("/setup/") && pathname.startsWith("/setup/")) return true;
+    // For setup sub-pages: exact match on the sub-path
+    // e.g. /setup/abc/voice should only match /setup/abc/voice, not /setup/abc/people
+    // But /setup/abc (Company Profile) should match /setup/abc exactly, not its sub-pages
     return false;
   }
 
