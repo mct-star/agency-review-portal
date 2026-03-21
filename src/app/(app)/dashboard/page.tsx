@@ -14,7 +14,7 @@ export default async function DashboardPage() {
 
   // Fetch company data for Quick Generate
   const companyId = profile.company_id;
-  type CompanyInfo = { id: string; name: string; spokesperson_name: string | null; spokesperson_tagline: string | null; brand_color: string | null };
+  type CompanyInfo = { id: string; name: string; spokesperson_name: string | null; spokesperson_tagline: string | null; brand_color: string | null; profile_picture_url: string | null };
   let companies: CompanyInfo[] = [];
 
   if (isAdmin) {
