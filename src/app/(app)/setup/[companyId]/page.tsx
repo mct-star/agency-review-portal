@@ -4,6 +4,7 @@ import Link from "next/link";
 import ImageUploader from "./ImageUploader";
 import OverlayPreview from "./OverlayPreview";
 import PlanSelector from "./PlanSelector";
+import QuickStrategySetup from "@/components/setup/QuickStrategySetup";
 import type { PlanTier } from "@/types/database";
 
 interface PageProps {
@@ -155,8 +156,16 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
   // Primary spokesperson for overlay preview
   const primaryPerson = (people || []).find((p: { is_primary: boolean }) => p.is_primary) || (people || [])[0];
 
+  // Show quick setup for new/empty companies
+  const isNewSetup = completedSteps < 2 && !company.logo_url;
+
   return (
     <div className="space-y-8">
+      {/* Quick Strategy Setup — shown for new companies */}
+      {isNewSetup && (
+        <QuickStrategySetup companyId={companyId} companyName={company.name} />
+      )}
+
       {/* Company Header — Company identity only */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         {/* Brand colour bar */}

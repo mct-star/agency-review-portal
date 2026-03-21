@@ -1,5 +1,5 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { Company } from "@/types/database";
 import CompanyTabs from "./CompanyTabs";
@@ -14,7 +14,16 @@ export default async function CompanyDetailLayout({
   params,
 }: LayoutProps) {
   const { companyId } = await params;
+  const profile = await getUserProfile();
+  if (!profile) redirect("/login");
+
   const supabase = await createServerSupabaseClient();
+  const isAdmin = profile.role === "admin";
+
+  // Access control: clients can only view their own company
+  if (!isAdmin && profile.company_id !== companyId) {
+    redirect(profile.company_id ? `/setup/${profile.company_id}` : "/dashboard");
+  }
 
   const { data: company } = await supabase
     .from("companies")
@@ -30,13 +39,17 @@ export default async function CompanyDetailLayout({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link
-          href="/setup"
-          className="text-sm text-gray-400 hover:text-gray-600"
-        >
-          ← Companies
-        </Link>
-        <span className="text-gray-300">/</span>
+        {isAdmin && (
+          <>
+            <Link
+              href="/setup"
+              className="text-sm text-gray-400 hover:text-gray-600"
+            >
+              ← Companies
+            </Link>
+            <span className="text-gray-300">/</span>
+          </>
+        )}
         <div className="flex items-center gap-2">
           {company.brand_color && (
             <span
@@ -53,8 +66,8 @@ export default async function CompanyDetailLayout({
         )}
       </div>
 
-      {/* Tabs */}
-      <CompanyTabs companyId={companyId} />
+      {/* Tabs — only show for admin (clients use sidebar navigation) */}
+      {isAdmin && <CompanyTabs companyId={companyId} />}
 
       {/* Page content */}
       {children}
