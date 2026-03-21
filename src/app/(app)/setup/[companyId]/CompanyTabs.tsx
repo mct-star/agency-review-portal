@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Ordered by tier: free → starter → pro → agency
 const tabs = [
   { label: "Overview", href: "" },
   { label: "People", href: "/people" },
-  { label: "Strategy", href: "/strategy" },
-  { label: "Schedule", href: "/schedule" },
-  { label: "Topics", href: "/topics" },
-  { label: "Voice", href: "/voice" },
   { label: "Sign-offs", href: "/signoffs" },
   { label: "URLs", href: "/urls" },
+  { label: "Voice", href: "/voice" },
+  { label: "Topics", href: "/topics" },
+  { label: "Schedule", href: "/schedule" },
+  { label: "Social", href: "/social" },
+  { label: "Strategy", href: "/strategy" },
   { label: "Blueprint", href: "/blueprint" },
   { label: "API Keys", href: "/api-keys" },
-  { label: "Social", href: "/social" },
 ];
 
 interface CompanyTabsProps {

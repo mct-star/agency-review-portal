@@ -156,8 +156,8 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
   // Primary spokesperson for overlay preview
   const primaryPerson = (people || []).find((p: { is_primary: boolean }) => p.is_primary) || (people || [])[0];
 
-  // Show quick setup for new/empty companies
-  const isNewSetup = completedSteps < 2 && !company.logo_url;
+  // Show quick setup when less than half of setup is done
+  const isNewSetup = completedSteps < Math.ceil(totalSteps / 2);
 
   return (
     <div className="space-y-8">

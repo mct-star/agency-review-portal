@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import QuickStrategySetup from "@/components/setup/QuickStrategySetup";
 
 type ImportMode = "csv" | "markdown";
 
@@ -128,6 +129,11 @@ export default function StrategyPage() {
 
   return (
     <div className="space-y-6">
+      {/* Quick Strategy Setup — show when no strategy data exists */}
+      {!loading && !hasData && (
+        <QuickStrategySetup companyId={companyId} companyName="" />
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Content Strategy</h2>
