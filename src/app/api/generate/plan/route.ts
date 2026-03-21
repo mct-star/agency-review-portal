@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { assignTopicsToSlots } from "@/lib/generation/topic-assigner";
+import { resolveCtaForSlot, getEcosystemRole } from "@/lib/generation/cta-resolver";
+import type { CompanyCtaUrlRow } from "@/lib/generation/cta-resolver";
 import type { PostingSlotWithType, TopicBankEntry } from "@/types/database";
 
 /**
@@ -28,7 +30,7 @@ export async function POST(request: Request) {
   const supabase = await createAdminSupabaseClient();
 
   // Fetch company, week, slots, topics, signoff, voice
-  const [companyRes, weekRes, blueprintRes, slotsRes, topicsRes, signoffRes, voiceRes] = await Promise.all([
+  const [companyRes, weekRes, blueprintRes, slotsRes, topicsRes, signoffRes, voiceRes, ctaUrlsRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("weeks").select("*").eq("id", weekId).single(),
     supabase.from("company_blueprints").select("blueprint_content, derived_source_context").eq("company_id", companyId).eq("is_active", true).single(),
@@ -36,6 +38,7 @@ export async function POST(request: Request) {
     supabase.from("topic_bank").select("*").eq("company_id", companyId).eq("is_used", false).order("topic_number"),
     supabase.from("company_signoffs").select("*").eq("company_id", companyId).eq("is_active", true).order("sort_order").limit(1).single(),
     supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single(),
+    supabase.from("company_cta_urls").select("*").eq("company_id", companyId).eq("is_active", true).order("sort_order"),
   ]);
 
   if (!companyRes.data) return NextResponse.json({ error: "Company not found" }, { status: 404 });
@@ -60,13 +63,31 @@ export async function POST(request: Request) {
     weekTheme: week.theme,
   });
 
+  const ctaUrls = (ctaUrlsRes.data || []) as CompanyCtaUrlRow[];
+
+  // Enhance assignments with CTA hierarchy
+  const enhancedAssignments = assignments.map((a) => {
+    // If the slot already has an explicit CTA URL, keep it (override)
+    if (a.ctaUrl) return { ...a, ecosystemRole: getEcosystemRole(a.postTypeSlug) };
+
+    // Otherwise, resolve from the CTA hierarchy
+    const resolved = resolveCtaForSlot(a.postTypeSlug, a.dayOfWeek, ctaUrls);
+    return {
+      ...a,
+      ctaUrl: resolved?.url || null,
+      ctaLinkText: resolved?.linkText || null,
+      ctaTier: resolved?.tier || null,
+      ecosystemRole: getEcosystemRole(a.postTypeSlug),
+    };
+  });
+
   // Update week subject if cohesive mode
   if (mode === "cohesive" && subject) {
     await supabase.from("weeks").update({ subject }).eq("id", weekId);
   }
 
   return NextResponse.json({
-    assignments,
+    assignments: enhancedAssignments,
     unassignedSlots,
     company: {
       id: company.id,
@@ -87,6 +108,11 @@ export async function POST(request: Request) {
       hasVoice: !!voiceRes.data,
       signoffText: signoffRes.data?.signoff_text || null,
       firstCommentTemplate: signoffRes.data?.first_comment_template || null,
+    },
+    ctaHierarchy: {
+      primary: ctaUrls.filter(c => c.cta_tier === 'primary').map(c => ({ label: c.label, url: c.url })),
+      secondary: ctaUrls.filter(c => c.cta_tier === 'secondary').map(c => ({ label: c.label, url: c.url })),
+      tertiary: ctaUrls.filter(c => c.cta_tier === 'tertiary').map(c => ({ label: c.label, url: c.url })),
     },
   });
 }

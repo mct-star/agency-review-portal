@@ -25,13 +25,39 @@ export async function POST(request: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { companyId, label, url, link_text } = body;
+  const { companyId, label, url, link_text, cta_tier } = body;
   if (!companyId || !label || !url) return NextResponse.json({ error: "companyId, label, and url required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("company_cta_urls")
-    .insert({ company_id: companyId, label, url, link_text: link_text || null })
+    .insert({ company_id: companyId, label, url, link_text: link_text || null, cta_tier: cta_tier || 'secondary' })
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ data });
+}
+
+export async function PATCH(request: Request) {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json();
+  const { id, cta_tier, label, url, link_text } = body;
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const supabase = await createAdminSupabaseClient();
+  const updates: Record<string, unknown> = {};
+  if (cta_tier) updates.cta_tier = cta_tier;
+  if (label !== undefined) updates.label = label;
+  if (url !== undefined) updates.url = url;
+  if (link_text !== undefined) updates.link_text = link_text;
+
+  const { data, error } = await supabase
+    .from("company_cta_urls")
+    .update(updates)
+    .eq("id", id)
     .select()
     .single();
 

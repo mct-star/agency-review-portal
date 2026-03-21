@@ -149,6 +149,8 @@ export default function GeneratePage() {
   const [topics, setTopics] = useState<TopicEntry[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState("");
   const [topicMode, setTopicMode] = useState<"bank" | "custom">("bank");
+  const [blogTitle, setBlogTitle] = useState<string | null>(null);
+  const [blogUrl, setBlogUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<GenerationStatus>({
     phase: "idle",
     current: 0,
@@ -269,7 +271,7 @@ export default function GeneratePage() {
         }
       }
 
-      const contentRes = await fetch("/api/generate/content", {
+      const contentRes: Response = await fetch("/api/generate/content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -385,6 +387,8 @@ export default function GeneratePage() {
       const total = assignments.length;
       let piecesCreated = 0;
       let imagesCreated = 0;
+      let currentBlogTitle: string | null = null;
+      let currentBlogUrl: string | null = null;
 
       for (let i = 0; i < assignments.length; i++) {
         const assignment = assignments[i];
@@ -396,7 +400,7 @@ export default function GeneratePage() {
         });
 
         try {
-          const contentRes = await fetch("/api/generate/content", {
+          const contentRes: Response = await fetch("/api/generate/content", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -417,6 +421,10 @@ export default function GeneratePage() {
               dayOfWeek: assignment.dayOfWeek,
               scheduledTime: assignment.scheduledTime,
               slotLabel: assignment.slotLabel,
+              ctaTier: assignment.ctaTier || undefined,
+              ecosystemRole: assignment.ecosystemRole || undefined,
+              blogTitle: currentBlogTitle || undefined,
+              blogUrl: currentBlogUrl || undefined,
               additionalContext: assignment.angle
                 ? `WEEK SUBJECT: ${weekSubject}\nANGLE FOR THIS POST: ${assignment.angle}`
                 : undefined,
@@ -426,6 +434,12 @@ export default function GeneratePage() {
           const contentData = await contentRes.json();
           if (contentRes.ok) {
             piecesCreated++;
+
+            // Capture blog info for ecosystem interlinking
+            if (contentData.blogInfo) {
+              currentBlogTitle = contentData.blogInfo.blogTitle;
+              currentBlogUrl = contentData.blogInfo.blogUrl;
+            }
 
             if (generateImages && contentData.imagePrompt) {
               setStatus({
@@ -489,7 +503,151 @@ export default function GeneratePage() {
     }
   }, [selectedCompanyId, selectedWeekId, selectedWeekStart, isCohesive, weekSubject, generateImages]);
 
-  const handleGenerate = selectedScope === "full_week" || selectedScope === "full_month"
+  // ─── Full month generation ──────────────────────────────
+  const handleGenerateMonth = useCallback(async () => {
+    if (!selectedWeekStart) return;
+    setStep("generating");
+    setStatus({ phase: "preparing", current: 0, total: 0, currentLabel: "Planning 4 weeks..." });
+
+    try {
+      const startSunday = new Date(selectedWeekStart + "T00:00:00");
+      let totalPieces = 0;
+      let completedPieces = 0;
+
+      for (let weekIdx = 0; weekIdx < 4; weekIdx++) {
+        const sunday = new Date(startSunday);
+        sunday.setDate(sunday.getDate() + weekIdx * 7);
+        const saturday = new Date(sunday);
+        saturday.setDate(saturday.getDate() + 6);
+        const sundayStr = toLocalISODate(sunday);
+
+        setStatus({
+          phase: "preparing",
+          current: weekIdx,
+          total: 4,
+          currentLabel: `Planning Week ${weekIdx + 1} of 4 (${formatShortDate(sunday)})...`,
+        });
+
+        // Find or create week container
+        let resolvedWeekId = weeks.find((w) => w.date_start === sundayStr)?.id;
+        if (!resolvedWeekId) {
+          const weekRes = await fetch("/api/weeks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: selectedCompanyId,
+              weekNumber: 0,
+              year: sunday.getFullYear(),
+              dateStart: sundayStr,
+              dateEnd: toLocalISODate(saturday),
+              status: "draft",
+            }),
+          });
+          if (!weekRes.ok) throw new Error(`Failed to create week ${weekIdx + 1}`);
+          const weekData = await weekRes.json();
+          resolvedWeekId = weekData.data?.id;
+          if (!resolvedWeekId) throw new Error(`No week ID for week ${weekIdx + 1}`);
+        }
+
+        // Get plan for this week
+        const planRes = await fetch("/api/generate/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: selectedCompanyId,
+            weekId: resolvedWeekId,
+            mode: isCohesive ? "cohesive" : "variety",
+            subject: isCohesive ? weekSubject : undefined,
+          }),
+        });
+        const plan = await planRes.json();
+        if (!planRes.ok) throw new Error(plan.error || `Planning failed for week ${weekIdx + 1}`);
+
+        const assignments = plan.assignments || [];
+        totalPieces += assignments.length;
+        let currentBlogTitle: string | null = null;
+        let currentBlogUrl: string | null = null;
+
+        for (let i = 0; i < assignments.length; i++) {
+          const assignment = assignments[i];
+          completedPieces++;
+          setStatus({
+            phase: "generating",
+            current: completedPieces,
+            total: totalPieces,
+            currentLabel: `Week ${weekIdx + 1}/4: ${assignment.slotLabel || assignment.postTypeLabel} (${completedPieces}/${totalPieces})`,
+          });
+
+          try {
+            const contentRes: Response = await fetch("/api/generate/content", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                companyId: selectedCompanyId,
+                weekId: resolvedWeekId,
+                topicId: assignment.topicId || "auto",
+                contentType: ["blog_article", "linkedin_article"].includes(assignment.postTypeSlug) ? assignment.postTypeSlug : "social_post",
+                postTypeSlug: assignment.postTypeSlug,
+                postTypeLabel: assignment.postTypeLabel,
+                templateInstructions: assignment.templateInstructions,
+                wordCountMin: assignment.wordCountMin,
+                wordCountMax: assignment.wordCountMax,
+                imageArchetype: assignment.imageArchetype,
+                ctaUrl: assignment.ctaUrl,
+                ctaLinkText: assignment.ctaLinkText,
+                dayOfWeek: assignment.dayOfWeek,
+                scheduledTime: assignment.scheduledTime,
+                slotLabel: assignment.slotLabel,
+                ctaTier: assignment.ctaTier || undefined,
+                ecosystemRole: assignment.ecosystemRole || undefined,
+                blogTitle: currentBlogTitle || undefined,
+                blogUrl: currentBlogUrl || undefined,
+                additionalContext: assignment.angle ? `WEEK SUBJECT: ${weekSubject}\nANGLE FOR THIS POST: ${assignment.angle}` : undefined,
+              }),
+            });
+            const contentData = await contentRes.json();
+            if (contentRes.ok && contentData.blogInfo) {
+              currentBlogTitle = contentData.blogInfo.blogTitle;
+              currentBlogUrl = contentData.blogInfo.blogUrl;
+            }
+
+            if (generateImages && contentData.imagePrompt && contentRes.ok) {
+              try {
+                await fetch("/api/generate/images", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    companyId: selectedCompanyId,
+                    contentPieceId: contentData.pieceId,
+                    prompts: [{ prompt: typeof contentData.imagePrompt === "string" ? contentData.imagePrompt : String(contentData.imagePrompt), style: assignment.imageArchetype || "general", aspectRatio: "1:1" }],
+                  }),
+                });
+              } catch { /* image failed, continue */ }
+            }
+          } catch { /* piece failed, continue */ }
+        }
+      }
+
+      setStatus({
+        phase: "complete",
+        current: completedPieces,
+        total: totalPieces,
+        currentLabel: `Generated ${completedPieces} pieces across 4 weeks`,
+      });
+    } catch (err) {
+      setStatus({
+        phase: "error",
+        current: 0,
+        total: 0,
+        currentLabel: "",
+        error: err instanceof Error ? err.message : "Month generation failed",
+      });
+    }
+  }, [selectedCompanyId, selectedWeekStart, isCohesive, weekSubject, generateImages, weeks]);
+
+  const handleGenerate = selectedScope === "full_month"
+    ? handleGenerateMonth
+    : selectedScope === "full_week"
     ? handleGenerateWeek
     : handleGenerateSingle;
 
@@ -815,23 +973,56 @@ export default function GeneratePage() {
 
           {/* ── Full month configuration ─── */}
           {isMonthMode && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <h3 className="text-sm font-semibold text-amber-800">Coming Soon</h3>
-              <p className="mt-1 text-xs text-amber-700">
-                Full month generation will auto-generate 4 consecutive weeks from your quarterly calendar.
-                For now, generate each week individually using the Full Week option.
-              </p>
-              <button
-                onClick={() => handleSelectScope("full_week")}
-                className="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-              >
-                Generate a Full Week Instead
-              </button>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <label className="text-sm font-medium text-gray-900">Select starting week</label>
+                <p className="mt-0.5 text-xs text-gray-500">Generate 4 consecutive weeks of interlinked content.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {getUpcomingWeekStarts(8).map((sundayStr) => {
+                    const sunday = new Date(sundayStr + "T00:00:00");
+                    const endDate = new Date(sunday);
+                    endDate.setDate(endDate.getDate() + 27);
+                    const isSelected = selectedWeekStart === sundayStr;
+                    return (
+                      <button
+                        key={sundayStr}
+                        onClick={() => handleSelectWeekDate(sundayStr)}
+                        className={`rounded-lg border p-3 text-left transition-colors ${
+                          isSelected
+                            ? "border-sky-400 bg-sky-50 ring-1 ring-sky-200"
+                            : "border-gray-200 bg-white hover:border-sky-300"
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatShortDate(sunday)} – {formatShortDate(endDate)}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-500">4 weeks</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {selectedWeekStart && isCohesive && (
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Monthly Theme</h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Each week will explore different angles of this theme.
+                  </p>
+                  <input
+                    type="text"
+                    value={weekSubject}
+                    onChange={(e) => setWeekSubject(e.target.value)}
+                    placeholder="e.g. Patient marketing as a growth lever"
+                    className="mt-2 block w-full rounded-md border border-sky-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
           )}
 
           {/* Options + generate button */}
-          {!isMonthMode && (
+          {(isSingleMode || isWeekMode || (isMonthMode && selectedWeekStart)) && (
             <>
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <label className="flex items-center gap-3">

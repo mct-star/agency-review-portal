@@ -156,6 +156,7 @@ export interface Company {
   profile_picture_url: string | null;
   brand_color: string | null;
   content_strategy_mode: ContentStrategyMode;
+  blog_base_url: string | null;
   created_at: string;
 }
 
@@ -204,6 +205,8 @@ export interface ContentPiece {
   approval_status: ApprovalStatus;
   generation_job_id: string | null;
   image_generation_status: ImageGenerationStatus;
+  ecosystem_role: string | null;
+  cta_tier_used: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -383,6 +386,29 @@ export interface ContentSyndicationLink {
 }
 
 // ============================================================
+// Week ecosystem (interconnected content tracking)
+// ============================================================
+
+export interface WeekEcosystem {
+  id: string;
+  week_id: string;
+  company_id: string;
+  subject: string | null;
+  blog_title: string | null;
+  blog_url: string | null;
+  article_title: string | null;
+  article_url: string | null;
+  pdf_guide_title: string | null;
+  pdf_guide_url: string | null;
+  cta_assignments: Record<string, { cta_tier: string; cta_url: string; cta_link_text: string }>;
+  generation_status: 'pending' | 'generating' | 'completed' | 'partial' | 'failed';
+  pieces_total: number;
+  pieces_completed: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
 // Posting schedule types
 // ============================================================
 
@@ -440,6 +466,8 @@ export interface CompanyCtaUrl {
   label: string;
   url: string;
   link_text: string | null;
+  cta_tier: 'primary' | 'secondary' | 'tertiary';
+  is_active: boolean;
   sort_order: number;
   created_at: string;
 }

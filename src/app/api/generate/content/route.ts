@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider } from "@/lib/providers";
 import type { ContentGenerationInput } from "@/lib/providers";
+import { getEcosystemRole } from "@/lib/generation/cta-resolver";
 
 export const maxDuration = 120;
 
@@ -52,6 +53,10 @@ export async function POST(request: Request) {
     imageArchetype,
     ctaUrl,
     ctaLinkText,
+    ctaTier,
+    ecosystemRole,
+    blogTitle,
+    blogUrl,
     dayOfWeek,
     scheduledTime,
     slotLabel,
@@ -218,6 +223,8 @@ export async function POST(request: Request) {
       dayOfWeek: resolvedDayOfWeek,
       scheduledTime: resolvedTime,
       slotLabel: resolvedSlotLabel,
+      blogTitle: blogTitle || undefined,
+      blogUrl: blogUrl || undefined,
       // Sign-off from company_signoffs — gives AI the exact text to use verbatim
       signoffText: selectedSignoff?.signoff_text || undefined,
       firstCommentTemplate: selectedSignoff?.first_comment_template || undefined,
@@ -257,6 +264,8 @@ export async function POST(request: Request) {
         pillar: topic?.pillar || null,
         audience_theme: topic?.audience_theme || null,
         topic_bank_ref: topic ? `#${topic.topic_number}: ${topic.title}` : (slotLabel || null),
+        ecosystem_role: ecosystemRole || getEcosystemRole(resolvedPostTypeSlug || contentType),
+        cta_tier_used: ctaTier || null,
         sort_order: nextSort,
         approval_status: "pending",
         generation_job_id: jobId,
@@ -325,6 +334,16 @@ export async function POST(request: Request) {
       })
       .eq("id", jobId);
 
+    // If it's a blog article, capture blog info for the week ecosystem
+    let blogInfo = null;
+    if (contentType === 'blog_article' && output.title) {
+      const slugAsset = output.assets?.find((a) => a.assetType === "url_slug");
+      blogInfo = {
+        blogTitle: output.title,
+        blogUrl: slugAsset ? slugAsset.textContent : null,
+      };
+    }
+
     return NextResponse.json({
       jobId,
       status: "completed",
@@ -332,6 +351,7 @@ export async function POST(request: Request) {
       contentPieceId: piece.id,
       title: output.title,
       imagePrompt: output.imagePrompt || null,
+      blogInfo,
     });
   } catch (err) {
     // Mark job as failed
