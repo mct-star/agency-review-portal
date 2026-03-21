@@ -89,26 +89,16 @@ function escapeXml(str: string): string {
 // ============================================================
 
 /**
- * Creates the bottom gradient bar with spokesperson name and CTA.
- * Uses a gradient fade from transparent to brand colour (matching atom mask).
+ * Creates the bottom gradient bar (no text — text is rendered separately
+ * via Sharp's Pango text API which has reliable font rendering on Lambda).
  */
-function createBottomBar(
+function createBottomBarGradient(
   width: number,
   height: number,
-  brandColor: string,
-  name: string | null,
-  ctaText: string | null,
-  hasProfilePhoto: boolean
+  brandColor: string
 ): string {
-  const barHeight = Math.round(height * 0.14); // 14% — taller to accommodate name + CTA
+  const barHeight = Math.round(height * 0.14);
   const { r, g, b } = hexToRgb(brandColor);
-  const nameSize = Math.round(barHeight * 0.3);
-  const ctaSize = Math.round(barHeight * 0.2);
-
-  // If we have a profile photo, leave space for it on the left
-  const textX = hasProfilePhoto
-    ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
-    : Math.round(width * 0.04);
 
   return `<svg width="${width}" height="${height}">
     <defs>
@@ -118,22 +108,37 @@ function createBottomBar(
         <stop offset="100%" stop-color="rgba(${r},${g},${b},0.92)" />
       </linearGradient>
     </defs>
-    <!-- Gradient fade bar at bottom -->
     <rect x="0" y="${height - barHeight}" width="${width}" height="${barHeight}"
           fill="url(#bottomFade)" />
-    ${name ? `
-    <text x="${textX}" y="${height - Math.round(barHeight * 0.45)}"
-          font-family="DejaVu Sans, Liberation Sans, Noto Sans, sans-serif" font-size="${nameSize}"
-          font-weight="bold" fill="white">
-      ${escapeXml(name)}
-    </text>` : ""}
-    ${ctaText ? `
-    <text x="${textX}" y="${height - Math.round(barHeight * 0.18)}"
-          font-family="DejaVu Sans, Liberation Sans, Noto Sans, sans-serif" font-size="${ctaSize}"
-          font-weight="400" fill="rgba(255,255,255,0.85)">
-      ${escapeXml(ctaText)}
-    </text>` : ""}
   </svg>`;
+}
+
+/**
+ * Render text as an image buffer using Sharp's Pango text API.
+ * This is far more reliable than SVG <text> on serverless because
+ * Pango uses fontconfig which can always find SOME system font.
+ */
+async function renderTextImage(
+  text: string,
+  fontSize: number,
+  options: { bold?: boolean; opacity?: number; maxWidth?: number }
+): Promise<Buffer> {
+  const weight = options.bold ? "bold" : "normal";
+  const alpha = Math.round((options.opacity ?? 1) * 255);
+  const alphaHex = alpha.toString(16).padStart(2, "0");
+
+  const textInput: sharp.CreateText = {
+    text: `<span foreground="#ffffff${alphaHex}" font_weight="${weight}" font_size="${fontSize * 1024}">${escapeXml(text)}</span>`,
+    font: "sans",
+    rgba: true,
+    dpi: 72,
+  };
+
+  if (options.maxWidth) {
+    textInput.width = options.maxWidth;
+  }
+
+  return sharp({ text: textInput }).png().toBuffer();
 }
 
 // ============================================================
@@ -182,20 +187,54 @@ export async function applyBrandOverlay(
 
   const hasProfilePhoto = !!config.profilePictureUrl;
 
-  // Layer 1: Bottom gradient bar with name + CTA
-  const barSvg = createBottomBar(
-    width,
-    height,
-    config.brandColor,
-    config.spokespersonName || null,
-    ctaText,
-    hasProfilePhoto
-  );
+  // Layer 1: Bottom gradient bar (gradient only, no text)
+  const barSvg = createBottomBarGradient(width, height, config.brandColor);
   composites.push({
     input: Buffer.from(barSvg),
     top: 0,
     left: 0,
   });
+
+  // Layer 1b: Text rendered via Sharp's Pango API (reliable on Lambda)
+  const barHeight = Math.round(height * 0.14);
+  const nameSize = Math.round(barHeight * 0.3);
+  const ctaSize = Math.round(barHeight * 0.2);
+  const textX = hasProfilePhoto
+    ? Math.round(width * 0.04) + Math.round(barHeight * 0.65) + 12
+    : Math.round(width * 0.04);
+
+  if (config.spokespersonName) {
+    try {
+      const nameImg = await renderTextImage(config.spokespersonName, nameSize, {
+        bold: true,
+        maxWidth: width - textX - Math.round(width * 0.04),
+      });
+      composites.push({
+        input: nameImg,
+        top: height - barHeight + Math.round(barHeight * 0.2),
+        left: textX,
+      });
+    } catch {
+      // Text rendering failed — continue without name
+    }
+  }
+
+  if (ctaText) {
+    try {
+      const ctaImg = await renderTextImage(ctaText, ctaSize, {
+        bold: false,
+        opacity: 0.85,
+        maxWidth: width - textX - Math.round(width * 0.04),
+      });
+      composites.push({
+        input: ctaImg,
+        top: height - barHeight + Math.round(barHeight * 0.55),
+        left: textX,
+      });
+    } catch {
+      // Text rendering failed — continue without CTA
+    }
+  }
 
   // Layer 2: Circular profile photo (bottom-left, inside the gradient bar)
   if (config.profilePictureUrl) {
@@ -204,7 +243,6 @@ export async function applyBrandOverlay(
       if (profileRes.ok) {
         const profileArrayBuffer = await profileRes.arrayBuffer();
         const rawProfileBuffer = Buffer.from(profileArrayBuffer);
-        const barHeight = Math.round(height * 0.14);
         const photoSize = Math.round(barHeight * 0.65);
         const margin = Math.round(width * 0.04);
 
