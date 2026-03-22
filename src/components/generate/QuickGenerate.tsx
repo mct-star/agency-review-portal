@@ -921,17 +921,6 @@ export default function QuickGenerate({
                       </p>
                     </div>
                   </div>
-                  {pt.visualTag && (
-                    <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-                      pt.visualTag === "Pixar 3D" ? "bg-pink-50 text-pink-600" :
-                      pt.visualTag === "Carousel" ? "bg-blue-50 text-blue-600" :
-                      pt.visualTag === "Editorial Photo" ? "bg-amber-50 text-amber-600" :
-                      pt.visualTag === "Scene Quote" ? "bg-indigo-50 text-indigo-600" :
-                      "bg-green-50 text-green-600"
-                    }`}>
-                      {pt.visualTag}
-                    </span>
-                  )}
                 </button>
               ))}
             </div>
