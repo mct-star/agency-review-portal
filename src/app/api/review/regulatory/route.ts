@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
 import {
   buildRegulatoryContext,
@@ -37,16 +37,20 @@ const FRAMEWORK_LABELS: Record<string, string> = {
  * }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await request.json();
   const { companyId, weekId, targetCountries = ["GB"], pieceIds, framework } = body;
 
   if (!companyId) {
     return NextResponse.json({ error: "companyId required" }, { status: 400 });
+  }
+
+  // Allow both admins and company members
+  const profile = await requireCompanyUser(companyId);
+  if (!profile) {
+    const admin = await requireAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   if (!weekId && (!pieceIds || pieceIds.length === 0)) {

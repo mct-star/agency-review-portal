@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ComplianceFrameworkSelector from "@/components/compliance/ComplianceFrameworkSelector";
 import ComplianceReviewButton from "@/components/compliance/ComplianceReviewButton";
+import BatchReviewButton from "@/components/compliance/BatchReviewButton";
 import { getPostDisplayName, getPostTypeBadge } from "@/lib/post-display-name";
 
 const FRAMEWORK_LABELS: Record<string, string> = {
@@ -290,8 +291,16 @@ export default async function ComplianceDashboardPage() {
         {/* Posts Requiring Compliance Review */}
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Awaiting Review</h2>
-            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">{pending.length}</span>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900">Awaiting Review</h2>
+              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">{pending.length}</span>
+            </div>
+            {pending.length > 0 && (
+              <BatchReviewButton
+                companyId={companyId}
+                pieceIds={pending.map((p) => p.id)}
+              />
+            )}
           </div>
           <div className="divide-y divide-gray-50">
             {awaitingReview.length === 0 ? (
