@@ -101,8 +101,9 @@ export default function AdminPage() {
     setSaving(null);
   }
 
-  const planCounts = {
+  const planCounts: Record<string, number> = {
     free: companies.filter((c) => (c.plan || "free") === "free").length,
+    starter: companies.filter((c) => c.plan === "starter").length,
     pro: companies.filter((c) => c.plan === "pro").length,
     agency: companies.filter((c) => c.plan === "agency").length,
   };

@@ -176,6 +176,7 @@ export default function QuickGenerate({
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
   const [copied, setCopied] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [applyingOverlay, setApplyingOverlay] = useState(false);
@@ -323,6 +324,12 @@ export default function QuickGenerate({
 
       if (!contentRes.ok) {
         const err = await contentRes.json();
+        if (err.limitReached) {
+          setError(`You've used ${err.used} of ${err.limit} posts this month. Upgrade to Pro for unlimited content generation.`);
+          setLimitReached(true);
+          setState("error");
+          return;
+        }
         throw new Error(err.error || "Content generation failed");
       }
 
@@ -724,8 +731,16 @@ export default function QuickGenerate({
 
           {/* Error message */}
           {error && (
-            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
+            <div className={`rounded-lg px-4 py-3 text-sm ${limitReached ? "bg-violet-50 text-violet-800 border border-violet-200" : "bg-red-50 text-red-700"}`}>
+              <p>{error}</p>
+              {limitReached && (
+                <a
+                  href={`/setup/${selectedCompany.id}#billing`}
+                  className="mt-2 inline-block rounded-md bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 transition-colors"
+                >
+                  Upgrade to Pro
+                </a>
+              )}
             </div>
           )}
 

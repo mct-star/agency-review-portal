@@ -105,7 +105,7 @@ const SETUP_STEPS: {
   },
 ];
 
-const PLAN_RANK: Record<PlanTier, number> = { free: 0, pro: 1, agency: 2 };
+const PLAN_RANK: Record<PlanTier, number> = { free: 0, starter: 0, pro: 1, agency: 2 };
 function hasPlanAccess(companyPlan: PlanTier, requiredPlan: PlanTier): boolean {
   return PLAN_RANK[companyPlan] >= PLAN_RANK[requiredPlan];
 }

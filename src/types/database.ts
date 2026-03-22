@@ -153,7 +153,7 @@ export type ImageGenerationStatus =
   | "failed"
   | "skipped";
 
-export type PlanTier = "free" | "pro" | "agency";
+export type PlanTier = "free" | "starter" | "pro" | "agency";
 
 export type RegulatoryStatus = "pending" | "clean" | "flagged" | "approved";
 

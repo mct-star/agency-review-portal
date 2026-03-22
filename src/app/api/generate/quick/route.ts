@@ -13,6 +13,9 @@ import {
 } from "@/lib/generation/content-intelligence";
 import { generateQuoteCard, QUOTE_CARD_COLORS } from "@/lib/image/quote-card";
 import { generateCarousel, type CarouselSlide } from "@/lib/image/carousel";
+import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
+import { checkPostLimit } from "@/lib/utils/plan-limits";
+import type { PlanTier } from "@/types/database";
 
 /**
  * POST /api/generate/quick
@@ -124,9 +127,26 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company } = await supabase
       .from("companies")
-      .select("name, spokesperson_name, brand_color, spokesperson_appearance, preferred_image_styles, post_type_image_mapping")
+      .select("name, spokesperson_name, brand_color, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
       .single();
+
+    // ── Plan enforcement ──────────────────────────────────────
+    if (company) {
+      const effectivePlan = getEffectivePlan(company as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
+      const postCheck = await checkPostLimit(supabase, companyId, effectivePlan);
+      if (!postCheck.allowed) {
+        return NextResponse.json(
+          {
+            error: `Monthly post limit reached (${postCheck.used}/${postCheck.limit}). Upgrade to Pro for unlimited content generation.`,
+            limitReached: true,
+            used: postCheck.used,
+            limit: postCheck.limit,
+          },
+          { status: 429 }
+        );
+      }
+    }
 
     // Resolve effective image style for this post type.
     // Priority: per-post-type mapping > preferred styles > hardcoded default
