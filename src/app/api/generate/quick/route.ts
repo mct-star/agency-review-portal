@@ -139,7 +139,7 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company } = await supabase
       .from("companies")
-      .select("name, description, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, plan, trial_plan, trial_expires_at")
+      .select("name, description, industry, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, provider_routing, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
       .single();
 
@@ -674,10 +674,18 @@ export async function POST(request: Request) {
       // AI image generation with smart provider routing
       try {
         // Route to optimal provider based on image style
+        // Check for company-specific provider override first
+        const companyRouting = (company as Record<string, unknown>)?.provider_routing as Record<string, string> | null;
+        const providerOverride = companyRouting?.[styleSlug];
+
         const hasRefPhotos = !!(spokespersonId && styleSlug === "pixar_3d");
         const route = routeImageStyle(styleSlug, hasRefPhotos);
-        const effectiveProviderKey = getEffectiveProvider(route.provider);
-        console.log(`[quick] Image routing: ${route.reason} → using ${effectiveProviderKey}`);
+
+        // Use company override if set and not "auto", otherwise use smart routing
+        const effectiveProviderKey = (providerOverride && providerOverride !== "auto")
+          ? providerOverride as "gemini_imagen" | "fal_flux" | "openai_gpt_image"
+          : getEffectiveProvider(route.provider);
+        console.log(`[quick] Image routing: ${route.reason}${providerOverride ? ` (override: ${providerOverride})` : ""} → using ${effectiveProviderKey}`);
 
         // Get the routed provider (may differ from company default)
         let imgProvider;
