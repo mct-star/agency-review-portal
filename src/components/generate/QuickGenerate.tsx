@@ -320,26 +320,61 @@ export default function QuickGenerate({
   }
 
   async function handleRegenerateImage() {
-    if (!imagePrompt || !selectedPostType) return;
+    if (!selectedPostType) return;
     setRegeneratingImage(true);
     setOverlayError(null);
     try {
       const archetype = selectedPostType.archetype;
-      const aspectRatio = archetype.includes("pixar") ? "4:3" : "1:1";
-      const res = await fetch("/api/generate/quick-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId: selectedCompany.id,
-          imagePrompt,
-          archetype,
-          aspectRatio,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Image regeneration failed");
-      if (data.imageUrl) {
-        setCurrentImageUrl(data.imageUrl);
+
+      // For quote cards and carousels, regenerate the whole post
+      // (the image is programmatic and tied to the content)
+      if (archetype === "quote_card" || archetype === "carousel") {
+        // Re-run the full generation to get a new programmatic image
+        const res = await fetch("/api/generate/quick", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: selectedCompany.id,
+            spokespersonId: selectedPerson?.id || null,
+            topic: topic.trim() || "industry insight",
+            postTypeSlug: selectedPostType.slug,
+            platform,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Regeneration failed");
+        if (data.imageUrl) {
+          setCurrentImageUrl(data.imageUrl);
+        }
+        // Update the post text too since it's a fresh generation
+        if (data.postText && result) {
+          setResult({
+            ...result,
+            postText: data.postText,
+            firstComment: data.firstComment || null,
+            imageUrl: data.imageUrl || null,
+            carouselImageUrls: data.carouselImageUrls || null,
+          });
+        }
+      } else {
+        // For AI-generated images, call the image-only endpoint
+        if (!imagePrompt) return;
+        const aspectRatio = archetype.includes("pixar") ? "4:3" : "1:1";
+        const res = await fetch("/api/generate/quick-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: selectedCompany.id,
+            imagePrompt,
+            archetype,
+            aspectRatio,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Image regeneration failed");
+        if (data.imageUrl) {
+          setCurrentImageUrl(data.imageUrl);
+        }
       }
     } catch (err) {
       setOverlayError(err instanceof Error ? err.message : "Image regeneration failed");

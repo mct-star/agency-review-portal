@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: (resolved.settings.model as string) || "claude-3-5-sonnet-20241022",
+          model: "claude-opus-4-20250514", // Opus for voice extraction — one-time setup, quality matters
           max_tokens: 4000,
           messages: [
             {
@@ -149,7 +149,7 @@ Return ONLY the posts text, separated by --- between each post. No commentary.`,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: (resolved.settings.model as string) || "claude-3-5-sonnet-20241022",
+        model: "claude-opus-4-20250514", // Opus for voice extraction — one-time setup, quality matters
         max_tokens: 2000,
         system: "You are a writing style analyst. Return ONLY valid JSON with no preamble, explanation, or markdown code fences.",
         messages: [
