@@ -375,7 +375,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* ===== 1. Welcome Banner ===== */}
+      {/* ===== 1. Welcome + Tagline ===== */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -383,97 +383,194 @@ export default async function DashboardPage() {
               <img
                 src={company.logo_url}
                 alt={company.name}
-                className="h-12 w-12 rounded-xl object-contain"
+                className="h-10 w-10 rounded-xl object-contain"
               />
             )}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {isAdmin ? "Dashboard" : `Welcome back, ${profile.full_name || "there"}`}
+              <h1 className="text-lg font-bold text-gray-900">
+                {isAdmin ? "Dashboard" : `Welcome back, ${(profile.full_name || "there").split(" ")[0]}`}
               </h1>
-              <div className="mt-0.5 flex items-center gap-3">
-                {company && (
-                  <span className="text-sm font-medium text-gray-500">{company.name}</span>
-                )}
-                <span className="text-sm text-gray-400">{todayFormatted}</span>
-              </div>
+              <p className="text-xs text-gray-400">{todayFormatted}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {setupComplete && company && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200">
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M5 13l4 4L19 7" />
-                </svg>
-                Setup complete
+            {isOnTrial && trialDaysLeft !== null && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
+                Pro Trial {trialDaysLeft}d left
               </span>
             )}
-            <Link
-              href="/generate/quick"
-              className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
-              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }}
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-              Quick Generate
-            </Link>
+            {company && (
+              <Link
+                href={`/setup/${company.id}`}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                Settings
+              </Link>
+            )}
+          </div>
+        </div>
+        {/* Tagline */}
+        <div className="mt-4 rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-4">
+          <p className="text-sm font-semibold text-white tracking-wide">
+            Your weekly demand ecosystem, deployed in minutes.
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            47,000 lines. 39 quality gates. One voice. Your voice.
+          </p>
+        </div>
+      </div>
+
+      {/* ===== 2. Three Big Action Cards ===== */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {/* Quick Generate */}
+        <Link
+          href="/generate/quick"
+          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg hover:border-violet-300"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-colors group-hover:bg-violet-600 group-hover:text-white">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-base font-bold text-gray-900">Quick Generate</h3>
+          <p className="mt-1 text-xs text-gray-500">One post in 30 seconds. Pick a topic, choose a style, publish.</p>
+          <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 group-hover:gap-2 transition-all">
+            Generate now
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </div>
+        </Link>
+
+        {/* Content Studio */}
+        <Link
+          href="/generate/studio"
+          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg hover:border-amber-300"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600 transition-colors group-hover:bg-amber-600 group-hover:text-white">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-base font-bold text-gray-900">Content Studio</h3>
+          <p className="mt-1 text-xs text-gray-500">Plan a full week or month. Strategic ecosystem with linked posts.</p>
+          <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-amber-600 group-hover:gap-2 transition-all">
+            Open studio
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </div>
+        </Link>
+
+        {/* Review Content */}
+        <Link
+          href="/content"
+          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg hover:border-emerald-300"
+        >
+          <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                {pendingCount > 99 ? "99+" : pendingCount}
+              </span>
+            )}
+          </div>
+          <h3 className="mt-4 text-base font-bold text-gray-900">Review Content</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            {pendingCount > 0
+              ? `${pendingCount} post${pendingCount !== 1 ? "s" : ""} awaiting review. Approve and publish.`
+              : "Review, approve, and publish your content."}
+          </p>
+          <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 group-hover:gap-2 transition-all">
+            Review now
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </div>
+        </Link>
+      </div>
+
+      {/* ===== 3. Quick Actions Bar ===== */}
+      <div className="flex flex-wrap gap-2">
+        {company && pendingCount > 0 && (
+          <Link
+            href="/content?status=pending"
+            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {pendingCount} awaiting review
+          </Link>
+        )}
+        {company && changesCount > 0 && (
+          <Link
+            href="/content?status=changes_requested"
+            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01" /></svg>
+            {changesCount} need changes
+          </Link>
+        )}
+        <Link
+          href="/compliance"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+          Compliance
+        </Link>
+        <Link
+          href="/calendar"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          Calendar
+        </Link>
+        {company && (
+          <Link
+            href={`/setup/${company.id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
+          Setup
+          </Link>
+        )}
+      </div>
+
+      {/* ===== 4. Activity Strip (compact stats) ===== */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="grid grid-cols-2 divide-x divide-gray-100 sm:grid-cols-4 lg:grid-cols-6">
+          <div className="px-4 py-3">
+            <p className="text-2xl font-bold text-gray-900">{totalPieces || 0}</p>
+            <p className="text-[11px] text-gray-400">Total Posts</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-2xl font-bold" style={{ color: pendingCount > 0 ? "#f59e0b" : "#9ca3af" }}>{pendingCount}</p>
+            <p className="text-[11px] text-gray-400">Pending Review</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-2xl font-bold text-emerald-600">{approvedCount}</p>
+            <p className="text-[11px] text-gray-400">Approved</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-2xl font-bold text-blue-600">{publishedCount}</p>
+            <p className="text-[11px] text-gray-400">Published</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-2xl font-bold text-violet-600">{thisWeekCount}</p>
+            <p className="text-[11px] text-gray-400">This Week</p>
+          </div>
+          <div className="px-4 py-3">
+            {hasSchedule ? (
+              <>
+                <p className="text-2xl font-bold" style={{ color: scheduleCompliance !== null && scheduleCompliance >= 80 ? "#10b981" : "#f59e0b" }}>{scheduleCompliance}%</p>
+                <p className="text-[11px] text-gray-400">Schedule Hit</p>
+              </>
+            ) : (
+              <Link href={company ? `${setupHref}/schedule` : "/setup"} className="block">
+                <p className="text-sm font-medium text-gray-300">--</p>
+                <p className="text-[11px] text-sky-500">Set schedule</p>
+              </Link>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ===== 1b. Trial / Plan Banner ===== */}
-      {company && isOnTrial && (
-        <div className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100">
-                <svg className="h-5 w-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-violet-900">
-                  Pro Trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining
-                </p>
-                <p className="text-xs text-violet-600">
-                  You have full access to the Copy Engine and Regulatory Review.
-                  {postLimit > 0 && ` ${monthPostsUsed} of ${postLimit} posts used this month.`}
-                </p>
-              </div>
-            </div>
-            <Link
-              href={`/setup/${company.id}#billing`}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700 transition-colors"
-            >
-              Upgrade to Pro
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {company && !isOnTrial && effectivePlan === "starter" && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
-                <svg className="h-5 w-5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-amber-900">Starter Plan — Limited to {postLimit} posts/month</p>
-                <p className="text-xs text-amber-700">Upgrade to Pro for unlimited generation, compliance review, and full voice profiles.</p>
-              </div>
-            </div>
-            <Link
-              href={`/setup/${company.id}#billing`}
-              className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
-            >
-              Upgrade
-            </Link>
-          </div>
-        </div>
-      )}
+      {/* Old trial/plan banners removed — info now in welcome section */}
 
       {/* ===== 2. Setup Progress (only if incomplete) ===== */}
       {company && !setupComplete && (
@@ -542,62 +639,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* ===== 3. Key Metrics Row (6 cards, 3x2 on desktop) ===== */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          value={totalPieces || 0}
-          label="Total Posts"
-          icon="sparkle"
-          color="#7c3aed"
-        />
-        <StatCard
-          value={pendingCount}
-          label="Pending Review"
-          icon="clock"
-          href="/review"
-          color="#f59e0b"
-          tintBg={pendingCount > 0 ? "#fffbeb" : undefined}
-        />
-        <StatCard
-          value={approvedCount}
-          label="Approved"
-          icon="check"
-          href="/review"
-          color="#10b981"
-          tintBg={approvedCount > 0 ? "#ecfdf5" : undefined}
-        />
-        <StatCard
-          value={publishedCount}
-          label="Published"
-          icon="published"
-          color="#3b82f6"
-          tintBg={publishedCount > 0 ? "#eff6ff" : undefined}
-        />
-        <StatCard
-          value={thisWeekCount}
-          label="Created This Week"
-          icon="calendar"
-          color="#6366f1"
-        />
-        {hasSchedule ? (
-          <StatCard
-            value={`${scheduleCompliance}%`}
-            label="Schedule Compliance"
-            icon="percent"
-            color={scheduleCompliance !== null && scheduleCompliance >= 80 ? "#10b981" : scheduleCompliance !== null && scheduleCompliance >= 50 ? "#f59e0b" : "#ef4444"}
-          />
-        ) : (
-          <Link href={company ? `${setupHref}/schedule` : "/setup"} className="block">
-            <div className="flex h-full items-center rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 transition-shadow hover:shadow-md">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Schedule Compliance</p>
-                <p className="mt-1 text-xs text-gray-400">No schedule set</p>
-                <p className="mt-2 text-xs font-medium text-sky-600">Configure schedule &rarr;</p>
-              </div>
-            </div>
-          </Link>
-        )}
-      </div>
+      {/* Old 6-card stats grid replaced by compact activity strip above */}
 
       {/* ===== 4. What Needs Attention ===== */}
       <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
