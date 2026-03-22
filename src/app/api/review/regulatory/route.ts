@@ -7,6 +7,56 @@ import {
 } from "@/lib/generation/regulatory-knowledge";
 import type { RegulatoryIssue } from "@/lib/generation/regulatory-knowledge";
 
+/** Industry-specific regulatory expertise for the compliance reviewer */
+function getIndustryExpertise(industry: string): { title: string; expertise: string; companyType: string } {
+  switch (industry) {
+    case "healthcare":
+    case "pharma":
+      return {
+        title: "healthcare regulatory compliance reviewer",
+        expertise: "pharmaceutical advertising law across European markets, including ABPI Code of Practice, MHRA Blue Guide, ANSM regulations (France), HWG (Germany), and FDA promotional guidelines",
+        companyType: "healthcare / pharmaceutical company",
+      };
+    case "fintech":
+      return {
+        title: "financial services compliance reviewer",
+        expertise: "FCA advertising rules, Consumer Duty, financial promotions regulations, PRA guidelines, MiFID II marketing requirements, and anti-money laundering (AML) communications",
+        companyType: "financial services / fintech company",
+      };
+    case "legal":
+      return {
+        title: "legal services marketing compliance reviewer",
+        expertise: "SRA advertising rules, BSB guidelines, Claims Management Regulations, and professional conduct rules for legal marketing",
+        companyType: "law firm / legal services company",
+      };
+    case "education":
+      return {
+        title: "education marketing compliance reviewer",
+        expertise: "CMA guidance on education marketing, OfS conditions, consumer protection regulations, and advertising standards for educational services",
+        companyType: "education / training company",
+      };
+    case "construction":
+    case "manufacturing":
+      return {
+        title: "B2B marketing compliance reviewer",
+        expertise: "CAP Code, ASA guidelines, Trading Standards regulations, product safety claims, environmental claims (greenwashing), and B2B advertising standards",
+        companyType: `${industry} company`,
+      };
+    case "energy":
+      return {
+        title: "energy sector marketing compliance reviewer",
+        expertise: "Ofgem guidelines, green claims guidance, ASA environmental advertising rules, Competition and Markets Authority greenwashing rules, and energy switching regulations",
+        companyType: "energy / sustainability company",
+      };
+    default:
+      return {
+        title: "marketing compliance reviewer",
+        expertise: "CAP Code, ASA advertising standards, Consumer Rights Act, GDPR marketing requirements, Competition and Markets Authority guidelines, and general B2B/B2C advertising regulations",
+        companyType: `${industry || "B2B"} company`,
+      };
+  }
+}
+
 /** Regulatory framework labels */
 const FRAMEWORK_LABELS: Record<string, string> = {
   abpi: "ABPI Code (UK Pharma)",
@@ -140,9 +190,11 @@ export async function POST(request: Request) {
   }[] = [];
 
   for (const piece of pieces) {
-    const system = `You are a healthcare regulatory compliance reviewer with deep expertise in pharmaceutical advertising law across European markets. You have been trained on the ABPI Code of Practice, ANSM regulations (France), HWG (Germany), LMP/RDAMP (Belgium), and the Dutch Medicines Act.
+    const companyIndustry = (company as Record<string, unknown>)?.industry as string || "general";
+    const industryExpertise = getIndustryExpertise(companyIndustry);
+    const system = `You are a ${industryExpertise.title} with deep expertise in ${industryExpertise.expertise}.
 
-Your task is to review a piece of marketing content for a healthcare company and identify any legal or regulatory compliance issues for the specified target markets.
+Your task is to review a piece of marketing content for a ${industryExpertise.companyType} and identify any legal or regulatory compliance issues for the specified target markets.
 
 ${regulatoryContext}
 ${companyDocContext}
