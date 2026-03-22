@@ -67,8 +67,15 @@ const POST_TYPES: PostTypeOption[] = [
     slug: "blog_teaser",
     label: "Article Teaser",
     description: "Drive traffic to a longer piece of content. 60-120 words.",
-    archetype: "carousel",
-    color: "#A27BF9",
+    archetype: "quote_card",
+    color: "#059669",
+  },
+  {
+    slug: "personal_update",
+    label: "Personal Update",
+    description: "Share what you're up to. Candid, human, relatable. 100-200 words.",
+    archetype: "editorial_photo",
+    color: "#E11D48",
   },
 ];
 

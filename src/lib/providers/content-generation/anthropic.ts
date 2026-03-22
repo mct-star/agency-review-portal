@@ -256,7 +256,7 @@ function buildContentPrompt(input: ContentGenerationInput): string {
     parts.push("- The CTA URL goes in the FIRST COMMENT ONLY. NEVER put the CTA URL in the main post body.");
     parts.push("- The first comment is conversational and brief (1-3 sentences + link).");
 
-    if (input.firstCommentTemplate === "COFFEE_COMMENT" || input.postTypeSlug === "blog_teaser" || input.postTypeSlug === "sunday_post" || input.postTypeSlug === "personal" || input.postTypeSlug === "story") {
+    if (input.firstCommentTemplate === "COFFEE_COMMENT" || input.postTypeSlug === "blog_teaser" || input.postTypeSlug === "sunday_post" || input.postTypeSlug === "personal" || input.postTypeSlug === "personal_update" || input.postTypeSlug === "story") {
       // Sunday / personal posts get a warm coffee comment, not a CTA
       parts.length = 0;
       parts.push("FIRST COMMENT: A warm, human coffee comment. NOT a CTA or pitch.");

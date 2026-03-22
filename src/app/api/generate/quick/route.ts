@@ -60,6 +60,7 @@ const STYLE_PROMPTS: Record<string, string | ((appearance: string) => string)> =
   quote_card: "PROGRAMMATIC", // Handled by quote card generator, not AI
   carousel_framework: "Clean white background with purple (#A27BF9) accents. Typography-led framework slide. Oversized accent number + heading + body text. Generous whitespace. Line-art icon. Professional, airy layout.",
   infographic: "Clean infographic with structured data visualisation. Modern flat design, clear hierarchy. Brand accent colours. White background, minimal decoration. Statistics and data points clearly presented.",
+  editorial_photo: "Candid editorial photography. Natural light, warm golden tones. Lifestyle scene — walking outdoors, coffee shop, workspace, nature, city streets. Authentic and unposed, real-life moment. Shot on 35mm film aesthetic. Shallow depth of field. Warm, human, relatable. No text on image. No people's faces unless specifically described.",
   real_photo: "SKIP", // User-uploaded photos, no generation
   flat_illustration: "Modern flat vector illustration with clean lines and bold shapes. Minimal detail, geometric forms. Professional and approachable. Limited colour palette with one accent colour. Concept-level abstraction.",
 };
@@ -98,8 +99,13 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
     dimensions: { width: 1080, height: 1350 },
   },
   blog_teaser: {
-    archetype: "carousel",
-    imageStyle: "Clean white background. Cover slide for a carousel: icon + title + subtitle + 'Swipe >' indicator. Purple (#A27BF9) accent colour. AGENCY branding. Typography-led, airy, generous whitespace.",
+    archetype: "quote_card",
+    imageStyle: "Flat solid emerald (#059669) background, edge to edge. Bold white text centred. Article title as hook. Clean, minimal.",
+    dimensions: { width: 1080, height: 1080 },
+  },
+  personal_update: {
+    archetype: "editorial_photo",
+    imageStyle: "Candid editorial photography. Natural light, warm tones. Lifestyle scene matching the topic — walking, coffee shop, workspace, travel, family, nature. Authentic and unposed. Shot on 35mm film look. Shallow depth of field. No text on the image.",
     dimensions: { width: 1080, height: 1080 },
   },
 };
@@ -355,9 +361,13 @@ export async function POST(request: Request) {
     // Normalize: map archetype names to style slugs for consistent lookup
     const archetypeToStyle: Record<string, string> = {
       quote_card: "quote_card",
+      quote_card_green: "quote_card",
+      quote_card_purple: "quote_card",
+      quote_card_blue: "quote_card",
       pixar_healthcare: "pixar_3d",
       pixar_fantasy: "pixar_3d",
       carousel: "carousel_framework",
+      editorial_photo: "editorial_photo",
     };
     const styleSlug = archetypeToStyle[effectiveStyle] || effectiveStyle;
 
@@ -737,4 +747,5 @@ const POST_TYPES_LABELS: Record<string, string> = {
   tactical: "Tactical How-To",
   founder_friday: "Personal Reflection",
   blog_teaser: "Article Teaser",
+  personal_update: "Personal Update",
 };
