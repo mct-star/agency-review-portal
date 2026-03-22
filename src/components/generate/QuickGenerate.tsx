@@ -185,6 +185,8 @@ export default function QuickGenerate({
   const [published, setPublished] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [postUrl, setPostUrl] = useState<string | null>(null);
+  const [imagePrompt, setImagePrompt] = useState<string | null>(null);
+  const [regeneratingImage, setRegeneratingImage] = useState(false);
 
   // Filter spokespersons for the selected company
   const companyPeople = useMemo(
@@ -248,6 +250,35 @@ export default function QuickGenerate({
     }
   }
 
+  async function handleRegenerateImage() {
+    if (!imagePrompt || !selectedPostType) return;
+    setRegeneratingImage(true);
+    setOverlayError(null);
+    try {
+      const archetype = selectedPostType.archetype;
+      const aspectRatio = archetype.includes("pixar") ? "4:3" : "1:1";
+      const res = await fetch("/api/generate/quick-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: selectedCompany.id,
+          imagePrompt,
+          archetype,
+          aspectRatio,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image regeneration failed");
+      if (data.imageUrl) {
+        setCurrentImageUrl(data.imageUrl);
+      }
+    } catch (err) {
+      setOverlayError(err instanceof Error ? err.message : "Image regeneration failed");
+    } finally {
+      setRegeneratingImage(false);
+    }
+  }
+
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
     setState("generating");
@@ -284,6 +315,7 @@ export default function QuickGenerate({
 
       setResult(generated);
       setCurrentImageUrl(generated.imageUrl);
+      setImagePrompt(data.imagePrompt || null);
       setState("complete");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -336,6 +368,8 @@ export default function QuickGenerate({
     setPublished(false);
     setPublishError(null);
     setPostUrl(null);
+    setImagePrompt(null);
+    setRegeneratingImage(false);
   }
 
   return (
@@ -582,6 +616,31 @@ export default function QuickGenerate({
                 >
                   Download image
                 </a>
+              )}
+              {currentImageUrl && imagePrompt && (
+                <button
+                  onClick={handleRegenerateImage}
+                  disabled={regeneratingImage}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {regeneratingImage ? (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Regenerating...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 4v6h6M23 20v-6h-6" />
+                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                      </svg>
+                      New image
+                    </span>
+                  )}
+                </button>
               )}
               {currentImageUrl && (
                 <button
