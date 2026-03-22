@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface UpgradeButtonProps {
-  plan: "pro" | "agency";
+  plan: "starter" | "pro" | "agency";
   companyId: string;
   addons?: string[];
   className?: string;

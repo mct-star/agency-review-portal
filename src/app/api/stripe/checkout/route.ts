@@ -81,7 +81,12 @@ export async function POST(request: Request) {
   }
 
   // Build line items
-  const priceId = plan === "agency" ? STRIPE_PRICES.agency : STRIPE_PRICES.pro;
+  const priceMap: Record<string, string> = {
+    starter: STRIPE_PRICES.starter,
+    pro: STRIPE_PRICES.pro,
+    agency: STRIPE_PRICES.agency,
+  };
+  const priceId = priceMap[plan];
   if (!priceId) {
     return NextResponse.json(
       { error: `No Stripe Price ID configured for plan: ${plan}. Set STRIPE_PRICE_${plan.toUpperCase()} env var.` },
