@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import LinkedInPreview from "@/components/content/LinkedInPreview";
+import VoiceDictation from "@/components/ui/VoiceDictation";
 
 /**
  * Quick Generate — the "make me a post" experience.
@@ -391,9 +392,16 @@ export default function QuickGenerate({
 
           {/* Topic input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              What do you want to post about?
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-gray-700">
+                What do you want to post about?
+              </label>
+              <VoiceDictation
+                onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
+                companyId={selectedCompany.id}
+                placeholder="Dictate"
+              />
+            </div>
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
