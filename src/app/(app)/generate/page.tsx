@@ -209,6 +209,10 @@ export default function GeneratePage() {
   const [topics, setTopics] = useState<TopicEntry[]>([]);
   const [selectedTopicId, setSelectedTopicId] = useState("");
   const [topicMode, setTopicMode] = useState<"bank" | "custom">("bank");
+  const [selectedQuarter, setSelectedQuarter] = useState(() => {
+    const month = new Date().getMonth(); // 0-11
+    return Math.floor(month / 3) + 1; // 1-4
+  });
   const [blogTitle, setBlogTitle] = useState<string | null>(null);
   const [blogUrl, setBlogUrl] = useState<string | null>(null);
   // Translation & regulatory
@@ -1238,10 +1242,48 @@ export default function GeneratePage() {
                     </div>
                   )}
 
+                  {/* Quarter filter for topic bank */}
+                  {topicMode === "bank" && topics.length > 12 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Quarter:</span>
+                      <div className="flex rounded-md border border-gray-200 p-0.5 bg-gray-50">
+                        {[1, 2, 3, 4].map((q) => (
+                          <button
+                            key={q}
+                            type="button"
+                            onClick={() => { setSelectedQuarter(q); setSelectedTopicId(""); }}
+                            className={`rounded px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                              selectedQuarter === q ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                            }`}
+                          >
+                            Q{q}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[10px] text-gray-400">
+                        {(() => {
+                          const topicsPerQ = Math.ceil(topics.length / 4);
+                          const start = (selectedQuarter - 1) * topicsPerQ;
+                          const end = Math.min(start + topicsPerQ, topics.length);
+                          const unused = topics.slice(start, end).filter(t => !t.is_used).length;
+                          return `${unused} unused of ${end - start}`;
+                        })()}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Topic bank selector */}
                   {topicMode === "bank" && topics.length > 0 ? (
                     <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                      {topics.map((topic) => (
+                      {topics
+                        .filter((_topic, idx) => {
+                          if (topics.length <= 12) return true; // Don't filter small banks
+                          const topicsPerQ = Math.ceil(topics.length / 4);
+                          const qStart = (selectedQuarter - 1) * topicsPerQ;
+                          const qEnd = qStart + topicsPerQ;
+                          return idx >= qStart && idx < qEnd;
+                        })
+                        .map((topic) => (
                         <button
                           key={topic.id}
                           type="button"
