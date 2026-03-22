@@ -221,12 +221,8 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
       {piece.content_type === "social_post" && spokesperson && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="border-b border-gray-100 px-6 py-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                <path d="M8 21h8" />
-                <path d="M12 17v4" />
-              </svg>
+            <h2 className="flex items-center text-sm font-semibold text-gray-900">
+              <span className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white tracking-wider mr-3">00</span>
               Post Preview
             </h2>
           </div>

@@ -46,6 +46,14 @@ function ScoreGauge({ score }: { score: number }) {
   );
 }
 
+function SectionNumber({ n }: { n: string }) {
+  return (
+    <span className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white tracking-wider mr-3">
+      {n}
+    </span>
+  );
+}
+
 function RiskBadge({ level }: { level: string }) {
   const styles: Record<string, string> = {
     low: "bg-green-50 text-green-700 border-green-200",
@@ -269,9 +277,33 @@ export default function ComplianceDetailClient({
 
   return (
     <div className="space-y-6">
-      {/* Score and Actions Bar */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between">
+      {/* ── 01 COMPLIANCE SCORE ────────────────────────────────── */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <h2 className="flex items-center text-sm font-semibold text-gray-900">
+            <SectionNumber n="01" />
+            Compliance Score
+          </h2>
+          <div className="flex gap-2 print:hidden">
+            <button
+              onClick={handleRerun}
+              disabled={rerunning}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              {rerunning ? "Re-running..." : "Re-run Review"}
+            </button>
+            {currentStatus !== "approved" && (
+              <button
+                onClick={handleApprove}
+                disabled={approving}
+                className="rounded-lg bg-green-700 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
+              >
+                {approving ? "Approving..." : "Approve"}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="p-6">
           <div className="flex items-center gap-8">
             <ScoreGauge score={review?.overallScore ?? 0} />
             <div>
@@ -294,31 +326,18 @@ export default function ComplianceDetailClient({
               )}
             </div>
           </div>
-
-          <div className="flex flex-col gap-2 print:hidden">
-            <button
-              onClick={handleRerun}
-              disabled={rerunning}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 transition-colors"
-            >
-              {rerunning ? "Re-running..." : "Re-run Review"}
-            </button>
-            {currentStatus !== "approved" && (
-              <button
-                onClick={handleApprove}
-                disabled={approving}
-                className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-600 disabled:opacity-50 transition-colors"
-              >
-                {approving ? "Approving..." : "Approve for Compliance"}
-              </button>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Content with Inline Highlighting */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">Content Review</h2>
+      {/* ── 02 CONTENT REVIEW ────────────────────────────────── */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="flex items-center text-sm font-semibold text-gray-900">
+            <SectionNumber n="02" />
+            Content Review
+          </h2>
+        </div>
+        <div className="p-6">
         <div className="prose prose-sm max-w-none leading-relaxed">
           <div className="whitespace-pre-wrap text-gray-800">
             {highlightedBody}
@@ -346,13 +365,17 @@ export default function ComplianceDetailClient({
             <span className="inline-block h-3 w-6 rounded bg-blue-50 border border-blue-200" /> Compliance
           </span>
         </div>
+        </div>
       </div>
 
-      {/* Flagged Issues */}
+      {/* ── 03 ISSUES FOUND ──────────────────────────────────── */}
       {issues.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">Issues Found</h2>
+            <h2 className="flex items-center text-sm font-semibold text-gray-900">
+              <SectionNumber n="03" />
+              Issues Found
+            </h2>
             <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">{issues.length}</span>
           </div>
           <div className="divide-y divide-gray-50">
@@ -437,16 +460,16 @@ export default function ComplianceDetailClient({
         </div>
       )}
 
-      {/* Passed Checks */}
+      {/* ── 04 PASSED CHECKS ─────────────────────────────────── */}
       {passedChecks.length > 0 && (
-        <div className="rounded-xl border border-green-100 bg-green-50/30 p-6 shadow-sm">
-          <h2 className="mb-3 text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <svg className="h-5 w-5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              <path d="M9 12l2 2 4-4" />
-            </svg>
-            Passed Checks
-          </h2>
+        <div className="rounded-xl border border-green-100 bg-green-50/30 shadow-sm overflow-hidden">
+          <div className="border-b border-green-100 px-6 py-4">
+            <h2 className="flex items-center text-sm font-semibold text-gray-900">
+              <SectionNumber n="04" />
+              Passed Checks
+            </h2>
+          </div>
+          <div className="p-6">
           <ul className="space-y-2">
             {passedChecks.map((check, idx) => (
               <li key={idx} className="flex items-center gap-2 text-sm text-green-800">
@@ -457,13 +480,20 @@ export default function ComplianceDetailClient({
               </li>
             ))}
           </ul>
+          </div>
         </div>
       )}
 
-      {/* Audit Trail */}
+      {/* ── 05 AUDIT TRAIL ──────────────────────────────────── */}
       {review?.reviewedAt && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Audit Trail</h2>
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-gray-100 px-6 py-4">
+            <h2 className="flex items-center text-sm font-semibold text-gray-900">
+              <SectionNumber n="05" />
+              Audit Trail
+            </h2>
+          </div>
+          <div className="p-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3 text-sm">
               <div className="h-2 w-2 rounded-full bg-slate-400" />
@@ -478,6 +508,7 @@ export default function ComplianceDetailClient({
                 <span className="text-gray-700">Marked as compliance approved</span>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
