@@ -352,8 +352,10 @@ export default function CompanySocialPage() {
                         key={acc.id}
                         className="mt-1 flex items-center justify-between"
                       >
-                        <span className="text-xs font-medium text-green-700">
-                          Connected as {acc.account_name || acc.account_id || "—"}
+                        <span className={`text-xs font-medium ${acc.has_tokens ? "text-green-700" : "text-amber-600"}`}>
+                          {acc.has_tokens
+                            ? `✓ Connected as ${acc.account_name || acc.account_id || "—"}`
+                            : `⚠ ${acc.account_name || "Added"} (not verified)`}
                         </span>
                         <button
                           onClick={() => handleDelete(acc.id)}

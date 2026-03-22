@@ -150,6 +150,8 @@ interface QuickGenerateProps {
   companies: CompanyOption[];
   spokespersons?: SpokespersonOption[];
   showCompanyPicker?: boolean;
+  initialTopic?: string;
+  initialPostType?: string;
 }
 
 type GenerationState = "idle" | "generating" | "complete" | "error";
@@ -165,12 +167,16 @@ interface GeneratedResult {
 export default function QuickGenerate({
   companies,
   spokespersons = [],
+  initialTopic,
+  initialPostType,
   showCompanyPicker = false,
 }: QuickGenerateProps) {
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(companies[0]);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
-  const [topic, setTopic] = useState("");
-  const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(null);
+  const [topic, setTopic] = useState(initialTopic || "");
+  const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(
+    initialPostType ? POST_TYPES.find((p) => p.slug === initialPostType) || null : null
+  );
   const [platform, setPlatform] = useState("linkedin");
   const [state, setState] = useState<GenerationState>("idle");
   const [progress, setProgress] = useState("");

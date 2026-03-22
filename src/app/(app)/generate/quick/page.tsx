@@ -1,7 +1,12 @@
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import QuickGenerate from "@/components/generate/QuickGenerate";
 
-export default async function QuickGeneratePage() {
+export default async function QuickGeneratePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ topic?: string; postType?: string }>;
+}) {
+  const params = await searchParams;
   const profile = await getUserProfile();
   if (!profile) return null;
 
@@ -76,6 +81,8 @@ export default async function QuickGeneratePage() {
           isPrimary: s.is_primary,
         }))}
         showCompanyPicker={isAdmin && companies.length > 1}
+        initialTopic={params?.topic || undefined}
+        initialPostType={params?.postType || undefined}
       />
     </div>
   );
