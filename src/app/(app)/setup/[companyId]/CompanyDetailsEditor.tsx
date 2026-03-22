@@ -135,7 +135,7 @@ export default function CompanyDetailsEditor({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Brand Colour</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Primary Brand Colour</label>
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -150,7 +150,15 @@ export default function CompanyDetailsEditor({
               placeholder="#0ea5e9"
               className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-sky-500 focus:outline-none"
             />
+            <div
+              className="h-9 w-20 rounded border border-gray-200"
+              style={{ backgroundColor: brandColor }}
+            />
           </div>
+          <p className="mt-1 text-[10px] text-gray-400">
+            Used as the default colour for quote cards and carousels. Set per-post-type colours in{" "}
+            <a href={`/setup/${companyId}/image-mapping`} className="text-violet-600 underline">Image Mapping</a>.
+          </p>
         </div>
       </div>
 

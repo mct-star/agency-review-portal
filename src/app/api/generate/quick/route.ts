@@ -378,7 +378,8 @@ export async function POST(request: Request) {
           .trim();
 
         // Resolve colour: per-post-type override > default for post type
-        const cardColor = effectiveColor || QUOTE_CARD_COLORS[postTypeSlug] || "#CDD856";
+        // Colour priority: per-post-type mapping > company brand colour > fallback palette
+        const cardColor = effectiveColor || company?.brand_color || QUOTE_CARD_COLORS[postTypeSlug] || "#7C3AED";
 
         // Fetch spokesperson details for profile pic
         let profilePicUrl: string | null = null;
