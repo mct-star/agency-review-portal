@@ -67,6 +67,23 @@ function RiskBadge({ level }: { level: string }) {
   );
 }
 
+// Three-category compliance system: Legal, Regulatory, Compliance
+type ComplianceCategory = "legal" | "regulatory" | "compliance";
+
+function getComplianceCategory(category: string): ComplianceCategory {
+  const legalCategories = ["medical_claim", "off_label", "misleading", "competitor_reference"];
+  const regulatoryCategories = ["missing_disclaimer", "claims", "product"];
+  if (legalCategories.includes(category)) return "legal";
+  if (regulatoryCategories.includes(category)) return "regulatory";
+  return "compliance";
+}
+
+const COMPLIANCE_COLORS: Record<ComplianceCategory, { bg: string; border: string; text: string; label: string; dot: string }> = {
+  legal: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", label: "Legal", dot: "bg-red-500" },
+  regulatory: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", label: "Regulatory", dot: "bg-amber-500" },
+  compliance: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", label: "Compliance", dot: "bg-blue-500" },
+};
+
 function CategoryBadge({ category }: { category: string }) {
   const labels: Record<string, string> = {
     medical_claim: "Medical Claim",
@@ -83,9 +100,13 @@ function CategoryBadge({ category }: { category: string }) {
     channel: "Channel",
   };
 
+  const compCat = getComplianceCategory(category);
+  const colors = COMPLIANCE_COLORS[compCat];
+
   return (
-    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-      {labels[category] || category}
+    <span className={`inline-flex items-center gap-1 rounded ${colors.bg} ${colors.border} border px-2 py-0.5 text-xs font-medium ${colors.text}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${colors.dot}`} />
+      {colors.label}: {labels[category] || category}
     </span>
   );
 }
@@ -122,7 +143,9 @@ function highlightSentences(text: string, issues: RegulatoryIssueResult[]): Reac
     }
 
     if (matchedIssue) {
-      const bgColor = matchedIssue.riskLevel === "high" ? "bg-red-100 border-red-200" : matchedIssue.riskLevel === "medium" ? "bg-amber-100 border-amber-200" : "bg-yellow-50 border-yellow-200";
+      const compCat = getComplianceCategory(matchedIssue.category);
+      const catColors = COMPLIANCE_COLORS[compCat];
+      const bgColor = `${catColors.bg} ${catColors.border}`;
       result.push(
         <span key={i} className={`${bgColor} rounded border px-0.5`}>
           {sentence}
@@ -314,10 +337,13 @@ export default function ComplianceDetailClient({
             <span className="inline-block h-3 w-6 rounded bg-green-50 border border-green-200" /> Clean
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-6 rounded bg-amber-100 border border-amber-200" /> Minor Issue
+            <span className="inline-block h-3 w-6 rounded bg-red-50 border border-red-200" /> Legal
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-6 rounded bg-red-100 border border-red-200" /> Major Issue
+            <span className="inline-block h-3 w-6 rounded bg-amber-50 border border-amber-200" /> Regulatory
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-6 rounded bg-blue-50 border border-blue-200" /> Compliance
           </span>
         </div>
       </div>
@@ -332,7 +358,8 @@ export default function ComplianceDetailClient({
           <div className="divide-y divide-gray-50">
             {issues.map((issue, idx) => {
               const isExpanded = expandedIssue === idx;
-              const borderColor = issue.riskLevel === "high" ? "border-l-red-500" : issue.riskLevel === "medium" ? "border-l-amber-500" : "border-l-yellow-400";
+              const compCategory = getComplianceCategory(issue.category);
+              const borderColor = compCategory === "legal" ? "border-l-red-500" : compCategory === "regulatory" ? "border-l-amber-500" : "border-l-blue-500";
 
               return (
                 <div key={idx} className={`border-l-4 ${borderColor}`}>
@@ -341,7 +368,7 @@ export default function ComplianceDetailClient({
                     className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`flex-shrink-0 h-2.5 w-2.5 rounded-full ${issue.riskLevel === "high" ? "bg-red-500" : issue.riskLevel === "medium" ? "bg-amber-500" : "bg-yellow-400"}`} />
+                      <div className={`flex-shrink-0 h-2.5 w-2.5 rounded-full ${COMPLIANCE_COLORS[compCategory].dot}`} />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900">{(issue as RegulatoryIssueResult & { title?: string }).title || issue.explanation?.slice(0, 60) || "Issue"}</p>
                         <div className="mt-0.5 flex items-center gap-2">

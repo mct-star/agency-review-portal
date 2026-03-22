@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import ComplianceDetailClient from "@/components/compliance/ComplianceDetailClient";
+import { getPostDisplayName, getPostTypeBadge } from "@/lib/post-display-name";
 import type { RegulatoryReviewResult } from "@/types/database";
 
 const contentTypeLabels: Record<string, string> = {
@@ -10,6 +11,15 @@ const contentTypeLabels: Record<string, string> = {
   linkedin_article: "LinkedIn Article",
   pdf_guide: "PDF Guide",
   video_script: "Video Script",
+};
+
+const frameworkLabels: Record<string, string> = {
+  abpi: "ABPI Code of Practice (UK Pharma)",
+  fda: "FDA Regulatory Framework (US)",
+  mhra: "MHRA Guidelines (UK Medical Devices)",
+  eu_mdr: "EU Medical Device Regulation",
+  general_healthcare: "General Healthcare Compliance",
+  custom: "Custom Framework",
 };
 
 interface PageProps {
@@ -37,56 +47,150 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  // Fetch company details for branding
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name, logo_url, brand_color, regulatory_framework")
+    .eq("id", piece.company_id)
+    .single();
+
+  // Fetch spokesperson if available
+  const { data: spokesperson } = await supabase
+    .from("company_spokespersons")
+    .select("name, tagline")
+    .eq("company_id", piece.company_id)
+    .eq("is_primary", true)
+    .single();
+
   const review = piece.regulatory_review as RegulatoryReviewResult | null;
   const hasReview = review && review.overallScore != null;
 
+  const displayName = getPostDisplayName({
+    title: piece.title,
+    postType: piece.post_type,
+    dayOfWeek: piece.day_of_week,
+    contentType: piece.content_type,
+  });
+  const badge = getPostTypeBadge(piece.post_type);
+  const framework = review?.framework || company?.regulatory_framework || "general_healthcare";
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6 print:space-y-4">
-      {/* Breadcrumb */}
+    <div className="mx-auto max-w-4xl space-y-6 print:space-y-4 print:max-w-none">
+      {/* Breadcrumb — hidden in print */}
       <div className="flex items-center gap-2 text-sm text-gray-500 print:hidden">
         <Link href="/compliance" className="hover:text-gray-700">
           Compliance
         </Link>
         <span>/</span>
-        <span className="text-gray-900">{piece.title}</span>
+        <span className="text-gray-900 truncate">{displayName}</span>
       </div>
 
-      {/* Header */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium uppercase text-gray-400">
-                {contentTypeLabels[piece.content_type] || piece.content_type}
-              </span>
-              {piece.post_type && (
-                <>
-                  <span className="text-gray-300">&#183;</span>
-                  <span className="text-xs text-gray-400">{piece.post_type}</span>
-                </>
-              )}
+      {/* ═══════════════════════════════════════════════════════════
+          REPORT HEADER — Professional branded header
+          ═══════════════════════════════════════════════════════════ */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        {/* Brand colour bar */}
+        <div className="h-1.5" style={{ backgroundColor: company?.brand_color || "#1e293b" }} />
+
+        <div className="p-6">
+          {/* Logos row */}
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              {/* AGENCY logo (platform provider) */}
+              <div className="flex items-center gap-2">
+                <div className="text-xs font-bold tracking-widest text-gray-900" style={{ fontFamily: "system-ui" }}>
+                  AGENCY
+                </div>
+                <span className="text-[9px] text-gray-400 tracking-wide">CONTENT PLATFORM</span>
+              </div>
             </div>
-            <h1 className="mt-1 text-xl font-bold text-gray-900">{piece.title}</h1>
-            <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
-              <span>Created {new Date(piece.created_at).toLocaleDateString()}</span>
-              {piece.regulatory_reviewed_at && (
-                <>
-                  <span>&#183;</span>
-                  <span>Reviewed {new Date(piece.regulatory_reviewed_at).toLocaleDateString()}</span>
-                </>
+
+            {/* Client logo */}
+            {company?.logo_url ? (
+              <img
+                src={company.logo_url}
+                alt={company.name}
+                className="h-8 object-contain"
+              />
+            ) : (
+              <div className="text-sm font-semibold text-gray-700">
+                {company?.name || "Company"}
+              </div>
+            )}
+          </div>
+
+          {/* Report title */}
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center gap-2 mb-1">
+              <svg className="h-5 w-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <h1 className="text-lg font-bold text-gray-900">
+                Regulatory Compliance Report
+              </h1>
+            </div>
+
+            {/* Content piece info */}
+            <div className="mt-3 flex items-center gap-3">
+              <span
+                className="rounded px-2 py-0.5 text-[11px] font-semibold text-white"
+                style={{ backgroundColor: badge.color }}
+              >
+                {badge.label}
+              </span>
+              <h2 className="text-base font-medium text-gray-800">{displayName}</h2>
+            </div>
+
+            {/* Meta information grid */}
+            <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 sm:grid-cols-4 text-xs">
+              <div>
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Content Type</span>
+                <p className="mt-0.5 font-medium text-gray-700">{contentTypeLabels[piece.content_type] || piece.content_type}</p>
+              </div>
+              <div>
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Framework</span>
+                <p className="mt-0.5 font-medium text-gray-700">{frameworkLabels[framework] || framework}</p>
+              </div>
+              <div>
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Created</span>
+                <p className="mt-0.5 font-medium text-gray-700">{new Date(piece.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+              </div>
+              <div>
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Reviewed</span>
+                <p className="mt-0.5 font-medium text-gray-700">
+                  {piece.regulatory_reviewed_at
+                    ? new Date(piece.regulatory_reviewed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                    : "Pending"}
+                </p>
+              </div>
+              {spokesperson && (
+                <div>
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Spokesperson</span>
+                  <p className="mt-0.5 font-medium text-gray-700">{spokesperson.name}</p>
+                </div>
               )}
-              {review?.framework && (
-                <>
-                  <span>&#183;</span>
-                  <span className="font-medium text-slate-700">{review.framework}</span>
-                </>
+              {piece.post_type && (
+                <div>
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Post Type</span>
+                  <p className="mt-0.5 font-medium text-gray-700">{piece.post_type}</p>
+                </div>
               )}
+              {piece.day_of_week && (
+                <div>
+                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Scheduled</span>
+                  <p className="mt-0.5 font-medium text-gray-700">{piece.day_of_week} {piece.scheduled_time || ""}</p>
+                </div>
+              )}
+              <div>
+                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Company</span>
+                <p className="mt-0.5 font-medium text-gray-700">{company?.name || "—"}</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Client-side interactive component handles the rest */}
+      {/* Client-side interactive component handles the review body */}
       <ComplianceDetailClient
         pieceId={pieceId}
         companyId={piece.company_id}
@@ -99,10 +203,62 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
         hasReview={!!hasReview}
       />
 
-      {/* Print footer */}
-      <div className="hidden print:block border-t border-gray-200 pt-4 text-xs text-gray-400">
-        <p>Compliance Review Report - {piece.title} - Generated {new Date().toLocaleDateString()}</p>
-        <p>Framework: {review?.framework || "N/A"} | Score: {review?.overallScore ?? "N/A"}/100</p>
+      {/* ═══════════════════════════════════════════════════════════
+          PRINT FOOTER — Professional report footer
+          ═══════════════════════════════════════════════════════════ */}
+      <div className="hidden print:block">
+        <div className="border-t-2 border-gray-200 pt-4 mt-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-gray-600">
+                Regulatory Compliance Report
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {company?.name} | {frameworkLabels[framework] || framework} | Score: {review?.overallScore ?? "N/A"}/100
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-gray-400">
+                Generated {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+              <p className="text-[10px] text-gray-400">
+                Report ID: {pieceId.slice(0, 8)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold tracking-widest text-gray-500">AGENCY</span>
+              <span className="text-[9px] text-gray-400">Content Platform</span>
+            </div>
+            <p className="text-[9px] text-gray-400 italic">
+              This report is generated by automated compliance analysis and should be reviewed by qualified regulatory personnel before final approval.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Highlighting Legend — visible in print */}
+      <div className="hidden print:block rounded-lg border border-gray-200 p-4">
+        <p className="text-xs font-semibold text-gray-600 mb-2">Highlighting Key</p>
+        <div className="flex items-center gap-6 text-[10px]">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-8 rounded bg-red-100 border border-red-200" />
+            <span className="text-gray-600">Legal concern</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-8 rounded bg-amber-100 border border-amber-200" />
+            <span className="text-gray-600">Regulatory concern</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-8 rounded bg-blue-100 border border-blue-200" />
+            <span className="text-gray-600">Compliance concern</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-8 rounded bg-green-50 border border-green-200" />
+            <span className="text-gray-600">Clean / Approved</span>
+          </span>
+        </div>
       </div>
     </div>
   );
