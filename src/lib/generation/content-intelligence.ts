@@ -167,8 +167,8 @@ export function buildPreGenerationContext(options: PreGenerationOptions): string
   // B. Hook tension (for all social posts)
   sections.push(HOOK_TENSION_RULES);
 
-  // C. Healthcare specificity (for healthcare companies or default)
-  if (options.isHealthcareCompany !== false) {
+  // C. Industry specificity (only for healthcare companies — other industries get general B2B rules)
+  if (options.isHealthcareCompany === true) {
     sections.push(HEALTHCARE_SPECIFICITY_RULES);
   }
 
@@ -818,8 +818,8 @@ export async function runPostGenerationGates(
     results.push(g1);
   }
 
-  // Gate 2: Healthcare Specificity (CRITICAL for healthcare companies)
-  if (options.isHealthcareCompany !== false && apiKey) {
+  // Gate 2: Healthcare Specificity (CRITICAL — only for companies explicitly in healthcare)
+  if (options.isHealthcareCompany === true && apiKey) {
     const g2 = await runGate2HealthcareSpecificity(options.content, apiKey);
     results.push(g2);
   }

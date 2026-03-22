@@ -364,12 +364,14 @@ ${signoffSection}
    default to whatever the writing samples demonstrate.
 
 7. CONTENT GUARDRAILS
-   - ALL content must reference healthcare-specific scenarios: clinical champions,
-     procurement committees, surgeons, hospital buying processes, medical devices,
-     health tech, NHS/health system dynamics, sales access challenges.
-   - Stay in lane: healthcare marketing and demand generation ONLY.
-   - Do NOT comment on: hard science, AI/tech trends, leadership theory, general B2B.
-   - Never lecture experts on their domain (clinicians on medicine, regulators on regulation).
+   ${input.companyIndustry
+     ? `- ALL content must reference ${input.companyIndustry}-specific scenarios, terminology, and challenges.
+   - Stay in lane: ${input.companyIndustry} and the company's area of expertise ONLY.
+   - Do NOT comment on topics outside the company's domain unless directly relevant.`
+     : `- Content should reference the company's specific industry scenarios and terminology.
+   - Stay in the company's area of expertise. Do not stray into unrelated domains.`}
+   ${input.companyDescription ? `- Company context: ${input.companyDescription}` : ""}
+   - Never lecture experts on their domain.
    - End stories with reflective observations, not stated morals.
    - Never punch down. Humour is warm, never cruel.
 

@@ -133,7 +133,7 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company } = await supabase
       .from("companies")
-      .select("name, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, plan, trial_plan, trial_expires_at")
+      .select("name, description, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
       .single();
 
@@ -273,6 +273,9 @@ export async function POST(request: Request) {
       bannedVocabulary: !voicePromptText ? (voiceProfile?.banned_vocabulary || undefined) : undefined,
       signatureDevices: !voicePromptText ? (voiceProfile?.signature_devices || undefined) : undefined,
       additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.${blogTeaserContext ? `\n\n${blogTeaserContext}` : ""}`,
+      // Company context for industry-aware content
+      companyIndustry: (company as Record<string, unknown>)?.industry as string || undefined,
+      companyDescription: (company as Record<string, unknown>)?.description as string || undefined,
       // Content Intelligence pre-generation context
       preGenerationContext: preGenContext,
     };

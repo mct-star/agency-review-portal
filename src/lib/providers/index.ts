@@ -52,6 +52,10 @@ export interface ContentGenerationInput {
   signatureDevices?: string;
   /** Full structured voice prompt (from buildVoicePrompt). When present, takes precedence over individual voice fields. */
   voicePrompt?: string;
+  /** Company industry/sector — used to contextualise content (e.g. "healthcare", "fintech", "construction") */
+  companyIndustry?: string;
+  /** Company description — provides context for content generation */
+  companyDescription?: string;
   // Weekly ecosystem references
   blogTitle?: string;
   blogUrl?: string;
