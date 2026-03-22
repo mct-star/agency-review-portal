@@ -402,6 +402,11 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* Reinforcement line */}
+      <p className="text-center text-sm text-gray-400 -mb-2">
+        Your weekly demand ecosystem, deployed in minutes.
+      </p>
+
       {/* ===== 2. Full-viewport hero tiles ===== */}
       <div className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "calc(100vh - 200px)" }}>
         {/* Quick Generate */}

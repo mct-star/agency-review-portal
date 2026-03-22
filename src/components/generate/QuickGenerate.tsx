@@ -18,6 +18,7 @@ interface PostTypeOption {
   description: string;
   archetype: string;
   color: string;
+  visualTag?: string;  // Short label for the image style
 }
 
 const POST_TYPES: PostTypeOption[] = [
@@ -27,6 +28,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Identify a common mistake your audience makes. 150-250 words.",
     archetype: "quote_card_green",
     color: "#CDD856",
+    visualTag: "Quote Card",
   },
   {
     slug: "launch_story",
@@ -34,6 +36,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Share a real experience with pattern recognition. 200-350 words.",
     archetype: "pixar_healthcare",
     color: "#41CDA9",
+    visualTag: "Pixar 3D",
   },
   {
     slug: "if_i_was",
@@ -41,6 +44,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "\"If I was in your role...\" practical advice. 200-300 words.",
     archetype: "quote_card_purple",
     color: "#A27BF9",
+    visualTag: "Quote Card",
   },
   {
     slug: "contrarian",
@@ -48,6 +52,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Challenge a widely-held industry assumption. 200-300 words.",
     archetype: "quote_card_blue",
     color: "#41C9FE",
+    visualTag: "Quote Card",
   },
   {
     slug: "tactical",
@@ -55,6 +60,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Actionable steps to solve a specific problem. 150-250 words.",
     archetype: "carousel",
     color: "#CDD856",
+    visualTag: "Carousel",
   },
   {
     slug: "founder_friday",
@@ -62,6 +68,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Behind the scenes: expectations vs reality. 250-400 words.",
     archetype: "pixar_fantasy",
     color: "#F59E0B",
+    visualTag: "Pixar 3D",
   },
   {
     slug: "blog_teaser",
@@ -69,6 +76,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Drive traffic to a longer piece of content. 60-120 words.",
     archetype: "quote_card",
     color: "#059669",
+    visualTag: "Quote Card",
   },
   {
     slug: "personal_update",
@@ -76,6 +84,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Share what you're up to. Candid, human, relatable. 100-200 words.",
     archetype: "editorial_photo",
     color: "#E11D48",
+    visualTag: "Editorial Photo",
   },
   {
     slug: "scene_provocation",
@@ -83,6 +92,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Bold statement on a whiteboard, billboard, or real-world surface. 150-250 words.",
     archetype: "scene_quote",
     color: "#1E3A5F",
+    visualTag: "Scene Quote",
   },
 ];
 
@@ -798,6 +808,17 @@ export default function QuickGenerate({
                   <p className="mt-1 text-xs text-gray-500 line-clamp-2">
                     {pt.description}
                   </p>
+                  {pt.visualTag && (
+                    <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                      pt.visualTag === "Pixar 3D" ? "bg-pink-50 text-pink-600" :
+                      pt.visualTag === "Carousel" ? "bg-blue-50 text-blue-600" :
+                      pt.visualTag === "Editorial Photo" ? "bg-amber-50 text-amber-600" :
+                      pt.visualTag === "Scene Quote" ? "bg-indigo-50 text-indigo-600" :
+                      "bg-green-50 text-green-600"
+                    }`}>
+                      {pt.visualTag}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
