@@ -13,6 +13,7 @@ import {
 } from "@/lib/generation/content-intelligence";
 import { generateQuoteCard, QUOTE_CARD_COLORS } from "@/lib/image/quote-card";
 import { generateCarousel, type CarouselSlide } from "@/lib/image/carousel";
+import { generateSceneQuote, getScenePrompt } from "@/lib/image/scene-quote";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { checkPostLimit } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
@@ -371,11 +372,13 @@ export async function POST(request: Request) {
       pixar_fantasy: "pixar_3d",
       carousel: "carousel_framework",
       editorial_photo: "editorial_photo",
+      scene_quote: "scene_quote",
     };
     const styleSlug = archetypeToStyle[effectiveStyle] || effectiveStyle;
 
     const isQuoteCard = styleSlug === "quote_card";
     const isCarousel = styleSlug === "carousel_framework";
+    const isSceneQuote = styleSlug === "scene_quote";
     const isSkip = styleSlug === "real_photo";
 
     if (isQuoteCard) {
@@ -597,6 +600,57 @@ export async function POST(request: Request) {
         }
       } catch (carouselErr) {
         console.warn("[quick] Carousel generation failed:", carouselErr);
+      }
+    } else if (isSceneQuote) {
+      // Scene Quote: Gemini generates background scene, then we composite text
+      try {
+        const hookText = contentResult.markdownBody?.trim().split("\n")[0] || topic;
+        let cleanHook = hookText.replace(/\*\*/g, "").replace(/\*/g, "").replace(/^#+\s*/, "").replace(/^[""]|[""]$/g, "").trim();
+        const hookWords = cleanHook.split(/\s+/);
+        if (hookWords.length > 12) cleanHook = hookWords.slice(0, 12).join(" ");
+
+        const companyIndustry = (company as Record<string, unknown>)?.industry as string || (company as Record<string, unknown>)?.description as string || undefined;
+        const scenePrompt = getScenePrompt(companyIndustry, topic);
+        imagePrompt = scenePrompt;
+
+        // Generate background with Gemini (or fal.ai fallback)
+        const { createGeminiImageProvider } = await import("@/lib/providers/image-generation/gemini");
+        const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || "";
+        let bgBuffer: Buffer | null = null;
+
+        if (geminiKey) {
+          const gemini = createGeminiImageProvider({ api_key: geminiKey }, {});
+          const bgResult = await gemini.generate({ prompt: scenePrompt, count: 1 });
+          if (bgResult.images.length > 0) {
+            const imgUrl = bgResult.images[0].url;
+            if (imgUrl.startsWith("data:")) {
+              bgBuffer = Buffer.from(imgUrl.split(",")[1], "base64");
+            } else {
+              const res = await fetch(imgUrl);
+              if (res.ok) bgBuffer = Buffer.from(await res.arrayBuffer());
+            }
+          }
+        }
+
+        if (bgBuffer) {
+          const sceneResult = await generateSceneQuote({
+            text: cleanHook,
+            backgroundImage: bgBuffer,
+            accentColor: effectiveColor || company?.brand_color || "#7C3AED",
+          });
+
+          const filename = `scene-quote-${Date.now()}.png`;
+          const storagePath = `images/${companyId}/quick/${filename}`;
+          await supabase.storage.from("content-assets").upload(storagePath, sceneResult.buffer, {
+            contentType: "image/png",
+            upsert: true,
+          });
+          const { data: urlData } = supabase.storage.from("content-assets").getPublicUrl(storagePath);
+          imageUrl = urlData.publicUrl;
+          imagePrompt = `[Scene quote] "${cleanHook}" on ${scenePrompt.slice(0, 100)}`;
+        }
+      } catch (sceneErr) {
+        console.warn("[quick] Scene quote generation failed:", sceneErr);
       }
     } else if (isSkip) {
       // real_photo style — user provides their own photos, no generation
