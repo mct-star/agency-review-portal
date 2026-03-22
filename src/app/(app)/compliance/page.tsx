@@ -5,6 +5,10 @@ import ComplianceReviewButton from "@/components/compliance/ComplianceReviewButt
 import BatchReviewButton from "@/components/compliance/BatchReviewButton";
 import ComplianceDocuments from "@/components/compliance/ComplianceDocuments";
 import { getPostDisplayName, getPostTypeBadge } from "@/lib/post-display-name";
+import UpgradeGate from "@/components/billing/UpgradeGate";
+import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
+import { getPlanFeatures } from "@/lib/utils/plan-limits";
+import type { PlanTier } from "@/types/database";
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   abpi: "ABPI Code (UK Pharma)",
@@ -144,6 +148,33 @@ export default async function ComplianceDashboardPage() {
         </div>
       </div>
     );
+  }
+
+  // Plan check — compliance review is Pro+ only
+  if (!isAdmin) {
+    const { data: planData } = await supabase
+      .from("companies")
+      .select("plan, trial_plan, trial_expires_at")
+      .eq("id", companyId)
+      .single();
+    if (planData) {
+      const effectivePlan = getEffectivePlan(planData as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
+      const features = getPlanFeatures(effectivePlan);
+      if (!features.complianceReview) {
+        return (
+          <div className="p-6">
+            <UpgradeGate
+              allowed={false}
+              featureName="Regulatory Compliance Review"
+              requiredPlan="pro"
+              companyId={companyId}
+            >
+              <div />
+            </UpgradeGate>
+          </div>
+        );
+      }
+    }
   }
 
   const currentCompany = companies.find((c) => c.id === companyId);
