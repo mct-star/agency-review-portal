@@ -244,6 +244,7 @@ export default function QuickGenerate({
           text: result.postText,
           firstComment: result.firstComment || undefined,
           imageUrl: currentImageUrl || undefined,
+          carouselImageUrls: result.carouselImageUrls || undefined,
         }),
       });
       const data = await res.json();

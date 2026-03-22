@@ -335,6 +335,62 @@ export async function createPost(
   return { postUrn, postUrl };
 }
 
+/**
+ * Create a multi-image (carousel) LinkedIn post.
+ * Each image must be uploaded first via uploadImage(), then their URNs
+ * are passed here as an array.
+ *
+ * LinkedIn displays these as a swipeable carousel.
+ */
+export async function createMultiImagePost(
+  accessToken: string,
+  personUrn: string,
+  text: string,
+  imageUrns: string[]
+): Promise<LinkedInPostResult> {
+  const postBody: Record<string, unknown> = {
+    author: `urn:li:person:${personUrn}`,
+    commentary: text,
+    visibility: "PUBLIC",
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: [],
+    },
+    lifecycleState: "PUBLISHED",
+    content: {
+      multiImage: {
+        images: imageUrns.map((urn) => ({
+          id: urn,
+          altText: "Carousel slide",
+        })),
+      },
+    },
+  };
+
+  const res = await fetch(`${LINKEDIN_API_BASE}/rest/posts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "LinkedIn-Version": "202401",
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+    body: JSON.stringify(postBody),
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`LinkedIn multi-image post failed (${res.status}): ${errorBody}`);
+  }
+
+  const postId = res.headers.get("x-restli-id") || "";
+  const postUrn = postId.startsWith("urn:") ? postId : `urn:li:share:${postId}`;
+  const postUrl = `https://www.linkedin.com/feed/update/${encodeURIComponent(postUrn)}/`;
+
+  return { postUrn, postUrl };
+}
+
 // ============================================================
 // First Comment
 // ============================================================

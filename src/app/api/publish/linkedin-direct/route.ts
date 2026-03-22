@@ -3,6 +3,7 @@ import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/ad
 import { decrypt } from "@/lib/crypto";
 import {
   createPost,
+  createMultiImagePost,
   addComment,
   uploadImage,
   stripMarkdownForLinkedIn,
@@ -20,11 +21,12 @@ import {
  *   text: string,
  *   firstComment?: string,
  *   imageUrl?: string,
+ *   carouselImageUrls?: string[],  // For carousel/multi-image posts
  * }
  */
 export async function POST(request: Request) {
   const body = await request.json();
-  const { companyId, text, firstComment, imageUrl } = body;
+  const { companyId, text, firstComment, imageUrl, carouselImageUrls } = body;
 
   if (!companyId || !text) {
     return NextResponse.json(
@@ -90,37 +92,64 @@ export async function POST(request: Request) {
   // Prepare text
   const postText = stripMarkdownForLinkedIn(text);
 
-  // Upload image if provided
-  let imageUrn: string | undefined;
-
-  if (imageUrl) {
-    try {
-      const imgRes = await fetch(imageUrl);
-      if (imgRes.ok) {
-        const arrayBuffer = await imgRes.arrayBuffer();
-        const imageBuffer = Buffer.from(arrayBuffer);
-        const result = await uploadImage(
-          accessToken,
-          personUrn,
-          imageBuffer,
-          "quick-generate-image.png"
-        );
-        imageUrn = result.imageUrn;
-      }
-    } catch (imgErr) {
-      console.error("LinkedIn image upload failed (continuing without image):", imgErr);
-    }
-  }
-
-  // Create the post
+  // Upload images and create the post
   let postResult;
-  try {
-    postResult = await createPost(accessToken, personUrn, postText, imageUrn);
-  } catch (postErr) {
-    return NextResponse.json(
-      { error: postErr instanceof Error ? postErr.message : "Post creation failed" },
-      { status: 500 }
-    );
+
+  // Carousel: upload multiple images and create multi-image post
+  if (carouselImageUrls && Array.isArray(carouselImageUrls) && carouselImageUrls.length > 1) {
+    try {
+      const imageUrns: string[] = [];
+      for (let i = 0; i < carouselImageUrls.length; i++) {
+        const imgRes = await fetch(carouselImageUrls[i]);
+        if (imgRes.ok) {
+          const arrayBuffer = await imgRes.arrayBuffer();
+          const imageBuffer = Buffer.from(arrayBuffer);
+          const result = await uploadImage(
+            accessToken,
+            personUrn,
+            imageBuffer,
+            `carousel-slide-${i + 1}.png`
+          );
+          imageUrns.push(result.imageUrn);
+        }
+      }
+      postResult = await createMultiImagePost(accessToken, personUrn, postText, imageUrns);
+    } catch (postErr) {
+      return NextResponse.json(
+        { error: postErr instanceof Error ? postErr.message : "Carousel post creation failed" },
+        { status: 500 }
+      );
+    }
+  } else {
+    // Single image post (or text-only)
+    let imageUrn: string | undefined;
+    if (imageUrl) {
+      try {
+        const imgRes = await fetch(imageUrl);
+        if (imgRes.ok) {
+          const arrayBuffer = await imgRes.arrayBuffer();
+          const imageBuffer = Buffer.from(arrayBuffer);
+          const result = await uploadImage(
+            accessToken,
+            personUrn,
+            imageBuffer,
+            "quick-generate-image.png"
+          );
+          imageUrn = result.imageUrn;
+        }
+      } catch (imgErr) {
+        console.error("LinkedIn image upload failed (continuing without image):", imgErr);
+      }
+    }
+
+    try {
+      postResult = await createPost(accessToken, personUrn, postText, imageUrn);
+    } catch (postErr) {
+      return NextResponse.json(
+        { error: postErr instanceof Error ? postErr.message : "Post creation failed" },
+        { status: 500 }
+      );
+    }
   }
 
   // Add first comment if provided
