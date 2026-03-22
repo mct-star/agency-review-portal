@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { formatWeekLabel, formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import type { Week, Notification, ContentPiece } from "@/types/database";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 
 // Circular progress gauge component
 function Gauge({ value, max, label, color, sublabel }: { value: number; max: number; label: string; color: string; sublabel?: string }) {
@@ -122,6 +123,16 @@ export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
   const isAdmin = profile.role === "admin";
   const companyId = profile.company_id;
+
+  // Show onboarding wizard for new users with no company
+  if (!companyId && !isAdmin) {
+    return (
+      <OnboardingWizard
+        userId={profile.id}
+        userName={profile.full_name || undefined}
+      />
+    );
+  }
 
   // Fetch company data
   let company: { id: string; name: string; spokesperson_name: string | null; brand_color: string | null; logo_url: string | null; website_url: string | null; overlay_enabled: boolean | null } | null = null;
