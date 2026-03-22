@@ -252,6 +252,12 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
         regulatoryScore={piece.regulatory_score}
         review={review}
         hasReview={!!hasReview}
+        authorName={spokesperson?.name || company?.name || undefined}
+        authorTagline={spokesperson?.tagline || undefined}
+        authorAvatarUrl={spokesperson?.profile_picture_url || undefined}
+        postImageUrl={postImageUrl}
+        brandColor={company?.brand_color || undefined}
+        postType={piece.post_type || undefined}
       />
 
       {/* ═══════════════════════════════════════════════════════════

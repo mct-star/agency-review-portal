@@ -3,6 +3,8 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { RegulatoryReviewResult, RegulatoryIssueResult } from "@/types/database";
+import PhoneMockup from "@/components/content/PhoneMockup";
+import LinkedInPreview from "@/components/content/LinkedInPreview";
 
 interface Props {
   pieceId: string;
@@ -14,6 +16,13 @@ interface Props {
   regulatoryScore: number | null;
   review: RegulatoryReviewResult | null;
   hasReview: boolean;
+  // Post preview data
+  authorName?: string;
+  authorTagline?: string;
+  authorAvatarUrl?: string;
+  postImageUrl?: string | null;
+  brandColor?: string;
+  postType?: string | null;
 }
 
 function ScoreGauge({ score }: { score: number }) {
@@ -185,6 +194,12 @@ export default function ComplianceDetailClient({
   regulatoryScore,
   review,
   hasReview,
+  authorName,
+  authorTagline,
+  authorAvatarUrl,
+  postImageUrl,
+  brandColor,
+  postType,
 }: Props) {
   const router = useRouter();
   const [expandedIssue, setExpandedIssue] = useState<number | null>(null);
@@ -277,6 +292,62 @@ export default function ComplianceDetailClient({
 
   return (
     <div className="space-y-6">
+      {/* ── 00 POST PREVIEW ──────────────────────────────────── */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="flex items-center text-sm font-semibold text-gray-900">
+            <SectionNumber n="00" />
+            Post Preview
+          </h2>
+        </div>
+        <div className="px-6 py-6">
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+            {/* Phone mockup */}
+            <div className="flex-shrink-0">
+              <PhoneMockup width={300}>
+                <LinkedInPreview
+                  authorName={authorName || "Author"}
+                  authorTagline={authorTagline}
+                  authorAvatarUrl={authorAvatarUrl}
+                  postText={markdownBody}
+                  firstComment={firstComment}
+                  imageUrl={postImageUrl}
+                  postType={postType}
+                  brandColor={brandColor}
+                />
+              </PhoneMockup>
+            </div>
+            {/* Post details (beside the phone on desktop) */}
+            <div className="flex-1 min-w-0 space-y-4">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Post Copy</h3>
+                <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">
+                  {markdownBody}
+                </div>
+              </div>
+              {firstComment && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">First Comment</h3>
+                  <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap">
+                    {firstComment}
+                  </div>
+                </div>
+              )}
+              {postImageUrl && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Image</h3>
+                  <img
+                    src={postImageUrl}
+                    alt="Post image"
+                    className="rounded-lg border border-gray-200 max-w-xs"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── 01 COMPLIANCE SCORE ────────────────────────────────── */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
