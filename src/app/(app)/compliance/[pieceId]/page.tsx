@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import ComplianceDetailClient from "@/components/compliance/ComplianceDetailClient";
+import LinkedInPostMockup from "@/components/mockups/LinkedInPostMockup";
 import { getPostDisplayName, getPostTypeBadge } from "@/lib/post-display-name";
 import type { RegulatoryReviewResult } from "@/types/database";
 
@@ -57,10 +58,34 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
   // Fetch spokesperson if available
   const { data: spokesperson } = await supabase
     .from("company_spokespersons")
-    .select("name, tagline")
+    .select("name, tagline, profile_picture_url")
     .eq("company_id", piece.company_id)
     .eq("is_primary", true)
     .single();
+
+  // Fetch primary image for the post mockup
+  const { data: primaryImage } = await supabase
+    .from("content_assets")
+    .select("file_url")
+    .eq("content_piece_id", pieceId)
+    .eq("asset_type", "image")
+    .order("sort_order")
+    .limit(1)
+    .maybeSingle();
+
+  // Fallback: also check content_images table
+  const imageUrl = primaryImage?.file_url || null;
+  let postImageUrl = imageUrl;
+  if (!postImageUrl) {
+    const { data: legacyImage } = await supabase
+      .from("content_images")
+      .select("public_url")
+      .eq("content_piece_id", pieceId)
+      .order("sort_order")
+      .limit(1)
+      .maybeSingle();
+    postImageUrl = legacyImage?.public_url || null;
+  }
 
   const review = piece.regulatory_review as RegulatoryReviewResult | null;
   const hasReview = review && review.overallScore != null;
@@ -189,6 +214,36 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════
+          POST PREVIEW — LinkedIn mockup showing how the post will appear
+          ═══════════════════════════════════════════════════════════ */}
+      {piece.content_type === "social_post" && spokesperson && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-gray-100 px-6 py-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <path d="M8 21h8" />
+                <path d="M12 17v4" />
+              </svg>
+              Post Preview
+            </h2>
+          </div>
+          <div className="p-6">
+            <LinkedInPostMockup
+              authorName={spokesperson.name}
+              authorTagline={spokesperson.tagline || ""}
+              authorPhotoUrl={spokesperson.profile_picture_url || null}
+              postText={piece.markdown_body || ""}
+              imageUrl={postImageUrl}
+              firstComment={piece.first_comment || null}
+              timeAgo="Just now"
+              maxLines={4}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Client-side interactive component handles the review body */}
       <ComplianceDetailClient

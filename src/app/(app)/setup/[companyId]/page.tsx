@@ -86,6 +86,14 @@ const SETUP_STEPS: {
     minPlan: "free",
   },
   {
+    key: "image_mapping",
+    label: "Image Mapping",
+    description: "Map each post type to a specific image style and colour",
+    href: "image-mapping",
+    icon: "M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2",
+    minPlan: "pro",
+  },
+  {
     key: "api_keys",
     label: "API Keys",
     description: "Connect your AI providers for content and image generation",
@@ -153,6 +161,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
     urls: { done: (urlCount || 0) > 0, detail: `${urlCount || 0} URLs` },
     social: { done: (socialCount || 0) > 0, detail: `${socialCount || 0} connected` },
     api_keys: { done: (apiConfigCount || 0) > 0, detail: `${apiConfigCount || 0} providers` },
+    image_mapping: { done: false, detail: "Not configured" },
   };
 
   const companyPlan = (company.plan || "free") as PlanTier;

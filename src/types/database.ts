@@ -193,6 +193,8 @@ export interface Company {
   blog_base_url: string | null;
   regulatory_framework: string | null;
   auto_regulatory_review: boolean;
+  preferred_image_styles: string[] | null;
+  post_type_image_mapping: Record<string, { imageStyle: string; color?: string; characterDescription?: string }> | null;
   trial_started_at: string | null;
   trial_expires_at: string | null;
   trial_plan: PlanTier | null;
