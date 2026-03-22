@@ -329,7 +329,7 @@ export async function applyBrandOverlay(
       if (logoRes.ok) {
         const logoArrayBuffer = await logoRes.arrayBuffer();
         const rawLogoBuffer = Buffer.from(logoArrayBuffer);
-        const logoWidth = Math.round(width * 0.12);
+        const logoWidth = Math.round(width * 0.16);
         const margin = Math.round(width * 0.03);
 
         const resizedLogo = await sharp(rawLogoBuffer)

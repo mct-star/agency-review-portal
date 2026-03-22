@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import LinkedInPreview from "@/components/content/LinkedInPreview";
 import VoiceDictation from "@/components/ui/VoiceDictation";
 
@@ -179,6 +179,12 @@ export default function QuickGenerate({
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [applyingOverlay, setApplyingOverlay] = useState(false);
   const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [linkedInConnected, setLinkedInConnected] = useState(false);
+  const [linkedInAccountName, setLinkedInAccountName] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [postUrl, setPostUrl] = useState<string | null>(null);
 
   // Filter spokespersons for the selected company
   const companyPeople = useMemo(
@@ -196,6 +202,51 @@ export default function QuickGenerate({
   const authorName = selectedPerson?.name || selectedCompany.authorName;
   const authorTagline = selectedPerson?.tagline || selectedCompany.authorTagline;
   const authorAvatar = selectedPerson?.profilePictureUrl || selectedCompany.profilePictureUrl;
+
+  // Check if selected company has LinkedIn connected
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      try {
+        const res = await fetch(`/api/publish/linkedin-direct?companyId=${selectedCompany.id}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setLinkedInConnected(data.connected);
+          setLinkedInAccountName(data.accountName || null);
+        }
+      } catch {
+        if (!cancelled) setLinkedInConnected(false);
+      }
+    }
+    check();
+    return () => { cancelled = true; };
+  }, [selectedCompany.id]);
+
+  async function handlePublishToLinkedIn() {
+    if (!result) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const res = await fetch("/api/publish/linkedin-direct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: selectedCompany.id,
+          text: result.postText,
+          firstComment: result.firstComment || undefined,
+          imageUrl: currentImageUrl || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Publishing failed");
+      setPublished(true);
+      setPostUrl(data.post?.url || null);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Publishing failed");
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
@@ -282,6 +333,9 @@ export default function QuickGenerate({
     setCurrentImageUrl(null);
     setError(null);
     setProgress("");
+    setPublished(false);
+    setPublishError(null);
+    setPostUrl(null);
   }
 
   return (
@@ -538,6 +592,52 @@ export default function QuickGenerate({
                   {applyingOverlay ? "Applying..." : "Apply overlay"}
                 </button>
               )}
+              {linkedInConnected && platform === "linkedin" && !published && (
+                <button
+                  onClick={handlePublishToLinkedIn}
+                  disabled={publishing}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: "#0A66C2" }}
+                >
+                  {publishing ? (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Posting...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+                      </svg>
+                      Post to LinkedIn
+                    </span>
+                  )}
+                </button>
+              )}
+              {published && postUrl && (
+                <a
+                  href={postUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                  style={{ backgroundColor: "#16a34a" }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Posted — View on LinkedIn
+                  </span>
+                </a>
+              )}
+              {published && !postUrl && (
+                <span className="rounded-md bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
+                  Posted to LinkedIn
+                </span>
+              )}
               <button
                 onClick={handleReset}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -546,6 +646,13 @@ export default function QuickGenerate({
               </button>
             </div>
           </div>
+
+          {/* Publish error */}
+          {publishError && (
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+              LinkedIn publish error: {publishError}
+            </div>
+          )}
 
           {/* Overlay error */}
           {overlayError && (
