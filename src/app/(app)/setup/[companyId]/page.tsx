@@ -4,6 +4,8 @@ import Link from "next/link";
 import ImageUploader from "./ImageUploader";
 import OverlayPreview from "./OverlayPreview";
 import PlanSelector from "./PlanSelector";
+import ManageBillingButton from "@/components/billing/ManageBillingButton";
+import UpgradeButton from "@/components/billing/UpgradeButton";
 import QuickStrategySetup from "@/components/setup/QuickStrategySetup";
 import CompanyDetailsEditor from "./CompanyDetailsEditor";
 import type { PlanTier } from "@/types/database";
@@ -285,6 +287,43 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
               initialBrandColor={company.brand_color || null}
               initialDescription={company.description || null}
             />
+          </div>
+
+          {/* Billing */}
+          <div className="mt-6 border-t border-gray-100 pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Billing</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {company.plan === "free"
+                    ? "You are on the Free plan. Upgrade to unlock more features."
+                    : `You are on the ${(company.plan || "free").charAt(0).toUpperCase() + (company.plan || "free").slice(1)} plan.`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {(company.plan === "free" || !company.plan) && (
+                  <UpgradeButton
+                    plan="pro"
+                    companyId={companyId}
+                    className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-violet-700 transition-colors"
+                  >
+                    Upgrade to Pro
+                  </UpgradeButton>
+                )}
+                {company.plan === "pro" && (
+                  <UpgradeButton
+                    plan="agency"
+                    companyId={companyId}
+                    className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-purple-700 transition-colors"
+                  >
+                    Upgrade to Agency
+                  </UpgradeButton>
+                )}
+                {company.plan && company.plan !== "free" && (
+                  <ManageBillingButton companyId={companyId} />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
