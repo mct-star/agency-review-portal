@@ -46,13 +46,13 @@ const PLATFORM_ICONS: Record<string, { path: string; color: string }> = {
 };
 
 // Company-level platforms — pages/accounts that represent the brand
-const COMPANY_PLATFORMS: { value: SocialPlatform; label: string }[] = [
-  { value: "linkedin_company", label: "LinkedIn (Company Page)" },
-  { value: "facebook", label: "Facebook Page" },
-  { value: "instagram", label: "Instagram (Brand)" },
-  { value: "twitter", label: "Twitter / X (Brand)" },
-  { value: "bluesky", label: "Bluesky (Brand)" },
-  { value: "threads", label: "Threads (Brand)" },
+const COMPANY_PLATFORMS: { value: SocialPlatform; label: string; status: "active" | "coming_soon" }[] = [
+  { value: "linkedin_company", label: "LinkedIn (Company Page)", status: "coming_soon" },
+  { value: "bluesky", label: "Bluesky", status: "active" },
+  { value: "twitter", label: "Twitter / X", status: "coming_soon" },
+  { value: "facebook", label: "Facebook Page", status: "coming_soon" },
+  { value: "instagram", label: "Instagram", status: "coming_soon" },
+  { value: "threads", label: "Threads", status: "coming_soon" },
 ];
 
 export default function CompanySocialPage() {
@@ -324,12 +324,15 @@ export default function CompanySocialPage() {
           const connected = accounts.filter(
             (a) => a.platform === platform.value
           );
+          const isComingSoon = platform.status === "coming_soon" && connected.length === 0;
           return (
             <div
               key={platform.value}
               className={`rounded-lg border p-4 ${
                 connected.length > 0
                   ? "border-green-200 bg-green-50/30"
+                  : isComingSoon
+                  ? "border-gray-100 bg-gray-50/50 opacity-50"
                   : "border-gray-200 bg-white"
               }`}
             >
