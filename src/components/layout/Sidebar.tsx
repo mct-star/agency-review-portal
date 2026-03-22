@@ -295,11 +295,21 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
         })}
       </nav>
 
-      {/* User info */}
+      {/* User info + plan badge */}
       <div className="border-t border-gray-200 px-4 py-3">
-        <p className="truncate text-sm font-medium text-gray-900">
-          {user.full_name || user.email}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="truncate text-sm font-medium text-gray-900">
+            {user.full_name || user.email}
+          </p>
+          <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+            companyPlan === "agency" ? "bg-purple-100 text-purple-700" :
+            companyPlan === "pro" ? "bg-violet-100 text-violet-700" :
+            companyPlan === "starter" ? "bg-blue-100 text-blue-700" :
+            "bg-gray-100 text-gray-500"
+          }`}>
+            {(companyPlan || "free").charAt(0).toUpperCase() + (companyPlan || "free").slice(1)}
+          </span>
+        </div>
         <p className="truncate text-xs text-gray-500">{user.email}</p>
         <button
           onClick={handleSignOut}
