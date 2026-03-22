@@ -158,6 +158,7 @@ interface GeneratedResult {
   postText: string;
   firstComment: string | null;
   imageUrl: string | null;
+  carouselImageUrls?: string[] | null;
   postType: string;
 }
 
@@ -188,6 +189,7 @@ export default function QuickGenerate({
   const [postUrl, setPostUrl] = useState<string | null>(null);
   const [imagePrompt, setImagePrompt] = useState<string | null>(null);
   const [regeneratingImage, setRegeneratingImage] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   // Filter spokespersons for the selected company
   const companyPeople = useMemo(
@@ -315,6 +317,7 @@ export default function QuickGenerate({
         postText: data.postText,
         firstComment: data.firstComment,
         imageUrl: data.imageUrl || null,
+        carouselImageUrls: data.carouselImageUrls || null,
         postType: selectedPostType.slug,
       };
 
@@ -737,6 +740,48 @@ export default function QuickGenerate({
           {overlayError && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
               Overlay error: {overlayError}
+            </div>
+          )}
+
+          {/* Carousel Slides Strip (when carousel images are available) */}
+          {result.carouselImageUrls && result.carouselImageUrls.length > 1 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold uppercase text-gray-400">
+                  Carousel Slides ({result.carouselImageUrls.length})
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCarouselIndex(Math.max(0, carouselIndex - 1))}
+                    disabled={carouselIndex === 0}
+                    className="rounded p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
+                  </button>
+                  <span className="text-xs text-gray-500">{carouselIndex + 1}/{result.carouselImageUrls.length}</span>
+                  <button
+                    onClick={() => setCarouselIndex(Math.min(result.carouselImageUrls!.length - 1, carouselIndex + 1))}
+                    disabled={carouselIndex >= result.carouselImageUrls.length - 1}
+                    className="rounded p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  </button>
+                </div>
+              </div>
+              {/* Thumbnail strip */}
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {result.carouselImageUrls.map((url, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setCarouselIndex(i); setCurrentImageUrl(url); }}
+                    className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
+                      i === carouselIndex ? "border-violet-500 shadow-md" : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <img src={url} alt={`Slide ${i + 1}`} className="h-20 w-20 object-cover" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

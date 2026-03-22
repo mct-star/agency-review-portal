@@ -11,6 +11,7 @@ import {
   type GateResult,
 } from "@/lib/generation/content-intelligence";
 import { generateQuoteCard, QUOTE_CARD_COLORS } from "@/lib/image/quote-card";
+import { generateCarousel, type CarouselSlide } from "@/lib/image/carousel";
 
 /**
  * POST /api/generate/quick
@@ -317,6 +318,7 @@ export async function POST(request: Request) {
     // ── 3. Generate image ────────────────────────────────────────
     let imageUrl: string | null = null;
     let imagePrompt: string | null = null;
+    let carouselImageUrls: string[] | null = null;
 
     // Resolve the effective image style for this post type.
     // Per-post-type mapping takes priority, then we check if the default
@@ -339,6 +341,7 @@ export async function POST(request: Request) {
     const styleSlug = archetypeToStyle[effectiveStyle] || effectiveStyle;
 
     const isQuoteCard = styleSlug === "quote_card";
+    const isCarousel = styleSlug === "carousel_framework";
     const isSkip = styleSlug === "real_photo";
 
     if (isQuoteCard) {
@@ -433,6 +436,106 @@ export async function POST(request: Request) {
       } catch (quoteErr) {
         console.warn("[quick] Programmatic quote card generation failed:", quoteErr);
         // Fall through — imageUrl stays null, content is still usable
+      }
+    } else if (isCarousel) {
+      // Carousel: parse generated content into slides and render programmatically
+      try {
+        const body = contentResult.markdownBody || "";
+        // Parse numbered points from the content (e.g. "1. Title\nBody text")
+        const pointPattern = /(?:^|\n)(?:\d+[\.\)]\s*\*?\*?)(.+?)(?:\*?\*?\n)([\s\S]*?)(?=\n\d+[\.\)]\s|\n*$)/g;
+        const contentSlides: { title: string; body?: string }[] = [];
+        let match;
+        while ((match = pointPattern.exec(body)) !== null) {
+          const slideTitle = match[1].replace(/\*\*/g, "").trim();
+          const slideBody = match[2].trim().replace(/\*\*/g, "").replace(/\n+/g, " ");
+          if (slideTitle) {
+            contentSlides.push({ title: slideTitle, body: slideBody || undefined });
+          }
+        }
+
+        // Fallback: if no numbered points found, split by paragraphs
+        if (contentSlides.length === 0) {
+          const paragraphs = body.split(/\n\n+/).filter((p) => p.trim().length > 20);
+          for (const p of paragraphs.slice(0, 5)) {
+            const lines = p.trim().split("\n");
+            contentSlides.push({
+              title: lines[0].replace(/\*\*/g, "").replace(/^#+\s*/, "").trim(),
+              body: lines.slice(1).join(" ").replace(/\*\*/g, "").trim() || undefined,
+            });
+          }
+        }
+
+        // Limit to 5 content slides
+        const slides = contentSlides.slice(0, 5);
+        if (slides.length > 0) {
+          // Fetch branding
+          const { data: companyBrand } = await supabase
+            .from("companies")
+            .select("overlay_logo_url, logo_url, name, brand_color")
+            .eq("id", companyId)
+            .single();
+
+          // Fetch spokesperson for cover/CTA
+          let carouselProfilePic: string | null = null;
+          let carouselProfileName: string | null = null;
+          if (spokespersonId) {
+            const { data: person } = await supabase
+              .from("company_spokespersons")
+              .select("name, photo_url, profile_picture_url")
+              .eq("id", spokespersonId)
+              .eq("company_id", companyId)
+              .single();
+            if (person) {
+              carouselProfilePic = person.photo_url || person.profile_picture_url || null;
+              carouselProfileName = person.name;
+            }
+          }
+          if (!carouselProfileName) {
+            carouselProfileName = activeSpokesPerson?.name || company?.spokesperson_name || null;
+          }
+
+          const carouselSlides: CarouselSlide[] = [
+            { type: "cover", title: contentResult.title || topic, body: `${slides.length} key insights` },
+            ...slides.map((s, i) => ({
+              type: "content" as const,
+              slideNumber: i + 1,
+              totalSlides: slides.length,
+              title: s.title,
+              body: s.body,
+            })),
+            { type: "cta", title: "Want to learn more?", body: carouselProfileName ? `Follow ${carouselProfileName} for more insights like this.` : undefined },
+          ];
+
+          const carouselResult = await generateCarousel({
+            slides: carouselSlides,
+            accentColor: effectiveColor || companyBrand?.brand_color || "#A27BF9",
+            profilePicUrl: carouselProfilePic,
+            profileName: carouselProfileName,
+            logoUrl: companyBrand?.overlay_logo_url || companyBrand?.logo_url || null,
+            companyName: companyBrand?.name || null,
+          });
+
+          // Upload all slides
+          const timestamp = Date.now();
+          carouselImageUrls = [];
+          for (const slide of carouselResult.slides) {
+            const filename = `carousel-${timestamp}-slide-${slide.slideIndex}.png`;
+            const storagePath = `images/${companyId}/quick/${filename}`;
+            await supabase.storage.from("content-assets").upload(storagePath, slide.buffer, {
+              contentType: "image/png",
+              upsert: true,
+            });
+            const { data: urlData } = supabase.storage
+              .from("content-assets")
+              .getPublicUrl(storagePath);
+            carouselImageUrls.push(urlData.publicUrl);
+          }
+          // Use cover slide as the primary image
+          imageUrl = carouselImageUrls[0] || null;
+          imagePrompt = `[Programmatic carousel] ${slides.length} slides for "${topic}"`;
+        }
+      } catch (carouselErr) {
+        console.warn("[quick] Carousel generation failed:", carouselErr);
       }
     } else if (isSkip) {
       // real_photo style — user provides their own photos, no generation
@@ -537,6 +640,7 @@ export async function POST(request: Request) {
       firstComment: contentResult.firstComment || null,
       imageUrl,
       imagePrompt: imagePrompt || contentResult.imagePrompt || null,
+      carouselImageUrls,
       qualityGates,
       warnings,
     });
