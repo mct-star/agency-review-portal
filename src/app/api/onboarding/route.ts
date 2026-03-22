@@ -91,6 +91,24 @@ export async function POST(request: Request) {
     spokesperson = spok;
   }
 
+  // Send trial welcome email
+  try {
+    const { sendEmail, trialWelcomeEmailHtml } = await import("@/lib/email/resend");
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://agency-review-portal.vercel.app";
+    await sendEmail({
+      to: user.email!,
+      subject: `Welcome to AGENCY — your ${7}-day Pro trial has started`,
+      html: trialWelcomeEmailHtml({
+        userName: spokespersonName?.trim() || user.email?.split("@")[0] || "there",
+        companyName: companyName.trim(),
+        dashboardUrl: `${baseUrl}/dashboard`,
+        trialDays: 7,
+      }),
+    });
+  } catch {
+    console.warn("[onboarding] Welcome email failed (non-critical)");
+  }
+
   // Send new signup to webhook (Google Sheets / CRM)
   const webhookUrl = process.env.SIGNUP_WEBHOOK_URL;
   if (webhookUrl) {
