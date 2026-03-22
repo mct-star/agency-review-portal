@@ -44,15 +44,15 @@ export function getStripe(): Stripe {
  * These should be set as environment variables so you can switch
  * between test and live mode without code changes.
  *
- * Create these in Stripe Dashboard:
- * - Product: "AGENCY Pro" → Price: $99/month recurring
- * - Product: "AGENCY Agency" → Price: $299/month recurring
- * - Product: "Creative AI Add-on" → Price: $49/month recurring
+ * Create these in Stripe Dashboard (GBP):
+ * - Product: "AGENCY Starter" → Price: £30/month recurring
+ * - Product: "AGENCY Pro" → Price: £99/month recurring
+ * - Product: "AGENCY Agency" → Price: £299/month recurring
  */
 export const STRIPE_PRICES = {
+  starter: process.env.STRIPE_PRICE_STARTER || "",
   pro: process.env.STRIPE_PRICE_PRO || "",
   agency: process.env.STRIPE_PRICE_AGENCY || "",
-  creative_ai_addon: process.env.STRIPE_PRICE_CREATIVE_AI || "",
 } as const;
 
 /**
@@ -60,9 +60,9 @@ export const STRIPE_PRICES = {
  * Built dynamically from STRIPE_PRICES.
  */
 export function getPlanFromPriceId(priceId: string): string | null {
+  if (priceId === STRIPE_PRICES.starter) return "starter";
   if (priceId === STRIPE_PRICES.pro) return "pro";
   if (priceId === STRIPE_PRICES.agency) return "agency";
-  if (priceId === STRIPE_PRICES.creative_ai_addon) return "creative_ai_addon";
   return null;
 }
 
