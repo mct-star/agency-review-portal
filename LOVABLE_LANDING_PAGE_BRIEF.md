@@ -161,6 +161,14 @@ Three pricing cards:
 - No stock photos — this is a text-and-layout focused page
 - Animations: subtle fade-in on scroll for sections, nothing flashy
 
+## Key Technical Differentiators (for copy inspiration)
+These are real capabilities, not vapourware:
+- **Multi-provider image routing:** Photography goes to Google Gemini (free), Pixar 3D goes to Flux Pro, face-match uses PuLID. Best quality per style, lowest cost.
+- **Programmatic carousels:** 5-7 slide carousels generated in milliseconds with perfect text. Zero AI cost.
+- **Vibrant colour enforcement:** Brand colours are auto-boosted to minimum 60% saturation, 25-55% lightness. Every card stops the scroll.
+- **Three-colour regulatory coding:** Red (Legal), Amber (Regulatory), Blue (Compliance) — matches real pharma MLR team structure.
+- **One-click carousel posting:** Carousel slides upload individually to LinkedIn's multi-image API and post as a swipeable carousel.
+
 ## Supabase Connection
 - **Supabase URL:** (will be provided — same as the main platform)
 - **Supabase Anon Key:** (will be provided — same as the main platform)
