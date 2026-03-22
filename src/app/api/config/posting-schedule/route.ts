@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/config/posting-schedule?companyId=uuid
@@ -7,11 +7,6 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
  * joined with their post type definitions.
  */
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
   if (!companyId) {
@@ -19,6 +14,11 @@ export async function GET(request: Request) {
       { error: "companyId is required" },
       { status: 400 }
     );
+  }
+
+  const user = await requireCompanyUser(companyId);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();

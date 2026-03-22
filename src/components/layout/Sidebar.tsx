@@ -88,19 +88,9 @@ function buildSections(user: User): NavSection[] {
 
   return [
     {
-      title: "Brand Setup",
+      title: "Setup",
       items: [
-        { href: base, label: "Company Profile", icon: "building" },
-        { href: `${base}/people`, label: "People", icon: "users" },
-      ],
-    },
-    {
-      title: "Content Strategy",
-      items: [
-        { href: `${base}/voice`, label: "Voice & Tone", icon: "mic", minPlan: "starter" as PlanTier },
-        { href: `${base}/topics`, label: "Topic Bank", icon: "lightbulb", minPlan: "starter" as PlanTier },
-        { href: `${base}/schedule`, label: "Posting Schedule", icon: "clock", minPlan: "pro" as PlanTier },
-        { href: `${base}/signoffs`, label: "Sign-offs", icon: "quote", minPlan: "pro" as PlanTier },
+        { href: "/setup/content", label: "Content Setup", icon: "settings" },
       ],
     },
     {
@@ -158,6 +148,8 @@ const icons: Record<string, string> = {
   quote: "M6 17h3l2-4V7H5v6h3l-2 4Zm8 0h3l2-4V7h-6v6h3l-2 4Z",
   link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
   key: "M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78ZM15.5 7.5l2 2L21 6l-3-3-3.5 3.5 2 2Z",
+  settings:
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.43-2.56a7.7 7.7 0 0 0 .07-1 7.7 7.7 0 0 0-.07-1l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.4 7.4 0 0 0-1.73-1l-.38-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65a7.4 7.4 0 0 0-1.73 1l-2.49-1a.49.49 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64L4.57 11a7.7 7.7 0 0 0-.07 1 7.7 7.7 0 0 0 .07 1l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1a7.4 7.4 0 0 0 1.73 1l.38 2.65A.49.49 0 0 0 10 22h4a.49.49 0 0 0 .49-.42l.38-2.65a7.4 7.4 0 0 0 1.73-1l2.49 1a.49.49 0 0 0 .61-.22l2-3.46a.5.5 0 0 0-.12-.64Z",
   shield:
     "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
   lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",

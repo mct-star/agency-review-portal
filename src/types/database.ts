@@ -541,6 +541,10 @@ export interface CompanySpokesperson {
   is_primary: boolean;
   is_active: boolean;
   sort_order: number;
+  topic_assignments: unknown[] | null;
+  posting_schedule: unknown[] | null;
+  signoff_template: string | null;
+  content_strategy: string | null;
   created_at: string;
 }
 

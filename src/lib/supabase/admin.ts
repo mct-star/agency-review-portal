@@ -63,3 +63,48 @@ export async function requireAdmin() {
 
   return profile;
 }
+
+/**
+ * Verify the caller is an authenticated user who either:
+ * - is an admin, OR
+ * - belongs to the specified company (profile.company_id matches).
+ *
+ * Returns the user profile row, or null if not authorised.
+ */
+export async function requireCompanyUser(companyId: string) {
+  const cookieStore = await cookies();
+
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {},
+      },
+    }
+  );
+
+  const {
+    data: { user: authUser },
+  } = await authClient.auth.getUser();
+  if (!authUser) return null;
+
+  // Use service role to fetch profile (bypasses RLS)
+  const admin = await createAdminSupabaseClient();
+  const { data: profile } = await admin
+    .from("users")
+    .select("*")
+    .eq("id", authUser.id)
+    .single();
+
+  if (!profile) return null;
+
+  // Admin can access any company; company users can only access their own
+  if (profile.role === "admin") return profile;
+  if (profile.company_id === companyId) return profile;
+
+  return null;
+}
