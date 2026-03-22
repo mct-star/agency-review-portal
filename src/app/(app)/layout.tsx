@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getUser, getUserProfile } from "@/lib/supabase/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
+import TrialBanner from "@/components/layout/TrialBanner";
+import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
 
 /**
  * Authenticated layout for the three main sections: Setup, Generate, Review.
@@ -44,16 +46,18 @@ export default async function AppLayout({
   const companyId = profile.company_id;
   let platformLogoUrl: string | null = null;
   let companyPlan: string = "free";
+  let trialDaysRemaining: number | null = null;
 
   if (companyId) {
     // This user is a client user tied to a specific company — show their logo
     const { data: company } = await supabase
       .from("companies")
-      .select("logo_url, plan")
+      .select("logo_url, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
       .single();
     platformLogoUrl = company?.logo_url || null;
-    companyPlan = company?.plan || "free";
+    companyPlan = company ? getEffectivePlan(company as { plan: "free" | "pro" | "agency"; trial_plan?: "free" | "pro" | "agency" | null; trial_expires_at?: string | null }) : "free";
+    trialDaysRemaining = company ? getTrialDaysRemaining(company) : null;
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,
     // NOT a random client's logo. Also pass their company ID for sidebar "My Brand" link.
@@ -73,7 +77,12 @@ export default async function AppLayout({
   return (
     <div className="flex h-screen">
       <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} />
-      <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
+      <main className="flex-1 overflow-y-auto bg-gray-50">
+        {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+          <TrialBanner daysRemaining={trialDaysRemaining} />
+        )}
+        <div className="p-6">{children}</div>
+      </main>
     </div>
   );
 }

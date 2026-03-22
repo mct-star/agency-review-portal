@@ -193,6 +193,9 @@ export interface Company {
   blog_base_url: string | null;
   regulatory_framework: string | null;
   auto_regulatory_review: boolean;
+  trial_started_at: string | null;
+  trial_expires_at: string | null;
+  trial_plan: PlanTier | null;
   created_at: string;
 }
 

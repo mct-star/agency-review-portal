@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -32,12 +33,14 @@ export async function GET(request: Request) {
   );
 
   let redirectUrl = `${origin}/login?error=missing_auth_params`;
+  let authSuccess = false;
 
   // PKCE flow: exchange code for session
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       redirectUrl = `${origin}/dashboard`;
+      authSuccess = true;
     } else {
       console.error("Auth callback error (code exchange):", error.message);
       redirectUrl = `${origin}/login?error=${encodeURIComponent(error.message)}`;
@@ -52,9 +55,96 @@ export async function GET(request: Request) {
     });
     if (!error) {
       redirectUrl = `${origin}/dashboard`;
+      authSuccess = true;
     } else {
       console.error("Auth callback error (token verify):", error.message);
       redirectUrl = `${origin}/login?error=${encodeURIComponent(error.message)}`;
+    }
+  }
+
+  // Auto-provision: if auth succeeded, check if this user needs a profile + company
+  if (authSuccess) {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+
+      if (authUser) {
+        // Use service role to bypass RLS for provisioning
+        const adminSupabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
+
+        // Check if user profile exists
+        const { data: existingProfile } = await adminSupabase
+          .from("users")
+          .select("id")
+          .eq("id", authUser.id)
+          .single();
+
+        if (!existingProfile) {
+          // New user — auto-provision from signup metadata
+          const meta = authUser.user_metadata || {};
+          const fullName = meta.full_name || meta.name || authUser.email?.split("@")[0] || "User";
+          const companyName = meta.company_name;
+
+          if (companyName) {
+            // Create company with 7-day pro trial
+            const slug = companyName
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "")
+              .slice(0, 50);
+
+            const trialExpiresAt = new Date();
+            trialExpiresAt.setDate(trialExpiresAt.getDate() + 7);
+
+            const { data: newCompany } = await adminSupabase
+              .from("companies")
+              .insert({
+                name: companyName,
+                slug: `${slug}-${Date.now().toString(36)}`,
+                plan: "free",
+                trial_plan: "pro",
+                trial_started_at: new Date().toISOString(),
+                trial_expires_at: trialExpiresAt.toISOString(),
+                spokesperson_name: fullName,
+              })
+              .select("id")
+              .single();
+
+            if (newCompany) {
+              // Create user profile linked to company
+              await adminSupabase.from("users").insert({
+                id: authUser.id,
+                email: authUser.email!,
+                full_name: fullName,
+                role: "client",
+                company_id: newCompany.id,
+              });
+
+              // Create primary spokesperson
+              await adminSupabase.from("company_spokespersons").insert({
+                company_id: newCompany.id,
+                name: fullName,
+                is_primary: true,
+                is_active: true,
+                sort_order: 0,
+              });
+
+              console.log(`[auth] Auto-provisioned company "${companyName}" + user "${fullName}" with 7-day pro trial`);
+            }
+          } else {
+            // No company name (existing login flow) — just create minimal profile
+            // They'll see the "Almost there" screen asking admin to set them up
+            // This preserves backwards compatibility with admin-provisioned users
+          }
+        }
+      }
+    } catch (provisionErr) {
+      // Don't block auth on provisioning failure — user can still reach dashboard
+      // and the "Almost there" screen will guide them
+      console.error("[auth] Auto-provisioning failed:", provisionErr);
     }
   }
 

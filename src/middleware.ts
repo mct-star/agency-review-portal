@@ -51,12 +51,17 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
+  // Protected route prefixes — everything else is public (marketing pages, signup, etc.)
+  const protectedPrefixes = [
+    "/dashboard", "/setup", "/generate", "/review", "/compliance",
+    "/calendar", "/publish", "/admin", "/users", "/content",
+  ];
+  const isProtectedRoute = protectedPrefixes.some((p) =>
+    request.nextUrl.pathname.startsWith(p)
+  );
+
   // If not logged in and trying to access protected routes, redirect to login
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
+  if (!user && isProtectedRoute) {
     return redirectWithCookies("/login");
   }
 
