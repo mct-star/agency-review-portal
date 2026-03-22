@@ -16,6 +16,7 @@ interface Company {
   content_strategy_mode: string;
   spokesperson_name: string | null;
   plan: string;
+  auto_regulatory_review?: boolean;
 }
 
 interface Spokesperson {
@@ -271,6 +272,13 @@ export default function GeneratePage() {
         setCompanies([]);
       });
   }, []);
+
+  // Auto-enable regulatory review if company has it configured
+  useEffect(() => {
+    if (selectedCompany?.auto_regulatory_review) {
+      setRunRegReview(true);
+    }
+  }, [selectedCompany?.auto_regulatory_review]);
 
   // Fetch weeks + post types + topics + spokespersons when company selected
   useEffect(() => {

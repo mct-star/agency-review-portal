@@ -61,6 +61,12 @@ function buildSections(user: User): NavSection[] {
         ],
       },
       {
+        title: "Compliance",
+        items: [
+          { href: "/compliance", label: "Regulatory Review", icon: "shieldCheck", minPlan: "pro" as PlanTier },
+        ],
+      },
+      {
         title: "Plan",
         items: [
           { href: "/calendar", label: "Calendar", icon: "calendarView" },
@@ -114,6 +120,12 @@ function buildSections(user: User): NavSection[] {
       ],
     },
     {
+      title: "Compliance",
+      items: [
+        { href: "/compliance", label: "Regulatory Review", icon: "shieldCheck", minPlan: "pro" as PlanTier },
+      ],
+    },
+    {
       title: "Plan",
       items: [
         { href: "/calendar", label: "Calendar", icon: "calendarView", minPlan: "pro" as PlanTier },
@@ -152,6 +164,8 @@ const icons: Record<string, string> = {
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.43-2.56a7.7 7.7 0 0 0 .07-1 7.7 7.7 0 0 0-.07-1l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.61-.22l-2.49 1a7.4 7.4 0 0 0-1.73-1l-.38-2.65A.49.49 0 0 0 14 2h-4a.49.49 0 0 0-.49.42l-.38 2.65a7.4 7.4 0 0 0-1.73 1l-2.49-1a.49.49 0 0 0-.61.22l-2 3.46a.49.49 0 0 0 .12.64L4.57 11a7.7 7.7 0 0 0-.07 1 7.7 7.7 0 0 0 .07 1l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46a.5.5 0 0 0 .61.22l2.49-1a7.4 7.4 0 0 0 1.73 1l.38 2.65A.49.49 0 0 0 10 22h4a.49.49 0 0 0 .49-.42l.38-2.65a7.4 7.4 0 0 0 1.73-1l2.49 1a.49.49 0 0 0 .61-.22l2-3.46a.5.5 0 0 0-.12-.64Z",
   shield:
     "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  shieldCheck:
+    "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4",
   lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
 };
 
@@ -172,6 +186,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
     if (pathname === href) return true;
     if (pathname.startsWith(href + "/")) return true;
     if (href === "/review" && pathname.startsWith("/content/")) return true;
+    if (href === "/compliance" && pathname.startsWith("/compliance/")) return true;
     // For setup sub-pages: exact match on the sub-path
     // e.g. /setup/abc/voice should only match /setup/abc/voice, not /setup/abc/people
     // But /setup/abc (Company Profile) should match /setup/abc exactly, not its sub-pages

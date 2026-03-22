@@ -129,6 +129,14 @@ export default async function WeekReviewPage({ params }: PageProps) {
 
           <div className="flex items-center gap-2">
             <a
+              href={`/api/generate/report/preview?weekId=${weekId}&companyId=${company.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100"
+            >
+              Preview Report
+            </a>
+            <a
               href={`/api/generate/report?weekId=${weekId}&companyId=${company.id}`}
               target="_blank"
               rel="noopener noreferrer"

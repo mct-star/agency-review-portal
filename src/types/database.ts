@@ -155,6 +155,30 @@ export type ImageGenerationStatus =
 
 export type PlanTier = "free" | "pro" | "agency";
 
+export type RegulatoryStatus = "pending" | "clean" | "flagged" | "approved";
+
+export type RegulatoryRiskLevel = "low" | "medium" | "high" | "critical";
+
+export interface RegulatoryIssueResult {
+  sentence: string;
+  riskLevel: "low" | "medium" | "high";
+  category: "medical_claim" | "off_label" | "misleading" | "missing_disclaimer" | "competitor_reference" | "brand" | "product" | "service" | "formatting" | "claims" | "audience" | "channel";
+  explanation: string;
+  suggestion: string;
+  regulation: string;
+  countries?: string[];
+}
+
+export interface RegulatoryReviewResult {
+  overallScore: number;
+  riskLevel: RegulatoryRiskLevel;
+  framework: string;
+  issues: RegulatoryIssueResult[];
+  passedChecks: string[];
+  reviewedAt: string;
+  targetCountries: string[];
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -167,6 +191,8 @@ export interface Company {
   brand_color: string | null;
   content_strategy_mode: ContentStrategyMode;
   blog_base_url: string | null;
+  regulatory_framework: string | null;
+  auto_regulatory_review: boolean;
   created_at: string;
 }
 
@@ -217,6 +243,11 @@ export interface ContentPiece {
   image_generation_status: ImageGenerationStatus;
   ecosystem_role: string | null;
   cta_tier_used: string | null;
+  regulatory_status: RegulatoryStatus;
+  regulatory_score: number | null;
+  regulatory_review: RegulatoryReviewResult | null;
+  regulatory_framework: string | null;
+  regulatory_reviewed_at: string | null;
   created_at: string;
   updated_at: string;
 }
