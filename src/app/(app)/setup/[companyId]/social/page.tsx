@@ -202,8 +202,8 @@ export default function CompanySocialPage() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Company Social Accounts</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Company-level social pages and brand accounts.
-            Personal accounts (individual LinkedIn, Twitter, etc.) are managed on each{" "}
+            All connected social accounts for your company.
+            You can also manage personal accounts on each{" "}
             <Link href={`/setup/${companyId}/people`} className="text-sky-600 hover:underline">
               person&apos;s page
             </Link>
