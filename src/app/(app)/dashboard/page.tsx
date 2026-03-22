@@ -398,7 +398,9 @@ export default async function DashboardPage({
             <h1 className="text-sm font-bold text-gray-900">
               {isAdmin ? "Dashboard" : `Welcome back, ${(profile.full_name || "there").split(" ")[0]}`}
             </h1>
-            <p className="text-[11px] text-gray-400">{todayFormatted}</p>
+            <p className="text-[11px] text-gray-400">
+              {todayFormatted} <span className="text-gray-300 mx-1">|</span> Your weekly demand ecosystem
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -432,13 +434,8 @@ export default async function DashboardPage({
         </div>
       )}
 
-      {/* Reinforcement line */}
-      <p className="text-center text-sm text-gray-400 -mb-2">
-        Your weekly demand ecosystem, deployed in minutes.
-      </p>
-
       {/* ===== 2. Full-viewport hero tiles ===== */}
-      <div className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "calc(100vh - 200px)" }}>
+      <div className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "calc(100vh - 180px)" }}>
         {/* Quick Generate */}
         <Link
           href="/generate/quick"

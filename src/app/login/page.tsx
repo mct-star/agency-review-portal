@@ -9,6 +9,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [loginMode, setLoginMode] = useState<"magic" | "password">("password");
   const [sent, setSent] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -122,13 +123,41 @@ function LoginForm() {
             {loading ? (loginMode === "password" ? "Signing in..." : "Sending...") : (loginMode === "password" ? "Sign in" : "Send login link")}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setLoginMode(loginMode === "password" ? "magic" : "password")}
-            className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            {loginMode === "password" ? "Use magic link instead" : "Use password instead"}
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setLoginMode(loginMode === "password" ? "magic" : "password")}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {loginMode === "password" ? "Use magic link instead" : "Use password instead"}
+            </button>
+            {loginMode === "password" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!email) { setError("Enter your email first"); return; }
+                  setLoading(true);
+                  setError(null);
+                  const supabase = createClient();
+                  const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                  });
+                  setLoading(false);
+                  if (resetError) { setError(resetError.message); }
+                  else { setResetSent(true); }
+                }}
+                className="text-xs text-violet-600 hover:text-violet-700 transition-colors"
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
+
+          {resetSent && (
+            <div className="rounded-lg bg-violet-50 p-3 text-center">
+              <p className="text-xs font-medium text-violet-800">Password reset link sent to {email}</p>
+            </div>
+          )}
 
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
