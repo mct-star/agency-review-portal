@@ -97,9 +97,10 @@ export default function CompanySocialPage() {
 
   async function fetchAccounts() {
     setLoading(true);
-    // Fetch only company-level accounts (no spokesperson_id)
+    // Fetch ALL accounts for this company (company-level + spokesperson-level)
+    // so the social page shows a complete picture of connected platforms
     const res = await fetch(
-      `/api/config/social-accounts?companyId=${companyId}&spokespersonId=company`
+      `/api/config/social-accounts?companyId=${companyId}`
     );
     const json = await res.json();
     setAccounts(json.data || []);
