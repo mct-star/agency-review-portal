@@ -24,7 +24,17 @@ import type {
   PlatformAdaptationOutput,
 } from "../index";
 
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+/**
+ * Model routing by task complexity:
+ * - OPUS: deep reasoning (strategy, voice extraction, blueprints) — one-time setup
+ * - SONNET: creative writing (posts, blogs, compliance review) — per-generation
+ * - HAIKU: simple classification (quality gates, hook extraction, prompt enhancement) — high volume
+ */
+const MODEL_OPUS = "claude-opus-4-20250514";
+const MODEL_SONNET = "claude-sonnet-4-20250514";
+const MODEL_HAIKU = "claude-3-5-haiku-20241022";
+
+const DEFAULT_MODEL = MODEL_SONNET;
 const API_URL = "https://api.anthropic.com/v1/messages";
 
 interface AnthropicMessage {
@@ -80,7 +90,7 @@ const CONTENT_TYPE_INSTRUCTIONS: Record<string, string> = {
   social_post: `FORMAT: LinkedIn social media post.
 
 STRUCTURE:
-- A brilliant hook (first line that stops the scroll). Short. Sets up tension, contrast, or a specific observation. No colons or hyphens in hooks.
+- A brilliant hook (first line that stops the scroll). MAXIMUM 10 WORDS. Punchy, provocative, specific. Sets up tension or contrast. No colons, hyphens, or em-dashes in hooks. Examples of good hooks: "Nobody talks about this in healthcare." / "Your competitor just stole your surgeon." / "The meeting lasted 12 minutes."
 - 3-6 short paragraphs. Each paragraph is 1-2 sentences MAX. Use line breaks between paragraphs.
 - At least one bracketed aside somewhere in the body (MANDATORY).
 - End with the EXACT sign-off from the blueprint (Section E3). Do not paraphrase it. Copy it verbatim.

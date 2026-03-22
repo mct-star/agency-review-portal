@@ -370,12 +370,30 @@ export async function POST(request: Request) {
         // Extract the hook text (first line of content) for the card
         const hookText = contentResult.markdownBody?.trim().split("\n")[0] || topic;
         // Strip markdown formatting (bold, italic, etc.)
-        const cleanHookText = hookText
+        let cleanHookText = hookText
           .replace(/\*\*/g, "")
           .replace(/\*/g, "")
           .replace(/^#+\s*/, "")
           .replace(/^[""]|[""]$/g, "")
           .trim();
+
+        // ENFORCE max 12 words for quote cards — truncate if longer
+        const words = cleanHookText.split(/\s+/);
+        if (words.length > 12) {
+          // Try to find a natural break point (period, comma, dash) within 12 words
+          const truncated = words.slice(0, 12).join(" ");
+          const lastPunc = Math.max(
+            truncated.lastIndexOf("."),
+            truncated.lastIndexOf(","),
+            truncated.lastIndexOf("?"),
+            truncated.lastIndexOf("!")
+          );
+          if (lastPunc > truncated.length * 0.5) {
+            cleanHookText = truncated.slice(0, lastPunc + 1);
+          } else {
+            cleanHookText = truncated;
+          }
+        }
 
         // Resolve colour: per-post-type override > default for post type
         // Colour priority: per-post-type mapping > company brand colour > fallback palette
