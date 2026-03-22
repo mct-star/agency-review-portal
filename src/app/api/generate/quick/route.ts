@@ -48,6 +48,8 @@ interface PostTypeConfig {
   archetype: string;
   imageStyle: string | ((appearance: string) => string);
   dimensions: { width: number; height: number };
+  wordCountMin?: number;
+  wordCountMax?: number;
 }
 
 // Image style slug → prompt template map. Used when a company overrides
@@ -71,48 +73,57 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
     archetype: "quote_card",
     imageStyle: "Flat solid green (#CDD856) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. No scenes, people, objects, gradients, textures. The power comes from the emptiness.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 150, wordCountMax: 250,
   },
   launch_story: {
     archetype: "pixar_healthcare",
     imageStyle: (appearance) =>
-      `Pixar/Disney-adjacent 3D rendered scene in a hospital/healthcare environment. Sophisticated lighting, slightly exaggerated proportions. Main character: ${appearance}. The Pixar character should clearly resemble this person. NHS hospital setting with medical props.`,
+      `Pixar/Disney-adjacent 3D rendered scene in a professional business environment. Sophisticated lighting, slightly exaggerated proportions. Main character: ${appearance}. The Pixar character should clearly resemble this person.`,
     dimensions: { width: 1080, height: 1350 },
+    wordCountMin: 200, wordCountMax: 350,
   },
   if_i_was: {
     archetype: "quote_card",
     imageStyle: "Flat solid purple (#A27BF9) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. Hand-drawn black arrow curving downward beneath the text. No scenes, people, objects, gradients, textures.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 200, wordCountMax: 300,
   },
   contrarian: {
     archetype: "quote_card",
     imageStyle: "Flat solid blue (#41C9FE) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. Accusation, revelation, or confrontation tone. No scenes, people, objects, gradients, textures.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 200, wordCountMax: 300,
   },
   tactical: {
     archetype: "carousel",
     imageStyle: "Clean white background with purple (#A27BF9) accents. Typography-led framework slide. Oversized purple number + heading + body text. Generous whitespace. Line-art icon. Professional, airy layout.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 150, wordCountMax: 250,
   },
   founder_friday: {
     archetype: "pixar_fantasy",
     imageStyle: (appearance) =>
       `Pixar/Disney-adjacent 3D rendered scene showing a 'fantasy vs reality' moment. Split composition or contrasting elements. Main character: ${appearance}. The Pixar character should clearly resemble this person. Warm, intimate lighting. Candid, reflective moment.`,
     dimensions: { width: 1080, height: 1350 },
+    wordCountMin: 250, wordCountMax: 400,
   },
   blog_teaser: {
     archetype: "quote_card",
     imageStyle: "Flat solid emerald (#059669) background, edge to edge. Bold white text centred. Article title as hook. Clean, minimal.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 60, wordCountMax: 120,
   },
   personal_update: {
     archetype: "editorial_photo",
     imageStyle: "Candid editorial photography. Natural light, warm tones. Lifestyle scene matching the topic — walking, coffee shop, workspace, travel, family, nature. Authentic and unposed. Shot on 35mm film look. Shallow depth of field. No text on the image.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 100, wordCountMax: 200,
   },
   scene_provocation: {
     archetype: "scene_quote",
     imageStyle: "Industry-relevant scene with a blank surface for text overlay. Whiteboard, billboard, chalkboard, or screen in a professional setting.",
     dimensions: { width: 1080, height: 1080 },
+    wordCountMin: 150, wordCountMax: 250,
   },
 };
 
@@ -271,6 +282,8 @@ export async function POST(request: Request) {
       postTypeSlug,
       postTypeLabel: POST_TYPES_LABELS[postTypeSlug] || postTypeSlug,
       imageArchetype: typeConfig.archetype,
+      wordCountMin: typeConfig.wordCountMin,
+      wordCountMax: typeConfig.wordCountMax,
       signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
       firstCommentTemplate: isBlogTeaser ? undefined : (selectedSignoff?.first_comment_template || undefined),
       // Inject full voice profile (structured or legacy)
