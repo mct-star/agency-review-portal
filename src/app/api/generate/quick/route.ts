@@ -15,7 +15,7 @@ import { generateQuoteCard, QUOTE_CARD_COLORS } from "@/lib/image/quote-card";
 import { generateCarousel, type CarouselSlide } from "@/lib/image/carousel";
 import { generateSceneQuote, getScenePrompt } from "@/lib/image/scene-quote";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
-import { checkPostLimit } from "@/lib/utils/plan-limits";
+import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
 
 /**
@@ -381,6 +381,15 @@ export async function POST(request: Request) {
     const isSceneQuote = styleSlug === "scene_quote";
     const isSkip = styleSlug === "real_photo";
 
+    // Check if the visual style is allowed on this plan
+    // If not, fall back to quote card (always free, always available)
+    const effectivePlan = getEffectivePlan(company as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
+    if (!isVisualStyleAllowed(effectivePlan, styleSlug)) {
+      console.log(`[quick] Style "${styleSlug}" not allowed on ${effectivePlan} plan — falling back to quote_card`);
+      // Override to quote card
+      effectiveStyle = "quote_card";
+    }
+
     if (isQuoteCard) {
       try {
         // Extract the hook text (first line of content) for the card
@@ -725,13 +734,15 @@ export async function POST(request: Request) {
             const { data: refFiles } = await supabase.storage
               .from("content-assets")
               .list(`reference-photos/${companyId}/${personId}`, { limit: 3 });
-            if (refFiles && refFiles.length > 0) {
+            if (refFiles && refFiles.length > 0 && isFaceMatchAllowed(effectivePlan)) {
               referenceImageUrls = refFiles.map((f) => {
                 const { data: urlData } = supabase.storage
                   .from("content-assets")
                   .getPublicUrl(`reference-photos/${companyId}/${personId}/${f.name}`);
                 return urlData.publicUrl;
               });
+            } else if (refFiles && refFiles.length > 0) {
+              console.log(`[quick] Face-match photos found but plan "${effectivePlan}" does not include PuLID — using generic Pixar`);
             }
           }
         }
