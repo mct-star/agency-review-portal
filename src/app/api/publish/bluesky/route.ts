@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/crypto";
 
 /**
@@ -11,10 +11,15 @@ import { decrypt } from "@/lib/crypto";
  * Body: { companyId, text, imageUrl? }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json();
+  const { companyId, text, imageUrl } = body;
 
-  const { companyId, text, imageUrl } = await request.json();
+  if (!companyId) {
+    return NextResponse.json({ error: "companyId is required" }, { status: 400 });
+  }
+
+  const profile = await requireCompanyUser(companyId);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (!companyId || !text) {
     return NextResponse.json({ error: "companyId and text are required" }, { status: 400 });
