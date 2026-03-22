@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
+import { routeImageStyle, getEffectiveProvider } from "@/lib/providers/image-routing";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
 import {
   buildPreGenerationContext,
@@ -542,9 +543,28 @@ export async function POST(request: Request) {
       imageUrl = null;
       imagePrompt = null;
     } else {
-      // AI image generation with style-aware prompt resolution
+      // AI image generation with smart provider routing
       try {
-        const { provider: imgProvider } = await getImageProvider(companyId);
+        // Route to optimal provider based on image style
+        const hasRefPhotos = !!(spokespersonId && styleSlug === "pixar_3d");
+        const route = routeImageStyle(styleSlug, hasRefPhotos);
+        const effectiveProviderKey = getEffectiveProvider(route.provider);
+        console.log(`[quick] Image routing: ${route.reason} → using ${effectiveProviderKey}`);
+
+        // Get the routed provider (may differ from company default)
+        let imgProvider;
+        if (effectiveProviderKey === "gemini_imagen") {
+          // Use Gemini directly if available
+          const { createGeminiImageProvider } = await import("@/lib/providers/image-generation/gemini");
+          imgProvider = createGeminiImageProvider(
+            { api_key: process.env.GOOGLE_GEMINI_API_KEY || "" },
+            {}
+          );
+        } else {
+          // Fall back to company's configured provider (likely fal.ai)
+          const result = await getImageProvider(companyId);
+          imgProvider = result.provider;
+        }
 
         const appearance = effectiveCharacterDesc
           || activeSpokesPerson?.appearance
@@ -616,18 +636,26 @@ export async function POST(request: Request) {
           const filename = `quick-${Date.now()}.png`;
           const storagePath = `images/${companyId}/quick/${filename}`;
 
-          const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(30_000) });
-          if (imgRes.ok) {
-            const buffer = Buffer.from(await imgRes.arrayBuffer());
-            await supabase.storage.from("content-assets").upload(storagePath, buffer, {
-              contentType: "image/png",
-              upsert: true,
-            });
-            const { data: urlData } = supabase.storage
-              .from("content-assets")
-              .getPublicUrl(storagePath);
-            imageUrl = urlData.publicUrl;
+          let buffer: Buffer;
+          if (imgUrl.startsWith("data:")) {
+            // Gemini returns base64 data URIs — decode directly
+            const base64Data = imgUrl.split(",")[1];
+            buffer = Buffer.from(base64Data, "base64");
+          } else {
+            // fal.ai / OpenAI return HTTP URLs — fetch the image
+            const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(30_000) });
+            if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
+            buffer = Buffer.from(await imgRes.arrayBuffer());
           }
+
+          await supabase.storage.from("content-assets").upload(storagePath, buffer, {
+            contentType: "image/png",
+            upsert: true,
+          });
+          const { data: urlData } = supabase.storage
+            .from("content-assets")
+            .getPublicUrl(storagePath);
+          imageUrl = urlData.publicUrl;
         }
       } catch (imgErr) {
         // Image generation is optional — content is still usable without it
