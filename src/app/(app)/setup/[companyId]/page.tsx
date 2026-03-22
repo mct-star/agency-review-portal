@@ -287,6 +287,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
               initialBrandColor={company.brand_color || null}
               initialDescription={company.description || null}
               initialBrandPalette={(company as Record<string, unknown>).brand_palette as string[] || []}
+              initialIndustry={(company as Record<string, unknown>).industry as string || ""}
             />
           </div>
 

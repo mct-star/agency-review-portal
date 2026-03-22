@@ -77,6 +77,13 @@ const POST_TYPES: PostTypeOption[] = [
     archetype: "editorial_photo",
     color: "#E11D48",
   },
+  {
+    slug: "scene_provocation",
+    label: "Scene Provocation",
+    description: "Bold statement on a whiteboard, billboard, or real-world surface. 150-250 words.",
+    archetype: "scene_quote",
+    color: "#1E3A5F",
+  },
 ];
 
 interface CompanyOption {

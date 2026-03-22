@@ -109,6 +109,11 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
     imageStyle: "Candid editorial photography. Natural light, warm tones. Lifestyle scene matching the topic — walking, coffee shop, workspace, travel, family, nature. Authentic and unposed. Shot on 35mm film look. Shallow depth of field. No text on the image.",
     dimensions: { width: 1080, height: 1080 },
   },
+  scene_provocation: {
+    archetype: "scene_quote",
+    imageStyle: "Industry-relevant scene with a blank surface for text overlay. Whiteboard, billboard, chalkboard, or screen in a professional setting.",
+    dimensions: { width: 1080, height: 1080 },
+  },
 };
 
 export async function POST(request: Request) {
@@ -241,7 +246,7 @@ export async function POST(request: Request) {
     const preGenContext = buildPreGenerationContext({
       postTypeSlug,
       weekNumber: 0,
-      isHealthcareCompany: true, // Default to healthcare; could be company-specific
+      isHealthcareCompany: ["healthcare", "pharma"].includes((company as Record<string, unknown>)?.industry as string || ""),
       voiceProfile: voiceProfile || null,
     });
 
@@ -295,7 +300,7 @@ export async function POST(request: Request) {
         hookLine: (contentResult.markdownBody || "").trim().split("\n")[0] || "",
         companyId,
         weekNumber: 0,
-        isHealthcareCompany: true,
+        isHealthcareCompany: ["healthcare", "pharma"].includes((company as Record<string, unknown>)?.industry as string || ""),
         contentType: "social_post",
         signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
         firstComment: contentResult.firstComment,
@@ -326,7 +331,7 @@ export async function POST(request: Request) {
             hookLine: (contentResult.markdownBody || "").trim().split("\n")[0] || "",
             companyId,
             weekNumber: 0,
-            isHealthcareCompany: true,
+            isHealthcareCompany: ["healthcare", "pharma"].includes((company as Record<string, unknown>)?.industry as string || ""),
             contentType: "social_post",
             signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
             firstComment: contentResult.firstComment,
@@ -816,4 +821,5 @@ const POST_TYPES_LABELS: Record<string, string> = {
   founder_friday: "Personal Reflection",
   blog_teaser: "Article Teaser",
   personal_update: "Personal Update",
+  scene_provocation: "Scene Provocation",
 };

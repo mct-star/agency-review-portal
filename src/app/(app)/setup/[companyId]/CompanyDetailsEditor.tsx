@@ -10,6 +10,7 @@ interface CompanyDetailsEditorProps {
   initialBrandColor: string | null;
   initialDescription: string | null;
   initialBrandPalette?: string[];
+  initialIndustry?: string;
 }
 
 export default function CompanyDetailsEditor({
@@ -20,12 +21,14 @@ export default function CompanyDetailsEditor({
   initialBrandColor,
   initialDescription,
   initialBrandPalette = [],
+  initialIndustry = "",
 }: CompanyDetailsEditorProps) {
   const [name, setName] = useState(initialName);
   const [tagline, setTagline] = useState(initialTagline || "");
   const [website, setWebsite] = useState(initialWebsite || "");
   const [brandColor, setBrandColor] = useState(initialBrandColor || "#0ea5e9");
   const [description, setDescription] = useState(initialDescription || "");
+  const [industry, setIndustry] = useState(initialIndustry);
   const [brandPalette, setBrandPalette] = useState<string[]>(initialBrandPalette);
   const [newPaletteColor, setNewPaletteColor] = useState("#7C3AED");
   const [saving, setSaving] = useState(false);
@@ -45,6 +48,7 @@ export default function CompanyDetailsEditor({
           tagline: tagline || null,
           blog_base_url: website || null,
           brand_color: brandColor || null,
+          industry: industry || null,
           brand_palette: brandPalette.length > 0 ? brandPalette : null,
           description: description || null,
         }),
@@ -128,7 +132,32 @@ export default function CompanyDetailsEditor({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Industry / Sector</label>
+          <select
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+          >
+            <option value="">Select industry...</option>
+            <option value="healthcare">Healthcare / Life Sciences</option>
+            <option value="pharma">Pharmaceuticals / Medical Devices</option>
+            <option value="fintech">Fintech / Financial Services</option>
+            <option value="saas">SaaS / Technology</option>
+            <option value="construction">Construction / Property</option>
+            <option value="legal">Legal / Professional Services</option>
+            <option value="education">Education / Training</option>
+            <option value="hospitality">Hospitality / Leisure</option>
+            <option value="manufacturing">Manufacturing / Engineering</option>
+            <option value="retail">Retail / E-commerce</option>
+            <option value="energy">Energy / Sustainability</option>
+            <option value="other">Other</option>
+          </select>
+          <p className="mt-1 text-[10px] text-gray-400">
+            Shapes content context, scene quotes, and compliance frameworks.
+          </p>
+        </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Website URL</label>
           <input
