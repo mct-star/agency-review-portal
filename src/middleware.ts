@@ -72,6 +72,12 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies("/login");
   }
 
+  // Root path: redirect to dashboard (logged in) or login (not logged in)
+  // Marketing landing page is hosted externally (Lovable), not in this app
+  if (request.nextUrl.pathname === "/") {
+    return redirectWithCookies(user ? "/dashboard" : "/login");
+  }
+
   // If logged in and on login page, redirect to dashboard
   if (user && request.nextUrl.pathname === "/login") {
     return redirectWithCookies("/dashboard");
