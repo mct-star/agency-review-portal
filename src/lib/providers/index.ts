@@ -81,6 +81,8 @@ export interface ImageGenerationInput {
   style?: string;
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3";
   count?: number;
+  /** Reference face/subject photo URLs for character consistency (e.g. Pixar scenes) */
+  referenceImageUrls?: string[];
 }
 
 export interface ImageGenerationOutput {

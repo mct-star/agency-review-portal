@@ -478,11 +478,33 @@ export async function POST(request: Request) {
         const is3DStyle = styleSlug === "pixar_3d";
         const aspectRatio = is3DStyle ? "4:3" : "1:1";
 
+        // For person-depicting styles (Pixar/3D), fetch reference photos
+        // to enable face-consistent generation via PuLID
+        let referenceImageUrls: string[] | undefined;
+        if (is3DStyle) {
+          const personId = spokespersonId || null;
+          if (personId) {
+            // List reference photos from Supabase Storage
+            const { data: refFiles } = await supabase.storage
+              .from("content-assets")
+              .list(`reference-photos/${companyId}/${personId}`, { limit: 3 });
+            if (refFiles && refFiles.length > 0) {
+              referenceImageUrls = refFiles.map((f) => {
+                const { data: urlData } = supabase.storage
+                  .from("content-assets")
+                  .getPublicUrl(`reference-photos/${companyId}/${personId}/${f.name}`);
+                return urlData.publicUrl;
+              });
+            }
+          }
+        }
+
         const imgResult = await imgProvider.generate({
           prompt: enhancedPrompt,
           style: styleSlug,
           aspectRatio,
           count: 1,
+          referenceImageUrls,
         });
 
         if (imgResult.images.length > 0) {
