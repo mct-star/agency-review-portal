@@ -3,6 +3,9 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import { formatWeekLabel, formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import type { Week, Notification, ContentPiece } from "@/types/database";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
+import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
+import { getPlanFeatures } from "@/lib/utils/plan-limits";
+import type { PlanTier } from "@/types/database";
 
 // Circular progress gauge component
 function Gauge({ value, max, label, color, sublabel }: { value: number; max: number; label: string; color: string; sublabel?: string }) {
@@ -135,18 +138,18 @@ export default async function DashboardPage() {
   }
 
   // Fetch company data
-  let company: { id: string; name: string; spokesperson_name: string | null; brand_color: string | null; logo_url: string | null; website_url: string | null; overlay_enabled: boolean | null } | null = null;
+  let company: { id: string; name: string; spokesperson_name: string | null; brand_color: string | null; logo_url: string | null; website_url: string | null; overlay_enabled: boolean | null; plan: string | null; trial_plan: string | null; trial_expires_at: string | null } | null = null;
   if (companyId) {
     const { data } = await supabase
       .from("companies")
-      .select("id, name, spokesperson_name, brand_color, logo_url, website_url, overlay_enabled")
+      .select("id, name, spokesperson_name, brand_color, logo_url, website_url, overlay_enabled, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
       .single();
     company = data;
   } else if (isAdmin) {
     const { data } = await supabase
       .from("companies")
-      .select("id, name, spokesperson_name, brand_color, logo_url, website_url, overlay_enabled")
+      .select("id, name, spokesperson_name, brand_color, logo_url, website_url, overlay_enabled, plan, trial_plan, trial_expires_at")
       .order("name")
       .limit(1)
       .single();
@@ -356,6 +359,20 @@ export default async function DashboardPage() {
 
   const brandColor = company?.brand_color || "#7c3aed";
 
+  // Plan & trial info
+  const effectivePlan = company ? getEffectivePlan({
+    plan: (company.plan || "starter") as PlanTier,
+    trial_plan: company.trial_plan as PlanTier | null,
+    trial_expires_at: company.trial_expires_at,
+  }) : "starter";
+  const planFeatures = getPlanFeatures(effectivePlan);
+  const trialDaysLeft = company ? getTrialDaysRemaining({
+    trial_expires_at: company.trial_expires_at,
+  }) : null;
+  const isOnTrial = trialDaysLeft !== null && trialDaysLeft > 0;
+  const monthPostsUsed = thisWeekCount; // Approximation — could be more precise
+  const postLimit = planFeatures.postsPerMonth;
+
   return (
     <div className="space-y-6">
       {/* ===== 1. Welcome Banner ===== */}
@@ -403,6 +420,60 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ===== 1b. Trial / Plan Banner ===== */}
+      {company && isOnTrial && (
+        <div className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100">
+                <svg className="h-5 w-5 text-violet-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-violet-900">
+                  Pro Trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} remaining
+                </p>
+                <p className="text-xs text-violet-600">
+                  You have full access to the Copy Engine and Regulatory Review.
+                  {postLimit > 0 && ` ${monthPostsUsed} of ${postLimit} posts used this month.`}
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/setup/${company.id}#billing`}
+              className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700 transition-colors"
+            >
+              Upgrade to Pro
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {company && !isOnTrial && effectivePlan === "starter" && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                <svg className="h-5 w-5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Starter Plan — Limited to {postLimit} posts/month</p>
+                <p className="text-xs text-amber-700">Upgrade to Pro for unlimited generation, compliance review, and full voice profiles.</p>
+              </div>
+            </div>
+            <Link
+              href={`/setup/${company.id}#billing`}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+            >
+              Upgrade
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ===== 2. Setup Progress (only if incomplete) ===== */}
       {company && !setupComplete && (
