@@ -38,6 +38,28 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
   const ext = file.name.split(".").pop() || "png";
+
+  // Reference photos for spokesperson likeness — stored per-person with index
+  if (uploadType === "reference_photo") {
+    const spokespersonId = formData.get("spokespersonId") as string;
+    const index = formData.get("index") as string || "0";
+    if (!spokespersonId) {
+      return NextResponse.json({ error: "spokespersonId required for reference photos" }, { status: 400 });
+    }
+    const refPath = `reference-photos/${companyId}/${spokespersonId}/ref_${index}_${Date.now()}.${ext}`;
+    const arrayBuffer = await file.arrayBuffer();
+    const { error: uploadErr } = await supabase.storage
+      .from("media")
+      .upload(refPath, arrayBuffer, { contentType: file.type, upsert: false });
+
+    if (uploadErr) {
+      return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
+    }
+
+    const { data: urlData } = supabase.storage.from("media").getPublicUrl(refPath);
+    return NextResponse.json({ url: urlData.publicUrl, storagePath: refPath });
+  }
+
   const filenameMap: Record<string, string> = {
     logo: "logo",
     profile_picture: "profile",

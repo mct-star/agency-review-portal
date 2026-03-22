@@ -60,7 +60,10 @@ export async function GET(request: Request) {
     try {
       const { clientId } = getLinkedInConfig();
       const redirectUri = getRedirectUri(request);
-      const authUrl = getAuthorizationUrl(clientId, redirectUri, companyId);
+      // Encode returnTo in state so callback knows where to redirect
+      const returnTo = searchParams.get("returnTo");
+      const stateValue = returnTo ? `${companyId}|${returnTo}` : companyId;
+      const authUrl = getAuthorizationUrl(clientId, redirectUri, stateValue);
 
       return NextResponse.redirect(authUrl);
     } catch (err) {

@@ -65,6 +65,9 @@ export default function CompanySocialPage() {
     text: string;
   } | null>(null);
 
+  // LinkedIn OAuth status
+  const [linkedInAccount, setLinkedInAccount] = useState<{ accountName: string | null; expired: boolean } | null>(null);
+
   // Form state
   const [showForm, setShowForm] = useState(false);
   const [formPlatform, setFormPlatform] = useState<SocialPlatform | "">("");
@@ -73,7 +76,24 @@ export default function CompanySocialPage() {
 
   useEffect(() => {
     fetchAccounts();
+    checkLinkedIn();
   }, [companyId]);
+
+  async function checkLinkedIn() {
+    try {
+      const res = await fetch(`/api/publish/linkedin-direct?companyId=${companyId}`);
+      const data = await res.json();
+      if (data.connected) {
+        setLinkedInAccount({ accountName: data.accountName, expired: false });
+      } else if (data.expired) {
+        setLinkedInAccount({ accountName: data.accountName, expired: true });
+      } else {
+        setLinkedInAccount(null);
+      }
+    } catch {
+      setLinkedInAccount(null);
+    }
+  }
 
   async function fetchAccounts() {
     setLoading(true);
@@ -144,6 +164,38 @@ export default function CompanySocialPage() {
           {message.text}
         </div>
       )}
+
+      {/* LinkedIn Direct Publishing Connection */}
+      <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: "#0A66C215" }}>
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#0A66C2">
+                <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">LinkedIn Direct Publishing</h3>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Connect your LinkedIn account to post directly from Quick Generate and the Publish page.
+              </p>
+              {linkedInAccount ? (
+                <p className="mt-1.5 text-xs text-green-700">
+                  Connected as <strong>{linkedInAccount.accountName || "LinkedIn User"}</strong>
+                  {linkedInAccount.expired && <span className="text-amber-600 ml-1">(Token expired — reconnect)</span>}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <a
+            href={`/api/auth/linkedin?companyId=${companyId}&returnTo=setup`}
+            className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors"
+            style={{ backgroundColor: "#0A66C2" }}
+          >
+            {linkedInAccount ? (linkedInAccount.expired ? "Reconnect" : "Reconnect") : "Connect LinkedIn"}
+          </a>
+        </div>
+      </div>
 
       <div className="flex items-start justify-between">
         <div>

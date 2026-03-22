@@ -10,24 +10,35 @@ import { exchangeCodeForTokens, getProfile } from "@/lib/linkedin/client";
  * We exchange the authorization code for an access token,
  * fetch the user's profile, and store both in company_social_accounts.
  *
- * The `state` param carries the companyId that was passed when
- * starting the OAuth flow via GET /api/auth/linkedin?companyId=...
+ * The `state` param carries either:
+ * - Just the companyId (e.g. "uuid-here")
+ * - companyId|returnTo (e.g. "uuid-here|setup") for redirect back to setup page
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const state = searchParams.get("state"); // companyId
+  const state = searchParams.get("state");
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
+
+  // Parse state to extract companyId and optional returnTo
+  const [companyId, returnTo] = (state || "").split("|");
+
+  function getRedirectUrl(params: string) {
+    if (returnTo === "setup" && companyId) {
+      return `${origin}/setup/${companyId}/social?${params}`;
+    }
+    return `${origin}/publish?${params}`;
+  }
 
   // LinkedIn returned an error (user denied, etc.)
   if (error) {
     const msg = encodeURIComponent(errorDescription || error);
-    return NextResponse.redirect(`${origin}/publish?linkedin_error=${msg}`);
+    return NextResponse.redirect(getRedirectUrl(`linkedin_error=${msg}`));
   }
 
-  if (!code || !state) {
-    return NextResponse.redirect(`${origin}/publish?linkedin_error=missing_params`);
+  if (!code || !companyId) {
+    return NextResponse.redirect(getRedirectUrl("linkedin_error=missing_params"));
   }
 
   const clientId = process.env.LINKEDIN_CLIENT_ID;
@@ -37,7 +48,7 @@ export async function GET(request: Request) {
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(
-      `${origin}/publish?linkedin_error=${encodeURIComponent("LinkedIn credentials not configured")}`
+      getRedirectUrl(`linkedin_error=${encodeURIComponent("LinkedIn credentials not configured")}`)
     );
   }
 
@@ -55,7 +66,7 @@ export async function GET(request: Request) {
       .from("company_social_accounts")
       .upsert(
         {
-          company_id: state,
+          company_id: companyId,
           platform: "linkedin_personal",
           account_name: profile.name,
           account_id: profile.sub,
@@ -77,17 +88,17 @@ export async function GET(request: Request) {
     if (upsertErr) {
       console.error("Failed to store LinkedIn account:", upsertErr);
       return NextResponse.redirect(
-        `${origin}/publish?linkedin_error=${encodeURIComponent("Failed to save connection")}`
+        getRedirectUrl(`linkedin_error=${encodeURIComponent("Failed to save connection")}`)
       );
     }
 
-    // Success — redirect to publish page with success flag
-    return NextResponse.redirect(`${origin}/publish?linkedin_connected=1`);
+    // Success
+    return NextResponse.redirect(getRedirectUrl("linkedin_connected=1"));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "OAuth failed";
     console.error("LinkedIn OAuth error:", err);
     return NextResponse.redirect(
-      `${origin}/publish?linkedin_error=${encodeURIComponent(msg)}`
+      getRedirectUrl(`linkedin_error=${encodeURIComponent(msg)}`)
     );
   }
 }
