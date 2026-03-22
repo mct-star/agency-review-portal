@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ComplianceFrameworkSelector from "@/components/compliance/ComplianceFrameworkSelector";
 import ComplianceReviewButton from "@/components/compliance/ComplianceReviewButton";
+import { getPostDisplayName, getPostTypeBadge } from "@/lib/post-display-name";
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   abpi: "ABPI Code (UK Pharma)",
@@ -149,7 +150,7 @@ export default async function ComplianceDashboardPage() {
   // Fetch all content pieces for this company
   const { data: allPieces } = await supabase
     .from("content_pieces")
-    .select("id, title, content_type, post_type, regulatory_status, regulatory_score, regulatory_review, regulatory_framework, regulatory_reviewed_at, created_at, week_id")
+    .select("id, title, content_type, post_type, day_of_week, regulatory_status, regulatory_score, regulatory_review, regulatory_framework, regulatory_reviewed_at, created_at, week_id")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
@@ -299,11 +300,27 @@ export default async function ComplianceDashboardPage() {
                 <p className="mt-3 text-sm text-gray-500">All content has been reviewed</p>
               </div>
             ) : (
-              awaitingReview.map((piece) => (
+              awaitingReview.map((piece) => {
+                const badge = getPostTypeBadge(piece.post_type);
+                const displayName = getPostDisplayName({
+                  title: piece.title,
+                  postType: piece.post_type,
+                  dayOfWeek: piece.day_of_week,
+                  contentType: piece.content_type,
+                });
+                return (
                 <div key={piece.id} className="flex items-center justify-between px-6 py-3 hover:bg-gray-50 transition-colors">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-900">{piece.title}</p>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                        style={{ backgroundColor: badge.color }}
+                      >
+                        {badge.label}
+                      </span>
+                      <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400 ml-[calc(1.5rem+0.5rem)]">
                       <span>{contentTypeLabels[piece.content_type] || piece.content_type}</span>
                       <span>&#183;</span>
                       <span>{new Date(piece.created_at).toLocaleDateString()}</span>
@@ -315,7 +332,8 @@ export default async function ComplianceDashboardPage() {
                     weekId={piece.week_id}
                   />
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -333,7 +351,15 @@ export default async function ComplianceDashboardPage() {
                 <p className="mt-3 text-sm text-gray-500">No reviews completed yet</p>
               </div>
             ) : (
-              recentlyReviewed.map((piece) => (
+              recentlyReviewed.map((piece) => {
+                const badge = getPostTypeBadge(piece.post_type);
+                const displayName = getPostDisplayName({
+                  title: piece.title,
+                  postType: piece.post_type,
+                  dayOfWeek: piece.day_of_week,
+                  contentType: piece.content_type,
+                });
+                return (
                 <Link
                   key={piece.id}
                   href={`/compliance/${piece.id}`}
@@ -342,8 +368,16 @@ export default async function ComplianceDashboardPage() {
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <TrafficLight status={piece.regulatory_status || "pending"} />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900">{piece.title}</p>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                          style={{ backgroundColor: badge.color }}
+                        >
+                          {badge.label}
+                        </span>
+                        <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400 ml-[calc(1.5rem+0.5rem)]">
                         <span>{contentTypeLabels[piece.content_type] || piece.content_type}</span>
                         <span>&#183;</span>
                         <span>{piece.regulatory_reviewed_at ? new Date(piece.regulatory_reviewed_at).toLocaleDateString() : ""}</span>
@@ -357,7 +391,8 @@ export default async function ComplianceDashboardPage() {
                     <RiskBadge level={piece.regulatory_status || "pending"} />
                   </div>
                 </Link>
-              ))
+                );
+              })
             )}
           </div>
         </div>

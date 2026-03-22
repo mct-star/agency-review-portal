@@ -88,6 +88,10 @@ export default function PersonDetailPage() {
   // Social accounts state
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [showSocialForm, setShowSocialForm] = useState(false);
+  const [showBlueskyForm, setShowBlueskyForm] = useState(false);
+  const [blueskyHandle, setBlueskyHandle] = useState("");
+  const [blueskyAppPassword, setBlueskyAppPassword] = useState("");
+  const [savingBluesky, setSavingBluesky] = useState(false);
   const [formPlatform, setFormPlatform] = useState<SocialPlatform | "">("");
   const [formAccountName, setFormAccountName] = useState("");
   const [formAccountId, setFormAccountId] = useState("");
@@ -360,6 +364,31 @@ export default function PersonDetailPage() {
       body: JSON.stringify({ id }),
     });
     loadSocial();
+  };
+
+  const handleConnectBluesky = async () => {
+    if (!blueskyHandle || !blueskyAppPassword) return;
+    setSavingBluesky(true);
+    try {
+      const res = await fetch("/api/auth/bluesky", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          spokespersonId: personId,
+          handle: blueskyHandle,
+          appPassword: blueskyAppPassword,
+        }),
+      });
+      if (res.ok) {
+        setShowBlueskyForm(false);
+        setBlueskyHandle("");
+        setBlueskyAppPassword("");
+        loadSocial();
+      }
+    } finally {
+      setSavingBluesky(false);
+    }
   };
 
   // ============================================================
@@ -705,6 +734,103 @@ export default function PersonDetailPage() {
             >
               + Add Account
             </button>
+          </div>
+
+          {/* LinkedIn Direct Publishing Connection */}
+          <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0A66C215" }}>
+                  <span className="text-sm font-bold" style={{ color: "#0A66C2" }}>in</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">LinkedIn Direct Publishing</h4>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Connect to post directly from Quick Generate and the Publish page.
+                  </p>
+                  {accounts.some((a) => a.platform === "linkedin_personal" && a.has_tokens) ? (
+                    <p className="mt-1 text-xs text-green-700">
+                      Connected — {accounts.find((a) => a.platform === "linkedin_personal")?.account_name || "LinkedIn User"}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              <a
+                href={`/api/auth/linkedin?companyId=${companyId}&returnTo=setup`}
+                className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-white"
+                style={{ backgroundColor: "#0A66C2" }}
+              >
+                {accounts.some((a) => a.platform === "linkedin_personal" && a.has_tokens) ? "Reconnect" : "Connect LinkedIn"}
+              </a>
+            </div>
+          </div>
+
+          {/* Bluesky Connection */}
+          <div className="rounded-lg border border-sky-200 bg-sky-50/30 p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100">
+                  <span className="text-sm font-bold text-sky-600">BS</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Bluesky</h4>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Connect with your Bluesky handle and an app password.{" "}
+                    <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener" className="text-sky-600 hover:underline">
+                      Create app password →
+                    </a>
+                  </p>
+                  {accounts.some((a) => a.platform === "bluesky" && a.has_tokens) ? (
+                    <p className="mt-1 text-xs text-green-700">
+                      Connected — @{accounts.find((a) => a.platform === "bluesky")?.account_name || "handle"}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {!showBlueskyForm ? (
+                <button
+                  onClick={() => setShowBlueskyForm(true)}
+                  className="shrink-0 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-600"
+                >
+                  {accounts.some((a) => a.platform === "bluesky" && a.has_tokens) ? "Reconnect" : "Connect Bluesky"}
+                </button>
+              ) : null}
+            </div>
+            {showBlueskyForm && (
+              <div className="mt-3 space-y-2">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input
+                    type="text"
+                    value={blueskyHandle}
+                    onChange={(e) => setBlueskyHandle(e.target.value)}
+                    placeholder="yourhandle.bsky.social"
+                    className="rounded-md border border-sky-200 bg-white px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none"
+                  />
+                  <input
+                    type="password"
+                    value={blueskyAppPassword}
+                    onChange={(e) => setBlueskyAppPassword(e.target.value)}
+                    placeholder="App password"
+                    className="rounded-md border border-sky-200 bg-white px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConnectBluesky}
+                    disabled={savingBluesky || !blueskyHandle || !blueskyAppPassword}
+                    className="rounded-md bg-sky-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-600 disabled:opacity-50"
+                  >
+                    {savingBluesky ? "Connecting..." : "Connect"}
+                  </button>
+                  <button
+                    onClick={() => setShowBlueskyForm(false)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {showSocialForm && (
