@@ -367,6 +367,19 @@ export async function getImageProvider(
       };
     }
 
+    case "gemini_imagen": {
+      const { createGeminiImageProvider } = await import(
+        "./image-generation/gemini"
+      );
+      return {
+        providerName: resolved.provider,
+        provider: createGeminiImageProvider(
+          resolved.credentials,
+          resolved.settings
+        ),
+      };
+    }
+
     case "openai_gpt_image":
     default: {
       const { createOpenAIImageProvider } = await import(
@@ -409,6 +422,12 @@ export const IMAGE_PROVIDER_OPTIONS = [
     label: "Runway (Gen-3)",
     description: "Strong at stylised visuals. Async processing. ~$0.05-0.10/image",
     costTier: "high" as const,
+  },
+  {
+    value: "gemini_imagen",
+    label: "Google Gemini (Imagen 3)",
+    description: "Photorealistic, editorial, healthcare scenes. Free with Google Workspace. Best for photography styles.",
+    costTier: "free" as const,
   },
   {
     value: "manus",
