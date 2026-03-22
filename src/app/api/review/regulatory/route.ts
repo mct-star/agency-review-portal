@@ -101,6 +101,26 @@ export async function POST(request: Request) {
     .map((c: string) => COUNTRY_PROFILES[c]?.name || c)
     .join(", ");
 
+  // Fetch company compliance documents (claims matrix, messaging house, etc.)
+  const { data: complianceDocs } = await supabase
+    .from("company_compliance_documents")
+    .select("name, category, extracted_text")
+    .eq("company_id", companyId)
+    .eq("is_active", true)
+    .eq("use_in_reviews", true)
+    .not("extracted_text", "is", null);
+
+  let companyDocContext = "";
+  if (complianceDocs && complianceDocs.length > 0) {
+    companyDocContext = "\n\nCOMPANY-SPECIFIC COMPLIANCE DOCUMENTS:\n";
+    for (const doc of complianceDocs) {
+      // Truncate very long documents to avoid token limits
+      const text = doc.extracted_text?.slice(0, 8000) || "";
+      companyDocContext += `\n--- ${doc.name} (${doc.category}) ---\n${text}\n`;
+    }
+    companyDocContext += "\nIMPORTANT: Cross-reference the content against these company documents. Flag any claims, language, or positioning that contradicts the approved messaging in these documents. Also flag any claims NOT supported by the claims matrix.\n";
+  }
+
   // Review each piece
   const results: {
     pieceId: string;
@@ -125,7 +145,7 @@ export async function POST(request: Request) {
 Your task is to review a piece of marketing content for a healthcare company and identify any legal or regulatory compliance issues for the specified target markets.
 
 ${regulatoryContext}
-
+${companyDocContext}
 COMPANY: ${company?.name || "Healthcare company"}
 TARGET MARKETS: ${countryNames}
 REGULATORY FRAMEWORK: ${frameworkLabel}

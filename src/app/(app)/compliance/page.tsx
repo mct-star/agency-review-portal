@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import ComplianceFrameworkSelector from "@/components/compliance/ComplianceFrameworkSelector";
 import ComplianceReviewButton from "@/components/compliance/ComplianceReviewButton";
 import BatchReviewButton from "@/components/compliance/BatchReviewButton";
+import ComplianceDocuments from "@/components/compliance/ComplianceDocuments";
 import { getPostDisplayName, getPostTypeBadge } from "@/lib/post-display-name";
 
 const FRAMEWORK_LABELS: Record<string, string> = {
@@ -285,6 +286,9 @@ export default async function ComplianceDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Compliance Documents */}
+      <ComplianceDocuments companyId={companyId} />
 
       {/* Two-column layout: Awaiting Review + Recent Reviews */}
       <div className="grid gap-6 lg:grid-cols-2">
