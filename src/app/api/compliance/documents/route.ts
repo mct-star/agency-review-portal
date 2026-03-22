@@ -132,9 +132,33 @@ export async function POST(request: Request) {
     } catch {
       extractionStatus = "failed";
     }
+  } else if (file.type === "application/pdf") {
+    // PDF extraction using pdf-parse
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require("pdf-parse");
+      const pdfData = await pdfParse(Buffer.from(buffer));
+      extractedText = pdfData.text?.trim() || null;
+      extractionStatus = extractedText ? "complete" : "failed";
+    } catch (pdfErr) {
+      console.warn("[compliance-docs] PDF extraction failed:", pdfErr);
+      extractionStatus = "failed";
+    }
+  } else if (
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.name?.endsWith(".docx")
+  ) {
+    // DOCX extraction using mammoth
+    try {
+      const mammoth = await import("mammoth");
+      const result = await mammoth.extractRawText({ buffer: Buffer.from(buffer) });
+      extractedText = result.value?.trim() || null;
+      extractionStatus = extractedText ? "complete" : "failed";
+    } catch (docxErr) {
+      console.warn("[compliance-docs] DOCX extraction failed:", docxErr);
+      extractionStatus = "failed";
+    }
   }
-  // PDF and DOCX extraction would need additional libraries (pdf-parse, mammoth)
-  // For now, they stay as "pending" and can be extracted later
 
   // Save record
   const { data: doc, error: insertError } = await supabase
