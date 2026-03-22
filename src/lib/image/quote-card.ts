@@ -143,7 +143,8 @@ export function ensureVibrantColor(hex: string): string {
 let _fontDataCache: ArrayBuffer | null = null;
 function getFontData(): ArrayBuffer {
   if (_fontDataCache) return _fontDataCache;
-  const fontPath = join(process.cwd(), "src/lib/image/fonts/Poppins-SemiBold.ttf");
+  // Use ExtraBold (800) to match production cards — punchy, high-impact
+  const fontPath = join(process.cwd(), "src/lib/image/fonts/Poppins-ExtraBold.ttf");
   const buffer = readFileSync(fontPath);
   _fontDataCache = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   return _fontDataCache;
@@ -168,33 +169,35 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
 // ============================================================
 
 /**
- * Returns a hand-drawn style curved arrow that swoops down.
- * Rendered as white strokes to match the text colour.
+ * Returns a hand-drawn pencil-style underline swoosh.
+ * Sits beneath the text — a loose, organic line that adds
+ * visual energy and pulls the eye down into the post body.
  */
 function handDrawnArrowSvg(width: number): string {
-  // Arrow centered horizontally, swooping from top-left to bottom-right
-  const cx = width / 2;
+  const w = Math.round(width * 0.55); // Swoosh width = ~55% of card
+  const startX = Math.round(width * 0.08); // Start at left padding
   return `
-    <svg width="${width}" height="120" viewBox="0 0 ${width} 120" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${width}" height="80" viewBox="0 0 ${width} 80" xmlns="http://www.w3.org/2000/svg">
+      <!-- Main pencil swoosh line -->
       <path
-        d="M ${cx - 60} 15 C ${cx - 40} 10, ${cx + 20} 25, ${cx + 10} 55
-           C ${cx} 75, ${cx - 30} 85, ${cx + 15} 95"
+        d="M ${startX} 35
+           C ${startX + w * 0.2} 25, ${startX + w * 0.35} 45, ${startX + w * 0.5} 32
+           C ${startX + w * 0.65} 20, ${startX + w * 0.8} 40, ${startX + w} 28"
         fill="none"
         stroke="white"
-        stroke-width="4"
+        stroke-width="3.5"
         stroke-linecap="round"
         stroke-linejoin="round"
-        opacity="0.9"
+        opacity="0.85"
       />
-      <!-- Arrowhead -->
+      <!-- Small flick at the end -->
       <path
-        d="M ${cx + 5} 85 L ${cx + 15} 95 L ${cx + 2} 93"
+        d="M ${startX + w - 8} 30 L ${startX + w} 28 L ${startX + w + 12} 22"
         fill="none"
         stroke="white"
-        stroke-width="4"
+        stroke-width="3"
         stroke-linecap="round"
-        stroke-linejoin="round"
-        opacity="0.9"
+        opacity="0.7"
       />
     </svg>
   `;
@@ -212,164 +215,63 @@ export async function generateQuoteCard(config: QuoteCardConfig): Promise<QuoteC
   // Ensure the background colour is vibrant enough to stop the scroll
   config.color = ensureVibrantColor(config.color);
 
-  // Calculate font size based on text length for optimal readability
+  // ── Production-matched layout ────────────────────────────
+  // LEFT-ALIGNED text, ExtraBold weight, large font filling the canvas.
+  // Clean — no profile pic or logo overlays (brand overlay is a separate step).
+  // Text sits in the middle-to-lower-left area of the card.
+
   const wordCount = config.text.split(/\s+/).length;
   let fontSize: number;
   if (wordCount <= 4) {
-    fontSize = Math.round(width * 0.065); // ~70px at 1080
+    fontSize = Math.round(width * 0.09);  // ~97px at 1080 — very punchy
   } else if (wordCount <= 8) {
-    fontSize = Math.round(width * 0.055); // ~60px at 1080
+    fontSize = Math.round(width * 0.075); // ~81px at 1080
+  } else if (wordCount <= 12) {
+    fontSize = Math.round(width * 0.065); // ~70px at 1080
   } else {
-    fontSize = Math.round(width * 0.046); // ~50px at 1080
+    fontSize = Math.round(width * 0.055); // ~59px at 1080
   }
 
-  const lineHeight = 1.45;
-  const textMarginX = Math.round(width * 0.15); // 15% margin each side = 70% text width
+  const lineHeight = 1.2;
+  const padding = Math.round(width * 0.08); // 8% padding all sides
 
-  // Profile pic dimensions
-  const profileSize = Math.round(width * 0.05); // ~54px at 1080
-  const profileMargin = Math.round(width * 0.04);
-  const followFontSize = Math.round(width * 0.018); // ~20px at 1080
-
-  // ── Build the Satori JSX layout ──────────────────────────
-
-  // Profile section (top-left)
-  const profileSection = config.profileName
-    ? React.createElement(
-        "div",
-        {
-          style: {
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            position: "absolute",
-            top: profileMargin,
-            left: profileMargin,
-          },
-        },
-        // Profile pic circle
-        config.profilePicUrl
-          ? React.createElement("img", {
-              src: config.profilePicUrl,
-              width: profileSize,
-              height: profileSize,
-              style: {
-                borderRadius: "50%",
-                objectFit: "cover",
-                marginRight: 12,
-              },
-            })
-          : React.createElement("div", {
-              style: {
-                width: profileSize,
-                height: profileSize,
-                borderRadius: "50%",
-                backgroundColor: "rgba(255,255,255,0.3)",
-                marginRight: 12,
-              },
-            }),
-        // "Follow Name" text
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              color: "white",
-              fontSize: followFontSize,
-              fontFamily: "Poppins",
-            },
-          },
-          React.createElement(
-            "span",
-            { style: { opacity: 0.8, fontSize: Math.round(followFontSize * 0.85) } },
-            "Follow"
-          ),
-          React.createElement(
-            "span",
-            { style: { fontWeight: 700 } },
-            config.profileName
-          )
-        )
-      )
-    : null;
-
-  // Logo / company name (bottom-right)
-  const logoMargin = Math.round(width * 0.04);
-  const logoSection = config.logoUrl
-    ? React.createElement("img", {
-        src: config.logoUrl,
-        height: Math.round(width * 0.04),
-        style: {
-          position: "absolute",
-          bottom: logoMargin,
-          right: logoMargin,
-          opacity: 0.9,
-        },
-      })
-    : config.companyName
-    ? React.createElement(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            bottom: logoMargin,
-            right: logoMargin,
-            color: "white",
-            fontSize: Math.round(width * 0.022),
-            fontFamily: "Poppins",
-            fontWeight: 600,
-            opacity: 0.7,
-            letterSpacing: 2,
-          },
-        },
-        config.companyName.toUpperCase()
-      )
-    : null;
-
-  // Main quote text — centred in the middle-to-lower third
+  // Main quote text — LEFT-ALIGNED, middle-to-lower area
   const quoteText = React.createElement(
     "div",
     {
       style: {
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
         justifyContent: "center",
-        textAlign: "center",
+        textAlign: "left",
         color: "white",
         fontSize,
         fontFamily: "Poppins",
-        fontWeight: 600,
+        fontWeight: 800,
         lineHeight,
-        paddingLeft: textMarginX,
-        paddingRight: textMarginX,
-        // Push text into middle-to-lower third
-        marginTop: Math.round(height * 0.08),
         width: "100%",
       },
     },
     config.text
   );
 
-  // Full layout
+  // Full layout — clean, text-only
   const layout = React.createElement(
     "div",
     {
       style: {
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
         justifyContent: "center",
         width,
         height,
         backgroundColor: config.color,
         position: "relative",
+        padding,
+        paddingTop: Math.round(height * 0.15), // Push text slightly below centre
       },
     },
-    profileSection,
-    quoteText,
-    logoSection
+    quoteText
   );
 
   // ── Render with Satori ───────────────────────────────────
@@ -381,7 +283,7 @@ export async function generateQuoteCard(config: QuoteCardConfig): Promise<QuoteC
       {
         name: "Poppins",
         data: fontData,
-        weight: 600,
+        weight: 800,
         style: "normal" as const,
       },
     ],
@@ -398,17 +300,16 @@ export async function generateQuoteCard(config: QuoteCardConfig): Promise<QuoteC
   if (config.showArrow || config.postType === "if_i_was") {
     const arrowSvg = handDrawnArrowSvg(width);
     const arrowBuffer = await sharp(Buffer.from(arrowSvg))
-      .resize(Math.round(width * 0.25), 120, { fit: "inside" })
       .png()
       .toBuffer();
 
-    // Position arrow below centre (roughly 65% from top)
+    // Position swoosh in the lower third, left-aligned to match text
     imageBuffer = await sharp(imageBuffer)
       .composite([
         {
           input: arrowBuffer,
-          top: Math.round(height * 0.65),
-          left: Math.round((width - width * 0.25) / 2),
+          top: Math.round(height * 0.72),
+          left: 0,
         },
       ])
       .png()
