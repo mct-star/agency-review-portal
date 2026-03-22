@@ -91,6 +91,33 @@ export async function POST(request: Request) {
     spokesperson = spok;
   }
 
+  // Send new signup to webhook (Google Sheets / CRM)
+  const webhookUrl = process.env.SIGNUP_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "new_signup",
+          timestamp: new Date().toISOString(),
+          email: user.email,
+          companyName: companyName.trim(),
+          spokespersonName: spokespersonName?.trim() || null,
+          linkedinUrl: linkedinUrl?.trim() || null,
+          websiteUrl: websiteUrl?.trim() || null,
+          companyId: company.id,
+          plan: "starter",
+          trialStarted: new Date().toISOString(),
+          trialEnds: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
+      });
+    } catch {
+      // Webhook is non-critical — don't block signup
+      console.warn("[onboarding] Webhook failed (non-critical)");
+    }
+  }
+
   return NextResponse.json({
     id: company.id,
     spokespersonId: spokesperson?.id || null,
