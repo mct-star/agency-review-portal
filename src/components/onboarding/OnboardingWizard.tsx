@@ -30,6 +30,7 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [spokespersonName, setSpokespersonName] = useState(userName || "");
+  const [industry, setIndustry] = useState("");
 
   // Step 2: Voice
   const [voiceLinkedinUrl, setVoiceLinkedinUrl] = useState("");
@@ -61,6 +62,7 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
           websiteUrl: websiteUrl.trim() || null,
           spokespersonName: spokespersonName.trim() || null,
           linkedinUrl: linkedinUrl.trim() || null,
+          industry: industry || null,
         }),
       });
       if (!compRes.ok) {
@@ -254,15 +256,39 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
             <p className="mt-1 text-xs text-gray-400">We'll pull your photo and tagline automatically</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
-            <input
-              type="url"
-              value={websiteUrl}
-              onChange={(e) => setWebsiteUrl(e.target.value)}
-              placeholder="https://yourcompany.com"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+              <input
+                type="url"
+                value={websiteUrl}
+                onChange={(e) => setWebsiteUrl(e.target.value)}
+                placeholder="https://yourcompany.com"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+              <select
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              >
+                <option value="">Select industry...</option>
+                <option value="healthcare">Healthcare / Life Sciences</option>
+                <option value="pharma">Pharmaceuticals / Medical Devices</option>
+                <option value="fintech">Fintech / Financial Services</option>
+                <option value="saas">SaaS / Technology</option>
+                <option value="construction">Construction / Property</option>
+                <option value="legal">Legal / Professional Services</option>
+                <option value="education">Education / Training</option>
+                <option value="hospitality">Hospitality / Leisure</option>
+                <option value="manufacturing">Manufacturing / Engineering</option>
+                <option value="retail">Retail / E-commerce</option>
+                <option value="energy">Energy / Sustainability</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
           </div>
 
           <button

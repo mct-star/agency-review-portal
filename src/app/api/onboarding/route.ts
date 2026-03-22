@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { companyName, websiteUrl, spokespersonName, linkedinUrl } = body;
+  const { companyName, websiteUrl, spokespersonName, linkedinUrl, industry } = body;
 
   if (!companyName?.trim()) {
     return NextResponse.json({ error: "companyName is required" }, { status: 400 });
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     .insert({
       name: companyName.trim(),
       website_url: websiteUrl?.trim() || null,
+      industry: industry || null,
       plan: "starter",
       trial_started_at: new Date().toISOString(),
       trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),

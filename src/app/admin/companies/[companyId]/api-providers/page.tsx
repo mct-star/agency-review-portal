@@ -325,6 +325,148 @@ export default function ApiProvidersPage() {
       {loading && (
         <p className="text-center text-sm text-gray-400">Loading...</p>
       )}
+
+      {/* ===== Provider Routing Matrix ===== */}
+      <div className="mt-8">
+        <h2 className="text-lg font-bold text-gray-900">Image Provider Routing</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Override which AI provider handles each visual style for this company.
+          &quot;Auto&quot; uses the smart routing (Gemini for photography, fal.ai for Pixar).
+        </p>
+        <ProviderRoutingMatrix companyId={companyId} />
+      </div>
+    </div>
+  );
+}
+
+// ── Provider Routing Matrix Component ──────────────────────
+
+const VISUAL_STYLES = [
+  { slug: "quote_card", label: "Quote Card", defaultProvider: "programmatic", cost: "£0" },
+  { slug: "scene_quote", label: "Scene Quote", defaultProvider: "gemini_imagen", cost: "~£0" },
+  { slug: "editorial_photo", label: "Editorial Photo", defaultProvider: "gemini_imagen", cost: "~£0" },
+  { slug: "carousel_framework", label: "Carousel", defaultProvider: "programmatic", cost: "£0" },
+  { slug: "pixar_3d", label: "Pixar 3D", defaultProvider: "fal_flux", cost: "~£0.04" },
+  { slug: "pixar_fantasy", label: "Pixar Fantasy", defaultProvider: "fal_flux", cost: "~£0.04" },
+  { slug: "pixar_healthcare", label: "Pixar Healthcare", defaultProvider: "fal_flux", cost: "~£0.04" },
+];
+
+const PROVIDER_OPTIONS = [
+  { value: "auto", label: "Auto (smart routing)" },
+  { value: "programmatic", label: "Programmatic (Satori)" },
+  { value: "gemini_imagen", label: "Gemini Imagen (free)" },
+  { value: "fal_flux", label: "fal.ai Flux Pro" },
+  { value: "openai_gpt_image", label: "OpenAI DALL-E" },
+];
+
+function ProviderRoutingMatrix({ companyId }: { companyId: string }) {
+  const [routing, setRouting] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch(`/api/config/company/details?companyId=${companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRouting(data.provider_routing || {});
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    load();
+  }, [companyId]);
+
+  async function handleSave() {
+    setSaving(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/config/company/details", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          provider_routing: routing,
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setMessage("Provider routing saved");
+    } catch {
+      setMessage("Error saving routing");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="overflow-hidden rounded-lg border border-gray-200">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Visual Style</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Default Provider</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Cost</th>
+              <th className="px-4 py-2.5 text-left font-semibold text-gray-600">Override</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {VISUAL_STYLES.map((style) => (
+              <tr key={style.slug} className="hover:bg-gray-50">
+                <td className="px-4 py-2.5 font-medium text-gray-900">{style.label}</td>
+                <td className="px-4 py-2.5 text-gray-500">
+                  {style.defaultProvider === "programmatic" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 ring-1 ring-inset ring-green-200">
+                      Programmatic
+                    </span>
+                  ) : style.defaultProvider === "gemini_imagen" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200">
+                      Gemini (free)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                      fal.ai
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-gray-400">{style.cost}</td>
+                <td className="px-4 py-2.5">
+                  <select
+                    value={routing[style.slug] || "auto"}
+                    onChange={(e) => setRouting({ ...routing, [style.slug]: e.target.value })}
+                    className="rounded border border-gray-200 px-2 py-1 text-xs focus:border-sky-400 focus:outline-none"
+                  >
+                    {PROVIDER_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Routing"}
+        </button>
+        {message && (
+          <span className={`text-xs ${message.includes("Error") ? "text-red-600" : "text-green-600"}`}>
+            {message}
+          </span>
+        )}
+      </div>
+
+      <p className="mt-2 text-[10px] text-gray-400">
+        Auto routing uses Gemini for photography (free), fal.ai for Pixar (£0.04), and programmatic for text-based images (free).
+      </p>
     </div>
   );
 }
