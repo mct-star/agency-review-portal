@@ -207,6 +207,7 @@ export default function QuickGenerate({
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
+  const [postUsage, setPostUsage] = useState<{ used: number; limit: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [applyingOverlay, setApplyingOverlay] = useState(false);
@@ -289,6 +290,26 @@ export default function QuickGenerate({
     }
     check();
     return () => { cancelled = true; };
+  }, [selectedCompany.id]);
+
+  // Fetch post usage for Starter limit counter
+  useEffect(() => {
+    async function fetchUsage() {
+      try {
+        const res = await fetch(`/api/config/company/usage?companyId=${selectedCompany.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.limit > 0) {
+            setPostUsage({ used: data.used, limit: data.limit });
+          } else {
+            setPostUsage(null); // Unlimited
+          }
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    fetchUsage();
   }, [selectedCompany.id]);
 
   async function handlePublish() {
@@ -873,6 +894,27 @@ export default function QuickGenerate({
                   Upgrade to Pro
                 </a>
               )}
+            </div>
+          )}
+
+          {/* Post usage counter (Starter plan) */}
+          {postUsage && (
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
+              <span className="text-xs text-gray-500">
+                {postUsage.used} of {postUsage.limit} posts used this month
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-24 rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (postUsage.used / postUsage.limit) * 100)}%`,
+                      backgroundColor: postUsage.used >= postUsage.limit * 0.8 ? "#ef4444" : postUsage.used >= postUsage.limit * 0.5 ? "#f59e0b" : "#7c3aed",
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] font-semibold text-gray-400">{postUsage.limit - postUsage.used} left</span>
+              </div>
             </div>
           )}
 
