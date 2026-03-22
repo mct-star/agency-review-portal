@@ -15,11 +15,26 @@ const contentTypeLabels: Record<string, string> = {
 };
 
 const frameworkLabels: Record<string, string> = {
+  // Healthcare / Pharma
   abpi: "ABPI Code of Practice (UK Pharma)",
   fda: "FDA Regulatory Framework (US)",
   mhra: "MHRA Guidelines (UK Medical Devices)",
   eu_mdr: "EU Medical Device Regulation",
   general_healthcare: "General Healthcare Compliance",
+  // Financial Services
+  fca: "FCA Financial Promotions (UK)",
+  mifid: "MiFID II Marketing Requirements (EU)",
+  general_finance: "Financial Services Compliance",
+  // Legal
+  sra: "SRA Advertising Rules (UK)",
+  general_legal: "Legal Marketing Compliance",
+  // Energy
+  ofgem: "Ofgem Guidelines (UK Energy)",
+  green_claims: "Green Claims / Greenwashing Rules",
+  // General
+  asa_cap: "ASA / CAP Code (UK Advertising)",
+  gdpr_marketing: "GDPR Marketing Compliance",
+  general: "General Marketing Compliance",
   custom: "Custom Framework",
 };
 
