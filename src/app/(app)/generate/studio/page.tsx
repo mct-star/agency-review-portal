@@ -1,6 +1,12 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import BulkGenerateButton from "@/components/generate/BulkGenerateButton";
+
+export const metadata: Metadata = {
+  title: "Content Studio | AGENCY",
+  description: "Plan and generate a full week of content",
+};
 
 /**
  * Content Studio — Plan and generate a full week or month of content.

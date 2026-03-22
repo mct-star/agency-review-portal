@@ -51,7 +51,10 @@ export default function SignupPage() {
             Start Your Free Trial
           </h1>
           <p className="mt-2 text-sm text-gray-500">
-            7 days of Pro features. No credit card required.
+            7 days of full Pro access. No credit card required.
+          </p>
+          <p className="mt-2 text-xs text-gray-400">
+            You have the expertise. We give you the time to share it.
           </p>
         </div>
 

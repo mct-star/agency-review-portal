@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ComplianceFrameworkSelector from "@/components/compliance/ComplianceFrameworkSelector";
 import ComplianceReviewButton from "@/components/compliance/ComplianceReviewButton";
@@ -9,6 +10,11 @@ import UpgradeGate from "@/components/billing/UpgradeGate";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { getPlanFeatures } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
+
+export const metadata: Metadata = {
+  title: "Compliance Review | AGENCY",
+  description: "Regulatory compliance review dashboard",
+};
 
 const FRAMEWORK_LABELS: Record<string, string> = {
   abpi: "ABPI Code (UK Pharma)",

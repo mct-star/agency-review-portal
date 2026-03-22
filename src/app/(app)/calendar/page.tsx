@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ContentCalendar from "@/components/calendar/ContentCalendar";
 import UpgradeGate from "@/components/billing/UpgradeGate";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { getPlanFeatures } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
+
+export const metadata: Metadata = {
+  title: "Content Calendar | AGENCY",
+  description: "View and manage scheduled content",
+};
 
 export default async function CalendarPage() {
   const profile = await getUserProfile();

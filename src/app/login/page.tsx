@@ -44,9 +44,12 @@ function LoginForm() {
     <div className="w-full max-w-sm space-y-8 rounded-xl bg-white p-8 shadow-sm border border-gray-200">
       <div className="text-center">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-          AGENCY Bristol
+          AGENCY
         </h1>
-        <p className="mt-1 text-sm text-gray-500">Content Review Portal</p>
+        <p className="mt-1 text-sm text-gray-500">Content Platform</p>
+        <p className="mt-3 text-xs text-gray-400">
+          One voice. Your voice. Every week. Without the work.
+        </p>
       </div>
 
       {sent ? (
@@ -104,7 +107,7 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
               AGENCY Bristol
             </h1>
-            <p className="mt-1 text-sm text-gray-500">Content Review Portal</p>
+            <p className="mt-1 text-sm text-gray-500">Content Platform</p>
           </div>
         </div>
       }>

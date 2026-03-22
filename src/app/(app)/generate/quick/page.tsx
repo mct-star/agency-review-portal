@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import QuickGenerate from "@/components/generate/QuickGenerate";
+
+export const metadata: Metadata = {
+  title: "Quick Generate | AGENCY",
+  description: "Create a single post instantly",
+};
 
 export default async function QuickGeneratePage({
   searchParams,

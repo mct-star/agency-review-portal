@@ -2,23 +2,26 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AGENCY Bristol | Healthcare Content Platform",
+  title: {
+    default: "AGENCY | Content Platform",
+    template: "%s | AGENCY",
+  },
   description:
-    "Three AI modules that work together: a Copy Engine that writes like you, Regulatory Review that catches what humans miss, and Creative AI that stops the scroll.",
+    "Your weekly demand ecosystem, deployed in minutes. Voice-matched AI content, regulatory compliance, and Pixar-quality visuals.",
   metadataBase: new URL("https://agency-review-portal.vercel.app"),
   openGraph: {
-    title: "AGENCY Bristol | Healthcare Content Platform",
+    title: "AGENCY | Content Platform",
     description:
-      "AI-powered healthcare content that takes minutes, not weeks. Voice-matched copy, MLR compliance review, and scroll-stopping visuals.",
-    siteName: "AGENCY Bristol",
+      "You have the expertise. You just don't have the time to share it. AI-powered content that sounds like you, looks incredible, and posts itself.",
+    siteName: "AGENCY",
     type: "website",
     locale: "en_GB",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AGENCY Bristol | Healthcare Content Platform",
+    title: "AGENCY | Content Platform",
     description:
-      "AI-powered healthcare content that takes minutes, not weeks.",
+      "Your weekly demand ecosystem, deployed in minutes.",
   },
   robots: {
     index: true,

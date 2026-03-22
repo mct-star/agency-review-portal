@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { formatWeekLabel, formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import type { Week, Notification, ContentPiece } from "@/types/database";
@@ -6,6 +7,11 @@ import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
 import { getPlanFeatures } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
+
+export const metadata: Metadata = {
+  title: "Dashboard | AGENCY",
+  description: "Your content command centre",
+};
 
 // Circular progress gauge component
 function Gauge({ value, max, label, color, sublabel }: { value: number; max: number; label: string; color: string; sublabel?: string }) {
