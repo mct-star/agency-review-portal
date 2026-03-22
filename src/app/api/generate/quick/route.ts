@@ -44,6 +44,21 @@ interface PostTypeConfig {
   dimensions: { width: number; height: number };
 }
 
+// Image style slug → prompt template map. Used when a company overrides
+// the default archetype for a post type via image-mapping setup.
+// Functions receive (appearance: string) for styles that depict a person.
+const STYLE_PROMPTS: Record<string, string | ((appearance: string) => string)> = {
+  pixar_3d: (appearance) =>
+    `Pixar/Disney-adjacent 3D rendered scene. Sophisticated lighting, slightly exaggerated proportions. Main character: ${appearance}. The Pixar character should clearly resemble this person. Detailed environment with depth.`,
+  editorial_photography: "Photorealistic editorial photograph in a professional business or healthcare setting. Documentary quality, authentic lighting. Clean composition, no people. Shot on 35mm, shallow depth of field.",
+  lifestyle_photography: "Warm lifestyle photography with soft natural lighting. Product-in-context, authentic moment. Shallow depth of field, muted tones, editorial quality.",
+  quote_card: "PROGRAMMATIC", // Handled by quote card generator, not AI
+  carousel_framework: "Clean white background with purple (#A27BF9) accents. Typography-led framework slide. Oversized accent number + heading + body text. Generous whitespace. Line-art icon. Professional, airy layout.",
+  infographic: "Clean infographic with structured data visualisation. Modern flat design, clear hierarchy. Brand accent colours. White background, minimal decoration. Statistics and data points clearly presented.",
+  real_photo: "SKIP", // User-uploaded photos, no generation
+  flat_illustration: "Modern flat vector illustration with clean lines and bold shapes. Minimal detail, geometric forms. Professional and approachable. Limited colour palette with one accent colour. Concept-level abstraction.",
+};
+
 const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
   insight: {
     archetype: "quote_card",
@@ -107,9 +122,15 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company } = await supabase
       .from("companies")
-      .select("name, spokesperson_name, brand_color, spokesperson_appearance")
+      .select("name, spokesperson_name, brand_color, spokesperson_appearance, preferred_image_styles, post_type_image_mapping")
       .eq("id", companyId)
       .single();
+
+    // Resolve effective image style for this post type.
+    // Priority: per-post-type mapping > preferred styles > hardcoded default
+    const imageMapping = (company?.post_type_image_mapping as Record<string, { imageStyle: string; color?: string; characterDescription?: string }>) || {};
+    const postTypeOverride = imageMapping[postTypeSlug];
+    const preferredStyles = (company?.preferred_image_styles as string[]) || [];
 
     const { data: blueprint } = await supabase
       .from("company_blueprints")
@@ -297,9 +318,28 @@ export async function POST(request: Request) {
     let imageUrl: string | null = null;
     let imagePrompt: string | null = null;
 
-    // For quote_card archetypes, use the programmatic quote card generator
-    // instead of AI image generation (which garbles text).
-    const isQuoteCard = typeConfig.archetype === "quote_card";
+    // Resolve the effective image style for this post type.
+    // Per-post-type mapping takes priority, then we check if the default
+    // archetype should be overridden by a preferred style.
+    let effectiveStyle = typeConfig.archetype; // e.g. "quote_card", "pixar_healthcare"
+    let effectiveColor = postTypeOverride?.color;
+    let effectiveCharacterDesc = postTypeOverride?.characterDescription;
+
+    if (postTypeOverride?.imageStyle) {
+      effectiveStyle = postTypeOverride.imageStyle;
+    }
+
+    // Normalize: map archetype names to style slugs for consistent lookup
+    const archetypeToStyle: Record<string, string> = {
+      quote_card: "quote_card",
+      pixar_healthcare: "pixar_3d",
+      pixar_fantasy: "pixar_3d",
+      carousel: "carousel_framework",
+    };
+    const styleSlug = archetypeToStyle[effectiveStyle] || effectiveStyle;
+
+    const isQuoteCard = styleSlug === "quote_card";
+    const isSkip = styleSlug === "real_photo";
 
     if (isQuoteCard) {
       try {
@@ -313,8 +353,8 @@ export async function POST(request: Request) {
           .replace(/^[""]|[""]$/g, "")
           .trim();
 
-        // Resolve colour from post type
-        const cardColor = QUOTE_CARD_COLORS[postTypeSlug] || "#CDD856";
+        // Resolve colour: per-post-type override > default for post type
+        const cardColor = effectiveColor || QUOTE_CARD_COLORS[postTypeSlug] || "#CDD856";
 
         // Fetch spokesperson details for profile pic
         let profilePicUrl: string | null = null;
@@ -394,17 +434,35 @@ export async function POST(request: Request) {
         console.warn("[quick] Programmatic quote card generation failed:", quoteErr);
         // Fall through — imageUrl stays null, content is still usable
       }
+    } else if (isSkip) {
+      // real_photo style — user provides their own photos, no generation
+      imageUrl = null;
+      imagePrompt = null;
     } else {
-      // Non-quote-card archetypes: use AI image generation as before
+      // AI image generation with style-aware prompt resolution
       try {
         const { provider: imgProvider } = await getImageProvider(companyId);
 
-        const appearance = activeSpokesPerson?.appearance || company?.spokesperson_appearance || DEFAULT_APPEARANCE;
-        const resolvedStyle = typeof typeConfig.imageStyle === "function"
-          ? typeConfig.imageStyle(appearance)
-          : typeConfig.imageStyle;
+        const appearance = effectiveCharacterDesc
+          || activeSpokesPerson?.appearance
+          || company?.spokesperson_appearance
+          || DEFAULT_APPEARANCE;
 
-        const hookText = contentResult.markdownBody?.split("\n")[0] || topic;
+        // Use style override prompt if available, otherwise fall back to post type config
+        const stylePromptTemplate = STYLE_PROMPTS[styleSlug];
+        let resolvedStyle: string;
+
+        if (stylePromptTemplate && stylePromptTemplate !== "PROGRAMMATIC" && stylePromptTemplate !== "SKIP") {
+          resolvedStyle = typeof stylePromptTemplate === "function"
+            ? stylePromptTemplate(appearance)
+            : stylePromptTemplate;
+        } else {
+          // Fall back to the hardcoded post type config
+          resolvedStyle = typeof typeConfig.imageStyle === "function"
+            ? typeConfig.imageStyle(appearance)
+            : typeConfig.imageStyle;
+        }
+
         const rawPrompt = `${resolvedStyle} Scene illustrating: ${topic.slice(0, 120)}`;
 
         imagePrompt = rawPrompt;
@@ -413,13 +471,17 @@ export async function POST(request: Request) {
         const contentProviderData = await resolveProvider(companyId, "content_generation");
         const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
         const enhancedPrompt = claudeApiKey
-          ? await enhanceImagePrompt(rawPrompt, typeConfig.archetype, claudeApiKey)
+          ? await enhanceImagePrompt(rawPrompt, styleSlug, claudeApiKey)
           : rawPrompt;
+
+        // Resolve dimensions: square for most styles, 4:3 for 3D/Pixar
+        const is3DStyle = styleSlug === "pixar_3d";
+        const aspectRatio = is3DStyle ? "4:3" : "1:1";
 
         const imgResult = await imgProvider.generate({
           prompt: enhancedPrompt,
-          style: typeConfig.archetype,
-          aspectRatio: typeConfig.dimensions.width === typeConfig.dimensions.height ? "1:1" : "4:3",
+          style: styleSlug,
+          aspectRatio,
           count: 1,
         });
 
