@@ -199,12 +199,30 @@ export default function PersonDetailPage() {
   };
 
   // Apply enriched data to the form fields
-  const handleApplyEnrichment = () => {
+  const handleApplyEnrichment = async () => {
     if (!enrichPreview) return;
     if (enrichPreview.name && !editName) setEditName(enrichPreview.name);
     if (enrichPreview.tagline) setEditTagline(enrichPreview.tagline);
-    setProfileMessage("LinkedIn data applied. Review and Save Profile.");
+
+    // Save the LinkedIn profile picture directly (it's a URL, doesn't need upload)
+    if (enrichPreview.profilePictureUrl) {
+      try {
+        await fetch("/api/config/spokespersons", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: personId,
+            profilePictureUrl: enrichPreview.profilePictureUrl,
+          }),
+        });
+      } catch {
+        // Non-critical — photo will be missing but other fields still apply
+      }
+    }
+
+    setProfileMessage("LinkedIn data applied (including photo). Review and Save Profile.");
     setEnrichPreview(null);
+    loadPerson(); // Refresh to show the new photo
   };
 
   const handleUploadPhoto = async (file: File) => {

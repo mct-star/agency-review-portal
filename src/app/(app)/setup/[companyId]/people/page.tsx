@@ -180,7 +180,14 @@ export default function PeoplePage() {
         {people.map((person) => (
           <div
             key={person.id}
-            className={`rounded-xl border p-4 transition-colors ${
+            onClick={(e) => {
+              // Navigate to profile if clicking the card background (not a button/link)
+              const target = e.target as HTMLElement;
+              if (!target.closest("button") && !target.closest("a") && !target.closest("input")) {
+                window.location.href = `/setup/${companyId}/people/${person.id}`;
+              }
+            }}
+            className={`rounded-xl border p-4 transition-colors cursor-pointer ${
               person.is_primary ? "border-sky-200 bg-sky-50/50" : "border-gray-200 bg-white"
             }`}
           >
