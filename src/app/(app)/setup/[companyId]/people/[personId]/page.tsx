@@ -66,6 +66,11 @@ export default function PersonDetailPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [enrichPreview, setEnrichPreview] = useState<{
+    name: string | null;
+    tagline: string | null;
+    profilePictureUrl: string | null;
+  } | null>(null);
 
   // Voice state
   const [voice, setVoice] = useState<VoiceProfile>({
@@ -157,64 +162,49 @@ export default function PersonDetailPage() {
       });
       if (!res.ok) throw new Error("Save failed");
       setProfileMessage("Profile saved");
+      setEnrichPreview(null);
       await loadPerson();
-
-      // Auto-enrich from LinkedIn if URL was provided and we're missing photo or tagline
-      const linkedinChanged = editLinkedin && editLinkedin !== person?.linkedin_url;
-      const missingData = !person?.profile_picture_url || !editTagline;
-      if (editLinkedin && (linkedinChanged || missingData)) {
-        setEnriching(true);
-        setProfileMessage("Enriching profile from LinkedIn...");
-        try {
-          const enrichRes = await fetch("/api/config/spokespersons/enrich", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ linkedinUrl: editLinkedin }),
-          });
-          if (enrichRes.ok) {
-            const enrichData = await enrichRes.json();
-            const updates: Record<string, unknown> = { id: personId };
-            let enrichedFields: string[] = [];
-
-            // Only update fields that are currently empty
-            if (enrichData.profilePictureUrl && !person?.profile_picture_url) {
-              updates.profilePictureUrl = enrichData.profilePictureUrl;
-              enrichedFields.push("photo");
-            }
-            if (enrichData.tagline && !editTagline) {
-              updates.tagline = enrichData.tagline;
-              setEditTagline(enrichData.tagline);
-              enrichedFields.push("tagline");
-            }
-            if (enrichData.name && !editName) {
-              updates.name = enrichData.name;
-              setEditName(enrichData.name);
-              enrichedFields.push("name");
-            }
-
-            if (enrichedFields.length > 0) {
-              await fetch("/api/config/spokespersons", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updates),
-              });
-              await loadPerson();
-              setProfileMessage(`Profile saved. Auto-filled from LinkedIn: ${enrichedFields.join(", ")}`);
-            } else {
-              setProfileMessage("Profile saved");
-            }
-          }
-        } catch {
-          // Enrichment is non-critical — profile was already saved
-        } finally {
-          setEnriching(false);
-        }
-      }
     } catch {
       setProfileMessage("Error saving profile");
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  // Enrich from LinkedIn — fetch and PREVIEW before saving
+  const handleEnrichFromLinkedIn = async () => {
+    if (!editLinkedin) return;
+    setEnriching(true);
+    setProfileMessage("");
+    setEnrichPreview(null);
+    try {
+      const res = await fetch("/api/config/spokespersons/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkedinUrl: editLinkedin }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setProfileMessage(err.error || "Enrichment failed");
+        return;
+      }
+      const data = await res.json();
+      setEnrichPreview(data);
+      setProfileMessage("");
+    } catch {
+      setProfileMessage("Failed to reach LinkedIn enrichment service");
+    } finally {
+      setEnriching(false);
+    }
+  };
+
+  // Apply enriched data to the form fields
+  const handleApplyEnrichment = () => {
+    if (!enrichPreview) return;
+    if (enrichPreview.name && !editName) setEditName(enrichPreview.name);
+    if (enrichPreview.tagline) setEditTagline(enrichPreview.tagline);
+    setProfileMessage("LinkedIn data applied. Review and Save Profile.");
+    setEnrichPreview(null);
   };
 
   const handleUploadPhoto = async (file: File) => {
@@ -526,17 +516,97 @@ export default function PersonDetailPage() {
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-600">LinkedIn URL</label>
-            <input
-              type="url"
-              value={editLinkedin}
-              onChange={(e) => setEditLinkedin(e.target.value)}
-              placeholder="https://linkedin.com/in/username"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-            />
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={editLinkedin}
+                onChange={(e) => { setEditLinkedin(e.target.value); setEnrichPreview(null); }}
+                placeholder="https://linkedin.com/in/username"
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+              />
+              <button
+                onClick={handleEnrichFromLinkedIn}
+                disabled={enriching || !editLinkedin}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-sky-300 bg-sky-50 px-4 py-2 text-xs font-medium text-sky-700 hover:bg-sky-100 disabled:opacity-50 transition-colors"
+              >
+                {enriching ? (
+                  <>
+                    <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
+                    </svg>
+                    Enrich from LinkedIn
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
+          {/* LinkedIn Enrichment Preview */}
+          {enrichPreview && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="h-4 w-4 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 12l2 2 4-4" />
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+                <p className="text-sm font-semibold text-sky-800">Found on LinkedIn</p>
+              </div>
+              <div className="flex items-start gap-4">
+                {enrichPreview.profilePictureUrl && (
+                  <img
+                    src={enrichPreview.profilePictureUrl}
+                    alt="LinkedIn photo"
+                    className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-sm"
+                  />
+                )}
+                <div className="flex-1 min-w-0 space-y-1">
+                  {enrichPreview.name && (
+                    <div>
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-sky-500">Name</span>
+                      <p className="text-sm font-semibold text-gray-900">{enrichPreview.name}</p>
+                    </div>
+                  )}
+                  {enrichPreview.tagline && (
+                    <div>
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-sky-500">Tagline</span>
+                      <p className="text-sm text-gray-700">{enrichPreview.tagline}</p>
+                    </div>
+                  )}
+                  {enrichPreview.profilePictureUrl && (
+                    <div>
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-sky-500">Photo</span>
+                      <p className="text-sm text-gray-700">Profile photo found</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={handleApplyEnrichment}
+                  className="rounded-md bg-sky-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-sky-700 transition-colors"
+                >
+                  Apply to Profile
+                </button>
+                <button
+                  onClick={() => setEnrichPreview(null)}
+                  className="rounded-md border border-gray-300 px-4 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           {profileMessage && (
-            <p className={`text-sm ${profileMessage.includes("Error") ? "text-red-600" : "text-green-600"}`}>
+            <p className={`text-sm ${profileMessage.includes("Error") || profileMessage.includes("Failed") ? "text-red-600" : "text-green-600"}`}>
               {profileMessage}
             </p>
           )}
@@ -546,7 +616,7 @@ export default function PersonDetailPage() {
             disabled={savingProfile || enriching || !editName}
             className="rounded-md bg-gray-900 px-6 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            {enriching ? "Enriching from LinkedIn..." : savingProfile ? "Saving..." : "Save Profile"}
+            {savingProfile ? "Saving..." : "Save Profile"}
           </button>
         </div>
       )}
