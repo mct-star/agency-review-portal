@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import BulkGenerateButton from "@/components/generate/BulkGenerateButton";
 
 /**
  * Content Studio — Plan and generate a full week or month of content.
@@ -38,11 +39,14 @@ export default async function ContentStudioPage() {
     { data: company },
     { data: slots },
     { data: topics },
+    { data: primaryPerson },
   ] = await Promise.all([
     supabase.from("companies").select("name, brand_color, spokesperson_name").eq("id", companyId).single(),
     supabase.from("posting_slots").select("*").eq("company_id", companyId).eq("is_active", true).order("sort_order"),
     supabase.from("company_topics").select("id, topic, pillar, theme, topic_number").eq("company_id", companyId).eq("used", false).order("topic_number").limit(20),
+    supabase.from("company_spokespersons").select("id").eq("company_id", companyId).eq("is_primary", true).limit(1).single(),
   ]);
+  const primarySpokespersonId = primaryPerson?.id || null;
 
   const brandColor = company?.brand_color || "#7c3aed";
   const hasSchedule = slots && slots.length > 0;
@@ -176,15 +180,19 @@ export default async function ContentStudioPage() {
 
             {hasSchedule && (
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <button
-                  className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-all hover:opacity-90 hover:shadow-md"
-                  style={{ backgroundColor: brandColor }}
-                >
-                  Generate All Posts for This Week
-                </button>
-                <p className="mt-2 text-center text-[10px] text-gray-400">
-                  Creates content for all {slots!.length} slots. You can review and edit each post before publishing.
-                </p>
+                <BulkGenerateButton
+                  companyId={companyId}
+                  spokespersonId={primarySpokespersonId || undefined}
+                  slots={slots!.map((s: { id: string; day_of_week: string; time_slot: string; post_type: string; label?: string }) => ({
+                    id: s.id,
+                    day_of_week: s.day_of_week,
+                    time_slot: s.time_slot,
+                    post_type: s.post_type,
+                    label: s.label,
+                  }))}
+                  brandColor={brandColor}
+                  weekLabel="This Week"
+                />
               </div>
             )}
           </div>
