@@ -285,6 +285,18 @@ export default function ComplianceDetailClient({
             Compliance Score
           </h2>
           <div className="flex gap-2 print:hidden">
+            <a
+              href={`/api/export/compliance-pdf?pieceId=${pieceId}&companyId=${companyId}`}
+              download
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              PDF
+            </a>
             <button
               onClick={handleRerun}
               disabled={rerunning}
