@@ -29,9 +29,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getUser() can fail if Supabase env vars are misconfigured or tokens are corrupt.
+  // Treat failures as "no user" — public pages should still be accessible.
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  } catch {
+    // Supabase auth failed — treat as unauthenticated
+    user = null;
+  }
 
   // Helper: create a redirect that preserves Supabase session cookies
   function redirectWithCookies(pathname: string) {
