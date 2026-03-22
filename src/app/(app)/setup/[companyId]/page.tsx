@@ -292,37 +292,74 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
           </div>
 
           {/* Billing */}
-          <div className="mt-6 border-t border-gray-100 pt-6">
-            <div className="flex items-center justify-between">
+          <div id="billing" className="mt-6 border-t border-gray-100 pt-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">Billing</h3>
+                <h3 className="text-sm font-semibold text-gray-900">Plan & Billing</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {company.plan === "free"
-                    ? "You are on the Free plan. Upgrade to unlock more features."
-                    : `You are on the ${(company.plan || "free").charAt(0).toUpperCase() + (company.plan || "free").slice(1)} plan.`}
+                  Current plan: <span className="font-semibold text-gray-900">{(company.plan || "free").charAt(0).toUpperCase() + (company.plan || "free").slice(1)}</span>
+                  {company.plan && company.plan !== "free" && company.plan !== "starter" && (
+                    <> &middot; <ManageBillingButton companyId={companyId} /></>
+                  )}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                {(company.plan === "free" || !company.plan) && (
-                  <UpgradeButton
-                    plan="pro"
-                    companyId={companyId}
-                    className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-violet-700 transition-colors"
-                  >
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {/* Starter */}
+              <div className={`rounded-xl border p-4 ${company.plan === "starter" ? "border-violet-300 bg-violet-50/30 ring-1 ring-violet-200" : "border-gray-200"}`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-gray-900">Starter</h4>
+                  {company.plan === "starter" && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-semibold text-violet-700">Current</span>}
+                </div>
+                <p className="mt-1 text-xl font-bold text-gray-900">£30<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
+                  <li>20 posts/month</li>
+                  <li>All visual styles inc Pixar 3D</li>
+                  <li>1 spokesperson</li>
+                  <li>Basic voice matching</li>
+                </ul>
+                {(!company.plan || company.plan === "free") && (
+                  <UpgradeButton plan="starter" companyId={companyId} className="mt-3 w-full rounded-lg bg-gray-900 py-2 text-xs font-medium text-white hover:bg-gray-800 transition-colors">
+                    Subscribe
+                  </UpgradeButton>
+                )}
+              </div>
+              {/* Pro */}
+              <div className={`rounded-xl border p-4 ${company.plan === "pro" ? "border-violet-300 bg-violet-50/30 ring-1 ring-violet-200" : "border-gray-200"}`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-gray-900">Pro</h4>
+                  {company.plan === "pro" && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-semibold text-violet-700">Current</span>}
+                </div>
+                <p className="mt-1 text-xl font-bold text-gray-900">£99<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
+                  <li>Unlimited posts + spokespersons</li>
+                  <li>Full voice matching (39 gates)</li>
+                  <li>Compliance review</li>
+                  <li>Carousels, calendar, batch</li>
+                </ul>
+                {(company.plan === "starter" || company.plan === "free" || !company.plan) && (
+                  <UpgradeButton plan="pro" companyId={companyId} className="mt-3 w-full rounded-lg bg-violet-600 py-2 text-xs font-medium text-white hover:bg-violet-700 transition-colors">
                     Upgrade to Pro
                   </UpgradeButton>
                 )}
-                {company.plan === "pro" && (
-                  <UpgradeButton
-                    plan="agency"
-                    companyId={companyId}
-                    className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-purple-700 transition-colors"
-                  >
+              </div>
+              {/* Agency */}
+              <div className={`rounded-xl border p-4 ${company.plan === "agency" ? "border-violet-300 bg-violet-50/30 ring-1 ring-violet-200" : "border-gray-200"}`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-gray-900">Agency</h4>
+                  {company.plan === "agency" && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-semibold text-violet-700">Current</span>}
+                </div>
+                <p className="mt-1 text-xl font-bold text-gray-900">£299<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
+                  <li>Everything in Pro</li>
+                  <li>Face-match AI (looks like you)</li>
+                  <li>Multi-company management</li>
+                  <li>White-label branding</li>
+                </ul>
+                {company.plan !== "agency" && (
+                  <UpgradeButton plan="agency" companyId={companyId} className="mt-3 w-full rounded-lg bg-gray-900 py-2 text-xs font-medium text-white hover:bg-gray-800 transition-colors">
                     Upgrade to Agency
                   </UpgradeButton>
-                )}
-                {company.plan && company.plan !== "free" && (
-                  <ManageBillingButton companyId={companyId} />
                 )}
               </div>
             </div>

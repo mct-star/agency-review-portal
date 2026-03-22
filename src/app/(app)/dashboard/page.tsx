@@ -119,7 +119,14 @@ function statusBorder(status: string): string {
   }
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string }>;
+}) {
+  const params = await searchParams;
+  const checkoutSuccess = params?.checkout === "success";
+
   const profile = await getUserProfile();
   if (!profile) return null;
 
@@ -401,6 +408,23 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Checkout success banner */}
+      {checkoutSuccess && (
+        <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+              <svg className="h-5 w-5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-green-900">Welcome to the team.</p>
+              <p className="text-xs text-green-700">Your plan is now active. All features are unlocked. Time to create something brilliant.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reinforcement line */}
       <p className="text-center text-sm text-gray-400 -mb-2">
