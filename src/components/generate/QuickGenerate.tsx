@@ -814,6 +814,30 @@ export default function QuickGenerate({
               <span className="text-sm font-medium text-green-700">Post generated</span>
             </div>
             <div className="flex gap-2">
+              {/* Edit / Save / Cancel */}
+              {!editing ? (
+                <button
+                  onClick={handleStartEdit}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Edit
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSaveEdit}
+                    className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                  >
+                    Save edits
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
               <button
                 onClick={handleCopy}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"

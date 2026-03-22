@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { applyBrandOverlay } from "@/lib/image/brand-overlay";
 
 /**
@@ -19,11 +19,6 @@ import { applyBrandOverlay } from "@/lib/image/brand-overlay";
  * in Supabase Storage and returns the public URL.
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await request.json();
   const { imageUrl, companyId, contentPieceId, archetype, hookText } = body;
 
@@ -32,6 +27,11 @@ export async function POST(request: Request) {
       { error: "imageUrl and companyId are required" },
       { status: 400 }
     );
+  }
+
+  const profile = await requireCompanyUser(companyId);
+  if (!profile) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();
