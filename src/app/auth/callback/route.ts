@@ -133,6 +133,28 @@ export async function GET(request: Request) {
               });
 
               console.log(`[auth] Auto-provisioned company "${companyName}" + user "${fullName}" with 7-day pro trial`);
+
+              // Fire signup webhook (Google Sheets, CRM, etc.)
+              const webhookUrl = process.env.SIGNUP_WEBHOOK_URL;
+              if (webhookUrl) {
+                fetch(webhookUrl, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    event: "signup",
+                    timestamp: new Date().toISOString(),
+                    user: {
+                      email: authUser.email,
+                      name: fullName,
+                      company: companyName,
+                    },
+                    trial: {
+                      plan: "pro",
+                      expires: trialExpiresAt.toISOString(),
+                    },
+                  }),
+                }).catch(() => {/* non-critical */});
+              }
             }
           } else {
             // No company name (existing login flow) — just create minimal profile

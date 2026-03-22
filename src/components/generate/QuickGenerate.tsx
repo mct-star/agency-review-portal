@@ -792,13 +792,36 @@ export default function QuickGenerate({
               </div>
             )}
 
+            <div className="relative">
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Why most healthcare product launches fail in the first 90 days..."
+              placeholder="e.g. Why most product launches fail in the first 90 days..."
               rows={3}
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
             />
+            {/* Inline autocomplete from topic bank */}
+            {topic.length >= 3 && strategyTopics.length > 0 && !showTopicPicker && (() => {
+              const matches = strategyTopics.filter((t) =>
+                t.topic.toLowerCase().includes(topic.toLowerCase())
+              ).slice(0, 4);
+              if (matches.length === 0) return null;
+              return (
+                <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+                  {matches.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTopic(t.topic)}
+                      className="block w-full px-4 py-2.5 text-left text-xs text-gray-700 hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
+                    >
+                      <span className="font-medium">{t.topic}</span>
+                      {t.pillar && <span className="ml-2 text-[10px] text-gray-400">{t.pillar}</span>}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+            </div>
           </div>
 
           {/* Post type selector */}
