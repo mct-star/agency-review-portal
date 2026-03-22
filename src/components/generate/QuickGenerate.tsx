@@ -19,7 +19,11 @@ const SAMPLE_IMAGES: Record<string, string> = {
   contrarian: "/samples/quote-card-blue.png",
   blog_teaser: "/samples/quote-card-emerald.png",
   tactical: "/samples/carousel-cover.png",
-  // AI-generated types use SVG placeholders until real samples are available
+  // AI types: add paths here after running scripts/generate-ai-samples.ts
+  // launch_story: "/samples/pixar-3d.png",
+  // founder_friday: "/samples/pixar-3d.png",
+  // personal_update: "/samples/editorial-photo.png",
+  // scene_provocation: "/samples/scene-quote.png",
 };
 
 /** Mini visual preview — uses real generated samples where available */
