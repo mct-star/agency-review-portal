@@ -90,7 +90,7 @@ const CONTENT_TYPE_INSTRUCTIONS: Record<string, string> = {
   social_post: `FORMAT: LinkedIn social media post.
 
 STRUCTURE:
-- A brilliant hook (first line that stops the scroll). MAXIMUM 10 WORDS. Punchy, provocative, specific. Sets up tension or contrast. No colons, hyphens, or em-dashes in hooks. Examples of good hooks: "Nobody talks about this in healthcare." / "Your competitor just stole your surgeon." / "The meeting lasted 12 minutes."
+- A brilliant hook (first line that stops the scroll). MAXIMUM 10 WORDS. Punchy, provocative, specific. Sets up tension or contrast. No colons, hyphens, or em-dashes in hooks. Examples of good hooks: "Nobody talks about this." / "Your competitor just stole your best client." / "The meeting lasted 12 minutes." / "We got this completely wrong." / "Three words changed everything."
 - 3-6 short paragraphs. Each paragraph is 1-2 sentences MAX. Use line breaks between paragraphs.
 - At least one bracketed aside somewhere in the body (MANDATORY).
 - End with the EXACT sign-off from the blueprint (Section E3). Do not paraphrase it. Copy it verbatim.
@@ -108,17 +108,17 @@ WORD COUNT: 150-350 words (excluding sign-off and hashtags).
 
 IMAGE PROMPT:
 - Describe a Pixar-style 3D illustration that visualises the post concept.
-- The scene should have warm lighting, depth of field, and a healthcare/business setting.
-- Include specific objects that relate to the topic (e.g., a tiny surgeon standing next to a giant procurement form).
+- The scene should have warm lighting, depth of field, and a professional business setting relevant to the company's industry.
+- Include specific objects that relate to the topic.
 - No text in the image. No logos. No real people.`,
 
   blog_article: `FORMAT: Full blog article (800-1200 words).
 
 STRUCTURE:
 - A compelling title (no colons, no hyphens, no question marks).
-- An engaging opening paragraph that frames the problem from a healthcare commercial perspective.
+- An engaging opening paragraph that frames the problem from the company's industry perspective.
 - 3-5 sections with subheadings (use ## for subheadings). Subheadings should be conversational, not corporate.
-- Each section should contain practical, specific takeaways grounded in healthcare scenarios.
+- Each section should contain practical, specific takeaways grounded in the company's industry.
 - A conclusion that reflects rather than summarises. End with a thought, not a sales pitch.
 - Use the blueprint voice throughout: short sentences, hedging language, bracketed asides, UK spelling.
 - In long-form: anti-contraction style ("do not" rather than "don't").
@@ -149,10 +149,10 @@ Each image prompt should be vivid and specific: describe the scene, lighting, ca
   linkedin_article: `FORMAT: LinkedIn article (600-1000 words).
 
 STRUCTURE:
-- A thought-provoking title that would make a healthcare marketing director click.
+- A thought-provoking title that would make the target audience click.
 - An opening that frames the problem from real-world experience.
 - 3-4 sections with clear subheadings.
-- Professional insights grounded in specific healthcare commercial scenarios.
+- Professional insights grounded in the company's specific industry scenarios.
 - A conclusion that positions the author as a thoughtful practitioner, not a guru.
 - Use the blueprint voice: hedging over declaring, observations over verdicts.
 - Anti-contraction style in long-form.
@@ -162,7 +162,7 @@ ALSO GENERATE THESE ASSETS:
 
 ARTICLE IMAGE SET (MANDATORY — generate ALL as separate assets):
 
-1. header_image_prompt — LinkedIn article header (1200×628). Professional, clean, healthcare/business context. This appears at the top of the article and in social previews. No text in image.
+1. header_image_prompt — LinkedIn article header (1200×628). Professional, clean, industry-relevant business context. This appears at the top of the article and in social previews. No text in image.
 
 2. in_article_image_prompt_1 — Image after section 1. Illustrates the opening concept. Editorial or Pixar-style.
 
