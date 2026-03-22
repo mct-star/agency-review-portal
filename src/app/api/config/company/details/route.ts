@@ -19,7 +19,7 @@ export async function PATCH(request: Request) {
 
   // Whitelist allowed fields
   const allowed: Record<string, unknown> = {};
-  const allowedKeys = ["name", "tagline", "blog_base_url", "brand_color", "description"];
+  const allowedKeys = ["name", "tagline", "blog_base_url", "brand_color", "brand_palette", "description"];
 
   for (const key of allowedKeys) {
     if (updates[key] !== undefined) {

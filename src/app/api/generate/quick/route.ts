@@ -127,7 +127,7 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company } = await supabase
       .from("companies")
-      .select("name, spokesperson_name, brand_color, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, plan, trial_plan, trial_expires_at")
+      .select("name, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
       .single();
 
@@ -379,7 +379,15 @@ export async function POST(request: Request) {
 
         // Resolve colour: per-post-type override > default for post type
         // Colour priority: per-post-type mapping > company brand colour > fallback palette
-        const cardColor = effectiveColor || company?.brand_color || QUOTE_CARD_COLORS[postTypeSlug] || "#7C3AED";
+        // Colour priority: per-post-type mapping > brand palette (rotating) > single brand colour > defaults
+        const brandPalette = (company as Record<string, unknown>)?.brand_palette as string[] | null;
+        let paletteColor: string | undefined;
+        if (brandPalette && brandPalette.length > 0) {
+          // Rotate through palette based on post type index
+          const postTypeIndex = Object.keys(QUOTE_CARD_COLORS).indexOf(postTypeSlug);
+          paletteColor = brandPalette[Math.abs(postTypeIndex) % brandPalette.length];
+        }
+        const cardColor = effectiveColor || paletteColor || company?.brand_color || QUOTE_CARD_COLORS[postTypeSlug] || "#7C3AED";
 
         // Fetch spokesperson details for profile pic
         let profilePicUrl: string | null = null;

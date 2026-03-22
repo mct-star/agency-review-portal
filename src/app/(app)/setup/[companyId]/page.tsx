@@ -286,6 +286,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
               initialWebsite={company.blog_base_url || null}
               initialBrandColor={company.brand_color || null}
               initialDescription={company.description || null}
+              initialBrandPalette={(company as Record<string, unknown>).brand_palette as string[] || []}
             />
           </div>
 

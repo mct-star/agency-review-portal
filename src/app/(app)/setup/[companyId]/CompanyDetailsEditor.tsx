@@ -9,6 +9,7 @@ interface CompanyDetailsEditorProps {
   initialWebsite: string | null;
   initialBrandColor: string | null;
   initialDescription: string | null;
+  initialBrandPalette?: string[];
 }
 
 export default function CompanyDetailsEditor({
@@ -18,12 +19,15 @@ export default function CompanyDetailsEditor({
   initialWebsite,
   initialBrandColor,
   initialDescription,
+  initialBrandPalette = [],
 }: CompanyDetailsEditorProps) {
   const [name, setName] = useState(initialName);
   const [tagline, setTagline] = useState(initialTagline || "");
   const [website, setWebsite] = useState(initialWebsite || "");
   const [brandColor, setBrandColor] = useState(initialBrandColor || "#0ea5e9");
   const [description, setDescription] = useState(initialDescription || "");
+  const [brandPalette, setBrandPalette] = useState<string[]>(initialBrandPalette);
+  const [newPaletteColor, setNewPaletteColor] = useState("#7C3AED");
   const [saving, setSaving] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [message, setMessage] = useState("");
@@ -41,6 +45,7 @@ export default function CompanyDetailsEditor({
           tagline: tagline || null,
           blog_base_url: website || null,
           brand_color: brandColor || null,
+          brand_palette: brandPalette.length > 0 ? brandPalette : null,
           description: description || null,
         }),
       });
@@ -160,6 +165,63 @@ export default function CompanyDetailsEditor({
             <a href={`/setup/${companyId}/image-mapping`} className="text-violet-600 underline">Image Mapping</a>.
           </p>
         </div>
+      </div>
+
+      {/* Brand Colour Palette */}
+      <div>
+        <label className="mb-2 block text-xs font-medium text-gray-600">
+          Brand Colour Palette
+          <span className="ml-1 font-normal text-gray-400">(used for quote cards, carousels, accents)</span>
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          {brandPalette.map((color, i) => (
+            <div key={i} className="group relative">
+              <div
+                className="h-10 w-10 rounded-lg border-2 border-white shadow-sm cursor-pointer transition-transform hover:scale-110"
+                style={{ backgroundColor: color }}
+                title={color}
+              />
+              <button
+                onClick={() => setBrandPalette(brandPalette.filter((_, j) => j !== i))}
+                className="absolute -top-1 -right-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white group-hover:flex"
+                title="Remove"
+              >
+                x
+              </button>
+              <span className="mt-0.5 block text-center text-[9px] font-mono text-gray-400">{color}</span>
+            </div>
+          ))}
+          {brandPalette.length < 8 && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={newPaletteColor}
+                onChange={(e) => setNewPaletteColor(e.target.value)}
+                className="h-10 w-10 cursor-pointer rounded-lg border border-dashed border-gray-300 p-0.5"
+              />
+              <button
+                onClick={() => {
+                  if (newPaletteColor && !brandPalette.includes(newPaletteColor)) {
+                    setBrandPalette([...brandPalette, newPaletteColor]);
+                  }
+                }}
+                className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+          )}
+        </div>
+        {brandPalette.length === 0 && (
+          <p className="mt-2 text-[10px] text-gray-400">
+            No palette colours set. Quote cards will use vibrant defaults. Add your brand colours for on-brand cards.
+          </p>
+        )}
+        {brandPalette.length > 0 && (
+          <p className="mt-2 text-[10px] text-gray-400">
+            {brandPalette.length} colour{brandPalette.length !== 1 ? "s" : ""} in palette. These are assigned to post types automatically (or manually in Image Mapping).
+          </p>
+        )}
       </div>
 
       <div>
