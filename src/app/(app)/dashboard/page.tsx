@@ -504,24 +504,24 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      {/* ===== 3. Secondary actions (below fold) ===== */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        {company && pendingCount > 0 && (
-          <Link href="/content?status=pending" className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
-            {pendingCount} awaiting review
-          </Link>
-        )}
-        <Link href="/compliance" className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-          Compliance
-        </Link>
-        <Link href="/calendar" className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-          Calendar
-        </Link>
-        {company && (
-          <Link href={`/setup/${company.id}`} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-            Setup
-          </Link>
-        )}
+      {/* ===== 3. KPI strip ===== */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 text-center">
+          <p className="text-3xl font-black text-gray-900">{totalPieces || 0}</p>
+          <p className="mt-1 text-xs font-medium text-gray-400">Total Posts</p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 text-center">
+          <p className="text-3xl font-black" style={{ color: approvedCount > 0 ? "#10b981" : "#d1d5db" }}>{approvedCount}</p>
+          <p className="mt-1 text-xs font-medium text-gray-400">Approved</p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 text-center">
+          <p className="text-3xl font-black" style={{ color: publishedCount > 0 ? "#3b82f6" : "#d1d5db" }}>{publishedCount}</p>
+          <p className="mt-1 text-xs font-medium text-gray-400">Published</p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 text-center">
+          <p className="text-3xl font-black text-violet-600">{thisWeekCount}</p>
+          <p className="mt-1 text-xs font-medium text-gray-400">This Week</p>
+        </div>
       </div>
 
       {/* ===== 4. Activity Strip (compact stats) ===== */}
