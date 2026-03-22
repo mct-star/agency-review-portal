@@ -4,6 +4,11 @@ import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/pro
 import { assignTopicsToSlots } from "@/lib/generation/topic-assigner";
 import { generateWithValidation } from "@/lib/generation/validated-generator";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
+import {
+  buildPreGenerationContext,
+  runPostGenerationGates,
+  type GateResult,
+} from "@/lib/generation/content-intelligence";
 import type { ContentGenerationInput } from "@/lib/providers";
 import type { PostingSlotWithType, TopicBankEntry } from "@/types/database";
 
@@ -212,6 +217,7 @@ export async function POST(request: Request) {
     qualityPassed?: boolean;
     qualityIterations?: number;
     qualityFailures?: string[];
+    contentIntelligenceGates?: GateResult[];
   }[] = [];
 
   let piecesCreated = 0;
@@ -219,6 +225,14 @@ export async function POST(request: Request) {
 
   for (const assignment of orderedAssignments) {
     try {
+      // Build Content Intelligence pre-generation context
+      const preGenContext = buildPreGenerationContext({
+        postTypeSlug: assignment.postTypeSlug,
+        weekNumber: week.week_number,
+        isHealthcareCompany: true,
+        voiceProfile: voiceProfile || null,
+      });
+
       // Build the generation input with full context
       const input: ContentGenerationInput = {
         blueprintContent,
@@ -254,6 +268,8 @@ export async function POST(request: Request) {
         dayOfWeek: assignment.dayOfWeek,
         scheduledTime: assignment.scheduledTime,
         slotLabel: assignment.slotLabel,
+        // Content Intelligence pre-generation context
+        preGenerationContext: preGenContext,
         additionalContext: (() => {
           const parts: string[] = [];
           if (assignment.angle) {
@@ -285,6 +301,27 @@ export async function POST(request: Request) {
         input,
         fixProvider || undefined
       );
+
+      // Run Content Intelligence post-generation gates
+      let contentGates: GateResult[] = [];
+      try {
+        contentGates = await runPostGenerationGates({
+          postTypeSlug: assignment.postTypeSlug,
+          content: output.markdownBody || "",
+          hookLine: (output.markdownBody || "").trim().split("\n")[0] || "",
+          companyId,
+          weekNumber: week.week_number,
+          isHealthcareCompany: true,
+          contentType: input.contentType,
+          signoffText: signoff?.signoff_text || undefined,
+          firstComment: output.firstComment,
+          title: output.title || "",
+          wordCountMin: assignment.wordCountMin || undefined,
+          wordCountMax: assignment.wordCountMax || undefined,
+        });
+      } catch (gateErr) {
+        console.warn(`[week] Quality gate error for ${assignment.slotLabel}:`, gateErr);
+      }
 
       // Create the content piece
       const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -414,6 +451,7 @@ export async function POST(request: Request) {
         qualityPassed: validation.allPassed,
         qualityIterations: iterations,
         qualityFailures: validation.allPassed ? [] : fixHistory.map((h) => h.failures).flat(),
+        contentIntelligenceGates: contentGates,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

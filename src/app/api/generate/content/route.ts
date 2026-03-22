@@ -3,6 +3,11 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider } from "@/lib/providers";
 import type { ContentGenerationInput } from "@/lib/providers";
 import { getEcosystemRole } from "@/lib/generation/cta-resolver";
+import {
+  buildPreGenerationContext,
+  runPostGenerationGates,
+  type GateResult,
+} from "@/lib/generation/content-intelligence";
 
 export const maxDuration = 120;
 
@@ -215,6 +220,13 @@ export async function POST(request: Request) {
       }
     }
 
+    // Build Content Intelligence pre-generation context
+    const preGenContext = buildPreGenerationContext({
+      postTypeSlug: resolvedPostTypeSlug || contentType,
+      weekNumber: weekRes.data.week_number,
+      isHealthcareCompany: true,
+    });
+
     // 6. Call the provider
     const input: ContentGenerationInput = {
       blueprintContent: blueprintRes.data?.blueprint_content || "No blueprint configured.",
@@ -243,9 +255,32 @@ export async function POST(request: Request) {
       // Sign-off from company_signoffs — gives AI the exact text to use verbatim
       signoffText: selectedSignoff?.signoff_text || undefined,
       firstCommentTemplate: selectedSignoff?.first_comment_template || undefined,
+      // Content Intelligence pre-generation context
+      preGenerationContext: preGenContext,
     };
 
     const output = await provider.generate(input);
+
+    // Run Content Intelligence post-generation gates
+    let qualityGates: GateResult[] = [];
+    try {
+      qualityGates = await runPostGenerationGates({
+        postTypeSlug: resolvedPostTypeSlug || contentType,
+        content: output.markdownBody || "",
+        hookLine: (output.markdownBody || "").trim().split("\n")[0] || "",
+        companyId,
+        weekNumber: weekRes.data.week_number,
+        isHealthcareCompany: true,
+        contentType,
+        signoffText: selectedSignoff?.signoff_text || undefined,
+        firstComment: output.firstComment,
+        title: output.title || "",
+        wordCountMin: resolvedWordMin,
+        wordCountMax: resolvedWordMax,
+      });
+    } catch (gateErr) {
+      console.warn("[content] Quality gate evaluation error:", gateErr);
+    }
 
     await supabase
       .from("content_generation_jobs")
@@ -385,6 +420,10 @@ export async function POST(request: Request) {
       imagePrompt: output.imagePrompt || null,
       blogImagePrompts: blogImagePrompts.length > 0 ? blogImagePrompts : null,
       blogInfo,
+      qualityGates,
+      warnings: qualityGates
+        .filter((g) => !g.passed && (g.severity === "high" || g.severity === "critical"))
+        .map((g) => ({ gate: g.gate, severity: g.severity, explanation: g.explanation })),
     });
   } catch (err) {
     // Mark job as failed

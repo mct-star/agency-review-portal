@@ -364,6 +364,7 @@ ${signoffSection}
    - Never punch down. Humour is warm, never cruel.
 
 ${voiceOverride ? `\n${"═".repeat(60)}\nVOICE PROFILE OVERRIDE\n${"═".repeat(60)}\n\n${voiceOverride}\n` : ""}
+${input.preGenerationContext ? `\n${"═".repeat(60)}\nCONTENT INTELLIGENCE (DAY-SPECIFIC RULES & QUALITY REQUIREMENTS)\n${"═".repeat(60)}\n\n${input.preGenerationContext}\n` : ""}
 
 ${"═".repeat(60)}
 ${firstCommentSection}

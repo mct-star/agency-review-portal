@@ -55,6 +55,8 @@ export interface ContentGenerationInput {
   // Weekly ecosystem references
   blogTitle?: string;
   blogUrl?: string;
+  /** Pre-generation context from the Content Intelligence Layer (day-specific rules, hook tension, etc.) */
+  preGenerationContext?: string;
 }
 
 export interface ContentGenerationOutput {

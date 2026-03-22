@@ -3,6 +3,13 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
+import {
+  buildPreGenerationContext,
+  runPostGenerationGates,
+  buildGateFixInstructions,
+  hasCriticalFailures,
+  type GateResult,
+} from "@/lib/generation/content-intelligence";
 
 /**
  * POST /api/generate/quick
@@ -179,6 +186,14 @@ export async function POST(request: Request) {
     // ── 2. Generate content ───────────────────────────────────────
     const { provider: contentProvider } = await getContentProvider(companyId);
 
+    // Build Content Intelligence pre-generation context
+    const preGenContext = buildPreGenerationContext({
+      postTypeSlug,
+      weekNumber: 0,
+      isHealthcareCompany: true, // Default to healthcare; could be company-specific
+      voiceProfile: voiceProfile || null,
+    });
+
     const blogTeaserContext = isBlogTeaser
       ? `This is a Blog Teaser post. RULES:
 - Do NOT include a sign-off ("Enjoy this? Repost..." etc). Blog teasers end with a CTA link, not a sign-off.
@@ -188,13 +203,13 @@ export async function POST(request: Request) {
 - Keep it short and punchy: 60-120 words.${ctaUrlContext}`
       : "";
 
-    const contentResult = await contentProvider.generate({
+    const generateInput = {
       blueprintContent: blueprint?.blueprint_text || "",
       topicTitle: topic,
       topicDescription: null,
       pillar: null,
       audienceTheme: null,
-      contentType: "social_post",
+      contentType: "social_post" as const,
       weekNumber: 0,
       spokespersonName: activeSpokesPerson?.name || company?.spokesperson_name || null,
       postTypeSlug,
@@ -208,7 +223,74 @@ export async function POST(request: Request) {
       bannedVocabulary: !voicePromptText ? (voiceProfile?.banned_vocabulary || undefined) : undefined,
       signatureDevices: !voicePromptText ? (voiceProfile?.signature_devices || undefined) : undefined,
       additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.${blogTeaserContext ? `\n\n${blogTeaserContext}` : ""}`,
-    });
+      // Content Intelligence pre-generation context
+      preGenerationContext: preGenContext,
+    };
+
+    let contentResult = await contentProvider.generate(generateInput);
+
+    // ── Run post-generation quality gates ──────────────────────
+    let qualityGates: GateResult[] = [];
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
+    try {
+      qualityGates = await runPostGenerationGates({
+        postTypeSlug,
+        content: contentResult.markdownBody || "",
+        hookLine: (contentResult.markdownBody || "").trim().split("\n")[0] || "",
+        companyId,
+        weekNumber: 0,
+        isHealthcareCompany: true,
+        contentType: "social_post",
+        signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
+        firstComment: contentResult.firstComment,
+        title: contentResult.title || "",
+      });
+
+      // Retry loop for critical gate failures
+      while (hasCriticalFailures(qualityGates) && retryCount < MAX_RETRIES) {
+        retryCount++;
+        const fixInstructions = buildGateFixInstructions(qualityGates);
+
+        // Create a fix provider to retry
+        const contentProviderData = await resolveProvider(companyId, "content_generation");
+        if (contentProviderData) {
+          const { createClaudeFixProvider } = await import(
+            "@/lib/providers/content-generation/anthropic"
+          );
+          const fixProvider = createClaudeFixProvider(
+            contentProviderData.credentials,
+            contentProviderData.settings
+          );
+          contentResult = await fixProvider.fix(contentResult, fixInstructions);
+
+          // Re-run gates on fixed content
+          qualityGates = await runPostGenerationGates({
+            postTypeSlug,
+            content: contentResult.markdownBody || "",
+            hookLine: (contentResult.markdownBody || "").trim().split("\n")[0] || "",
+            companyId,
+            weekNumber: 0,
+            isHealthcareCompany: true,
+            contentType: "social_post",
+            signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
+            firstComment: contentResult.firstComment,
+            title: contentResult.title || "",
+          });
+        } else {
+          break;
+        }
+      }
+    } catch (gateErr) {
+      // Quality gates are additive — don't block content delivery
+      console.warn("[quick] Quality gate evaluation error:", gateErr);
+    }
+
+    // Separate warnings (high gates that failed but content is still returned)
+    const warnings = qualityGates
+      .filter((g) => !g.passed && (g.severity === "high" || g.severity === "critical"))
+      .map((g) => ({ gate: g.gate, severity: g.severity, explanation: g.explanation }));
 
     // ── 3. Generate image (if provider configured) ────────────────
     let imageUrl: string | null = null;
@@ -275,6 +357,8 @@ export async function POST(request: Request) {
       firstComment: contentResult.firstComment || null,
       imageUrl,
       imagePrompt: imagePrompt || contentResult.imagePrompt || null,
+      qualityGates,
+      warnings,
     });
   } catch (err) {
     console.error("[quick] Generation failed:", err);
