@@ -104,7 +104,7 @@ export async function GET(request: Request) {
               .insert({
                 name: companyName,
                 slug: `${slug}-${Date.now().toString(36)}`,
-                plan: "free",
+                plan: "starter",
                 trial_plan: "pro",
                 trial_started_at: new Date().toISOString(),
                 trial_expires_at: trialExpiresAt.toISOString(),
