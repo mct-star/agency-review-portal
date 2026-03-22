@@ -65,6 +65,7 @@ export async function POST(request: Request) {
     emotional_register,
     source,
     raw_analysis,
+    structured_voice,
   } = body;
 
   if (!companyId) return NextResponse.json({ error: "companyId required" }, { status: 400 });
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
       banned_vocabulary: banned_vocabulary || null,
       signature_devices: signature_devices || null,
       emotional_register: emotional_register || null,
+      structured_voice: structured_voice || null,
       raw_analysis: raw_analysis || {},
       is_active: true,
     })

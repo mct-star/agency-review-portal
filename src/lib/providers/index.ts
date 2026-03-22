@@ -50,6 +50,8 @@ export interface ContentGenerationInput {
   voiceDescription?: string;
   bannedVocabulary?: string;
   signatureDevices?: string;
+  /** Full structured voice prompt (from buildVoicePrompt). When present, takes precedence over individual voice fields. */
+  voicePrompt?: string;
   // Weekly ecosystem references
   blogTitle?: string;
   blogUrl?: string;

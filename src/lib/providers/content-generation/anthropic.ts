@@ -281,6 +281,11 @@ function buildContentPrompt(input: ContentGenerationInput): string {
 
   // ── VOICE PROFILE: Inject company-specific voice rules if available ──
   const voiceOverride = (() => {
+    // Prefer full structured voice prompt (covers tone spectrum, formatting, humour, etc.)
+    if (input.voicePrompt) {
+      return input.voicePrompt;
+    }
+    // Legacy fallback: individual voice fields
     const parts: string[] = [];
     if (input.voiceDescription) {
       parts.push(`VOICE PROFILE (from voice analysis, takes precedence over blueprint C2):\n${input.voiceDescription}`);

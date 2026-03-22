@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { SocialPlatform } from "@/types/database";
+import type { StructuredVoice } from "@/types/voice";
+import StructuredVoiceForm from "@/components/setup/StructuredVoiceForm";
 
 // ============================================================
 // Types
@@ -26,6 +28,7 @@ interface VoiceProfile {
   signature_devices: string;
   emotional_register: string;
   source: string;
+  structured_voice?: StructuredVoice | null;
 }
 
 interface SocialAccount {
@@ -627,72 +630,55 @@ export default function PersonDetailPage() {
             </button>
           </div>
 
-          {/* Manual voice fields */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900">{person.name}&apos;s Voice Profile</h3>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Voice Description</label>
-              <textarea
-                value={voice.voice_description}
-                onChange={(e) => setVoice({ ...voice, voice_description: e.target.value })}
-                rows={4}
-                placeholder="How this person writes: confident, direct, uses short sentences..."
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Writing Samples</label>
-              <textarea
-                value={voice.writing_samples}
-                onChange={(e) => setVoice({ ...voice, writing_samples: e.target.value })}
-                rows={4}
-                placeholder="2-3 representative paragraphs that show their natural writing style"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Signature Devices</label>
-              <textarea
-                value={voice.signature_devices}
-                onChange={(e) => setVoice({ ...voice, signature_devices: e.target.value })}
-                rows={3}
-                placeholder="Recurring phrases, structural patterns, rhetorical habits"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Banned Vocabulary</label>
-              <textarea
-                value={voice.banned_vocabulary}
-                onChange={(e) => setVoice({ ...voice, banned_vocabulary: e.target.value })}
-                rows={2}
-                placeholder="Words and phrases they NEVER use (one per line)"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Emotional Register</label>
-              <textarea
-                value={voice.emotional_register}
-                onChange={(e) => setVoice({ ...voice, emotional_register: e.target.value })}
-                rows={2}
-                placeholder="Understated/enthusiastic, first-person/third-person tendencies"
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
-              />
-            </div>
-
-            <button
-              onClick={handleSaveVoice}
-              disabled={savingVoice}
-              className="rounded-md bg-gray-900 px-6 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              {savingVoice ? "Saving..." : "Save Voice Profile"}
-            </button>
+          {/* Structured Voice Profile */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">{person.name}&apos;s Voice Profile</h3>
+            <StructuredVoiceForm
+              initial={voice.structured_voice || null}
+              personName={person.name}
+              onSave={async (structuredVoice) => {
+                setSavingVoice(true);
+                setVoiceMessage("");
+                try {
+                  const res = await fetch("/api/config/voice", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      companyId,
+                      spokespersonId: personId,
+                      // Keep legacy fields populated for backward compatibility
+                      voice_description: structuredVoice.voice_character || voice.voice_description,
+                      writing_samples: structuredVoice.writing_samples.map((s) => s.text).join("\n\n---\n\n") || voice.writing_samples,
+                      banned_vocabulary: structuredVoice.banned_words.flatMap((c) => c.words).join(", ") || voice.banned_vocabulary,
+                      signature_devices: [
+                        ...(structuredVoice.signature_devices.bracketed_asides ? ["Bracketed asides"] : []),
+                        ...(structuredVoice.signature_devices.question_tags ? ["Question tags"] : []),
+                        ...(structuredVoice.signature_devices.british_interjections ? ["British interjections"] : []),
+                        ...(structuredVoice.signature_devices.understatement ? ["Understatement"] : []),
+                        ...structuredVoice.signature_devices.other,
+                      ].join(", ") || voice.signature_devices,
+                      emotional_register: voice.emotional_register,
+                      structured_voice: structuredVoice,
+                      source: "structured",
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "Save failed");
+                  setVoice((prev) => ({ ...prev, structured_voice: structuredVoice }));
+                  setVoiceMessage("Voice profile saved");
+                } catch (err) {
+                  setVoiceMessage(`Error: ${err instanceof Error ? err.message : "unknown"}`);
+                } finally {
+                  setSavingVoice(false);
+                }
+              }}
+              saving={savingVoice}
+            />
+            {voiceMessage && !voiceMessage.includes("⚠️") && (
+              <p className={`mt-3 text-sm ${voiceMessage.includes("Error") ? "text-red-600" : "text-green-600"}`}>
+                {voiceMessage}
+              </p>
+            )}
           </div>
         </div>
       )}

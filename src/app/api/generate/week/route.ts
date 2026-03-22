@@ -3,6 +3,7 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
 import { assignTopicsToSlots } from "@/lib/generation/topic-assigner";
 import { generateWithValidation } from "@/lib/generation/validated-generator";
+import { buildVoicePrompt } from "@/lib/voice-to-prompt";
 import type { ContentGenerationInput } from "@/lib/providers";
 import type { PostingSlotWithType, TopicBankEntry } from "@/types/database";
 
@@ -242,10 +243,11 @@ export async function POST(request: Request) {
         // Inject sign-off and first comment template from setup
         signoffText: signoff?.signoff_text || undefined,
         firstCommentTemplate: signoff?.first_comment_template || undefined,
-        // Inject voice profile
-        voiceDescription: voiceProfile?.voice_description || undefined,
-        bannedVocabulary: voiceProfile?.banned_vocabulary || undefined,
-        signatureDevices: voiceProfile?.signature_devices || undefined,
+        // Inject voice profile (prefer structured voice prompt, fall back to legacy fields)
+        voicePrompt: buildVoicePrompt(voiceProfile) || undefined,
+        voiceDescription: !voiceProfile?.structured_voice ? (voiceProfile?.voice_description || undefined) : undefined,
+        bannedVocabulary: !voiceProfile?.structured_voice ? (voiceProfile?.banned_vocabulary || undefined) : undefined,
+        signatureDevices: !voiceProfile?.structured_voice ? (voiceProfile?.signature_devices || undefined) : undefined,
         // Weekly ecosystem: social posts reference the blog
         blogTitle: blogTitle || undefined,
         blogUrl: blogUrl || undefined,

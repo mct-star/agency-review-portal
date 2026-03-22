@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
+import { buildVoicePrompt } from "@/lib/voice-to-prompt";
 
 /**
  * POST /api/generate/quick
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
     if (spokespersonId) {
       const { data: person } = await supabase
         .from("company_spokespersons")
-        .select("name, tagline, profile_picture_url")
+        .select("name, tagline, profile_picture_url, appearance_description")
         .eq("id", spokespersonId)
         .eq("company_id", companyId)
         .single();
@@ -122,10 +123,17 @@ export async function POST(request: Request) {
         activeSpokesPerson = {
           name: person.name,
           tagline: person.tagline,
-          appearance: null, // TODO: add appearance field to company_spokespersons
+          appearance: person.appearance_description || null,
         };
       }
     }
+
+    // ── Fetch voice profile for this spokesperson (or company default) ──
+    const voiceQuery = spokespersonId
+      ? supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).eq("spokesperson_id", spokespersonId).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single()
+      : supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).is("spokesperson_id", null).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single();
+    const { data: voiceProfile } = await voiceQuery;
+    const voicePromptText = buildVoicePrompt(voiceProfile);
 
     // Blog teasers use CTA URLs instead of sign-offs, and have no first comment.
     // Other post types use the standard signoff + first comment flow.
@@ -194,6 +202,11 @@ export async function POST(request: Request) {
       imageArchetype: typeConfig.archetype,
       signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
       firstCommentTemplate: isBlogTeaser ? undefined : (selectedSignoff?.first_comment_template || undefined),
+      // Inject full voice profile (structured or legacy)
+      voicePrompt: voicePromptText || undefined,
+      voiceDescription: !voicePromptText ? (voiceProfile?.voice_description || undefined) : undefined,
+      bannedVocabulary: !voicePromptText ? (voiceProfile?.banned_vocabulary || undefined) : undefined,
+      signatureDevices: !voicePromptText ? (voiceProfile?.signature_devices || undefined) : undefined,
       additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.${blogTeaserContext ? `\n\n${blogTeaserContext}` : ""}`,
     });
 
