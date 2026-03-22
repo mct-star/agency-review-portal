@@ -56,14 +56,18 @@ export default async function AppLayout({
     companyPlan = company?.plan || "free";
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,
-    // NOT a random client's logo
+    // NOT a random client's logo. Also pass their company ID for sidebar "My Brand" link.
     const platformSlug = process.env.PLATFORM_COMPANY_SLUG || "agency-bristol";
     const { data: agencyCompany } = await supabase
       .from("companies")
-      .select("logo_url")
+      .select("id, logo_url")
       .eq("slug", platformSlug)
       .single();
     platformLogoUrl = agencyCompany?.logo_url || null;
+    // Inject the agency company_id into the profile so the sidebar can show "My Brand"
+    if (agencyCompany?.id) {
+      profile.company_id = agencyCompany.id;
+    }
   }
 
   return (

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { formatWeekLabel, formatWeekLabelShort } from "@/lib/utils/format-week-label";
-import type { Week, Company, Notification } from "@/types/database";
+import type { Week, Notification, ContentPiece } from "@/types/database";
 
 // Circular progress gauge component
 function Gauge({ value, max, label, color, sublabel }: { value: number; max: number; label: string; color: string; sublabel?: string }) {
@@ -38,8 +38,8 @@ function Gauge({ value, max, label, color, sublabel }: { value: number; max: num
   );
 }
 
-// Stat card component
-function StatCard({ value, label, icon, href, color }: { value: number | string; label: string; icon: string; href?: string; color: string }) {
+// Stat card component with optional tint background
+function StatCard({ value, label, icon, href, color, tintBg }: { value: number | string; label: string; icon: string; href?: string; color: string; tintBg?: string }) {
   const iconPaths: Record<string, string> = {
     sparkle: "M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z",
     check: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
@@ -47,10 +47,12 @@ function StatCard({ value, label, icon, href, color }: { value: number | string;
     alert: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z",
     calendar: "M6 2a1 1 0 0 0-1 1v1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V3a1 1 0 1 0-2 0v1H7V3a1 1 0 0 0-1-1Zm0 6h12v10H6V8Z",
     send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
+    published: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+    percent: "M9 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm10 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM5.5 18.5l13-13",
   };
 
   const content = (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md" style={tintBg ? { backgroundColor: tintBg } : undefined}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-3xl font-bold" style={{ color }}>{value}</p>
@@ -58,7 +60,7 @@ function StatCard({ value, label, icon, href, color }: { value: number | string;
         </div>
         <div className="rounded-lg p-2" style={{ backgroundColor: color + "15" }}>
           <svg className="h-5 w-5" style={{ color }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d={iconPaths[icon]} />
+            <path d={iconPaths[icon] || iconPaths.sparkle} />
           </svg>
         </div>
       </div>
@@ -89,6 +91,30 @@ function SetupItem({ done, label, href }: { done: boolean; label: string; href: 
   );
 }
 
+// Day names for weekly view
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Status color mapping for weekly content pills
+function statusColor(status: string): string {
+  switch (status) {
+    case "approved": return "bg-green-400";
+    case "pending": return "bg-amber-400";
+    case "changes_requested": return "bg-red-400";
+    case "published": return "bg-blue-400";
+    default: return "bg-gray-300";
+  }
+}
+
+function statusBorder(status: string): string {
+  switch (status) {
+    case "approved": return "border-green-200 bg-green-50";
+    case "pending": return "border-amber-200 bg-amber-50";
+    case "changes_requested": return "border-red-200 bg-red-50";
+    case "published": return "border-blue-200 bg-blue-50";
+    default: return "border-gray-200 bg-gray-50";
+  }
+}
+
 export default async function DashboardPage() {
   const profile = await getUserProfile();
   if (!profile) return null;
@@ -107,7 +133,6 @@ export default async function DashboardPage() {
       .single();
     company = data;
   } else if (isAdmin) {
-    // Admin sees aggregate stats — get first company for setup context
     const { data } = await supabase
       .from("companies")
       .select("id, name, spokesperson_name, brand_color, logo_url, website_url, overlay_enabled")
@@ -118,6 +143,7 @@ export default async function DashboardPage() {
   }
 
   // Check setup completion for the company
+  const setupSteps: { key: string; label: string; done: boolean; href: string }[] = [];
   let setupChecks = {
     companyCreated: false,
     logoUploaded: false,
@@ -127,6 +153,8 @@ export default async function DashboardPage() {
     socialConnected: false,
     signoffsSet: false,
   };
+
+  const setupHref = company ? `/setup/${company.id}` : "/setup";
 
   if (company) {
     setupChecks.companyCreated = true;
@@ -166,39 +194,137 @@ export default async function DashboardPage() {
       .limit(1)
       .single();
     setupChecks.signoffsSet = !!signoffs;
+
+    // Build ordered steps for next-step CTA
+    setupSteps.push(
+      { key: "companyCreated", label: "Company created", done: setupChecks.companyCreated, href: setupHref },
+      { key: "logoUploaded", label: "Logo uploaded", done: setupChecks.logoUploaded, href: setupHref },
+      { key: "spokespersonAdded", label: "Spokesperson added", done: setupChecks.spokespersonAdded, href: `${setupHref}/people` },
+      { key: "voiceConfigured", label: "Voice profile configured", done: setupChecks.voiceConfigured, href: `${setupHref}/voice` },
+      { key: "topicsAdded", label: "Topics added", done: setupChecks.topicsAdded, href: `${setupHref}/topics` },
+      { key: "socialConnected", label: "Social accounts connected", done: setupChecks.socialConnected, href: `${setupHref}/social` },
+      { key: "signoffsSet", label: "Sign-offs configured", done: setupChecks.signoffsSet, href: `${setupHref}/signoffs` },
+    );
   }
 
   const setupDone = Object.values(setupChecks).filter(Boolean).length;
   const setupTotal = Object.values(setupChecks).length;
+  const setupComplete = setupDone === setupTotal;
+  const nextStep = setupSteps.find(s => !s.done);
 
-  // Fetch content stats
-  let contentQuery = supabase.from("content_pieces").select("approval_status, created_at", { count: "exact" });
+  // Fetch content stats (include title for action cards)
+  let contentQuery = supabase.from("content_pieces").select("id, title, approval_status, created_at, day_of_week, week_id", { count: "exact" });
   if (!isAdmin && companyId) {
     contentQuery = contentQuery.eq("company_id", companyId);
   }
   const { data: allPieces, count: totalPieces } = await contentQuery;
 
-  const pendingCount = (allPieces || []).filter((p) => p.approval_status === "pending").length;
+  const pendingPieces = (allPieces || []).filter((p) => p.approval_status === "pending");
+  const pendingCount = pendingPieces.length;
   const approvedCount = (allPieces || []).filter((p) => p.approval_status === "approved").length;
-  const changesCount = (allPieces || []).filter((p) => p.approval_status === "changes_requested").length;
+  const changesRequested = (allPieces || []).filter((p) => p.approval_status === "changes_requested");
+  const changesCount = changesRequested.length;
 
-  // Content created this week
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  // Published count — check for publishing_jobs with status = 'published'
+  let publishedCount = 0;
+  {
+    let pubQuery = supabase.from("publishing_jobs").select("id", { count: "exact", head: true }).eq("status", "published");
+    if (!isAdmin && companyId) {
+      pubQuery = pubQuery.eq("company_id", companyId);
+    }
+    const { count } = await pubQuery;
+    publishedCount = count || 0;
+  }
+
+  // Content created this week (Monday-based week start for UK)
+  const now = new Date();
+  const weekStart = new Date(now);
+  const dayOfWeek = weekStart.getDay(); // 0=Sun, 1=Mon
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  weekStart.setDate(weekStart.getDate() + mondayOffset);
   weekStart.setHours(0, 0, 0, 0);
   const thisWeekCount = (allPieces || []).filter((p) => new Date(p.created_at) >= weekStart).length;
 
-  // Fetch recent weeks
+  // Schedule compliance — count posting slots vs pieces this week
+  let scheduleCompliance: number | null = null;
+  let hasSchedule = false;
+  if (company) {
+    const { count: slotCount } = await supabase
+      .from("posting_slots")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", company.id)
+      .eq("is_active", true);
+
+    if (slotCount && slotCount > 0) {
+      hasSchedule = true;
+      scheduleCompliance = slotCount > 0 ? Math.min(100, Math.round((thisWeekCount / slotCount) * 100)) : 0;
+    }
+  }
+
+  // Fetch recent weeks with piece counts
   let weeksQuery = supabase
     .from("weeks")
-    .select("*, company:companies(name)")
+    .select("*, company:companies(name), content_pieces(id, approval_status)")
     .order("year", { ascending: false })
     .order("week_number", { ascending: false })
-    .limit(4);
+    .limit(6);
   if (!isAdmin && companyId) {
     weeksQuery = weeksQuery.eq("company_id", companyId);
   }
   const { data: weeks } = await weeksQuery;
+
+  // Current week's content grouped by day for the weekly view
+  // Find the current week record (if any)
+  const currentWeekStart = new Date(weekStart);
+  const currentWeekStartStr = currentWeekStart.toISOString().split("T")[0];
+  const currentWeekEnd = new Date(weekStart);
+  currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
+  const currentWeekEndStr = currentWeekEnd.toISOString().split("T")[0];
+
+  let currentWeekPieces: { id: string; title: string; approval_status: string; day_of_week: string | null; week_id: string }[] = [];
+  let currentWeekId: string | null = null;
+  {
+    let cwQuery = supabase
+      .from("weeks")
+      .select("id")
+      .gte("date_start", currentWeekStartStr)
+      .lte("date_start", currentWeekEndStr);
+    if (!isAdmin && companyId) {
+      cwQuery = cwQuery.eq("company_id", companyId);
+    }
+    const { data: currentWeeks } = await cwQuery.limit(1);
+    if (currentWeeks && currentWeeks.length > 0) {
+      currentWeekId = currentWeeks[0].id;
+      let piecesQuery = supabase
+        .from("content_pieces")
+        .select("id, title, approval_status, day_of_week, week_id")
+        .eq("week_id", currentWeekId)
+        .order("sort_order");
+      const { data: cwPieces } = await piecesQuery;
+      currentWeekPieces = cwPieces || [];
+    }
+  }
+
+  // Group current week pieces by day
+  const dayMap: Record<string, typeof currentWeekPieces> = {};
+  for (const dayName of DAY_NAMES) {
+    dayMap[dayName] = [];
+  }
+  // Map day_of_week values to our day names
+  const dayMapping: Record<string, string> = {
+    monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
+    friday: "Fri", saturday: "Sat", sunday: "Sun",
+    mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu",
+    fri: "Fri", sat: "Sat", sun: "Sun",
+    Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu",
+    Friday: "Fri", Saturday: "Sat", Sunday: "Sun",
+  };
+  for (const piece of currentWeekPieces) {
+    const mapped = piece.day_of_week ? dayMapping[piece.day_of_week] || piece.day_of_week : null;
+    if (mapped && dayMap[mapped]) {
+      dayMap[mapped].push(piece);
+    }
+  }
 
   // Fetch unread notifications
   const { data: notifications } = await supabase
@@ -209,36 +335,115 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false })
     .limit(5);
 
-  const setupHref = company ? `/setup/${company.id}` : "/setup";
+  // Format today's date nicely
+  const todayFormatted = now.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  const brandColor = company?.brand_color || "#7c3aed";
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {isAdmin ? "Dashboard" : `Welcome back, ${profile.full_name || "there"}`}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {company ? company.name : "Your content at a glance"}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link
-            href="/generate/quick"
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-violet-600 hover:to-purple-600"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-            Quick Generate
-          </Link>
+    <div className="space-y-6">
+      {/* ===== 1. Welcome Banner ===== */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {company?.logo_url && (
+              <img
+                src={company.logo_url}
+                alt={company.name}
+                className="h-12 w-12 rounded-xl object-contain"
+              />
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {isAdmin ? "Dashboard" : `Welcome back, ${profile.full_name || "there"}`}
+              </h1>
+              <div className="mt-0.5 flex items-center gap-3">
+                {company && (
+                  <span className="text-sm font-medium text-gray-500">{company.name}</span>
+                )}
+                <span className="text-sm text-gray-400">{todayFormatted}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {setupComplete && company && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+                Setup complete
+              </span>
+            )}
+            <Link
+              href="/generate/quick"
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
+              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+              Quick Generate
+            </Link>
+          </div>
         </div>
       </div>
 
-      {/* Notifications */}
+      {/* ===== 2. Setup Progress (only if incomplete) ===== */}
+      {company && !setupComplete && (
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Setup Progress</h2>
+            <Link href={setupHref} className="text-xs font-medium text-sky-600 hover:text-sky-700">
+              Manage setup
+            </Link>
+          </div>
+
+          <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+            {/* Gauge */}
+            <div className="shrink-0">
+              <Gauge
+                value={setupDone}
+                max={setupTotal}
+                label={`${setupDone} of ${setupTotal} complete`}
+                color={brandColor}
+              />
+            </div>
+
+            {/* Next step CTA + checklist */}
+            <div className="flex-1">
+              {nextStep && (
+                <Link
+                  href={nextStep.href}
+                  className="mb-4 flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-gray-50"
+                  style={{ borderColor: brandColor + "40", backgroundColor: brandColor + "08" }}
+                >
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Next step</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-900">{nextStep.label}</p>
+                  </div>
+                  <span className="text-sm font-medium" style={{ color: brandColor }}>
+                    Complete now &rarr;
+                  </span>
+                </Link>
+              )}
+              <div className="space-y-0.5">
+                {setupSteps.map((step) => (
+                  <SetupItem key={step.key} done={step.done} label={step.label} href={step.href} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Notifications (if any) ===== */}
       {(notifications || []).length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2">
             <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -255,126 +460,272 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard value={totalPieces || 0} label="Total Posts" icon="sparkle" color="#7c3aed" />
-        <StatCard value={pendingCount} label="Pending Approval" icon="clock" href="/review" color="#f59e0b" />
-        <StatCard value={approvedCount} label="Approved" icon="check" href="/review" color="#10b981" />
-        <StatCard value={thisWeekCount} label="Created This Week" icon="calendar" color="#3b82f6" />
+      {/* ===== 3. Key Metrics Row (6 cards, 3x2 on desktop) ===== */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          value={totalPieces || 0}
+          label="Total Posts"
+          icon="sparkle"
+          color="#7c3aed"
+        />
+        <StatCard
+          value={pendingCount}
+          label="Pending Review"
+          icon="clock"
+          href="/review"
+          color="#f59e0b"
+          tintBg={pendingCount > 0 ? "#fffbeb" : undefined}
+        />
+        <StatCard
+          value={approvedCount}
+          label="Approved"
+          icon="check"
+          href="/review"
+          color="#10b981"
+          tintBg={approvedCount > 0 ? "#ecfdf5" : undefined}
+        />
+        <StatCard
+          value={publishedCount}
+          label="Published"
+          icon="published"
+          color="#3b82f6"
+          tintBg={publishedCount > 0 ? "#eff6ff" : undefined}
+        />
+        <StatCard
+          value={thisWeekCount}
+          label="Created This Week"
+          icon="calendar"
+          color="#6366f1"
+        />
+        {hasSchedule ? (
+          <StatCard
+            value={`${scheduleCompliance}%`}
+            label="Schedule Compliance"
+            icon="percent"
+            color={scheduleCompliance !== null && scheduleCompliance >= 80 ? "#10b981" : scheduleCompliance !== null && scheduleCompliance >= 50 ? "#f59e0b" : "#ef4444"}
+          />
+        ) : (
+          <Link href={company ? `${setupHref}/schedule` : "/setup"} className="block">
+            <div className="flex h-full items-center rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 transition-shadow hover:shadow-md">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Schedule Compliance</p>
+                <p className="mt-1 text-xs text-gray-400">No schedule set</p>
+                <p className="mt-2 text-xs font-medium text-sky-600">Configure schedule &rarr;</p>
+              </div>
+            </div>
+          </Link>
+        )}
       </div>
 
-      {/* Two column layout: Setup + Activity */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Setup Completion */}
-        {company && (
-          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">Setup Progress</h2>
-              <Link href={setupHref} className="text-xs text-sky-600 hover:text-sky-700">Manage</Link>
-            </div>
+      {/* ===== 4. What Needs Attention ===== */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-900">What Needs Attention</h2>
 
-            <div className="mt-4 flex justify-center">
-              <Gauge
-                value={setupDone}
-                max={setupTotal}
-                label={`${setupDone} of ${setupTotal} complete`}
-                color={setupDone === setupTotal ? "#10b981" : "#7c3aed"}
-              />
+        {pendingCount === 0 && changesCount === 0 && setupComplete ? (
+          <div className="mt-4 flex items-center gap-3 rounded-lg bg-green-50 px-4 py-4">
+            <span className="text-2xl">🎉</span>
+            <div>
+              <p className="text-sm font-semibold text-green-800">All caught up!</p>
+              <p className="text-xs text-green-600">No posts need your attention right now.</p>
             </div>
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Posts awaiting review */}
+            {pendingCount > 0 && (
+              <Link href="/review" className="rounded-lg border border-amber-200 bg-amber-50 p-4 transition-colors hover:bg-amber-100">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
+                    <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-semibold text-amber-800">{pendingCount} awaiting review</span>
+                </div>
+                <ul className="mt-2 space-y-1">
+                  {pendingPieces.slice(0, 3).map((p) => (
+                    <li key={p.id} className="truncate text-xs text-amber-700">{p.title}</li>
+                  ))}
+                  {pendingCount > 3 && (
+                    <li className="text-xs font-medium text-amber-600">+{pendingCount - 3} more</li>
+                  )}
+                </ul>
+                <p className="mt-3 text-xs font-medium text-amber-700">Review now &rarr;</p>
+              </Link>
+            )}
 
-            <div className="mt-4 space-y-0.5">
-              <SetupItem done={setupChecks.companyCreated} label="Company created" href={setupHref} />
-              <SetupItem done={setupChecks.logoUploaded} label="Logo uploaded" href={setupHref} />
-              <SetupItem done={setupChecks.spokespersonAdded} label="Spokesperson added" href={`${setupHref}/people`} />
-              <SetupItem done={setupChecks.voiceConfigured} label="Voice profile configured" href={`${setupHref}/voice`} />
-              <SetupItem done={setupChecks.topicsAdded} label="Topics added" href={`${setupHref}/topics`} />
-              <SetupItem done={setupChecks.socialConnected} label="Social accounts connected" href={`${setupHref}/social`} />
-              <SetupItem done={setupChecks.signoffsSet} label="Sign-offs configured" href={`${setupHref}/signoffs`} />
-            </div>
+            {/* Posts with changes requested */}
+            {changesCount > 0 && (
+              <Link href="/review" className="rounded-lg border border-red-200 bg-red-50 p-4 transition-colors hover:bg-red-100">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                    <svg className="h-4 w-4 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-semibold text-red-800">{changesCount} need changes</span>
+                </div>
+                <ul className="mt-2 space-y-1">
+                  {changesRequested.slice(0, 3).map((p) => (
+                    <li key={p.id} className="truncate text-xs text-red-700">{p.title}</li>
+                  ))}
+                  {changesCount > 3 && (
+                    <li className="text-xs font-medium text-red-600">+{changesCount - 3} more</li>
+                  )}
+                </ul>
+                <p className="mt-3 text-xs font-medium text-red-700">View changes &rarr;</p>
+              </Link>
+            )}
+
+            {/* Missing setup items */}
+            {!setupComplete && nextStep && (
+              <Link href={nextStep.href} className="rounded-lg border border-gray-200 bg-gray-50 p-4 transition-colors hover:bg-gray-100">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
+                    <svg className="h-4 w-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">Setup incomplete</span>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">{setupTotal - setupDone} step{setupTotal - setupDone !== 1 ? "s" : ""} remaining</p>
+                <p className="mt-3 text-xs font-medium text-sky-600">{nextStep.label} &rarr;</p>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ===== 5. This Week's Content (day-by-day view) ===== */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900">This Week&apos;s Content</h2>
+          {currentWeekId && (
+            <Link href={`/review/${currentWeekId}`} className="text-xs font-medium text-sky-600 hover:text-sky-700">
+              View full week
+            </Link>
+          )}
+        </div>
+
+        {currentWeekPieces.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-8 text-center">
+            <svg className="mx-auto h-8 w-8 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M6 2a1 1 0 0 0-1 1v1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V3a1 1 0 1 0-2 0v1H7V3a1 1 0 0 0-1-1Zm0 6h12v10H6V8Z" />
+            </svg>
+            <p className="mt-2 text-sm text-gray-500">No content generated this week</p>
+            <Link
+              href="/generate/quick"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-700"
+            >
+              Generate now
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-7 gap-2">
+            {DAY_NAMES.map((day, idx) => {
+              const pieces = dayMap[day];
+              const isToday = idx === ((now.getDay() + 6) % 7); // Adjust for Mon=0
+              return (
+                <div key={day} className="min-h-[80px]">
+                  <p className={`mb-2 text-center text-xs font-semibold uppercase tracking-wide ${isToday ? "text-gray-900" : "text-gray-400"}`}>
+                    {day}
+                    {isToday && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ backgroundColor: brandColor }} />}
+                  </p>
+                  <div className="space-y-1.5">
+                    {pieces.length === 0 ? (
+                      <div className="h-2 rounded-full bg-gray-100" />
+                    ) : (
+                      pieces.map((piece) => (
+                        <Link
+                          key={piece.id}
+                          href={`/content/${piece.id}`}
+                          className={`block rounded-md border px-2 py-1.5 transition-colors hover:opacity-80 ${statusBorder(piece.approval_status)}`}
+                          title={piece.title}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor(piece.approval_status)}`} />
+                            <span className="truncate text-[10px] font-medium text-gray-700">{piece.title}</span>
+                          </div>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Content requiring action + recent weeks */}
-        <div className="space-y-6 lg:col-span-2">
-          {/* Action needed */}
-          {(pendingCount > 0 || changesCount > 0) && (
-            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h2 className="text-base font-semibold text-gray-900">Needs Your Attention</h2>
-              <div className="mt-4 space-y-3">
-                {pendingCount > 0 && (
-                  <Link href="/review" className="flex items-center justify-between rounded-lg bg-amber-50 px-4 py-3 transition-colors hover:bg-amber-100">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
-                        <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-amber-800">{pendingCount} post{pendingCount !== 1 ? "s" : ""} waiting for review</span>
-                    </div>
-                    <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
-                )}
-                {changesCount > 0 && (
-                  <Link href="/review" className="flex items-center justify-between rounded-lg bg-red-50 px-4 py-3 transition-colors hover:bg-red-100">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
-                        <svg className="h-4 w-4 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-red-800">{changesCount} post{changesCount !== 1 ? "s" : ""} need changes</span>
-                    </div>
-                    <svg className="h-4 w-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
-                )}
-              </div>
+        {/* Legend */}
+        {currentWeekPieces.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-4 border-t border-gray-100 pt-3">
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <span className="inline-block h-2 w-2 rounded-full bg-gray-300" /> Not generated
             </div>
-          )}
-
-          {/* Recent Weeks */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">Recent Content Weeks</h2>
-              <Link href="/review" className="text-xs text-sky-600 hover:text-sky-700">View all</Link>
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> Pending review
             </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-400" /> Approved
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <span className="inline-block h-2 w-2 rounded-full bg-blue-400" /> Published
+            </div>
+          </div>
+        )}
+      </div>
 
-            {(weeks || []).length === 0 ? (
-              <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-6 text-center">
-                <p className="text-sm text-gray-500">No content weeks yet.</p>
+      {/* ===== 6. Recent Weeks (horizontal cards) ===== */}
+      <div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900">Recent Weeks</h2>
+          <Link href="/review" className="text-xs font-medium text-sky-600 hover:text-sky-700">View all</Link>
+        </div>
+
+        {(weeks || []).length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-6 text-center">
+            <p className="text-sm text-gray-500">No content weeks yet.</p>
+            <Link
+              href="/generate"
+              className="mt-2 inline-block text-sm font-medium text-sky-600 hover:text-sky-700"
+            >
+              Generate your first content
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(weeks || []).map((week: Week & { company?: { name: string }; content_pieces?: { id: string; approval_status: string }[] }) => {
+              const pieces = week.content_pieces || [];
+              const weekApproved = pieces.filter(p => p.approval_status === "approved").length;
+              const weekTotal = pieces.length;
+              const progressPct = weekTotal > 0 ? Math.round((weekApproved / weekTotal) * 100) : 0;
+
+              return (
                 <Link
-                  href="/generate"
-                  className="mt-2 inline-block text-sm font-medium text-sky-600 hover:text-sky-700"
+                  key={week.id}
+                  href={`/review/${week.id}`}
+                  className="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
                 >
-                  Generate your first content
-                </Link>
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {(weeks || []).map((week: Week & { company?: { name: string } }) => (
-                  <Link
-                    key={week.id}
-                    href={`/review/${week.id}`}
-                    className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 transition-colors hover:bg-gray-50"
-                  >
+                  <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
-                        <span className="text-sm font-bold text-gray-600">{formatWeekLabelShort(week.date_start, week.week_number)}</span>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 group-hover:bg-gray-200">
+                        {formatWeekLabelShort(week.date_start, week.week_number)}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900">
                           {week.title || formatWeekLabel(week.date_start, week.week_number)}
                         </p>
-                        <p className="text-xs text-gray-400">
-                          {week.date_start} — {week.date_end}
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {week.subject || (week.theme ? `Theme: ${week.theme}` : `${week.date_start} - ${week.date_end}`)}
                           {isAdmin && week.company && ` · ${week.company.name}`}
                         </p>
                       </div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                       week.status === "approved" ? "bg-green-100 text-green-700" :
                       week.status === "ready_for_review" ? "bg-amber-100 text-amber-700" :
                       week.status === "changes_requested" ? "bg-red-100 text-red-700" :
@@ -382,12 +733,28 @@ export default async function DashboardPage() {
                     }`}>
                       {week.status === "ready_for_review" ? "In review" : week.status === "changes_requested" ? "Changes needed" : week.status?.charAt(0).toUpperCase() + (week.status?.slice(1) || "")}
                     </span>
-                  </Link>
-                ))}
-              </div>
-            )}
+                  </div>
+
+                  {/* Approval progress bar */}
+                  {weekTotal > 0 && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>{weekApproved}/{weekTotal} approved</span>
+                        <span>{progressPct}%</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full bg-green-400 transition-all duration-500"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
