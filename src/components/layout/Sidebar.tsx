@@ -184,12 +184,11 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
 
   function isActive(href: string): boolean {
     if (pathname === href) return true;
+    // /generate should NOT match /generate/quick (they're separate menu items)
+    if (href === "/generate" && pathname.startsWith("/generate/quick")) return false;
     if (pathname.startsWith(href + "/")) return true;
     if (href === "/review" && pathname.startsWith("/content/")) return true;
     if (href === "/compliance" && pathname.startsWith("/compliance/")) return true;
-    // For setup sub-pages: exact match on the sub-path
-    // e.g. /setup/abc/voice should only match /setup/abc/voice, not /setup/abc/people
-    // But /setup/abc (Company Profile) should match /setup/abc exactly, not its sub-pages
     return false;
   }
 
