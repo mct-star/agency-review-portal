@@ -5,6 +5,7 @@ import ImageUploader from "./ImageUploader";
 import OverlayPreview from "./OverlayPreview";
 import PlanSelector from "./PlanSelector";
 import QuickStrategySetup from "@/components/setup/QuickStrategySetup";
+import CompanyDetailsEditor from "./CompanyDetailsEditor";
 import type { PlanTier } from "@/types/database";
 
 interface PageProps {
@@ -263,6 +264,18 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                 <p className="text-[10px] text-gray-400 uppercase">Pieces</p>
               </div>
             </div>
+          </div>
+
+          {/* Editable company details */}
+          <div className="mt-6 border-t border-gray-100 pt-6">
+            <CompanyDetailsEditor
+              companyId={companyId}
+              initialName={company.name}
+              initialTagline={company.tagline || null}
+              initialWebsite={company.blog_base_url || null}
+              initialBrandColor={company.brand_color || null}
+              initialDescription={company.description || null}
+            />
           </div>
         </div>
       </div>

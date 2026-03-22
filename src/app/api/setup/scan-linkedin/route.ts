@@ -16,17 +16,23 @@ import { resolveProvider } from "@/lib/providers";
  * Returns: { profile: { voice_description, writing_samples, banned_vocabulary, signature_devices, emotional_register } }
  */
 
-const VOICE_ANALYSIS_PROMPT = `You are a writing style analyst. Analyse these LinkedIn posts and extract a detailed voice profile.
+const VOICE_ANALYSIS_PROMPT = `You are an expert writing style analyst who specialises in distinguishing authentic human voice from AI-generated content.
 
-For each section below, provide specific, actionable observations based ONLY on what you see in the posts. Do not make generic statements.
+Analyse the provided writing samples and extract a detailed voice profile. Pay special attention to:
+- Whether the writing shows signs of AI generation (ChatGPT, Claude, etc.) — common tells include: overuse of "delve", "landscape", "navigate", "leverage", "pivotal", "robust", "streamline", "synergy", "in today's fast-paced world", em-dashes everywhere, formulaic list structures, and overly smooth transitions.
+- If AI patterns are detected, try to identify the UNDERLYING human voice beneath the AI polish — look at topic choices, argument structures, and any moments where authentic personality breaks through.
+
+For each section below, provide specific, actionable observations based ONLY on what you see. Do not make generic statements.
 
 Return ONLY valid JSON in this exact format:
 {
-  "voice_description": "2-3 sentences describing how this person writes. Include: sentence length patterns, formality level, declarative vs hedging style, use of questions, paragraph structure.",
-  "writing_samples": "3-5 short excerpts (10-20 words each) that best represent their natural voice. Choose the most distinctive sentences.",
-  "banned_vocabulary": "Words and phrases they clearly AVOID or would never use, based on patterns. One per line. Include generic AI-sounding words if absent from their posts.",
-  "signature_devices": "Recurring structural patterns: how they open posts, transition between ideas, use lists vs paragraphs, rhetorical questions, em-dashes, ellipses, emojis, specific phrase patterns.",
-  "emotional_register": "Where they sit on: formal-casual, understated-enthusiastic, first-person-third-person, expert-peer, instructional-conversational. Be specific about their position on each spectrum."
+  "voice_description": "2-3 sentences describing how this person writes. Include: sentence length patterns, formality level, declarative vs hedging style, use of questions, paragraph structure. If AI-generated patterns detected, note this and describe what their natural voice likely sounds like underneath.",
+  "writing_samples": "3-5 short excerpts (10-20 words each) that best represent their MOST NATURAL voice. Prioritise sentences that feel genuinely human over polished AI output.",
+  "banned_vocabulary": "Words and phrases they should AVOID. One per line. ALWAYS include generic AI buzzwords like: delve, landscape, navigate, leverage, pivotal, robust, streamline, foster, harness, cutting-edge, game-changer, in today's [anything]. Add any other over-used or inauthentic words from their samples.",
+  "signature_devices": "Recurring structural patterns: how they open posts, transition between ideas, use lists vs paragraphs, rhetorical questions, em-dashes, ellipses, emojis, specific phrase patterns. Note which devices feel authentic vs AI-templated.",
+  "emotional_register": "Where they sit on: formal-casual, understated-enthusiastic, first-person-third-person, expert-peer, instructional-conversational. Be specific about their position on each spectrum.",
+  "ai_voice_detected": true/false,
+  "ai_voice_notes": "If AI patterns detected: specific examples of AI-generated phrases found, estimated percentage of content that appears AI-written, and recommendations for developing a more authentic voice. If not detected: null."
 }`;
 
 export async function POST(request: Request) {
@@ -180,6 +186,8 @@ Return ONLY the posts text, separated by --- between each post. No commentary.`,
         signature_devices: parsed.signature_devices || "",
         emotional_register: parsed.emotional_register || "",
       },
+      ai_voice_detected: parsed.ai_voice_detected || false,
+      ai_voice_notes: parsed.ai_voice_notes || null,
     });
   } catch (err) {
     return NextResponse.json(

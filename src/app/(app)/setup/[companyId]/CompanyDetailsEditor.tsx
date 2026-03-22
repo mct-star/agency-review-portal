@@ -1,0 +1,183 @@
+"use client";
+
+import { useState } from "react";
+
+interface CompanyDetailsEditorProps {
+  companyId: string;
+  initialName: string;
+  initialTagline: string | null;
+  initialWebsite: string | null;
+  initialBrandColor: string | null;
+  initialDescription: string | null;
+}
+
+export default function CompanyDetailsEditor({
+  companyId,
+  initialName,
+  initialTagline,
+  initialWebsite,
+  initialBrandColor,
+  initialDescription,
+}: CompanyDetailsEditorProps) {
+  const [name, setName] = useState(initialName);
+  const [tagline, setTagline] = useState(initialTagline || "");
+  const [website, setWebsite] = useState(initialWebsite || "");
+  const [brandColor, setBrandColor] = useState(initialBrandColor || "#0ea5e9");
+  const [description, setDescription] = useState(initialDescription || "");
+  const [saving, setSaving] = useState(false);
+  const [enriching, setEnriching] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/config/company/details", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          name,
+          tagline: tagline || null,
+          blog_base_url: website || null,
+          brand_color: brandColor || null,
+          description: description || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setMessage("Company details saved");
+
+      // Auto-enrich from website if URL was provided and we're missing data
+      const websiteChanged = website && website !== initialWebsite;
+      const missingData = !description || !tagline;
+      if (website && (websiteChanged || missingData)) {
+        setEnriching(true);
+        setMessage("Enriching from website...");
+        try {
+          const enrichRes = await fetch("/api/config/company/enrich", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ websiteUrl: website }),
+          });
+          if (enrichRes.ok) {
+            const data = await enrichRes.json();
+            const updates: Record<string, unknown> = { companyId };
+            const enrichedFields: string[] = [];
+
+            if (data.description && !description) {
+              updates.description = data.description;
+              setDescription(data.description);
+              enrichedFields.push("description");
+            }
+            if (data.tagline && !tagline) {
+              updates.tagline = data.tagline;
+              setTagline(data.tagline);
+              enrichedFields.push("tagline");
+            }
+
+            if (enrichedFields.length > 0) {
+              await fetch("/api/config/company/details", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updates),
+              });
+              setMessage(`Saved. Auto-filled from website: ${enrichedFields.join(", ")}`);
+            } else {
+              setMessage("Company details saved");
+            }
+          }
+        } catch {
+          // Enrichment is non-critical
+        } finally {
+          setEnriching(false);
+        }
+      }
+    } catch {
+      setMessage("Error saving details");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Company Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Tagline</label>
+          <input
+            type="text"
+            value={tagline}
+            onChange={(e) => setTagline(e.target.value)}
+            placeholder="e.g. Healthcare Demand Generation"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Website URL</label>
+          <input
+            type="url"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            placeholder="https://yourcompany.com"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Brand Colour</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={brandColor}
+              onChange={(e) => setBrandColor(e.target.value)}
+              className="h-9 w-9 cursor-pointer rounded border border-gray-300 p-0.5"
+            />
+            <input
+              type="text"
+              value={brandColor}
+              onChange={(e) => setBrandColor(e.target.value)}
+              placeholder="#0ea5e9"
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-sky-500 focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-gray-600">Company Description</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          placeholder="Brief description of what your company does. This helps AI generate more relevant content."
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
+        />
+      </div>
+
+      {message && (
+        <p className={`text-sm ${message.includes("Error") ? "text-red-600" : "text-green-600"}`}>
+          {message}
+        </p>
+      )}
+
+      <button
+        onClick={handleSave}
+        disabled={saving || enriching || !name}
+        className="rounded-md bg-gray-900 px-6 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+      >
+        {enriching ? "Enriching from website..." : saving ? "Saving..." : "Save Details"}
+      </button>
+    </div>
+  );
+}

@@ -78,7 +78,9 @@ export default function PersonDetailPage() {
   const [scanning, setScanning] = useState(false);
   const [scanPosts, setScanPosts] = useState("");
   const [scanLinkedinUrl, setScanLinkedinUrl] = useState("");
-  const [scanMode, setScanMode] = useState<"url" | "paste">("url");
+  const [scanMode, setScanMode] = useState<"url" | "paste" | "upload">("url");
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedDocName, setUploadedDocName] = useState("");
 
   // Social accounts state
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -130,6 +132,8 @@ export default function PersonDetailPage() {
   // Profile handlers
   // ============================================================
 
+  const [enriching, setEnriching] = useState(false);
+
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     setProfileMessage("");
@@ -146,7 +150,59 @@ export default function PersonDetailPage() {
       });
       if (!res.ok) throw new Error("Save failed");
       setProfileMessage("Profile saved");
-      loadPerson();
+      await loadPerson();
+
+      // Auto-enrich from LinkedIn if URL was provided and we're missing photo or tagline
+      const linkedinChanged = editLinkedin && editLinkedin !== person?.linkedin_url;
+      const missingData = !person?.profile_picture_url || !editTagline;
+      if (editLinkedin && (linkedinChanged || missingData)) {
+        setEnriching(true);
+        setProfileMessage("Enriching profile from LinkedIn...");
+        try {
+          const enrichRes = await fetch("/api/config/spokespersons/enrich", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ linkedinUrl: editLinkedin }),
+          });
+          if (enrichRes.ok) {
+            const enrichData = await enrichRes.json();
+            const updates: Record<string, unknown> = { id: personId };
+            let enrichedFields: string[] = [];
+
+            // Only update fields that are currently empty
+            if (enrichData.profilePictureUrl && !person?.profile_picture_url) {
+              updates.profilePictureUrl = enrichData.profilePictureUrl;
+              enrichedFields.push("photo");
+            }
+            if (enrichData.tagline && !editTagline) {
+              updates.tagline = enrichData.tagline;
+              setEditTagline(enrichData.tagline);
+              enrichedFields.push("tagline");
+            }
+            if (enrichData.name && !editName) {
+              updates.name = enrichData.name;
+              setEditName(enrichData.name);
+              enrichedFields.push("name");
+            }
+
+            if (enrichedFields.length > 0) {
+              await fetch("/api/config/spokespersons", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updates),
+              });
+              await loadPerson();
+              setProfileMessage(`Profile saved. Auto-filled from LinkedIn: ${enrichedFields.join(", ")}`);
+            } else {
+              setProfileMessage("Profile saved");
+            }
+          }
+        } catch {
+          // Enrichment is non-critical — profile was already saved
+        } finally {
+          setEnriching(false);
+        }
+      }
     } catch {
       setProfileMessage("Error saving profile");
     } finally {
@@ -225,7 +281,7 @@ export default function PersonDetailPage() {
     try {
       const requestBody = scanMode === "url"
         ? { companyId, linkedinUrl: scanLinkedinUrl.trim() }
-        : { companyId, posts: scanPosts };
+        : { companyId, posts: scanPosts, isDocument: scanMode === "upload" };
 
       const res = await fetch("/api/setup/scan-linkedin", {
         method: "POST",
@@ -246,9 +302,15 @@ export default function PersonDetailPage() {
         setVoice({
           ...voice,
           ...data.profile,
-          source: "linkedin_scan",
+          source: scanMode === "upload" ? "document_upload" : "linkedin_scan",
         });
-        setVoiceMessage("Voice profile extracted. Review and save below.");
+        if (data.ai_voice_detected) {
+          setVoiceMessage(
+            `⚠️ AI-generated writing patterns detected. ${data.ai_voice_notes || "The voice profile below has been adjusted to capture the authentic voice underneath."} Review and edit below.`
+          );
+        } else {
+          setVoiceMessage("Voice profile extracted. Review and save below.");
+        }
       }
     } catch (err) {
       setVoiceMessage(err instanceof Error ? err.message : "Scan failed");
@@ -449,10 +511,10 @@ export default function PersonDetailPage() {
 
           <button
             onClick={handleSaveProfile}
-            disabled={savingProfile || !editName}
+            disabled={savingProfile || enriching || !editName}
             className="rounded-md bg-gray-900 px-6 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            {savingProfile ? "Saving..." : "Save Profile"}
+            {enriching ? "Enriching from LinkedIn..." : savingProfile ? "Saving..." : "Save Profile"}
           </button>
         </div>
       )}
@@ -472,7 +534,7 @@ export default function PersonDetailPage() {
                 </p>
               </div>
               <div className="flex gap-0.5 rounded-md bg-blue-100 p-0.5">
-                {(["url", "paste"] as const).map((mode) => (
+                {(["url", "paste", "upload"] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setScanMode(mode)}
@@ -480,7 +542,7 @@ export default function PersonDetailPage() {
                       scanMode === mode ? "bg-white text-blue-700 shadow-sm" : "text-blue-500"
                     }`}
                   >
-                    {mode === "url" ? "LinkedIn" : "Paste Posts"}
+                    {mode === "url" ? "LinkedIn" : mode === "paste" ? "Paste Posts" : "Upload Doc"}
                   </button>
                 ))}
               </div>
@@ -496,7 +558,7 @@ export default function PersonDetailPage() {
                   className="block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
-            ) : (
+            ) : scanMode === "paste" ? (
               <textarea
                 value={scanPosts}
                 onChange={(e) => setScanPosts(e.target.value)}
@@ -504,6 +566,46 @@ export default function PersonDetailPage() {
                 placeholder="Paste 5-10 LinkedIn posts here (separate with --- between posts)"
                 className="mt-3 block w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
+            ) : (
+              <div className="mt-3">
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.doc,.txt,.md"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setUploadedDocName(file.name);
+                      // Read the file and extract text for analysis
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const text = ev.target?.result as string;
+                        setScanPosts(text);
+                      };
+                      reader.readAsText(file);
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => docInputRef.current?.click()}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-200 bg-white px-4 py-6 text-sm text-blue-600 hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>{uploadedDocName || "Upload document (PDF, DOCX, TXT, MD)"}</span>
+                </button>
+                {uploadedDocName && (
+                  <p className="mt-2 text-xs text-blue-600">
+                    Loaded: {uploadedDocName} ({Math.round(scanPosts.length / 1000)}k characters)
+                  </p>
+                )}
+                <p className="mt-2 text-[10px] text-blue-400">
+                  Upload brand guidelines, content strategy docs, previous blog posts, email newsletters,
+                  or any writing samples. The more content, the more accurate the voice profile.
+                </p>
+              </div>
             )}
 
             {voiceMessage && (
@@ -518,10 +620,10 @@ export default function PersonDetailPage() {
 
             <button
               onClick={handleScanVoice}
-              disabled={scanning || (!scanLinkedinUrl.trim() && !scanPosts.trim())}
+              disabled={scanning || (scanMode === "url" ? !scanLinkedinUrl.trim() : !scanPosts.trim())}
               className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {scanning ? "Analysing..." : "Analyse Voice"}
+              {scanning ? "Analysing..." : scanMode === "upload" ? "Analyse Document" : "Analyse Voice"}
             </button>
           </div>
 
