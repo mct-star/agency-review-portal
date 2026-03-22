@@ -375,158 +375,119 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* ===== 1. Welcome + Tagline ===== */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {company?.logo_url && (
-              <img
-                src={company.logo_url}
-                alt={company.name}
-                className="h-10 w-10 rounded-xl object-contain"
-              />
-            )}
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">
-                {isAdmin ? "Dashboard" : `Welcome back, ${(profile.full_name || "there").split(" ")[0]}`}
-              </h1>
-              <p className="text-xs text-gray-400">{todayFormatted}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {isOnTrial && trialDaysLeft !== null && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
-                Pro Trial {trialDaysLeft}d left
-              </span>
-            )}
-            {company && (
-              <Link
-                href={`/setup/${company.id}`}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"
-              >
-                Settings
-              </Link>
-            )}
+      {/* ===== 1. Compact welcome bar ===== */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {company?.logo_url && (
+            <img src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-contain" />
+          )}
+          <div>
+            <h1 className="text-sm font-bold text-gray-900">
+              {isAdmin ? "Dashboard" : `Welcome back, ${(profile.full_name || "there").split(" ")[0]}`}
+            </h1>
+            <p className="text-[11px] text-gray-400">{todayFormatted}</p>
           </div>
         </div>
-        {/* Tagline */}
-        <div className="mt-4 rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-4">
-          <p className="text-sm font-semibold text-white tracking-wide">
-            Your weekly demand ecosystem, deployed in minutes.
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            47,000 lines. 39 quality gates. One voice. Your voice.
-          </p>
+        <div className="flex items-center gap-2">
+          {isOnTrial && trialDaysLeft !== null && (
+            <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
+              Pro Trial {trialDaysLeft}d
+            </span>
+          )}
+          {company && (
+            <Link href={`/setup/${company.id}`} className="rounded-lg border border-gray-200 px-2.5 py-1 text-[10px] font-medium text-gray-400 hover:bg-gray-50">
+              Settings
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* ===== 2. Three Big Action Cards ===== */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* ===== 2. Full-viewport hero tiles ===== */}
+      <div className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "calc(100vh - 200px)" }}>
         {/* Quick Generate */}
         <Link
           href="/generate/quick"
-          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg hover:border-violet-300"
+          className="group relative flex flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-violet-800 p-10 text-white shadow-lg transition-all hover:shadow-2xl hover:scale-[1.01]"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-colors group-hover:bg-violet-600 group-hover:text-white">
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm transition-transform group-hover:scale-110">
+            <svg className="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
           </div>
-          <h3 className="mt-4 text-base font-bold text-gray-900">Quick Generate</h3>
-          <p className="mt-1 text-xs text-gray-500">One post in 30 seconds. Pick a topic, choose a style, publish.</p>
-          <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 group-hover:gap-2 transition-all">
+          <h2 className="mt-6 text-2xl font-bold">Quick Generate</h2>
+          <p className="mt-2 text-sm text-violet-200 text-center max-w-xs">
+            One post in 30 seconds. Pick a topic, choose a style, publish.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-5 py-2.5 text-sm font-semibold transition-all group-hover:bg-white/30 group-hover:gap-3">
             Generate now
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           </div>
         </Link>
 
         {/* Content Studio */}
         <Link
           href="/generate/studio"
-          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg hover:border-amber-300"
+          className="group relative flex flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 to-orange-600 p-10 text-white shadow-lg transition-all hover:shadow-2xl hover:scale-[1.01]"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600 transition-colors group-hover:bg-amber-600 group-hover:text-white">
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm transition-transform group-hover:scale-110">
+            <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
             </svg>
           </div>
-          <h3 className="mt-4 text-base font-bold text-gray-900">Content Studio</h3>
-          <p className="mt-1 text-xs text-gray-500">Plan a full week or month. Strategic ecosystem with linked posts.</p>
-          <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-amber-600 group-hover:gap-2 transition-all">
+          <h2 className="mt-6 text-2xl font-bold">Content Studio</h2>
+          <p className="mt-2 text-sm text-amber-100 text-center max-w-xs">
+            Plan a full week or month. Strategic ecosystem with linked posts.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-5 py-2.5 text-sm font-semibold transition-all group-hover:bg-white/30 group-hover:gap-3">
             Open studio
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           </div>
         </Link>
 
         {/* Review Content */}
         <Link
           href="/content"
-          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg hover:border-emerald-300"
+          className="group relative flex flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-10 text-white shadow-lg transition-all hover:shadow-2xl hover:scale-[1.01]"
         >
-          <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm transition-transform group-hover:scale-110">
+            <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              <span className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white ring-2 ring-white">
                 {pendingCount > 99 ? "99+" : pendingCount}
               </span>
             )}
           </div>
-          <h3 className="mt-4 text-base font-bold text-gray-900">Review Content</h3>
-          <p className="mt-1 text-xs text-gray-500">
+          <h2 className="mt-6 text-2xl font-bold">Review Content</h2>
+          <p className="mt-2 text-sm text-emerald-100 text-center max-w-xs">
             {pendingCount > 0
               ? `${pendingCount} post${pendingCount !== 1 ? "s" : ""} awaiting review. Approve and publish.`
               : "Review, approve, and publish your content."}
           </p>
-          <div className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 group-hover:gap-2 transition-all">
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-5 py-2.5 text-sm font-semibold transition-all group-hover:bg-white/30 group-hover:gap-3">
             Review now
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           </div>
         </Link>
       </div>
 
-      {/* ===== 3. Quick Actions Bar ===== */}
-      <div className="flex flex-wrap gap-2">
+      {/* ===== 3. Secondary actions (below fold) ===== */}
+      <div className="flex flex-wrap gap-2 justify-center">
         {company && pendingCount > 0 && (
-          <Link
-            href="/content?status=pending"
-            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <Link href="/content?status=pending" className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
             {pendingCount} awaiting review
           </Link>
         )}
-        {company && changesCount > 0 && (
-          <Link
-            href="/content?status=changes_requested"
-            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01" /></svg>
-            {changesCount} need changes
-          </Link>
-        )}
-        <Link
-          href="/compliance"
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+        <Link href="/compliance" className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
           Compliance
         </Link>
-        <Link
-          href="/calendar"
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-        >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        <Link href="/calendar" className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
           Calendar
         </Link>
         {company && (
-          <Link
-            href={`/setup/${company.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
-          Setup
+          <Link href={`/setup/${company.id}`} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            Setup
           </Link>
         )}
       </div>
