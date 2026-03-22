@@ -10,6 +10,7 @@ import {
   hasCriticalFailures,
   type GateResult,
 } from "@/lib/generation/content-intelligence";
+import { generateQuoteCard, QUOTE_CARD_COLORS } from "@/lib/image/quote-card";
 
 /**
  * POST /api/generate/quick
@@ -292,64 +293,159 @@ export async function POST(request: Request) {
       .filter((g) => !g.passed && (g.severity === "high" || g.severity === "critical"))
       .map((g) => ({ gate: g.gate, severity: g.severity, explanation: g.explanation }));
 
-    // ── 3. Generate image (if provider configured) ────────────────
+    // ── 3. Generate image ────────────────────────────────────────
     let imageUrl: string | null = null;
     let imagePrompt: string | null = null;
 
-    try {
-      const { provider: imgProvider } = await getImageProvider(companyId);
+    // For quote_card archetypes, use the programmatic quote card generator
+    // instead of AI image generation (which garbles text).
+    const isQuoteCard = typeConfig.archetype === "quote_card";
 
-      // Build an image prompt from the content + archetype style.
-      // For Pixar archetypes, inject the spokesperson's appearance description
-      // so the character resembles the real person's profile picture.
-      const appearance = activeSpokesPerson?.appearance || company?.spokesperson_appearance || DEFAULT_APPEARANCE;
-      const resolvedStyle = typeof typeConfig.imageStyle === "function"
-        ? typeConfig.imageStyle(appearance)
-        : typeConfig.imageStyle;
+    if (isQuoteCard) {
+      try {
+        // Extract the hook text (first line of content) for the card
+        const hookText = contentResult.markdownBody?.trim().split("\n")[0] || topic;
+        // Strip markdown formatting (bold, italic, etc.)
+        const cleanHookText = hookText
+          .replace(/\*\*/g, "")
+          .replace(/\*/g, "")
+          .replace(/^#+\s*/, "")
+          .replace(/^[""]|[""]$/g, "")
+          .trim();
 
-      const hookText = contentResult.markdownBody?.split("\n")[0] || topic;
-      const rawPrompt = typeConfig.archetype.includes("quote_card")
-        ? `${resolvedStyle} Text on image: "${hookText.slice(0, 60)}"`
-        : `${resolvedStyle} Scene illustrating: ${topic.slice(0, 120)}`;
+        // Resolve colour from post type
+        const cardColor = QUOTE_CARD_COLORS[postTypeSlug] || "#CDD856";
 
-      imagePrompt = rawPrompt;
+        // Fetch spokesperson details for profile pic
+        let profilePicUrl: string | null = null;
+        let profileName: string | null = null;
 
-      // Enhance with Claude if available
-      const contentProviderData = await resolveProvider(companyId, "content_generation");
-      const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
-      const enhancedPrompt = claudeApiKey
-        ? await enhanceImagePrompt(rawPrompt, typeConfig.archetype, claudeApiKey)
-        : rawPrompt;
+        if (spokespersonId) {
+          const { data: person } = await supabase
+            .from("company_spokespersons")
+            .select("name, photo_url, profile_picture_url")
+            .eq("id", spokespersonId)
+            .eq("company_id", companyId)
+            .single();
+          if (person) {
+            profilePicUrl = person.photo_url || person.profile_picture_url || null;
+            profileName = person.name;
+          }
+        }
+        if (!profileName) {
+          // Fall back to primary spokesperson or company default
+          const { data: primaryPerson } = await supabase
+            .from("company_spokespersons")
+            .select("name, photo_url, profile_picture_url")
+            .eq("company_id", companyId)
+            .eq("is_primary", true)
+            .limit(1)
+            .single();
+          if (primaryPerson) {
+            profilePicUrl = profilePicUrl || primaryPerson.photo_url || primaryPerson.profile_picture_url || null;
+            profileName = profileName || primaryPerson.name;
+          }
+        }
+        if (!profilePicUrl) {
+          // Try company-level profile picture
+          const { data: companyDetails } = await supabase
+            .from("companies")
+            .select("profile_picture_url")
+            .eq("id", companyId)
+            .single();
+          profilePicUrl = companyDetails?.profile_picture_url || null;
+        }
+        profileName = profileName || activeSpokesPerson?.name || company?.spokesperson_name || null;
 
-      const imgResult = await imgProvider.generate({
-        prompt: enhancedPrompt,
-        style: typeConfig.archetype,
-        aspectRatio: typeConfig.dimensions.width === typeConfig.dimensions.height ? "1:1" : "4:3",
-        count: 1,
-      });
+        // Fetch company logo for bottom-right
+        const { data: companyBrand } = await supabase
+          .from("companies")
+          .select("overlay_logo_url, logo_url, name")
+          .eq("id", companyId)
+          .single();
 
-      if (imgResult.images.length > 0) {
-        // Upload to permanent storage
-        const imgUrl = imgResult.images[0].url;
-        const filename = `quick-${Date.now()}.png`;
+        const quoteResult = await generateQuoteCard({
+          text: cleanHookText,
+          color: cardColor,
+          postType: postTypeSlug,
+          profilePicUrl,
+          profileName,
+          logoUrl: companyBrand?.overlay_logo_url || companyBrand?.logo_url || null,
+          companyName: companyBrand?.name || null,
+          width: typeConfig.dimensions.width,
+          height: typeConfig.dimensions.height,
+        });
+
+        // Upload to Supabase Storage
+        const filename = `quote-card-${Date.now()}.png`;
         const storagePath = `images/${companyId}/quick/${filename}`;
 
-        const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(30_000) });
-        if (imgRes.ok) {
-          const buffer = Buffer.from(await imgRes.arrayBuffer());
-          await supabase.storage.from("content-assets").upload(storagePath, buffer, {
-            contentType: "image/png",
-            upsert: true,
-          });
-          const { data: urlData } = supabase.storage
-            .from("content-assets")
-            .getPublicUrl(storagePath);
-          imageUrl = urlData.publicUrl;
-        }
+        await supabase.storage.from("content-assets").upload(storagePath, quoteResult.buffer, {
+          contentType: "image/png",
+          upsert: true,
+        });
+
+        const { data: urlData } = supabase.storage
+          .from("content-assets")
+          .getPublicUrl(storagePath);
+        imageUrl = urlData.publicUrl;
+        imagePrompt = `[Programmatic quote card] "${cleanHookText}" on ${cardColor} background`;
+      } catch (quoteErr) {
+        console.warn("[quick] Programmatic quote card generation failed:", quoteErr);
+        // Fall through — imageUrl stays null, content is still usable
       }
-    } catch (imgErr) {
-      // Image generation is optional — content is still usable without it
-      console.warn("[quick] Image generation failed:", imgErr);
+    } else {
+      // Non-quote-card archetypes: use AI image generation as before
+      try {
+        const { provider: imgProvider } = await getImageProvider(companyId);
+
+        const appearance = activeSpokesPerson?.appearance || company?.spokesperson_appearance || DEFAULT_APPEARANCE;
+        const resolvedStyle = typeof typeConfig.imageStyle === "function"
+          ? typeConfig.imageStyle(appearance)
+          : typeConfig.imageStyle;
+
+        const hookText = contentResult.markdownBody?.split("\n")[0] || topic;
+        const rawPrompt = `${resolvedStyle} Scene illustrating: ${topic.slice(0, 120)}`;
+
+        imagePrompt = rawPrompt;
+
+        // Enhance with Claude if available
+        const contentProviderData = await resolveProvider(companyId, "content_generation");
+        const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
+        const enhancedPrompt = claudeApiKey
+          ? await enhanceImagePrompt(rawPrompt, typeConfig.archetype, claudeApiKey)
+          : rawPrompt;
+
+        const imgResult = await imgProvider.generate({
+          prompt: enhancedPrompt,
+          style: typeConfig.archetype,
+          aspectRatio: typeConfig.dimensions.width === typeConfig.dimensions.height ? "1:1" : "4:3",
+          count: 1,
+        });
+
+        if (imgResult.images.length > 0) {
+          // Upload to permanent storage
+          const imgUrl = imgResult.images[0].url;
+          const filename = `quick-${Date.now()}.png`;
+          const storagePath = `images/${companyId}/quick/${filename}`;
+
+          const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(30_000) });
+          if (imgRes.ok) {
+            const buffer = Buffer.from(await imgRes.arrayBuffer());
+            await supabase.storage.from("content-assets").upload(storagePath, buffer, {
+              contentType: "image/png",
+              upsert: true,
+            });
+            const { data: urlData } = supabase.storage
+              .from("content-assets")
+              .getPublicUrl(storagePath);
+            imageUrl = urlData.publicUrl;
+          }
+        }
+      } catch (imgErr) {
+        // Image generation is optional — content is still usable without it
+        console.warn("[quick] Image generation failed:", imgErr);
+      }
     }
 
     return NextResponse.json({
