@@ -12,67 +12,68 @@ import VoiceDictation from "@/components/ui/VoiceDictation";
  * content with an image.
  */
 
-/** Mini visual preview for each post type — shows what the asset looks like */
-function MiniPreview({ visualTag, color }: { visualTag: string; color: string }) {
-  const size = 40;
+/** Static sample image paths for each post type */
+const SAMPLE_IMAGES: Record<string, string> = {
+  insight: "/samples/quote-card-green.png",
+  if_i_was: "/samples/quote-card-purple.png",
+  contrarian: "/samples/quote-card-blue.png",
+  blog_teaser: "/samples/quote-card-emerald.png",
+  tactical: "/samples/carousel-cover.png",
+  // AI-generated types use SVG placeholders until real samples are available
+};
+
+/** Mini visual preview — uses real generated samples where available */
+function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: string; color: string }) {
+  const sampleSrc = SAMPLE_IMAGES[slug];
+  if (sampleSrc) {
+    return (
+      <img
+        src={sampleSrc}
+        alt={visualTag}
+        className="h-12 w-12 rounded-lg object-cover shadow-sm"
+      />
+    );
+  }
+
+  // SVG placeholders for AI-generated types
+  const size = 48;
   switch (visualTag) {
-    case "Quote Card":
-      return (
-        <svg width={size} height={size} viewBox="0 0 40 40" className="rounded-md">
-          <rect width="40" height="40" rx="4" fill={color} />
-          <rect x="8" y="14" width="24" height="3" rx="1" fill="white" opacity="0.9" />
-          <rect x="8" y="20" width="18" height="3" rx="1" fill="white" opacity="0.7" />
-          <rect x="8" y="26" width="20" height="3" rx="1" fill="white" opacity="0.5" />
-        </svg>
-      );
     case "Pixar 3D":
       return (
-        <svg width={size} height={size} viewBox="0 0 40 40" className="rounded-md">
-          <rect width="40" height="40" rx="4" fill="#fce7f3" />
-          <circle cx="20" cy="15" r="7" fill="#f9a8d4" />
-          <rect x="14" y="22" width="12" height="10" rx="3" fill="#f472b6" />
-          <circle cx="17" cy="14" r="1.5" fill="white" />
-          <circle cx="23" cy="14" r="1.5" fill="white" />
-          <path d="M18 17 Q20 19 22 17" fill="none" stroke="white" strokeWidth="1" strokeLinecap="round" />
-        </svg>
-      );
-    case "Carousel":
-      return (
-        <svg width={size} height={size} viewBox="0 0 40 40" className="rounded-md">
-          <rect width="40" height="40" rx="4" fill="#eff6ff" />
-          <rect x="4" y="6" width="24" height="28" rx="2" fill="white" stroke="#93c5fd" strokeWidth="1" />
-          <rect x="8" y="6" width="24" height="28" rx="2" fill="white" stroke="#60a5fa" strokeWidth="1" />
-          <rect x="12" y="6" width="24" height="28" rx="2" fill="white" stroke="#3b82f6" strokeWidth="1" />
-          <text x="24" y="17" fontSize="8" fontWeight="bold" fill="#3b82f6" textAnchor="middle">01</text>
-          <rect x="16" y="20" width="16" height="2" rx="1" fill="#bfdbfe" />
-          <rect x="16" y="24" width="12" height="2" rx="1" fill="#dbeafe" />
+        <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
+          <rect width="48" height="48" rx="8" fill="#fce7f3" />
+          <circle cx="24" cy="17" r="9" fill="#f9a8d4" />
+          <rect x="16" y="26" width="16" height="13" rx="4" fill="#f472b6" />
+          <circle cx="20" cy="16" r="2" fill="white" />
+          <circle cx="28" cy="16" r="2" fill="white" />
+          <path d="M21 20 Q24 23 27 20" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
     case "Editorial Photo":
       return (
-        <svg width={size} height={size} viewBox="0 0 40 40" className="rounded-md">
-          <rect width="40" height="40" rx="4" fill="#fef3c7" />
-          <rect x="4" y="4" width="32" height="32" rx="3" fill="#fbbf24" opacity="0.3" />
-          <circle cx="14" cy="14" r="4" fill="#f59e0b" opacity="0.6" />
-          <path d="M4 28 L14 18 L22 24 L28 20 L36 26 L36 36 L4 36 Z" fill="#f59e0b" opacity="0.4" />
+        <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
+          <rect width="48" height="48" rx="8" fill="#fef3c7" />
+          <circle cx="16" cy="16" r="5" fill="#fbbf24" opacity="0.7" />
+          <path d="M4 34 L16 22 L26 30 L34 24 L44 32 L44 44 Q44 48 40 48 L8 48 Q4 48 4 44 Z" fill="#f59e0b" opacity="0.5" />
+          <path d="M4 38 L20 28 L32 36 L44 30 L44 44 Q44 48 40 48 L8 48 Q4 48 4 44 Z" fill="#d97706" opacity="0.4" />
         </svg>
       );
     case "Scene Quote":
       return (
-        <svg width={size} height={size} viewBox="0 0 40 40" className="rounded-md">
-          <rect width="40" height="40" rx="4" fill="#e0e7ff" />
-          <rect x="6" y="6" width="28" height="20" rx="2" fill="white" stroke="#a5b4fc" strokeWidth="1" />
-          <rect x="10" y="11" width="20" height="2" rx="1" fill="#6366f1" opacity="0.6" />
-          <rect x="10" y="16" width="14" height="2" rx="1" fill="#6366f1" opacity="0.4" />
-          <rect x="6" y="30" width="8" height="4" rx="1" fill="#c7d2fe" />
-          <rect x="16" y="30" width="8" height="4" rx="1" fill="#c7d2fe" />
+        <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
+          <rect width="48" height="48" rx="8" fill="#e0e7ff" />
+          <rect x="6" y="6" width="36" height="24" rx="3" fill="white" stroke="#a5b4fc" strokeWidth="1.5" />
+          <rect x="12" y="13" width="24" height="2.5" rx="1" fill="#6366f1" opacity="0.7" />
+          <rect x="12" y="19" width="16" height="2.5" rx="1" fill="#6366f1" opacity="0.4" />
+          <rect x="8" y="36" width="10" height="5" rx="1.5" fill="#c7d2fe" />
+          <rect x="20" y="36" width="10" height="5" rx="1.5" fill="#c7d2fe" />
         </svg>
       );
     default:
       return (
-        <div className="h-10 w-10 rounded-md" style={{ backgroundColor: color + "20" }}>
+        <div className="h-12 w-12 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
           <div className="flex h-full items-center justify-center">
-            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
           </div>
         </div>
       );
@@ -910,7 +911,7 @@ export default function QuickGenerate({
                   <div className="flex gap-3">
                     {/* Mini asset preview */}
                     <div className="flex-shrink-0 mt-0.5">
-                      <MiniPreview visualTag={pt.visualTag || "Quote Card"} color={pt.color} />
+                      <MiniPreview slug={pt.slug} visualTag={pt.visualTag || "Quote Card"} color={pt.color} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-gray-900">
