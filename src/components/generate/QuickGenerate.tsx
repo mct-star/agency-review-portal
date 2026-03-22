@@ -191,6 +191,20 @@ export default function QuickGenerate({
   const [regeneratingImage, setRegeneratingImage] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
+  // Edit mode
+  const [editing, setEditing] = useState(false);
+  const [editedText, setEditedText] = useState("");
+  const [editedFirstComment, setEditedFirstComment] = useState("");
+
+  // Add to week
+  const [showWeekPicker, setShowWeekPicker] = useState(false);
+  const [addingToWeek, setAddingToWeek] = useState(false);
+  const [addedToWeek, setAddedToWeek] = useState<string | null>(null);
+
+  // Topic picker from content strategy
+  const [strategyTopics, setStrategyTopics] = useState<{ id: string; topic: string; pillar?: string; theme?: string; month?: string }[]>([]);
+  const [showTopicPicker, setShowTopicPicker] = useState(false);
+
   // Filter spokespersons for the selected company
   const companyPeople = useMemo(
     () => spokespersons.filter((s) => s.companyId === selectedCompany.id),
@@ -241,8 +255,8 @@ export default function QuickGenerate({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyId: selectedCompany.id,
-          text: result.postText,
-          firstComment: result.firstComment || undefined,
+          text: livePostText,
+          firstComment: liveFirstComment || undefined,
           imageUrl: currentImageUrl || undefined,
           carouselImageUrls: result.carouselImageUrls || undefined,
         }),
@@ -323,8 +337,12 @@ export default function QuickGenerate({
       };
 
       setResult(generated);
+      setEditedText(data.postText);
+      setEditedFirstComment(data.firstComment || "");
       setCurrentImageUrl(generated.imageUrl);
       setImagePrompt(data.imagePrompt || null);
+      setEditing(false);
+      setAddedToWeek(null);
       setState("complete");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -332,17 +350,96 @@ export default function QuickGenerate({
     }
   }
 
+  // Get the live text (edited or original)
+  const livePostText = editing ? editedText : (result?.postText || "");
+  const liveFirstComment = editing ? editedFirstComment : (result?.firstComment || "");
+
+  function handleStartEdit() {
+    if (!result) return;
+    setEditedText(result.postText);
+    setEditedFirstComment(result.firstComment || "");
+    setEditing(true);
+  }
+
+  function handleSaveEdit() {
+    if (!result) return;
+    setResult({
+      ...result,
+      postText: editedText,
+      firstComment: editedFirstComment || null,
+    });
+    setEditing(false);
+  }
+
+  function handleCancelEdit() {
+    if (!result) return;
+    setEditedText(result.postText);
+    setEditedFirstComment(result.firstComment || "");
+    setEditing(false);
+  }
+
   async function handleCopy() {
     if (!result) return;
-    await navigator.clipboard.writeText(result.postText);
+    await navigator.clipboard.writeText(livePostText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   async function handleCopyFirstComment() {
-    if (!result?.firstComment) return;
-    await navigator.clipboard.writeText(result.firstComment);
+    if (!liveFirstComment) return;
+    await navigator.clipboard.writeText(liveFirstComment);
   }
+
+  // Add to week — save the post as a content piece assigned to a week
+  async function handleAddToWeek(weekNumber: number) {
+    if (!result) return;
+    setAddingToWeek(true);
+    try {
+      const res = await fetch("/api/content/pieces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: selectedCompany.id,
+          spokespersonId: selectedPerson?.id || null,
+          weekNumber,
+          postType: result.postType,
+          platform,
+          title: topic,
+          markdownBody: livePostText,
+          firstComment: liveFirstComment || null,
+          imageUrl: currentImageUrl || null,
+          carouselImageUrls: result.carouselImageUrls || null,
+          status: "draft",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save");
+      }
+      setAddedToWeek(`Week ${weekNumber}`);
+      setShowWeekPicker(false);
+    } catch (err) {
+      console.error("Add to week failed:", err);
+    } finally {
+      setAddingToWeek(false);
+    }
+  }
+
+  // Fetch strategy topics for the topic picker
+  useEffect(() => {
+    async function fetchTopics() {
+      try {
+        const res = await fetch(`/api/content/strategy-topics?companyId=${selectedCompany.id}&scope=month`);
+        if (res.ok) {
+          const data = await res.json();
+          setStrategyTopics(data.topics || []);
+        }
+      } catch {
+        // Non-critical — topic picker just won't show
+      }
+    }
+    fetchTopics();
+  }, [selectedCompany.id]);
 
   async function handleApplyOverlay() {
     if (!currentImageUrl) return;
@@ -493,12 +590,59 @@ export default function QuickGenerate({
               <label className="block text-sm font-medium text-gray-700">
                 What do you want to post about?
               </label>
-              <VoiceDictation
-                onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
-                companyId={selectedCompany.id}
-                placeholder="Dictate"
-              />
+              <div className="flex items-center gap-2">
+                {strategyTopics.length > 0 && (
+                  <button
+                    onClick={() => setShowTopicPicker(!showTopicPicker)}
+                    className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-100 transition-colors"
+                  >
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                    This month&apos;s topics
+                  </button>
+                )}
+                <VoiceDictation
+                  onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
+                  companyId={selectedCompany.id}
+                  placeholder="Dictate"
+                />
+              </div>
             </div>
+
+            {/* Topic picker from content strategy */}
+            {showTopicPicker && strategyTopics.length > 0 && (
+              <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-500">
+                    Topics for {new Date().toLocaleString("default", { month: "long" })}
+                  </p>
+                  <button
+                    onClick={() => setShowTopicPicker(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {strategyTopics.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => { setTopic(t.topic); setShowTopicPicker(false); }}
+                      className="block w-full rounded-md px-3 py-2 text-left text-xs text-gray-700 hover:bg-violet-100 hover:text-violet-800 transition-colors"
+                    >
+                      <span className="font-medium">{t.topic}</span>
+                      {(t.pillar || t.theme) && (
+                        <span className="ml-2 text-[10px] text-gray-400">
+                          {[t.pillar, t.theme].filter(Boolean).join(" / ")}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -721,6 +865,89 @@ export default function QuickGenerate({
                   Posted to LinkedIn
                 </span>
               )}
+              {/* Edit button */}
+              {!editing ? (
+                <button
+                  onClick={handleStartEdit}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit
+                  </span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSaveEdit}
+                    className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                  >
+                    Save edits
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+
+              {/* Add to week button */}
+              {!addedToWeek ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowWeekPicker(!showWeekPicker)}
+                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                        <line x1="12" y1="14" x2="12" y2="18" />
+                        <line x1="10" y1="16" x2="14" y2="16" />
+                      </svg>
+                      Add to week
+                    </span>
+                  </button>
+                  {showWeekPicker && (
+                    <div className="absolute right-0 top-full mt-1 z-10 rounded-lg border border-gray-200 bg-white shadow-lg p-2 min-w-[160px]">
+                      <p className="px-2 py-1 text-[10px] font-semibold uppercase text-gray-400">Select week</p>
+                      {(() => {
+                        const now = new Date();
+                        const currentWeek = Math.ceil(
+                          (now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000)
+                        );
+                        return Array.from({ length: 6 }, (_, i) => currentWeek + i).map((w) => (
+                          <button
+                            key={w}
+                            onClick={() => handleAddToWeek(w)}
+                            disabled={addingToWeek}
+                            className="block w-full rounded px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-violet-50 hover:text-violet-700 transition-colors disabled:opacity-50"
+                          >
+                            Week {w} {w === currentWeek ? "(this week)" : w === currentWeek + 1 ? "(next week)" : ""}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="rounded-md bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
+                  <span className="flex items-center gap-1.5">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Added to {addedToWeek}
+                  </span>
+                </span>
+              )}
+
               <button
                 onClick={handleReset}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -786,38 +1013,73 @@ export default function QuickGenerate({
             </div>
           )}
 
-          {/* LinkedIn Preview */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <LinkedInPreview
-              authorName={authorName}
-              authorTagline={authorTagline}
-              authorAvatarUrl={authorAvatar || undefined}
-              postText={result.postText}
-              firstComment={result.firstComment}
-              postType={result.postType}
-              imageUrl={currentImageUrl}
-              brandColor={selectedCompany.brandColor}
-            />
-          </div>
-
-          {/* First comment (copyable) */}
-          {result.firstComment && (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold uppercase text-gray-400">
-                  First Comment
-                </h3>
-                <button
-                  onClick={handleCopyFirstComment}
-                  className="text-xs text-violet-600 hover:text-violet-700"
-                >
-                  Copy
-                </button>
+          {/* Edit mode: inline text editor */}
+          {editing ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-violet-200 bg-violet-50/30 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="h-4 w-4 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  <h3 className="text-xs font-semibold uppercase text-violet-600">Edit Post Text</h3>
+                </div>
+                <textarea
+                  value={editedText}
+                  onChange={(e) => setEditedText(e.target.value)}
+                  rows={12}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">{editedText.length} characters</p>
               </div>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                {result.firstComment}
-              </p>
+              {result.firstComment !== null && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-xs font-semibold uppercase text-gray-400 mb-2">Edit First Comment</h3>
+                  <textarea
+                    value={editedFirstComment}
+                    onChange={(e) => setEditedFirstComment(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  />
+                </div>
+              )}
             </div>
+          ) : (
+            <>
+              {/* LinkedIn Preview */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <LinkedInPreview
+                  authorName={authorName}
+                  authorTagline={authorTagline}
+                  authorAvatarUrl={authorAvatar || undefined}
+                  postText={livePostText}
+                  firstComment={liveFirstComment}
+                  postType={result.postType}
+                  imageUrl={currentImageUrl}
+                  brandColor={selectedCompany.brandColor}
+                />
+              </div>
+
+              {/* First comment (copyable) */}
+              {liveFirstComment && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold uppercase text-gray-400">
+                      First Comment
+                    </h3>
+                    <button
+                      onClick={handleCopyFirstComment}
+                      className="text-xs text-violet-600 hover:text-violet-700"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {liveFirstComment}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       ) : null}
