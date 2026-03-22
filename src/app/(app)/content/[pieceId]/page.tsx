@@ -6,6 +6,7 @@ import ContentViewTabs from "@/components/content/ContentViewTabs";
 import ApprovalButtons from "@/components/content/ApprovalButtons";
 import CommentThread from "@/components/comments/CommentThread";
 import CommentForm from "@/components/comments/CommentForm";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import ContentAssets from "@/components/content/ContentAssets";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
@@ -74,7 +75,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
           href={`/review/${piece.week_id}`}
           className="hover:text-gray-700"
         >
-          Week {piece.week?.week_number}
+          {formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}
         </Link>
         <span>/</span>
         <span className="text-gray-900">{piece.title}</span>

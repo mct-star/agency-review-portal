@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type { Company, ContentType } from "@/types/database";
 import { getPlatformsForContentType } from "@/lib/platform-registry";
 
@@ -11,7 +12,7 @@ interface ApprovedPiece {
   content_type: string;
   approval_status: string;
   week_id: string;
-  week?: { week_number: number };
+  week?: { week_number: number; date_start?: string };
 }
 
 interface PublishingJobRow {
@@ -224,12 +225,11 @@ export default function PublishPage() {
                           <p className="text-xs text-gray-500">
                             {CONTENT_TYPE_LABELS[piece.content_type] ||
                               piece.content_type}{" "}
-                            · Week{" "}
-                            {(
-                              piece.week as
-                                | { week_number: number }
-                                | undefined
-                            )?.week_number || "?"}
+                            ·{" "}
+                            {formatWeekLabel(
+                              (piece.week as { week_number: number; date_start?: string } | undefined)?.date_start,
+                              (piece.week as { week_number: number } | undefined)?.week_number ?? 0,
+                            )}
                           </p>
                         </div>
                         <Link

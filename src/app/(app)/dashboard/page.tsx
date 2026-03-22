@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import { formatWeekLabel, formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import type { Week, Company, Notification } from "@/types/database";
 
 // Circular progress gauge component
@@ -361,11 +362,11 @@ export default async function DashboardPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
-                        <span className="text-sm font-bold text-gray-600">W{week.week_number}</span>
+                        <span className="text-sm font-bold text-gray-600">{formatWeekLabelShort(week.date_start, week.week_number)}</span>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-900">
-                          {week.title || `Week ${week.week_number}`}
+                          {week.title || formatWeekLabel(week.date_start, week.week_number)}
                         </p>
                         <p className="text-xs text-gray-400">
                           {week.date_start} — {week.date_end}

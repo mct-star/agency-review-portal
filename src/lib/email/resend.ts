@@ -217,6 +217,7 @@ export function contentReadyEmailHtml(params: {
   userName: string;
   companyName: string;
   weekNumber: number;
+  weekLabel?: string;
   reviewUrl: string;
   pieceCount: number;
 }): string {
@@ -245,13 +246,13 @@ export function contentReadyEmailHtml(params: {
                 Hi ${params.userName},
               </p>
               <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
-                Week ${params.weekNumber} content for <strong>${params.companyName}</strong> is ready for your review. There are <strong>${params.pieceCount} pieces</strong> awaiting approval.
+                ${params.weekLabel || `Week ${params.weekNumber}`} content for <strong>${params.companyName}</strong> is ready for your review. There are <strong>${params.pieceCount} pieces</strong> awaiting approval.
               </p>
               <table cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
                 <tr>
                   <td style="background-color:#0ea5e9;border-radius:8px;padding:14px 28px;">
                     <a href="${params.reviewUrl}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;display:block;">
-                      Review Week ${params.weekNumber}
+                      Review ${params.weekLabel || `Week ${params.weekNumber}`}
                     </a>
                   </td>
                 </tr>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import {
   sendEmail,
   welcomeEmailHtml,
@@ -77,14 +78,16 @@ export async function POST(request: Request) {
     }
 
     case "content_ready": {
-      const { userName = "there", companyName = "", weekNumber = 0, weekId = "", pieceCount = 0 } = body;
+      const { userName = "there", companyName = "", weekNumber = 0, weekId = "", pieceCount = 0, dateStart = "" } = body;
+      const weekLabel = formatWeekLabel(dateStart || null, weekNumber);
       const result = await sendEmail({
         to,
-        subject: `Week ${weekNumber} content ready for review — ${companyName}`,
+        subject: `${weekLabel} content ready for review — ${companyName}`,
         html: contentReadyEmailHtml({
           userName,
           companyName,
           weekNumber,
+          weekLabel,
           reviewUrl: `${baseUrl}/review/${weekId}`,
           pieceCount,
         }),

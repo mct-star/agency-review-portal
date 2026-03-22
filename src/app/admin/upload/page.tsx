@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import { parseReviewDocument, type ParsedWeek, type ParsedPiece } from "@/lib/parsers/review-document-parser";
 import type { Company } from "@/types/database";
 import Badge from "@/components/ui/Badge";
@@ -301,7 +302,7 @@ export default function UploadPage() {
           <div className="rounded-lg border border-green-200 bg-green-50 p-6">
             <h2 className="font-semibold text-green-800">Ready to Save</h2>
             <p className="mt-1 text-sm text-green-700">
-              Week {weekNumber} with {parsed.pieces.length} content pieces for{" "}
+              {formatWeekLabel(dateStart || null, parseInt(weekNumber, 10) || 0)} with {parsed.pieces.length} content pieces for{" "}
               {companies.find((c) => c.id === selectedCompanyId)?.name}
             </p>
           </div>

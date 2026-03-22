@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
 
   switch (type) {
     case "content_ready":
-      message = `New content ready for review: Week ${week?.week_number}${week?.title ? ` (${week.title})` : ""}`;
+      message = `New content ready for review: ${formatWeekLabel(week?.date_start, week?.week_number ?? 0)}${week?.title ? ` (${week.title})` : ""}`;
       break;
     case "piece_approved":
       message = `${actorName} approved: ${piece?.title}`;

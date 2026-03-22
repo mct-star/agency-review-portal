@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { formatWeekLabelShort } from "@/lib/utils/format-week-label";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -561,7 +562,7 @@ function DayCellView({ cell, compact }: { cell: DayCell; compact: boolean }) {
           </span>
           {week && (
             <Link href={`/review/${week.id}`} className="text-[9px] text-gray-400 hover:text-violet-600">
-              W{week.week_number}
+              {formatWeekLabelShort(week.date_start, week.week_number)}
             </Link>
           )}
         </div>
@@ -635,7 +636,7 @@ function DayCellView({ cell, compact }: { cell: DayCell; compact: boolean }) {
               href={`/review/${week.id}`}
               className="text-[10px] text-gray-400 hover:text-violet-600"
             >
-              W{week.week_number}
+              {formatWeekLabelShort(week.date_start, week.week_number)}
             </Link>
           )}
         </div>

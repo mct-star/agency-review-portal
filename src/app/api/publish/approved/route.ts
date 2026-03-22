@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   const supabase = await createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("content_pieces")
-    .select("id, title, content_type, approval_status, week_id, week:weeks(week_number)")
+    .select("id, title, content_type, approval_status, week_id, week:weeks(week_number, date_start)")
     .eq("company_id", companyId)
     .eq("approval_status", "approved")
     .order("created_at", { ascending: false });

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import WeekReviewTabs from "@/components/content/WeekReviewTabs";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type { Company, ContentPiece, ContentImage, ContentAsset } from "@/types/database";
 
 interface PageProps {
@@ -91,9 +92,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
         </Link>
         <span>/</span>
         <span className="text-gray-900">
-          {week.date_start
-            ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`
-            : `Week ${week.week_number}`}
+          {formatWeekLabel(week.date_start, week.week_number)}
         </span>
       </div>
 
@@ -103,9 +102,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">
-                {week.date_start
-                  ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })} Review`
-                  : `Week ${week.week_number} Review`}
+                {formatWeekLabel(week.date_start, week.week_number, " Review")}
               </h1>
               <Badge status={week.status} />
             </div>
@@ -184,9 +181,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-green-800">
-                {week.date_start
-                  ? `w/c ${new Date(week.date_start + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long" })} Approved`
-                  : `Week ${week.week_number} Approved`}
+                {formatWeekLabel(week.date_start, week.week_number, " Approved")}
               </h2>
               <p className="text-sm text-green-600">All {totalPieces} pieces approved. Ready to deliver.</p>
             </div>

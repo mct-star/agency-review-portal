@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { runQualityTests } from "@/lib/generation/quality-tests";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type { ContentPiece, ContentImage, ContentAsset } from "@/types/database";
 
 /**
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
   const criticalCount = pieceReviews.reduce((sum, p) => sum + p.criticalIssues.length, 0);
   const highCount = pieceReviews.reduce((sum, p) => sum + p.highIssues.length, 0);
 
-  const compiledContent = `# Week ${week.week_number} Review Document
+  const compiledContent = `# ${formatWeekLabel(week.date_start, week.week_number)} Review Document
 ## ${company.name} | ${week.date_start} — ${week.date_end}
 ${week.pillar ? `**Pillar:** ${week.pillar}` : ""}${week.theme ? ` | **Theme:** ${week.theme}` : ""}${week.subject ? ` | **Subject:** ${week.subject}` : ""}
 

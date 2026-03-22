@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 
 interface UserProfile {
   id: string;
@@ -1370,7 +1371,7 @@ export default function GeneratePage() {
                               {formatShortDate(sunday)} – {formatShortDate(saturday)}
                             </p>
                             {calWeek ? (
-                              <p className="mt-0.5 text-xs text-gray-500">Week {calWeek.week_number}</p>
+                              <p className="mt-0.5 text-xs text-gray-500">{formatWeekLabel(calWeek.date_start, calWeek.week_number)}</p>
                             ) : (
                               <p className="mt-0.5 text-xs text-gray-400">No calendar entry</p>
                             )}

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("content_generation_jobs")
-    .select("*, company:companies(name), week:weeks(week_number, year)")
+    .select("*, company:companies(name), week:weeks(week_number, year, date_start)")
     .order("created_at", { ascending: false })
     .limit(limit);
 

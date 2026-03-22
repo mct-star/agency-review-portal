@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type {
   Company,
   Week,
@@ -32,7 +33,7 @@ interface RecentJobRow {
   status: string;
   created_at: string;
   company?: { name: string };
-  week?: { week_number: number; year: number };
+  week?: { week_number: number; year: number; date_start?: string };
 }
 
 const CONTENT_TYPES: { value: ContentType; label: string; description: string }[] = [
@@ -356,7 +357,7 @@ export default function GeneratePage() {
                 >
                   <div>
                     <p className="font-medium text-gray-900">
-                      Week {week.week_number}
+                      {formatWeekLabel(week.date_start, week.week_number)}
                       {week.title ? ` — ${week.title}` : ""}
                     </p>
                     <p className="text-xs text-gray-500">
@@ -506,7 +507,7 @@ export default function GeneratePage() {
                   Week
                 </span>
                 <span className="text-sm font-medium text-gray-900">
-                  Week {selectedWeek?.week_number}
+                  {formatWeekLabel(selectedWeek?.date_start, selectedWeek?.week_number ?? 0)}
                   {selectedWeek?.title ? ` — ${selectedWeek.title}` : ""}
                 </span>
               </div>
@@ -673,8 +674,8 @@ export default function GeneratePage() {
               >
                 <div className="min-w-0">
                   <p className="text-sm text-gray-700">
-                    {job.company?.name || "Unknown"} — Week{" "}
-                    {job.week?.week_number || "?"}
+                    {job.company?.name || "Unknown"} —{" "}
+                    {formatWeekLabel(job.week?.date_start, job.week?.week_number ?? 0)}
                   </p>
                   <p className="text-xs text-gray-400">
                     {job.job_type.replace(/_/g, " ")} · {new Date(job.created_at).toLocaleString()}

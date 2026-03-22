@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type {
   Company,
   Week,
@@ -510,7 +511,7 @@ export default function BatchGeneratePage() {
                   >
                     <div>
                       <p className="font-medium text-gray-900">
-                        Week {week.week_number}
+                        {formatWeekLabel(week.date_start, week.week_number)}
                         {week.title ? ` \u2014 ${week.title}` : ""}
                       </p>
                       <p className="text-xs text-gray-500">
@@ -546,7 +547,7 @@ export default function BatchGeneratePage() {
                   Assign Topics to Slots ({assignedCount}/{totalSlots})
                 </h2>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  Week {selectedWeek?.week_number} for {selectedCompany?.name}
+                  {formatWeekLabel(selectedWeek?.date_start, selectedWeek?.week_number ?? 0)} for {selectedCompany?.name}
                   {selectedWeek?.pillar ? ` \u00b7 Pillar: ${selectedWeek.pillar}` : ""}
                 </p>
               </div>
@@ -815,7 +816,7 @@ export default function BatchGeneratePage() {
               <div className="flex items-center justify-between rounded-md bg-gray-50 px-4 py-2.5">
                 <span className="text-xs font-medium uppercase text-gray-500">Week</span>
                 <span className="text-sm font-medium text-gray-900">
-                  Week {selectedWeek?.week_number}
+                  {formatWeekLabel(selectedWeek?.date_start, selectedWeek?.week_number ?? 0)}
                   {selectedWeek?.title ? ` \u2014 ${selectedWeek.title}` : ""}
                 </span>
               </div>
