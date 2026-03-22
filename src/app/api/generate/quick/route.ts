@@ -566,7 +566,7 @@ export async function POST(request: Request) {
 
           const carouselResult = await generateCarousel({
             slides: carouselSlides,
-            accentColor: effectiveColor || companyBrand?.brand_color || "#A27BF9",
+            accentColor: effectiveColor || ((companyBrand as Record<string, unknown>)?.brand_palette as string[] | null)?.[0] || companyBrand?.brand_color || "#A27BF9",
             profilePicUrl: carouselProfilePic,
             profileName: carouselProfileName,
             logoUrl: companyBrand?.overlay_logo_url || companyBrand?.logo_url || null,

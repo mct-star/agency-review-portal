@@ -575,8 +575,18 @@ export default function QuickGenerate({
     setPublished(false);
     setPublishError(null);
     setPostUrl(null);
+    setBlueskyPostUrl(null);
     setImagePrompt(null);
     setRegeneratingImage(false);
+    setEditing(false);
+    setEditedText("");
+    setEditedFirstComment("");
+    setShowWeekPicker(false);
+    setAddedToWeek(null);
+    setCarouselIndex(0);
+    setOverlayError(null);
+    setLimitReached(false);
+    setCopied(false);
   }
 
   return (
