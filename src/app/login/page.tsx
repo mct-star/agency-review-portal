@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginMode, setLoginMode] = useState<"magic" | "password">("password");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,19 +26,32 @@ function LoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
+    if (loginMode === "password") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+      } else {
+        window.location.href = "/dashboard";
+      }
     } else {
-      setSent(true);
-      setLoading(false);
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+      } else {
+        setSent(true);
+        setLoading(false);
+      }
     }
   }
 
@@ -64,10 +79,7 @@ function LoginForm() {
       ) : (
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
               Email address
             </label>
             <input
@@ -77,9 +89,26 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
               required
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
           </div>
+
+          {loginMode === "password" && (
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password"
+                required
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-600">{error}</p>
@@ -88,10 +117,24 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? "Sending..." : "Send login link"}
+            {loading ? (loginMode === "password" ? "Signing in..." : "Sending...") : (loginMode === "password" ? "Sign in" : "Send login link")}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setLoginMode(loginMode === "password" ? "magic" : "password")}
+            className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            {loginMode === "password" ? "Use magic link instead" : "Use password instead"}
+          </button>
+
+          <div className="text-center">
+            <a href="/signup" className="text-xs font-medium text-violet-600 hover:text-violet-700">
+              Don&apos;t have an account? Start free trial
+            </a>
+          </div>
         </form>
       )}
     </div>

@@ -7,6 +7,7 @@ import Link from "next/link";
 export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,16 +18,20 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
-    // signInWithOtp with shouldCreateUser: true creates the auth user
-    // and sends the magic link in one step. user_metadata survives the
-    // round-trip so the callback can auto-provision the company + profile.
-    const { error: authError } = await supabase.auth.signInWithOtp({
+    // Create user with email + password for instant login
+    const { error: authError } = await supabase.auth.signUp({
       email,
+      password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
-        shouldCreateUser: true,
         data: {
           full_name: fullName,
           company_name: companyName,
@@ -108,6 +113,22 @@ export default function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="jane@company.com"
                 required
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                required
+                minLength={6}
                 className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
             </div>
