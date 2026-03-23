@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
 import { routeImageStyle, getEffectiveProvider } from "@/lib/providers/image-routing";
@@ -139,11 +139,6 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
 };
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await request.json();
   const { companyId, spokespersonId, topic, postTypeSlug, platform } = body;
 
@@ -154,12 +149,18 @@ export async function POST(request: Request) {
     );
   }
 
+  // Allow admin OR the company's own users to generate
+  const user = await requireCompanyUser(companyId);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const supabase = await createAdminSupabaseClient();
   const typeConfig = POST_TYPE_CONFIG[postTypeSlug] || POST_TYPE_CONFIG.insight;
 
   try {
     // ── 1. Fetch company context + spokesperson ─────────────────
-    const { data: company } = await supabase
+    const { data: company, error: companyError } = await supabase
       .from("companies")
       .select("name, description, industry, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, provider_routing, plan, trial_plan, trial_expires_at")
       .eq("id", companyId)
@@ -167,7 +168,8 @@ export async function POST(request: Request) {
 
     // ── Plan enforcement ──────────────────────────────────────
     if (!company) {
-      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+      console.error(`[quick] Company not found for id=${companyId}`, companyError);
+      return NextResponse.json({ error: `Company not found (id: ${companyId})` }, { status: 404 });
     }
 
     const effectivePlan = getEffectivePlan(company as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
