@@ -172,11 +172,11 @@ export default function LinkedInPublishButton({
 
       {/* Error state */}
       {state === "error" && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-sm text-red-600">{error}</p>
           <button
             onClick={handleCancel}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
           >
             Try again
           </button>

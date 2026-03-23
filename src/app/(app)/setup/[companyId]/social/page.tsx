@@ -71,7 +71,7 @@ export default function CompanySocialPage() {
   } | null>(null);
 
   // LinkedIn OAuth status
-  const [linkedInAccount, setLinkedInAccount] = useState<{ accountName: string | null; expired: boolean } | null>(null);
+  const [linkedInAccount, setLinkedInAccount] = useState<{ accountName: string | null; expired: boolean; noToken: boolean } | null>(null);
 
   // Form state
   const [showForm, setShowForm] = useState(false);
@@ -89,9 +89,11 @@ export default function CompanySocialPage() {
       const res = await fetch(`/api/publish/linkedin-direct?companyId=${companyId}`);
       const data = await res.json();
       if (data.connected) {
-        setLinkedInAccount({ accountName: data.accountName, expired: false });
+        setLinkedInAccount({ accountName: data.accountName, expired: false, noToken: false });
       } else if (data.expired) {
-        setLinkedInAccount({ accountName: data.accountName, expired: true });
+        setLinkedInAccount({ accountName: data.accountName, expired: true, noToken: false });
+      } else if (data.noToken) {
+        setLinkedInAccount({ accountName: data.accountName, expired: false, noToken: true });
       } else {
         setLinkedInAccount(null);
       }
@@ -213,9 +215,17 @@ export default function CompanySocialPage() {
                 Connect your LinkedIn account to post directly from Quick Generate and the Publish page.
               </p>
               {linkedInAccount ? (
-                <p className="mt-1.5 text-xs text-green-700">
-                  Connected as <strong>{linkedInAccount.accountName || "LinkedIn User"}</strong>
-                  {linkedInAccount.expired && <span className="text-amber-600 ml-1">(Token expired — reconnect)</span>}
+                <p className={`mt-1.5 text-xs ${linkedInAccount.expired || linkedInAccount.noToken ? "text-amber-700" : "text-green-700"}`}>
+                  {linkedInAccount.expired || linkedInAccount.noToken ? (
+                    <>
+                      <span className="font-medium">{linkedInAccount.accountName || "LinkedIn User"}</span>
+                      <span className="ml-1">
+                        {linkedInAccount.expired ? "— Token expired. Click Reconnect to re-authorize." : "— No access token stored. Click Reconnect to re-authorize."}
+                      </span>
+                    </>
+                  ) : (
+                    <>Connected as <strong>{linkedInAccount.accountName || "LinkedIn User"}</strong></>
+                  )}
                 </p>
               ) : null}
             </div>

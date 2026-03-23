@@ -1821,7 +1821,7 @@ export default function GeneratePage() {
                   setStep("configure");
                   setStatus({ phase: "idle", current: 0, total: 0, currentLabel: "" });
                 }}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
               >
                 Try again
               </button>
