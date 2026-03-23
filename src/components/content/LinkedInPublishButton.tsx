@@ -142,9 +142,12 @@ export default function LinkedInPublishButton({
 
       {/* Publishing state */}
       {state === "publishing" && (
-        <div className="flex items-center gap-3">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
-          <span className="text-sm text-gray-600">Publishing to LinkedIn...</span>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+            <span className="text-sm text-gray-600">Publishing to LinkedIn...</span>
+          </div>
+          <p className="text-xs text-gray-400 ml-8">This can take up to 15 seconds while we upload your image and create the post.</p>
         </div>
       )}
 
