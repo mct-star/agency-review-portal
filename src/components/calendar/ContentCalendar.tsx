@@ -61,7 +61,7 @@ interface ContentCalendarProps {
   showCompanyPicker?: boolean;
 }
 
-type ViewMode = "month" | "week";
+type ViewMode = "month" | "week" | "search" | "recent";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -185,6 +185,13 @@ export default function ContentCalendar({
   const [templateSlots, setTemplateSlots] = useState<TemplateSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTemplate, setShowTemplate] = useState(true);
+
+  // Search & recent
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<CalendarPiece[]>([]);
+  const [searchWeeks, setSearchWeeks] = useState<CalendarWeek[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [previousViewMode, setPreviousViewMode] = useState<ViewMode>("month");
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -328,6 +335,57 @@ export default function ContentCalendar({
     setCurrentDate(new Date());
   }
 
+  // Search & recent data fetching
+  const fetchSearchResults = useCallback(async (q: string, mode: "search" | "recent", statusFilter?: string) => {
+    setSearchLoading(true);
+    try {
+      const params = new URLSearchParams({ companyId: selectedCompany.id, mode });
+      if (q.trim()) params.set("q", q.trim());
+      if (statusFilter) params.set("status", statusFilter);
+
+      const res = await fetch(`/api/calendar/search?${params}`);
+      if (!res.ok) throw new Error("Search failed");
+      const json = await res.json();
+      setSearchResults(json.pieces || []);
+      setSearchWeeks(json.weeks || []);
+    } catch {
+      setSearchResults([]);
+      setSearchWeeks([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [selectedCompany.id]);
+
+  // Handle entering search/recent mode
+  function enterSearchMode(query: string) {
+    if (viewMode !== "search" && viewMode !== "recent") {
+      setPreviousViewMode(viewMode);
+    }
+    setViewMode("search");
+    setSearchQuery(query);
+    if (query.trim().length >= 2) {
+      fetchSearchResults(query, "search");
+    } else {
+      setSearchResults([]);
+    }
+  }
+
+  function enterRecentMode() {
+    if (viewMode !== "search" && viewMode !== "recent") {
+      setPreviousViewMode(viewMode);
+    }
+    setViewMode("recent");
+    setSearchQuery("");
+    fetchSearchResults("", "recent");
+  }
+
+  function exitSearchMode() {
+    setViewMode(previousViewMode);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchWeeks([]);
+  }
+
   // Summary stats
   const totalPieces = pieces.length;
   const approvedPieces = pieces.filter((p) => p.approval_status === "approved").length;
@@ -347,86 +405,149 @@ export default function ContentCalendar({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-3">
+        {/* Row 1: Search bar + Recent button */}
         <div className="flex items-center gap-2">
-          {/* Company picker */}
-          {showCompanyPicker && (
-            <select
-              value={selectedCompany.id}
-              onChange={(e) => {
-                const c = companies.find((co) => co.id === e.target.value);
-                if (c) setSelectedCompany(c);
-              }}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-            >
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Navigation */}
-          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white">
-            <button
-              onClick={() => navigate(-1)}
-              className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
-              aria-label="Previous"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={goToToday}
-              className="px-3 py-2 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => navigate(1)}
-              className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
-              aria-label="Next"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Show template toggle */}
-          <label className="flex items-center gap-2 cursor-pointer">
+          <div className="relative flex-1 max-w-md">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
             <input
-              type="checkbox"
-              checked={showTemplate}
-              onChange={(e) => setShowTemplate(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+              type="text"
+              placeholder="Search posts by title or content..."
+              value={searchQuery}
+              onChange={(e) => enterSearchMode(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-9 text-sm placeholder:text-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
-            <span className="text-xs text-gray-500">Show schedule</span>
-          </label>
-
-          {/* View mode toggle */}
-          <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
-            {(["week", "month"] as const).map((mode) => (
+            {(viewMode === "search" || viewMode === "recent") && (
               <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  viewMode === mode
-                    ? "bg-violet-100 text-violet-700"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                onClick={exitSearchMode}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
               >
-                {mode === "week" ? "Week" : "Month"}
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
-            ))}
+            )}
           </div>
+
+          <button
+            onClick={enterRecentMode}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              viewMode === "recent"
+                ? "border-violet-300 bg-violet-50 text-violet-700"
+                : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Most Recent
+          </button>
+
+          {pendingPieces > 0 && (
+            <button
+              onClick={() => {
+                if (viewMode !== "search" && viewMode !== "recent") {
+                  setPreviousViewMode(viewMode);
+                }
+                setViewMode("search");
+                setSearchQuery("");
+                fetchSearchResults("", "search", "pending");
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              <div className="h-2 w-2 rounded-full bg-amber-400" />
+              {pendingPieces} Pending Approval
+            </button>
+          )}
         </div>
+
+        {/* Row 2: Calendar navigation + view controls (hidden in search/recent mode) */}
+        {viewMode !== "search" && viewMode !== "recent" && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {/* Company picker */}
+              {showCompanyPicker && (
+                <select
+                  value={selectedCompany.id}
+                  onChange={(e) => {
+                    const c = companies.find((co) => co.id === e.target.value);
+                    if (c) setSelectedCompany(c);
+                  }}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                >
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Navigation */}
+              <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  aria-label="Previous"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={goToToday}
+                  className="px-3 py-2 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => navigate(1)}
+                  className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  aria-label="Next"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Show template toggle */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showTemplate}
+                  onChange={(e) => setShowTemplate(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                />
+                <span className="text-xs text-gray-500">Show schedule</span>
+              </label>
+
+              {/* View mode toggle */}
+              <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
+                {(["week", "month"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      viewMode === mode
+                        ? "bg-violet-100 text-violet-700"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {mode === "week" ? "Week" : "Month"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Summary stats */}
@@ -463,8 +584,16 @@ export default function ContentCalendar({
         </div>
       )}
 
-      {/* Calendar Grid */}
-      {loading ? (
+      {/* Calendar Grid / Search Results */}
+      {viewMode === "search" || viewMode === "recent" ? (
+        <SearchResultsView
+          results={searchResults}
+          weeks={searchWeeks}
+          loading={searchLoading}
+          mode={viewMode}
+          query={searchQuery}
+        />
+      ) : loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
         </div>
@@ -696,6 +825,126 @@ function DayCellView({ cell, compact }: { cell: DayCell; compact: boolean }) {
             <p className="mt-1 text-[10px] text-gray-400 italic">Not yet generated</p>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Search / Recent Results View ──────────────────────────────
+
+function SearchResultsView({
+  results,
+  weeks,
+  loading,
+  mode,
+  query,
+}: {
+  results: CalendarPiece[];
+  weeks: CalendarWeek[];
+  loading: boolean;
+  mode: "search" | "recent";
+  query: string;
+}) {
+  const weekMap = new Map(weeks.map((w) => [w.id, w]));
+
+  const STATUS_LABELS: Record<string, { label: string; dotColor: string }> = {
+    pending: { label: "Pending", dotColor: "bg-gray-300" },
+    approved: { label: "Approved", dotColor: "bg-green-400" },
+    changes_requested: { label: "Changes Requested", dotColor: "bg-amber-400" },
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
+      </div>
+    );
+  }
+
+  if (mode === "search" && query.length < 2) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+        <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <p className="mt-2 text-sm text-gray-500">Type at least 2 characters to search</p>
+      </div>
+    );
+  }
+
+  if (results.length === 0) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+        <p className="text-sm text-gray-500">
+          {mode === "search" ? `No posts found for "${query}"` : "No recent posts found"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <h3 className="text-sm font-medium text-gray-700">
+          {mode === "recent" ? "Most Recent Posts" : `${results.length} result${results.length !== 1 ? "s" : ""}`}
+        </h3>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+        {results.map((piece) => {
+          const colors = POST_TYPE_COLORS[piece.post_type || ""] || {
+            bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200",
+          };
+          const week = weekMap.get(piece.week_id);
+          const status = STATUS_LABELS[piece.approval_status] || STATUS_LABELS.pending;
+
+          return (
+            <Link
+              key={piece.id}
+              href={`/content/${piece.id}`}
+              className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+            >
+              {/* Status dot */}
+              <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${status.dotColor}`} />
+
+              {/* Post type badge */}
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border ${colors.bg} ${colors.text} ${colors.border} flex-shrink-0`}>
+                {getPostTypeLabel(piece.post_type)}
+              </span>
+
+              {/* Title */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-900 truncate">{piece.title || "Untitled post"}</p>
+                {piece.markdown_body && (
+                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                    {piece.markdown_body.slice(0, 120).replace(/[#*_\n]/g, " ").trim()}
+                  </p>
+                )}
+              </div>
+
+              {/* Week info */}
+              {week && (
+                <span className="text-[11px] text-gray-400 flex-shrink-0">
+                  {formatWeekLabelShort(week.date_start, week.week_number)}
+                </span>
+              )}
+
+              {/* Status label */}
+              <span className={`text-[11px] font-medium flex-shrink-0 ${
+                piece.approval_status === "approved" ? "text-green-600" :
+                piece.approval_status === "changes_requested" ? "text-amber-600" :
+                "text-gray-400"
+              }`}>
+                {status.label}
+              </span>
+
+              {/* Arrow */}
+              <svg className="h-4 w-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
