@@ -495,7 +495,7 @@ export default function PostingSchedulePage() {
                 <option value="A1_blue">A1 Quote Card (Blue)</option>
                 <option value="A2_editorial">A2 Healthcare Editorial</option>
                 <option value="A3B_real_photo">A3B Real Photo (Manual)</option>
-                <option value="A4_pixar">A4 Pixar 3D Style</option>
+                <option value="A4_pixar">A4 Cinematic 3D Style</option>
                 <option value="A5_carousel">A5 Carousel</option>
                 <option value="A7_infographic">A7 Infographic</option>
               </select>

@@ -110,7 +110,7 @@ export default function PostShowcase() {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">Scroll-stopping visual</p>
-              <p className="text-xs text-gray-500">Quote cards, Pixar 3D, editorial photography, or scene quotes. Auto-matched to post type.</p>
+              <p className="text-xs text-gray-500">Quote cards, Cinematic 3D, editorial photography, or scene quotes. Auto-matched to post type.</p>
             </div>
           </div>
 

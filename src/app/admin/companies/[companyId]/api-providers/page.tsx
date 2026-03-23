@@ -331,7 +331,7 @@ export default function ApiProvidersPage() {
         <h2 className="text-lg font-bold text-gray-900">Image Provider Routing</h2>
         <p className="mt-1 text-xs text-gray-500">
           Override which AI provider handles each visual style for this company.
-          &quot;Auto&quot; uses the smart routing (Gemini for photography, fal.ai for Pixar).
+          &quot;Auto&quot; uses the smart routing (Gemini for photography, fal.ai for 3D).
         </p>
         <ProviderRoutingMatrix companyId={companyId} />
       </div>
@@ -346,9 +346,9 @@ const VISUAL_STYLES = [
   { slug: "scene_quote", label: "Scene Quote", defaultProvider: "gemini_imagen", cost: "~£0" },
   { slug: "editorial_photo", label: "Editorial Photo", defaultProvider: "gemini_imagen", cost: "~£0" },
   { slug: "carousel_framework", label: "Carousel", defaultProvider: "programmatic", cost: "£0" },
-  { slug: "pixar_3d", label: "Pixar 3D", defaultProvider: "fal_flux", cost: "~£0.04" },
-  { slug: "pixar_fantasy", label: "Pixar Fantasy", defaultProvider: "fal_flux", cost: "~£0.04" },
-  { slug: "pixar_healthcare", label: "Pixar Healthcare", defaultProvider: "fal_flux", cost: "~£0.04" },
+  { slug: "pixar_3d", label: "Cinematic 3D", defaultProvider: "fal_flux", cost: "~£0.04" },
+  { slug: "pixar_fantasy", label: "Cinematic Fantasy", defaultProvider: "fal_flux", cost: "~£0.04" },
+  { slug: "pixar_healthcare", label: "Cinematic Healthcare", defaultProvider: "fal_flux", cost: "~£0.04" },
 ];
 
 const PROVIDER_OPTIONS = [
@@ -465,7 +465,7 @@ function ProviderRoutingMatrix({ companyId }: { companyId: string }) {
       </div>
 
       <p className="mt-2 text-[10px] text-gray-400">
-        Auto routing uses Gemini for photography (free), fal.ai for Pixar (£0.04), and programmatic for text-based images (free).
+        Auto routing uses Gemini for photography (free), fal.ai for Cinematic 3D (£0.04), and programmatic for text-based images (free).
       </p>
     </div>
   );

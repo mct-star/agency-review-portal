@@ -99,7 +99,7 @@ export default function ReferencePhotoUpload({
         <p className="mt-1 text-xs text-gray-500">
           Upload 3-5 photos of {spokespersonName} from different angles and settings.
           These help AI generate characters that more closely resemble the real person
-          in Pixar-style and illustrated images.
+          in 3D character and illustrated images.
         </p>
       </div>
 

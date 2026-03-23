@@ -50,6 +50,8 @@ interface PostTypeConfig {
   dimensions: { width: number; height: number };
   wordCountMin?: number;
   wordCountMax?: number;
+  /** Post-type-specific content instructions. Overrides the generic social_post format. */
+  contentInstructions?: string;
 }
 
 // Image style slug → prompt template map. Used when a company overrides
@@ -74,6 +76,7 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
     imageStyle: "Flat solid green (#CDD856) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. No scenes, people, objects, gradients, textures. The power comes from the emptiness.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 150, wordCountMax: 250,
+    contentInstructions: `POST TYPE: Problem Diagnosis. Identify a common mistake, blind spot, or misconception in the audience's industry. Structure: punchy hook (the mistake) → why it happens (2 paras) → what they should do instead (1-2 paras) → reflective question. Tone: direct but empathetic. You have seen this mistake before.`,
   },
   launch_story: {
     archetype: "pixar_healthcare",
@@ -81,24 +84,28 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
       `Pixar/Disney-adjacent 3D rendered scene in a professional business environment. Sophisticated lighting, slightly exaggerated proportions. Main character: ${appearance}. The Pixar character should clearly resemble this person.`,
     dimensions: { width: 1080, height: 1350 },
     wordCountMin: 200, wordCountMax: 350,
+    contentInstructions: `POST TYPE: Experience Story. Share a real or realistic experience that reveals a pattern. Structure: hook (the moment) → set the scene (what happened) → the pattern you noticed → what it taught you → takeaway for the reader. Tone: narrative, observational, first-person.`,
   },
   if_i_was: {
     archetype: "quote_card",
     imageStyle: "Flat solid purple (#A27BF9) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. Hand-drawn black arrow curving downward beneath the text. No scenes, people, objects, gradients, textures.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 200, wordCountMax: 300,
+    contentInstructions: `POST TYPE: Expert Perspective. "If I was in your role..." practical, specific advice. Structure: hook (the situation) → "If I was in your role, here is what I would do" → 3-4 specific, actionable steps → why this works → open question. Tone: authoritative but generous. Sharing expertise freely.`,
   },
   contrarian: {
     archetype: "quote_card",
     imageStyle: "Flat solid blue (#41C9FE) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. Accusation, revelation, or confrontation tone. No scenes, people, objects, gradients, textures.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 200, wordCountMax: 300,
+    contentInstructions: `POST TYPE: Contrarian Take. Challenge a widely-held industry assumption. Structure: hook (the assumption everyone believes) → why it is wrong or incomplete → evidence from your experience → what to do instead → provocative closing question. Tone: confident, slightly provocative but not arrogant. Back it up with specifics.`,
   },
   tactical: {
     archetype: "carousel",
     imageStyle: "Clean white background with purple (#A27BF9) accents. Typography-led framework slide. Oversized purple number + heading + body text. Generous whitespace. Line-art icon. Professional, airy layout.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 150, wordCountMax: 250,
+    contentInstructions: `POST TYPE: Tactical How-To. Actionable steps to solve a specific problem. Structure: hook (the problem) → numbered steps (3-5, each with a heading and 1-2 sentence explanation) → brief closing. IMPORTANT: Use numbered points (1. 2. 3.) because the image generator will parse these into carousel slides. Tone: practical, no fluff, each step must be immediately actionable.`,
   },
   founder_friday: {
     archetype: "pixar_fantasy",
@@ -106,24 +113,28 @@ const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
       `Pixar/Disney-adjacent 3D rendered scene showing a 'fantasy vs reality' moment. Split composition or contrasting elements. Main character: ${appearance}. The Pixar character should clearly resemble this person. Warm, intimate lighting. Candid, reflective moment.`,
     dimensions: { width: 1080, height: 1350 },
     wordCountMin: 250, wordCountMax: 400,
+    contentInstructions: `POST TYPE: Personal Reflection. Behind the scenes — expectations vs reality. Structure: hook (the expectation) → what actually happened → the gap between expectation and reality → what you learned → reflective closing. Tone: honest, vulnerable, self-aware. This is the most personal post type. Show the human behind the professional.`,
   },
   blog_teaser: {
     archetype: "quote_card",
     imageStyle: "Flat solid emerald (#059669) background, edge to edge. Bold white text centred. Article title as hook. Clean, minimal.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 60, wordCountMax: 120,
+    contentInstructions: `POST TYPE: Article Teaser. SHORT. Drive traffic to a longer piece of content. Structure: hook (the insight) → 1-2 sentences teasing the full article → call to read more. This is NOT a full post. It is a teaser. Maximum 120 words. Make the reader curious enough to click through.`,
   },
   personal_update: {
     archetype: "editorial_photo",
     imageStyle: "Candid editorial photography. Natural light, warm tones. Lifestyle scene matching the topic — walking, coffee shop, workspace, travel, family, nature. Authentic and unposed. Shot on 35mm film look. Shallow depth of field. No text on the image.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 100, wordCountMax: 200,
+    contentInstructions: `POST TYPE: Personal Update. Share what you are up to — candid, human, relatable. Structure: hook (what you were doing) → the moment or observation → a brief business insight that connects it back to work → warm closing. Tone: casual, warm, conversational. This reads like a friend talking, not a professional posting. Short paragraphs, natural language.`,
   },
   scene_provocation: {
     archetype: "scene_quote",
     imageStyle: "Industry-relevant scene with a blank surface for text overlay. Whiteboard, billboard, chalkboard, or screen in a professional setting.",
     dimensions: { width: 1080, height: 1080 },
     wordCountMin: 150, wordCountMax: 250,
+    contentInstructions: `POST TYPE: Scene Provocation. A bold, provocative statement that challenges the status quo. Structure: hook (the bold claim) → why this matters → evidence or experience backing it up → what should change → call to debate. Tone: confident, slightly confrontational. The hook should be something you would write on a whiteboard in a meeting to make people stop and think.`,
   },
 };
 

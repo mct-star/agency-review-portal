@@ -314,7 +314,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                 <p className="mt-1 text-xl font-bold text-gray-900">£30<span className="text-xs font-normal text-gray-400">/mo</span></p>
                 <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
                   <li>20 posts/month</li>
-                  <li>All visual styles inc Pixar 3D</li>
+                  <li>All visual styles inc Cinematic 3D</li>
                   <li>1 spokesperson</li>
                   <li>Basic voice matching</li>
                 </ul>

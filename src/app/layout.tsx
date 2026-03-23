@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: "%s | AGENCY",
   },
   description:
-    "Your weekly demand ecosystem, deployed in minutes. Voice-matched AI content, regulatory compliance, and Pixar-quality visuals.",
+    "Your weekly demand ecosystem, deployed in minutes. Voice-matched AI content, regulatory compliance, and cinematic-quality visuals.",
   metadataBase: new URL("https://agency-review-portal.vercel.app"),
   openGraph: {
     title: "AGENCY | Content Platform",

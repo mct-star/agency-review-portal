@@ -20,8 +20,8 @@ export interface ImageStyle {
 export const IMAGE_STYLES: ImageStyle[] = [
   {
     slug: "pixar_3d",
-    name: "3D Animated (Pixar-style)",
-    description: "Disney/Pixar-quality 3D characters and scenes. Great for storytelling. Characters can be customised to resemble your spokesperson.",
+    name: "3D Animated (Cinematic)",
+    description: "Cinematic-quality 3D characters and scenes. Great for storytelling. Characters can be customised to resemble your spokesperson.",
     category: "illustration",
     previewColor: "#41CDA9",
     examples: ["Experience stories", "Personal reflections", "Scenario illustrations"],

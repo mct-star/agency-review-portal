@@ -42,7 +42,7 @@ function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: stri
   // SVG placeholders for AI-generated types
   const size = 48;
   switch (visualTag) {
-    case "Pixar 3D":
+    case "Cinematic 3D":
       return (
         <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
           <rect width="48" height="48" rx="8" fill="#fce7f3" />
@@ -108,7 +108,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Share a real experience with pattern recognition. 200-350 words.",
     archetype: "pixar_healthcare",
     color: "#41CDA9",
-    visualTag: "Pixar 3D",
+    visualTag: "Cinematic 3D",
   },
   {
     slug: "if_i_was",
@@ -140,7 +140,7 @@ const POST_TYPES: PostTypeOption[] = [
     description: "Behind the scenes: expectations vs reality. 250-400 words.",
     archetype: "pixar_fantasy",
     color: "#F59E0B",
-    visualTag: "Pixar 3D",
+    visualTag: "Cinematic 3D",
   },
   {
     slug: "blog_teaser",

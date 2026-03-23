@@ -5,11 +5,11 @@
  * to enforce limits before generating content or running reviews.
  *
  * Plan hierarchy (March 2026):
- * - starter (£30): 20 posts/month, 1 spokesperson, ALL visual styles inc Pixar, basic voice
+ * - starter (£30): 20 posts/month, 1 spokesperson, ALL visual styles inc Cinematic 3D, basic voice
  * - pro (£99): unlimited posts, unlimited spokespersons, compliance, carousels, calendar, batch, full voice
  * - agency (£299): everything in pro + face-match PuLID, multi-company, white-label
  *
- * Design principle: Starter gets great VISUALS (Pixar is the wow factor,
+ * Design principle: Starter gets great VISUALS (Cinematic 3D is the wow factor,
  * costs £0.04/image, generates word-of-mouth). Higher tiers unlock
  * WORKFLOW features (compliance, calendar, batch, multi-company).
  */

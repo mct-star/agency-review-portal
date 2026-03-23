@@ -17,7 +17,7 @@ const STEPS = [
     description: "Choose from 7 post types designed for B2B healthcare engagement.",
     details: [
       "Problem Diagnosis. Experience Story. Expert Perspective. Contrarian Take. Tactical How-To. Personal Reflection. Article Teaser.",
-      "Each post type has its own image style. Pixar-style 3D scenes for stories. Bold quote cards for insights. Carousel slides for frameworks.",
+      "Each post type has its own image style. Cinematic 3D scenes for stories. Bold quote cards for insights. Carousel slides for frameworks.",
       "Generate a single post instantly, or plan a full week ecosystem where each post builds on the last with strategic CTA hierarchy.",
     ],
   },

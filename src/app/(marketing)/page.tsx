@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import GoogleSignInButton from "@/components/marketing/GoogleSignInButton";
 import PostShowcase from "@/components/marketing/PostShowcase";
 
@@ -30,9 +31,9 @@ const MODULES = [
     availColor: "text-amber-600",
     title: "Creative that stops the scroll.",
     description:
-      "Pixar 3D, scene quotes, editorial photography, quote cards. Every image type uses the best AI for the job. Face-match (Pixar characters that look like you) is Agency only.",
+      "Cinematic 3D, scene quotes, editorial photography, quote cards. Every image type uses the best AI for the job. Face-match (3D characters that look like you) is Agency only.",
     features: [
-      "Pixar/Disney-quality 3D character scenes",
+      "Cinematic-quality 3D character scenes",
       "Programmatic quote cards (perfect text, every time)",
       "Editorial photography via Google Gemini (free)",
       "Carousel slide generation",
@@ -149,7 +150,7 @@ const WITH = [
   "Strategic content ecosystem, not random posts",
   "39 quality checks ensure your authentic voice",
   "Three-colour regulatory review before anything goes live",
-  "Pixar 3D, quote cards, and editorial photography on demand",
+  "Cinematic 3D, quote cards, and editorial photography on demand",
 ];
 
 // ─── Page ────────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ export default function LandingPage() {
     <>
       {/* ═══════════ HERO ═══════════ */}
       <section className="relative overflow-hidden">
-        <div className="mx-auto max-w-6xl px-6 pt-20 pb-16 sm:pt-28 sm:pb-20 lg:pt-36 lg:pb-24">
+        <div className="mx-auto max-w-6xl px-6 pt-20 pb-8 sm:pt-28 sm:pb-12 lg:pt-36 lg:pb-16">
           <div className="mx-auto max-w-3xl text-center">
             <p className="mb-5 inline-block rounded-full bg-violet-100 px-4 py-1.5 text-xs font-semibold text-violet-700">
               7-day free trial &middot; No credit card required
@@ -197,6 +198,71 @@ export default function LandingPage() {
                 <div className="h-px w-12 bg-gray-200" />
               </div>
               <GoogleSignInButton />
+            </div>
+          </div>
+
+          {/* ── Sample output images ── */}
+          <div className="mx-auto mt-14 max-w-4xl">
+            <p className="text-center text-sm text-gray-400 mb-6">
+              Written copy &middot; Scroll-stopping creative &middot; First comment &middot; Ready to publish.
+            </p>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="group relative overflow-hidden rounded-2xl shadow-lg transition-transform hover:scale-[1.02]">
+                <Image
+                  src="/images/sample-quote-card.jpg"
+                  alt="Quote Card — bold text on vibrant colour"
+                  width={400}
+                  height={400}
+                  className="aspect-square w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5">
+                  <span className="inline-block rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm">
+                    Quote Card
+                  </span>
+                </div>
+              </div>
+              <div className="group relative overflow-hidden rounded-2xl shadow-lg transition-transform hover:scale-[1.02]">
+                <Image
+                  src="/images/sample-3d-character.jpg"
+                  alt="3D Character Scene — cinematic animated spokesperson"
+                  width={400}
+                  height={400}
+                  className="aspect-square w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5">
+                  <span className="inline-block rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm">
+                    3D Character Scene
+                  </span>
+                </div>
+              </div>
+              <div className="group relative overflow-hidden rounded-2xl shadow-lg transition-transform hover:scale-[1.02]">
+                <Image
+                  src="/images/sample-scene-quote.jpg"
+                  alt="Scene Quote — text composited into a real-world scene"
+                  width={400}
+                  height={400}
+                  className="aspect-square w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5">
+                  <span className="inline-block rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm">
+                    Scene Quote
+                  </span>
+                </div>
+              </div>
+              <div className="group relative overflow-hidden rounded-2xl shadow-lg transition-transform hover:scale-[1.02]">
+                <Image
+                  src="/images/sample-editorial-photo.jpg"
+                  alt="Editorial Photo — professional lifestyle photography"
+                  width={400}
+                  height={400}
+                  className="aspect-square w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5">
+                  <span className="inline-block rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm">
+                    Editorial Photo
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -463,7 +529,7 @@ export default function LandingPage() {
               Start creating. Upgrade when you&apos;re ready.
             </h2>
             <p className="mt-4 text-lg text-gray-600">
-              Every plan includes Pixar-quality visuals. Premium modules unlock advanced capabilities.
+              Every plan includes Cinematic-quality visuals. Premium modules unlock advanced capabilities.
             </p>
           </div>
 
@@ -478,7 +544,7 @@ export default function LandingPage() {
               <ul className="mt-8 space-y-3 text-sm text-gray-600">
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> 20 posts per month</li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> 1 spokesperson</li>
-                <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> ALL visual styles (Pixar 3D, scene quotes, editorial, quote cards)</li>
+                <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> ALL visual styles (Cinematic 3D, scene quotes, editorial, quote cards)</li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> Basic voice matching</li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> LinkedIn + Bluesky publishing</li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> Brand overlay on all images</li>
@@ -522,7 +588,7 @@ export default function LandingPage() {
               </p>
               <ul className="mt-8 space-y-3 text-sm text-gray-600">
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> Everything in Pro</li>
-                <li className="flex items-start gap-2"><span className="text-amber-500 mt-0.5 font-bold">+</span> <span><strong>Face-matched AI</strong> (Pixar characters that look like you)</span></li>
+                <li className="flex items-start gap-2"><span className="text-amber-500 mt-0.5 font-bold">+</span> <span><strong>Face-matched AI</strong> (3D characters that look like you)</span></li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> Multi-company management</li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> White-label branding</li>
                 <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">&#10003;</span> Full month batch generation</li>
