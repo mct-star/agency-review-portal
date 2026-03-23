@@ -461,5 +461,8 @@ export function stripMarkdownForLinkedIn(text: string): string {
     .replace(/^[-*+]\s+/gm, "")            // Unordered lists: remove bullet
     .replace(/^\d+\.\s+/gm, "")            // Ordered lists: remove number
     .replace(/\n{3,}/g, "\n\n")            // Collapse multiple blank lines
+    .replace(/\n(?:#\w+\s*)+$/g, "")      // Strip trailing hashtag lines
+    .replace(/#\w+/g, "")                 // Strip any remaining hashtags
+    .replace(/\n{3,}/g, "\n\n")            // Re-collapse after hashtag removal
     .trim();
 }

@@ -95,7 +95,7 @@ STRUCTURE:
 - At least one bracketed aside somewhere in the body (MANDATORY).
 - End with the EXACT sign-off from the blueprint (Section E3). Do not paraphrase it. Copy it verbatim.
 - Before the sign-off, include a context-appropriate engagement question related to the post topic.
-- 2-3 hashtags at the very end.
+- NO HASHTAGS. Never include hashtags in posts. This is a strict rule.
 - Post type should be one of: insight, story, framework, contrarian, list, question.
 
 FIRST COMMENT:
@@ -104,7 +104,7 @@ FIRST COMMENT:
 - It should link to a relevant resource from the blueprint's CTA URLs.
 - The first comment is conversational and brief (1-3 sentences + link).
 
-WORD COUNT: 150-350 words (excluding sign-off and hashtags).
+WORD COUNT: 150-350 words (excluding sign-off).
 
 IMAGE PROMPT:
 - Describe a Pixar-style 3D illustration that visualises the post concept.
@@ -426,7 +426,7 @@ ${"═".repeat(60)}
 Respond with a JSON object (no markdown code fences) matching this structure:
 {
   "title": "string",
-  "markdownBody": "string (the full content in markdown, including sign-off and hashtags for social posts)",
+  "markdownBody": "string (the full content in markdown, including sign-off. NO hashtags.)",
   "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
   "wordCount": number,
   "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
@@ -454,7 +454,7 @@ ${"═".repeat(60)}
 
 A. POST STRUCTURE
    [ ] Sign-off is the EXACT text provided (not paraphrased)
-   [ ] Sign-off appears at the end of the post body (before hashtags)
+   [ ] Sign-off appears at the end of the post body (NO hashtags anywhere)
    [ ] Engagement question appears before the sign-off
    [ ] CTA URL is in the FIRST COMMENT ONLY, not in the post body
    [ ] First comment follows the template provided
@@ -644,7 +644,7 @@ const PLATFORM_RULES: Record<string, string> = {
 - Professional but personal tone
 - Hook in first 2 lines (before "see more")
 - End with sign-off (use the EXACT sign-off from the blueprint)
-- 2-3 hashtags at the end`,
+- NO hashtags. Never include hashtags.`,
 
   linkedin_company: `LinkedIn Company Page rules:
 - Maximum 3000 characters
