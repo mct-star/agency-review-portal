@@ -13,7 +13,14 @@
 
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-initialized to avoid build-time crash when RESEND_API_KEY is missing
+let _resend: Resend | null = null;
+function getResend(): Resend {
+  if (!_resend) {
+    _resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
+  }
+  return _resend;
+}
 
 const DEFAULT_FROM = "AGENCY Bristol <mct@agencybristol.com>";
 const FALLBACK_FROM = "AGENCY Bristol <onboarding@resend.dev>"; // Resend sandbox
@@ -52,7 +59,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<EmailResult>
   const from = options.from || DEFAULT_FROM;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from,
       to: options.to,
       subject: options.subject,
@@ -65,7 +72,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<EmailResult>
       // If custom domain fails, try Resend sandbox
       if (from !== FALLBACK_FROM) {
         console.log("[Email] Retrying with Resend sandbox sender...");
-        const retry = await resend.emails.send({
+        const retry = await getResend().emails.send({
           from: FALLBACK_FROM,
           to: options.to,
           subject: options.subject,

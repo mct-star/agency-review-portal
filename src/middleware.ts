@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
 
   // Protected route prefixes — everything else is public (marketing pages, signup, etc.)
   const protectedPrefixes = [
-    "/dashboard", "/setup", "/generate", "/review", "/compliance",
+    "/home", "/dashboard", "/setup", "/generate", "/review", "/compliance",
     "/calendar", "/publish", "/admin", "/users", "/content",
   ];
   const isProtectedRoute = protectedPrefixes.some((p) =>
@@ -72,10 +72,12 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies("/login");
   }
 
-  // Root path: redirect to dashboard (logged in) or login (not logged in)
-  // Marketing landing page is hosted externally (Lovable), not in this app
+  // Root path: redirect to home (logged in) or show marketing page (not logged in)
   if (request.nextUrl.pathname === "/") {
-    return redirectWithCookies(user ? "/dashboard" : "/login");
+    if (user) {
+      return redirectWithCookies("/home");
+    }
+    // Not logged in — fall through to marketing landing page at (marketing)/page.tsx
   }
 
   // If logged in and on login page, redirect to dashboard

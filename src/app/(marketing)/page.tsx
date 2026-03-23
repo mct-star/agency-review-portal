@@ -1,4 +1,5 @@
 import Link from "next/link";
+import GoogleSignInButton from "@/components/marketing/GoogleSignInButton";
 
 // Premium modules — the three USPs
 const MODULES = [
@@ -160,6 +161,16 @@ export default function HomePage() {
               >
                 See how it works
               </Link>
+            </div>
+
+            {/* Google sign-in shortcut */}
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3">
+                <div className="h-px w-12 bg-gray-200" />
+                <span className="text-xs text-gray-400">or get started instantly</span>
+                <div className="h-px w-12 bg-gray-200" />
+              </div>
+              <GoogleSignInButton />
             </div>
           </div>
         </div>
