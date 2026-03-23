@@ -451,7 +451,7 @@ export default function QuickGenerate({
 
       // For quote cards and carousels, regenerate the whole post
       // (the image is programmatic and tied to the content)
-      if (archetype === "quote_card" || archetype === "carousel") {
+      if (archetype.startsWith("quote_card") || archetype === "carousel") {
         // Re-run the full generation to get a new programmatic image
         const res = await fetch("/api/generate/quick", {
           method: "POST",
