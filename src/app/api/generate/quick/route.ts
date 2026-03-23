@@ -166,20 +166,22 @@ export async function POST(request: Request) {
       .single();
 
     // ── Plan enforcement ──────────────────────────────────────
-    if (company) {
-      const effectivePlan = getEffectivePlan(company as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
-      const postCheck = await checkPostLimit(supabase, companyId, effectivePlan);
-      if (!postCheck.allowed) {
-        return NextResponse.json(
-          {
-            error: `Monthly post limit reached (${postCheck.used}/${postCheck.limit}). Upgrade to Pro for unlimited content generation.`,
-            limitReached: true,
-            used: postCheck.used,
-            limit: postCheck.limit,
-          },
-          { status: 429 }
-        );
-      }
+    if (!company) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const effectivePlan = getEffectivePlan(company as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
+    const postCheck = await checkPostLimit(supabase, companyId, effectivePlan);
+    if (!postCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: `Monthly post limit reached (${postCheck.used}/${postCheck.limit}). Upgrade to Pro for unlimited content generation.`,
+          limitReached: true,
+          used: postCheck.used,
+          limit: postCheck.limit,
+        },
+        { status: 429 }
+      );
     }
 
     // Resolve effective image style for this post type.
@@ -412,7 +414,6 @@ export async function POST(request: Request) {
 
     // Check if the visual style is allowed on this plan
     // If not, fall back to quote card (always free, always available)
-    const effectivePlan = getEffectivePlan(company as { plan: PlanTier; trial_plan?: PlanTier | null; trial_expires_at?: string | null });
     if (!isVisualStyleAllowed(effectivePlan, styleSlug)) {
       console.log(`[quick] Style "${styleSlug}" not allowed on ${effectivePlan} plan — falling back to quote_card`);
       // Override to quote card
