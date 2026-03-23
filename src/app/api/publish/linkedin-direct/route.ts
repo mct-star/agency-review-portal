@@ -199,7 +199,7 @@ export async function GET(request: Request) {
 
   const { data: accounts } = await supabase
     .from("company_social_accounts")
-    .select("id, account_name, token_expires_at")
+    .select("id, account_name, token_expires_at, access_token_encrypted")
     .eq("company_id", companyId)
     .eq("platform", "linkedin_personal")
     .eq("is_active", true)
@@ -210,6 +210,16 @@ export async function GET(request: Request) {
   }
 
   const account = accounts[0];
+
+  // Check if access token actually exists
+  if (!account.access_token_encrypted) {
+    return NextResponse.json({
+      connected: false,
+      expired: false,
+      noToken: true,
+      accountName: account.account_name,
+    });
+  }
 
   // Check if token is expired
   if (account.token_expires_at) {
