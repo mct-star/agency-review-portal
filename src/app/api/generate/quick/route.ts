@@ -162,7 +162,7 @@ export async function POST(request: Request) {
     // ── 1. Fetch company context + spokesperson ─────────────────
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("name, description, industry, spokesperson_name, brand_color, brand_palette, spokesperson_appearance, preferred_image_styles, post_type_image_mapping, provider_routing, plan, trial_plan, trial_expires_at")
+      .select("*")
       .eq("id", companyId)
       .single();
 
