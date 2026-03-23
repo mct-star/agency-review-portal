@@ -128,7 +128,11 @@ export async function POST(request: Request) {
   }
 
   // ── 3. Prepare the post text ───────────────────────────────
-  const postText = stripMarkdownForLinkedIn(piece.markdown_body);
+  const rawBody = piece.markdown_body || "";
+  const postText = stripMarkdownForLinkedIn(rawBody);
+  console.log("[LinkedIn Publish] Raw body length:", rawBody.length, "Stripped length:", postText.length);
+  console.log("[LinkedIn Publish] Last 100 chars:", JSON.stringify(postText.slice(-100)));
+  console.log("[LinkedIn Publish] First 100 chars:", JSON.stringify(postText.slice(0, 100)));
 
   // ── 4. Fetch images for the piece ──────────────────────────
   const { data: images } = await supabase
