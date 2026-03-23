@@ -165,39 +165,101 @@ async function fetchImageBuffer(url: string): Promise<Buffer | null> {
 }
 
 // ============================================================
-// Hand-drawn arrow SVG path (for if_i_was cards)
+// Hand-drawn arrow SVG variants
 // ============================================================
 
+type ArrowVariant = "none" | "curved" | "squiggly";
+
 /**
- * Returns a hand-drawn pencil-style underline swoosh.
- * Sits beneath the text — a loose, organic line that adds
- * visual energy and pulls the eye down into the post body.
+ * Randomly selects an arrow variant for the quote card.
+ * ~33% plain (no arrow), ~33% curved arrow, ~33% squiggly arrow.
  */
-function handDrawnArrowSvg(width: number): string {
-  const w = Math.round(width * 0.55); // Swoosh width = ~55% of card
-  const startX = Math.round(width * 0.08); // Start at left padding
+function pickArrowVariant(): ArrowVariant {
+  const variants: ArrowVariant[] = ["none", "curved", "squiggly"];
+  return variants[Math.floor(Math.random() * variants.length)];
+}
+
+/**
+ * Curved hand-drawn arrow pointing downward.
+ * Matches the AGENCY production template — thick dark stroke,
+ * organic curve, arrowhead at the bottom.
+ */
+function curvedArrowSvg(width: number, height: number): string {
+  const cx = Math.round(width * 0.45); // Centre the arrow horizontally
+  const startY = 20;
+  const endY = height - 20;
+  const midY = Math.round(height * 0.5);
+
   return `
-    <svg width="${width}" height="80" viewBox="0 0 ${width} 80" xmlns="http://www.w3.org/2000/svg">
-      <!-- Main pencil swoosh line -->
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <!-- Main curved line -->
       <path
-        d="M ${startX} 35
-           C ${startX + w * 0.2} 25, ${startX + w * 0.35} 45, ${startX + w * 0.5} 32
-           C ${startX + w * 0.65} 20, ${startX + w * 0.8} 40, ${startX + w} 28"
+        d="M ${cx + 30} ${startY}
+           C ${cx + 60} ${midY * 0.4}, ${cx - 40} ${midY}, ${cx} ${endY - 40}"
         fill="none"
-        stroke="white"
-        stroke-width="3.5"
+        stroke="rgba(0,0,0,0.7)"
+        stroke-width="5"
         stroke-linecap="round"
         stroke-linejoin="round"
-        opacity="0.85"
       />
-      <!-- Small flick at the end -->
+      <!-- Arrowhead -->
       <path
-        d="M ${startX + w - 8} 30 L ${startX + w} 28 L ${startX + w + 12} 22"
+        d="M ${cx - 14} ${endY - 55}
+           L ${cx} ${endY - 35}
+           L ${cx + 16} ${endY - 50}"
         fill="none"
-        stroke="white"
-        stroke-width="3"
+        stroke="rgba(0,0,0,0.7)"
+        stroke-width="4.5"
         stroke-linecap="round"
-        opacity="0.7"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+}
+
+/**
+ * Squiggly hand-drawn arrow pointing downward.
+ * A loose, wiggly line with an arrowhead — adds playful energy.
+ */
+function squigglyArrowSvg(width: number, height: number): string {
+  const cx = Math.round(width * 0.45);
+  const startY = 15;
+  const endY = height - 20;
+
+  // Build a squiggly path with small oscillations
+  const segments = 6;
+  const segH = (endY - startY - 40) / segments;
+  const wiggle = 25;
+
+  let path = `M ${cx} ${startY}`;
+  for (let i = 0; i < segments; i++) {
+    const y1 = startY + segH * i + segH * 0.5;
+    const y2 = startY + segH * (i + 1);
+    const dir = i % 2 === 0 ? 1 : -1;
+    path += ` Q ${cx + wiggle * dir} ${y1}, ${cx} ${y2}`;
+  }
+
+  return `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <!-- Squiggly line -->
+      <path
+        d="${path}"
+        fill="none"
+        stroke="rgba(0,0,0,0.7)"
+        stroke-width="4.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <!-- Arrowhead -->
+      <path
+        d="M ${cx - 14} ${endY - 55}
+           L ${cx} ${endY - 35}
+           L ${cx + 14} ${endY - 55}"
+        fill="none"
+        stroke="rgba(0,0,0,0.7)"
+        stroke-width="4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       />
     </svg>
   `;
@@ -295,21 +357,27 @@ export async function generateQuoteCard(config: QuoteCardConfig): Promise<QuoteC
     .png()
     .toBuffer();
 
-  // ── Add hand-drawn arrow (optional on any card, default on if_i_was) ──
+  // ── Add hand-drawn arrow (randomly: none / curved / squiggly) ──
 
-  if (config.showArrow || config.postType === "if_i_was") {
-    const arrowSvg = handDrawnArrowSvg(width);
+  const arrowVariant = config.showArrow ? "curved" : pickArrowVariant();
+
+  if (arrowVariant !== "none") {
+    const arrowHeight = Math.round(height * 0.22);
+    const arrowSvg = arrowVariant === "curved"
+      ? curvedArrowSvg(Math.round(width * 0.3), arrowHeight)
+      : squigglyArrowSvg(Math.round(width * 0.3), arrowHeight);
+
     const arrowBuffer = await sharp(Buffer.from(arrowSvg))
       .png()
       .toBuffer();
 
-    // Position swoosh in the lower third, left-aligned to match text
+    // Position arrow below the text, centred-left
     imageBuffer = await sharp(imageBuffer)
       .composite([
         {
           input: arrowBuffer,
-          top: Math.round(height * 0.72),
-          left: 0,
+          top: Math.round(height * 0.68),
+          left: Math.round(width * 0.15),
         },
       ])
       .png()
