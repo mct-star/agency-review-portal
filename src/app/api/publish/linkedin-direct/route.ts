@@ -197,19 +197,37 @@ export async function GET(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  const { data: accounts } = await supabase
+  // Fetch ALL linkedin_personal rows (not just limit 1) to check for duplicates
+  const { data: allAccounts } = await supabase
     .from("company_social_accounts")
-    .select("id, account_name, token_expires_at, access_token_encrypted")
+    .select("id, account_name, account_id, token_expires_at, access_token_encrypted, is_active, spokesperson_id, created_at, updated_at")
     .eq("company_id", companyId)
-    .eq("platform", "linkedin_personal")
-    .eq("is_active", true)
-    .limit(1);
+    .eq("platform", "linkedin_personal");
 
-  if (!accounts || accounts.length === 0) {
+  console.log("[LinkedIn Status] All linkedin_personal rows for company:", companyId,
+    "count:", allAccounts?.length,
+    "rows:", allAccounts?.map(a => ({
+      id: a.id,
+      name: a.account_name,
+      account_id: a.account_id,
+      hasToken: !!a.access_token_encrypted,
+      isActive: a.is_active,
+      spokespersonId: a.spokesperson_id,
+      created: a.created_at,
+      updated: a.updated_at,
+    }))
+  );
+
+  // Filter to active rows
+  const accounts = (allAccounts || []).filter(a => a.is_active);
+
+  if (accounts.length === 0) {
     return NextResponse.json({ connected: false });
   }
 
-  const account = accounts[0];
+  // Prefer a row that actually has a token
+  const accountWithToken = accounts.find(a => !!a.access_token_encrypted);
+  const account = accountWithToken || accounts[0];
 
   // Check if access token actually exists
   if (!account.access_token_encrypted) {
@@ -218,6 +236,11 @@ export async function GET(request: Request) {
       expired: false,
       noToken: true,
       accountName: account.account_name,
+      debug: {
+        totalRows: allAccounts?.length,
+        activeRows: accounts.length,
+        rowsWithTokens: accounts.filter(a => !!a.access_token_encrypted).length,
+      },
     });
   }
 
