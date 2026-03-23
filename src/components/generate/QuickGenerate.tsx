@@ -665,7 +665,9 @@ export default function QuickGenerate({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Overlay failed");
       if (json.url) {
-        setCurrentImageUrl(json.url);
+        // Cache-bust to force browser to load the new branded image
+        const bust = json.url.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+        setCurrentImageUrl(json.url + bust);
       } else {
         throw new Error("No URL returned from overlay");
       }
