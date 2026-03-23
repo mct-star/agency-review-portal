@@ -1021,32 +1021,50 @@ export default function QuickGenerate({
         </div>
       ) : state === "complete" && result ? (
         <div className="p-6 space-y-6">
-          {/* Action bar */}
+          {/* Row 1: Status + New post */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-400" />
               <span className="text-sm font-medium text-green-700">Post generated</span>
             </div>
-            <div className="flex gap-2">
-              {/* Edit / Save / Cancel */}
+            <button
+              onClick={handleReset}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New post
+            </button>
+          </div>
+
+          {/* Row 2: Grouped toolbar */}
+          <div className="rounded-xl border border-gray-200 bg-white p-1.5 flex flex-wrap items-center gap-1">
+            {/* Group 1: Content */}
+            <div className="flex items-center gap-1">
               {!editing ? (
                 <button
                   onClick={handleStartEdit}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-1.5"
                 >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
                   Edit
                 </button>
               ) : (
                 <>
                   <button
                     onClick={handleSaveEdit}
-                    className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                    className="rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors flex items-center gap-1.5"
                   >
                     Save edits
                   </button>
                   <button
                     onClick={handleCancelEdit}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-1.5"
                   >
                     Cancel
                   </button>
@@ -1054,61 +1072,85 @@ export default function QuickGenerate({
               )}
               <button
                 onClick={handleCopy}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-1.5"
               >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
                 {copied ? "Copied!" : "Copy text"}
               </button>
-              {currentImageUrl && (
+            </div>
+
+            {/* Divider */}
+            {currentImageUrl && <div className="mx-1 h-6 w-px bg-gray-200" />}
+
+            {/* Group 2: Image */}
+            {currentImageUrl && (
+              <div className="flex items-center gap-1">
+                {imagePrompt && (
+                  <button
+                    onClick={handleRegenerateImage}
+                    disabled={regeneratingImage}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  >
+                    {regeneratingImage ? (
+                      <>
+                        <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 4v6h6M23 20v-6h-6" />
+                          <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+                        </svg>
+                        New image
+                      </>
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={handleApplyOverlay}
+                  disabled={applyingOverlay}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="2" width="20" height="20" rx="2" />
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                    <rect x="10" y="10" width="4" height="4" />
+                  </svg>
+                  {applyingOverlay ? "Applying..." : "Apply overlay"}
+                </button>
                 <a
                   href={currentImageUrl}
                   download
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-1.5"
                 >
-                  Download image
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
                 </a>
-              )}
-              {currentImageUrl && imagePrompt && (
-                <button
-                  onClick={handleRegenerateImage}
-                  disabled={regeneratingImage}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  {regeneratingImage ? (
-                    <span className="flex items-center gap-1.5">
-                      <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Regenerating...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M1 4v6h6M23 20v-6h-6" />
-                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
-                      </svg>
-                      New image
-                    </span>
-                  )}
-                </button>
-              )}
-              {currentImageUrl && (
-                <button
-                  onClick={handleApplyOverlay}
-                  disabled={applyingOverlay}
-                  className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
-                >
-                  {applyingOverlay ? "Applying..." : "Apply overlay"}
-                </button>
-              )}
-              {/* Multi-platform publish */}
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="mx-1 h-6 w-px bg-gray-200" />
+
+            {/* Group 3: Publish */}
+            <div className="flex items-center gap-1">
               {!published && (linkedInConnected || blueskyConnected) && (
-                <div className="flex items-center gap-2">
-                  {/* Platform checkboxes */}
+                <>
                   {linkedInConnected && (
-                    <label className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors ${publishToLinkedIn ? "border-blue-300 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-400"}`}>
+                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToLinkedIn ? "bg-blue-50 text-blue-700" : "text-gray-400 hover:bg-gray-100"}`}>
                       <input type="checkbox" checked={publishToLinkedIn} onChange={(e) => setPublishToLinkedIn(e.target.checked)} className="sr-only" />
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
@@ -1117,7 +1159,7 @@ export default function QuickGenerate({
                     </label>
                   )}
                   {blueskyConnected && (
-                    <label className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors ${publishToBluesky ? "border-blue-300 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-400"}`}>
+                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToBluesky ? "bg-blue-50 text-blue-700" : "text-gray-400 hover:bg-gray-100"}`}>
                       <input type="checkbox" checked={publishToBluesky} onChange={(e) => setPublishToBluesky(e.target.checked)} className="sr-only" />
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
@@ -1125,106 +1167,77 @@ export default function QuickGenerate({
                       {publishToBluesky ? "✓" : ""} Bluesky
                     </label>
                   )}
-                  {/* Publish button */}
                   <button
                     onClick={handlePublish}
                     disabled={publishing || (!publishToLinkedIn && !publishToBluesky)}
-                    className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                   >
                     {publishing ? (
-                      <span className="flex items-center gap-1.5">
+                      <>
                         <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
                         Publishing...
-                      </span>
+                      </>
                     ) : (
-                      <span className="flex items-center gap-1.5">
+                      <>
                         <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                         </svg>
                         Publish
-                      </span>
+                      </>
                     )}
                   </button>
-                </div>
+                </>
               )}
               {!published && !linkedInConnected && !blueskyConnected && (
                 <a
                   href={`/setup/${selectedCompany.id}/social`}
-                  className="rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors flex items-center gap-1.5"
                 >
-                  Connect social accounts →
+                  Connect social accounts
                 </a>
               )}
-              {/* Post-publish links */}
               {published && (
-                <div className="flex items-center gap-2">
+                <>
                   {postUrl && (
-                    <a href={postUrl} target="_blank" rel="noopener noreferrer" className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors">
-                      View on LinkedIn ↗
+                    <a href={postUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5">
+                      View on LinkedIn
                     </a>
                   )}
                   {blueskyPostUrl && (
-                    <a href={blueskyPostUrl} target="_blank" rel="noopener noreferrer" className="rounded-md px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-colors" style={{ backgroundColor: "#0085FF" }}>
-                      View on Bluesky ↗
+                    <a href={blueskyPostUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-colors flex items-center gap-1.5" style={{ backgroundColor: "#0085FF" }}>
+                      View on Bluesky
                     </a>
                   )}
                   {!postUrl && !blueskyPostUrl && (
-                    <span className="rounded-md bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">Published</span>
+                    <span className="rounded-lg bg-green-100 px-2.5 py-1.5 text-xs font-medium text-green-700">Published</span>
                   )}
-                </div>
-              )}
-              {/* Edit button */}
-              {!editing ? (
-                <button
-                  onClick={handleStartEdit}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                    Edit
-                  </span>
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={handleSaveEdit}
-                    className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
-                  >
-                    Save edits
-                  </button>
-                  <button
-                    onClick={handleCancelEdit}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
                 </>
               )}
+            </div>
 
-              {/* Add to week button */}
+            {/* Divider */}
+            <div className="mx-1 h-6 w-px bg-gray-200" />
+
+            {/* Group 4: Organise */}
+            <div className="flex items-center gap-1">
               {!addedToWeek ? (
                 <div className="relative">
                   <button
                     onClick={() => setShowWeekPicker(!showWeekPicker)}
-                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors"
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-1.5"
                   >
-                    <span className="flex items-center gap-1.5">
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                        <line x1="16" y1="2" x2="16" y2="6" />
-                        <line x1="8" y1="2" x2="8" y2="6" />
-                        <line x1="3" y1="10" x2="21" y2="10" />
-                        <line x1="12" y1="14" x2="12" y2="18" />
-                        <line x1="10" y1="16" x2="14" y2="16" />
-                      </svg>
-                      Add to week
-                    </span>
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                      <line x1="12" y1="14" x2="12" y2="18" />
+                      <line x1="10" y1="16" x2="14" y2="16" />
+                    </svg>
+                    Add to week
                   </button>
                   {showWeekPicker && (
                     <div className="absolute right-0 top-full mt-1 z-10 rounded-lg border border-gray-200 bg-white shadow-lg p-2 min-w-[160px]">
@@ -1249,22 +1262,13 @@ export default function QuickGenerate({
                   )}
                 </div>
               ) : (
-                <span className="rounded-md bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
-                  <span className="flex items-center gap-1.5">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Added to {addedToWeek}
-                  </span>
+                <span className="rounded-lg bg-green-100 px-2.5 py-1.5 text-xs font-medium text-green-700 flex items-center gap-1.5">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Added to {addedToWeek}
                 </span>
               )}
-
-              <button
-                onClick={handleReset}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                New post
-              </button>
             </div>
           </div>
 

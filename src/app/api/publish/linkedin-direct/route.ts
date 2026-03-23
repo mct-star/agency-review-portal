@@ -164,7 +164,8 @@ export async function POST(request: Request) {
         firstComment
       );
     } catch (commentErr) {
-      console.error("LinkedIn first comment failed:", commentErr);
+      console.error("LinkedIn first comment failed:", commentErr instanceof Error ? commentErr.message : commentErr);
+      console.error("LinkedIn first comment details - postUrn:", postResult.postUrn, "personUrn:", personUrn, "textLength:", firstComment.length);
     }
   }
 
