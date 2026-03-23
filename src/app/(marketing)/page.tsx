@@ -1,5 +1,6 @@
 import Link from "next/link";
 import GoogleSignInButton from "@/components/marketing/GoogleSignInButton";
+import PostShowcase from "@/components/marketing/PostShowcase";
 
 // Premium modules — the three USPs
 const MODULES = [
@@ -186,6 +187,24 @@ export default function HomePage() {
             Built by <strong className="text-gray-700">AGENCY Bristol</strong> — a healthcare demand generation consultancy that
             built this for their own 10-week production workflow, then opened it up.
           </p>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════
+          WHAT YOU GET — complete post showcase
+          ═══════════════════════════════════════════════════════ */}
+      <section className="py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-2xl text-center mb-14">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              One click. Complete post.
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              Not just images. Not just copy. Everything your LinkedIn post needs,
+              generated together, ready to publish.
+            </p>
+          </div>
+          <PostShowcase />
         </div>
       </section>
 
