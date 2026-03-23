@@ -421,6 +421,7 @@ export async function addComment(
       },
       body: JSON.stringify({
         actor: `urn:li:person:${personUrn}`,
+        object: postUrn,
         message: {
           text,
         },
