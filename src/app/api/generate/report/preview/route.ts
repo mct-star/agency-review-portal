@@ -507,7 +507,7 @@ export async function GET(request: Request) {
       .no-print { display: none !important; }
       .post-section { page-break-inside: avoid; }
       .signoff-section { page-break-before: always; }
-      .header-bar, .day-divider, .post-type-badge {
+      .header-card, .day-divider, .post-type-badge {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
@@ -515,20 +515,22 @@ export async function GET(request: Request) {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-      line-height: 1.6;
+      line-height: 1.7;
       color: #1a1a1a;
-      max-width: 800px;
+      max-width: 820px;
       margin: 0 auto;
       padding: 40px 24px;
-      background: #f8f9fa;
+      background: #fff;
     }
 
     /* Toolbar */
     .toolbar {
-      margin-bottom: 24px;
+      margin-bottom: 28px;
       padding: 14px 20px;
-      background: #f5f3ff;
-      border-radius: 8px;
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       display: flex;
       gap: 10px;
       align-items: center;
@@ -536,61 +538,116 @@ export async function GET(request: Request) {
     .toolbar-btn {
       display: inline-block;
       padding: 9px 20px;
-      background: ${brandColor};
+      background: #1e293b;
       color: white;
       border: none;
       border-radius: 6px;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
+      text-decoration: none;
     }
-    .toolbar-btn:hover { opacity: 0.9; }
+    .toolbar-btn:hover { background: #334155; }
     .toolbar-hint { font-size: 12px; color: #666; }
 
-    /* Header */
-    .header-bar {
-      background: ${brandColor};
-      color: white;
-      padding: 28px 32px;
-      border-radius: 10px;
-      margin-bottom: 8px;
+    /* Header card */
+    .header-card {
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin-bottom: 32px;
     }
-    .header-top {
+    .header-brand-bar {
+      height: 6px;
+      border-radius: 12px 12px 0 0;
+    }
+    .header-inner {
+      padding: 24px;
+    }
+    .header-logos {
       display: flex;
       align-items: center;
-      gap: 20px;
-      margin-bottom: 16px;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
-    .header-logo {
-      width: 52px;
-      height: 52px;
-      border-radius: 8px;
+    .agency-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .agency-logo-text {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #111827;
+      font-family: system-ui, sans-serif;
+    }
+    .agency-logo-sub {
+      font-size: 9px;
+      color: #9ca3af;
+      letter-spacing: 0.08em;
+    }
+    .client-logo {
+      height: 32px;
       object-fit: contain;
-      background: rgba(255,255,255,0.15);
-      padding: 4px;
+    }
+    .client-name-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .header-divider {
+      border: none;
+      border-top: 1px solid #f3f4f6;
+      margin: 0;
+    }
+    .header-title-area {
+      padding-top: 16px;
+    }
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .header-title-row h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .header-title-row svg {
+      width: 20px;
+      height: 20px;
+      color: #475569;
       flex-shrink: 0;
     }
-    .header-bar h1 {
-      font-size: 22px;
-      font-weight: 700;
-      margin: 0;
-      letter-spacing: -0.3px;
-    }
-    .header-bar .subtitle {
+    .header-date-subtitle {
       font-size: 14px;
-      color: rgba(255,255,255,0.8);
+      color: #6b7280;
       margin-top: 2px;
     }
-    .header-meta {
-      display: flex;
-      gap: 24px;
-      flex-wrap: wrap;
-      font-size: 13px;
-      color: rgba(255,255,255,0.75);
-      padding-top: 14px;
-      border-top: 1px solid rgba(255,255,255,0.2);
+
+    /* Meta grid */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px 32px;
+      margin-top: 16px;
+      font-size: 12px;
     }
-    .header-meta strong { color: rgba(255,255,255,0.95); }
+    .meta-grid-label {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .meta-grid-value {
+      font-weight: 500;
+      color: #374151;
+      margin-top: 2px;
+    }
 
     /* Day dividers */
     .day-divider {
@@ -611,7 +668,7 @@ export async function GET(request: Request) {
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1.5px;
-      color: ${brandColor};
+      color: #0f172a;
     }
 
     /* Post sections */
@@ -620,7 +677,7 @@ export async function GET(request: Request) {
       border-radius: 12px;
       padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       border: 1px solid #e5e7eb;
     }
     .post-meta {
@@ -660,12 +717,18 @@ export async function GET(request: Request) {
 
     /* Sign-off section */
     .signoff-section {
-      background: #fff;
       border-radius: 12px;
-      padding: 28px;
-      margin-top: 40px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
       border: 1px solid #e5e7eb;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin-top: 40px;
+    }
+    .signoff-brand-bar {
+      height: 6px;
+    }
+    .signoff-inner {
+      padding: 28px;
     }
     .signoff-section h2 {
       font-size: 18px;
@@ -718,20 +781,20 @@ export async function GET(request: Request) {
     }
     .sig-block {
       padding-bottom: 48px;
-      border-bottom: 1px solid #9ca3af;
+      border-bottom: 1px solid #bbb;
     }
     .sig-label {
       font-size: 11px;
-      color: #6b7280;
+      color: #888;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin-top: 8px;
     }
 
     .report-footer {
-      margin-top: 24px;
+      margin-top: 28px;
       font-size: 11px;
-      color: #9ca3af;
+      color: #aaa;
       text-align: center;
     }
   </style>
@@ -743,19 +806,58 @@ export async function GET(request: Request) {
   </div>
 
   <!-- Header -->
-  <div class="header-bar">
-    <div class="header-top">
-      ${logoUrl ? `<img class="header-logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(company.name)} logo" />` : ""}
-      <div>
-        <h1>${escapeHtml(company.name)}</h1>
-        <div class="subtitle">Content Preview &amp; Sign-off Report</div>
+  <div class="header-card">
+    <div class="header-brand-bar" style="background:${brandColor};"></div>
+    <div class="header-inner">
+      <!-- Logos row -->
+      <div class="header-logos">
+        <div class="agency-logo">
+          <span class="agency-logo-text">AGENCY</span>
+          <span class="agency-logo-sub">CONTENT PLATFORM</span>
+        </div>
+        ${logoUrl
+          ? `<img class="client-logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(company.name)}" />`
+          : `<span class="client-name-text">${escapeHtml(company.name)}</span>`
+        }
       </div>
-    </div>
-    <div class="header-meta">
-      <div><strong>Week:</strong> ${escapeHtml(weekLabel)}</div>
-      ${week.theme ? `<div><strong>Theme:</strong> ${escapeHtml(week.theme)}</div>` : ""}
-      ${week.subject ? `<div><strong>Subject:</strong> ${escapeHtml(week.subject)}</div>` : ""}
-      <div><strong>Generated:</strong> ${reportDate}</div>
+
+      <hr class="header-divider" />
+
+      <!-- Report title -->
+      <div class="header-title-area">
+        <div class="header-title-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <h1>Content Preview &amp; Sign-off Report</h1>
+        </div>
+        <div class="header-date-subtitle">${escapeHtml(weekLabel)}</div>
+
+        <!-- Meta information grid -->
+        <div class="meta-grid">
+          <div>
+            <div class="meta-grid-label">Week</div>
+            <div class="meta-grid-value">${week.week_number}</div>
+          </div>
+          ${week.theme ? `<div>
+            <div class="meta-grid-label">Theme</div>
+            <div class="meta-grid-value">${escapeHtml(week.theme)}</div>
+          </div>` : ""}
+          ${week.subject ? `<div>
+            <div class="meta-grid-label">Subject</div>
+            <div class="meta-grid-value">${escapeHtml(week.subject)}</div>
+          </div>` : ""}
+          <div>
+            <div class="meta-grid-label">Generated</div>
+            <div class="meta-grid-value">${reportDate}</div>
+          </div>
+          <div>
+            <div class="meta-grid-label">Posts</div>
+            <div class="meta-grid-value">${sortedPieces.length}</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -764,41 +866,44 @@ export async function GET(request: Request) {
 
   <!-- Sign-off Section -->
   <div class="signoff-section">
-    <h2>Sign-off</h2>
-    <p style="font-size:14px;color:#6b7280;margin-bottom:16px;">
-      Please review each post above and confirm approval below.
-    </p>
+    <div class="signoff-brand-bar" style="background:${brandColor};"></div>
+    <div class="signoff-inner">
+      <h2>Sign-off</h2>
+      <p style="font-size:14px;color:#6b7280;margin-bottom:16px;">
+        Please review each post above and confirm approval below.
+      </p>
 
-    <table class="signoff-table">
-      <thead>
-        <tr>
-          <th>Post Title</th>
-          <th>Platform</th>
-          <th>Approved</th>
-          <th>Comments</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${signoffRows}
-      </tbody>
-    </table>
+      <table class="signoff-table">
+        <thead>
+          <tr>
+            <th>Post Title</th>
+            <th>Platform</th>
+            <th>Approved</th>
+            <th>Comments</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${signoffRows}
+        </tbody>
+      </table>
 
-    <div class="signature-grid">
-      <div>
-        <div class="sig-block"></div>
-        <p class="sig-label">Content Approver</p>
-      </div>
-      <div>
-        <div class="sig-block"></div>
-        <p class="sig-label">Date</p>
-      </div>
-      <div>
-        <div class="sig-block"></div>
-        <p class="sig-label">Regulatory Approver</p>
-      </div>
-      <div>
-        <div class="sig-block"></div>
-        <p class="sig-label">Date</p>
+      <div class="signature-grid">
+        <div>
+          <div class="sig-block"></div>
+          <p class="sig-label">Content Approver</p>
+        </div>
+        <div>
+          <div class="sig-block"></div>
+          <p class="sig-label">Date</p>
+        </div>
+        <div>
+          <div class="sig-block"></div>
+          <p class="sig-label">Regulatory Approver</p>
+        </div>
+        <div>
+          <div class="sig-block"></div>
+          <p class="sig-label">Date</p>
+        </div>
       </div>
     </div>
   </div>

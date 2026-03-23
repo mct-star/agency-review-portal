@@ -312,7 +312,7 @@ export async function GET(request: Request) {
       body { font-size: 11pt; }
       .no-print { display: none !important; }
       .page-break { page-break-before: always; }
-      .header-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .header-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .journey-container { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -326,54 +326,103 @@ export async function GET(request: Request) {
       background: #fff;
     }
 
-    /* Header */
-    .header-bar {
-      background: ${brandColor};
-      color: white;
-      padding: 32px 36px;
-      border-radius: 10px;
+    /* Header card */
+    .header-card {
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      overflow: hidden;
       margin-bottom: 32px;
+    }
+    .header-brand-bar {
+      height: 6px;
+      border-radius: 12px 12px 0 0;
+    }
+    .header-inner {
+      padding: 24px;
+    }
+    .header-logos {
       display: flex;
       align-items: center;
-      gap: 24px;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
-    .header-logo {
-      width: 56px;
-      height: 56px;
-      border-radius: 8px;
+    .agency-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .agency-logo-text {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #111827;
+      font-family: system-ui, sans-serif;
+    }
+    .agency-logo-sub {
+      font-size: 9px;
+      color: #9ca3af;
+      letter-spacing: 0.08em;
+    }
+    .client-logo {
+      height: 32px;
       object-fit: contain;
-      background: rgba(255,255,255,0.15);
-      padding: 4px;
+    }
+    .client-name-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .header-divider {
+      border: none;
+      border-top: 1px solid #f3f4f6;
+      margin: 0;
+    }
+    .header-title-area {
+      padding-top: 16px;
+    }
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .header-title-row h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .header-title-row svg {
+      width: 20px;
+      height: 20px;
+      color: #475569;
       flex-shrink: 0;
     }
-    .header-text h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: white;
-      margin-bottom: 2px;
-      letter-spacing: -0.3px;
-    }
-    .header-subtitle {
+    .header-date-subtitle {
       font-size: 14px;
-      color: rgba(255,255,255,0.8);
-      font-weight: 400;
+      color: #6b7280;
+      margin-top: 2px;
     }
 
-    /* Meta row */
-    .meta-row {
-      display: flex;
-      gap: 24px;
-      flex-wrap: wrap;
-      margin-bottom: 36px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid #eee;
+    /* Meta grid */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px 32px;
+      margin-top: 16px;
+      font-size: 12px;
     }
-    .meta-item {
-      font-size: 13px;
-      color: #666;
+    .meta-grid-label {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
-    .meta-item strong {
-      color: #333;
+    .meta-grid-value {
+      font-weight: 500;
+      color: #374151;
+      margin-top: 2px;
     }
 
     /* Section headings */
@@ -390,7 +439,7 @@ export async function GET(request: Request) {
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: ${brandColor};
+      background: #0f172a;
       color: white;
       font-size: 13px;
       font-weight: 700;
@@ -406,7 +455,7 @@ export async function GET(request: Request) {
       border-radius: 10px;
       padding: 24px 28px;
       margin-bottom: 8px;
-      border-left: 4px solid ${brandColor};
+      border-left: 2px solid ${brandColor};
     }
     .story-section p {
       font-size: 14px;
@@ -476,11 +525,18 @@ export async function GET(request: Request) {
       font-size: 18px;
     }
 
-    /* Table */
+    /* Table card wrapper */
+    .table-card {
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin: 16px 0;
+    }
     .content-table {
       width: 100%;
       border-collapse: collapse;
-      margin: 16px 0;
       font-size: 13px;
     }
     .content-table th {
@@ -544,7 +600,7 @@ export async function GET(request: Request) {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: ${brandColor};
+      background: #0f172a;
     }
 
     /* Sign-off */
@@ -580,8 +636,10 @@ export async function GET(request: Request) {
     .toolbar {
       margin-bottom: 28px;
       padding: 14px 20px;
-      background: #f0f9ff;
-      border-radius: 8px;
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       display: flex;
       gap: 10px;
       align-items: center;
@@ -613,19 +671,66 @@ export async function GET(request: Request) {
     <span class="toolbar-hint">Use your browser's print dialog to save as PDF</span>
   </div>
 
-  <div class="header-bar">
-    ${logoUrl ? `<img class="header-logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(company.name)} logo" />` : ""}
-    <div class="header-text">
-      <h1>${escapeHtml(company.name)}</h1>
-      <div class="header-subtitle">Editorial Brief – ${weekDateRange}</div>
-    </div>
-  </div>
+  <div class="header-card">
+    <div class="header-brand-bar" style="background:${brandColor};"></div>
+    <div class="header-inner">
+      <!-- Logos row -->
+      <div class="header-logos">
+        <div class="agency-logo">
+          <span class="agency-logo-text">AGENCY</span>
+          <span class="agency-logo-sub">CONTENT PLATFORM</span>
+        </div>
+        ${logoUrl
+          ? `<img class="client-logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(company.name)}" />`
+          : `<span class="client-name-text">${escapeHtml(company.name)}</span>`
+        }
+      </div>
 
-  <div class="meta-row">
-    <div class="meta-item"><strong>Generated:</strong> ${reportDate}</div>
-    <div class="meta-item"><strong>Week:</strong> ${week.week_number}</div>
-    ${week.theme ? `<div class="meta-item"><strong>Theme:</strong> ${escapeHtml(week.theme)}</div>` : ""}
-    ${week.subject ? `<div class="meta-item"><strong>Subject:</strong> ${escapeHtml(week.subject)}</div>` : ""}
+      <hr class="header-divider" />
+
+      <!-- Report title -->
+      <div class="header-title-area">
+        <div class="header-title-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <h1>Editorial Brief</h1>
+        </div>
+        <div class="header-date-subtitle">${weekDateRange}</div>
+
+        <!-- Meta information grid -->
+        <div class="meta-grid">
+          <div>
+            <div class="meta-grid-label">Generated</div>
+            <div class="meta-grid-value">${reportDate}</div>
+          </div>
+          <div>
+            <div class="meta-grid-label">Week</div>
+            <div class="meta-grid-value">${week.week_number}</div>
+          </div>
+          ${week.theme ? `<div>
+            <div class="meta-grid-label">Theme</div>
+            <div class="meta-grid-value">${escapeHtml(week.theme)}</div>
+          </div>` : ""}
+          ${week.subject ? `<div>
+            <div class="meta-grid-label">Subject</div>
+            <div class="meta-grid-value">${escapeHtml(week.subject)}</div>
+          </div>` : ""}
+          <div>
+            <div class="meta-grid-label">Company</div>
+            <div class="meta-grid-value">${escapeHtml(company.name)}</div>
+          </div>
+          <div>
+            <div class="meta-grid-label">Posts</div>
+            <div class="meta-grid-value">${sortedPieces.length}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 1. This Week's Story -->
@@ -662,7 +767,8 @@ export async function GET(request: Request) {
   <!-- 3. Content at a Glance -->
   <h2><span class="section-number">3</span>Content at a Glance</h2>
   ${sortedPieces.length > 0
-    ? `<table class="content-table">
+    ? `<div class="table-card">
+    <table class="content-table">
     <thead>
       <tr>
         <th>Day</th>
@@ -683,7 +789,8 @@ export async function GET(request: Request) {
         )
         .join("\n      ")}
     </tbody>
-  </table>`
+  </table>
+  </div>`
     : '<p style="font-size: 14px; color: #888;">No content pieces created yet for this week.</p>'
   }
 
