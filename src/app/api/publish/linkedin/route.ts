@@ -92,7 +92,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const account = accounts[0];
+  // Prefer a row that actually has a token (handles duplicate rows)
+  const accountWithToken = accounts.find((a: { access_token_encrypted: string | null }) => !!a.access_token_encrypted);
+  const account = accountWithToken || accounts[0];
 
   if (!account.access_token_encrypted) {
     return NextResponse.json(
