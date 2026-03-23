@@ -92,6 +92,7 @@ export async function POST(request: Request) {
 
   // Prepare text
   const postText = stripMarkdownForLinkedIn(text);
+  console.log("[LinkedIn Direct] Text length:", text.length, "→ stripped:", postText.length, "First comment:", firstComment ? firstComment.length + " chars" : "none");
 
   // Upload images and create the post
   let postResult;
@@ -164,8 +165,18 @@ export async function POST(request: Request) {
         firstComment
       );
     } catch (commentErr) {
-      console.error("LinkedIn first comment failed:", commentErr instanceof Error ? commentErr.message : commentErr);
+      const errMsg = commentErr instanceof Error ? commentErr.message : String(commentErr);
+      console.error("LinkedIn first comment failed:", errMsg);
       console.error("LinkedIn first comment details - postUrn:", postResult.postUrn, "personUrn:", personUrn, "textLength:", firstComment.length);
+      return NextResponse.json({
+        success: true,
+        post: {
+          urn: postResult.postUrn,
+          url: postResult.postUrl,
+        },
+        comment: null,
+        commentError: errMsg,
+      });
     }
   }
 
