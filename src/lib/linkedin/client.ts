@@ -225,7 +225,7 @@ export async function uploadImage(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "LinkedIn-Version": "202501",
+      "LinkedIn-Version": "202603",
       "X-Restli-Protocol-Version": "2.0.0",
     },
     body: JSON.stringify({
@@ -314,7 +314,7 @@ export async function createPost(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "LinkedIn-Version": "202501",
+      "LinkedIn-Version": "202603",
       "X-Restli-Protocol-Version": "2.0.0",
     },
     body: JSON.stringify(postBody),
@@ -373,7 +373,7 @@ export async function createMultiImagePost(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "LinkedIn-Version": "202501",
+      "LinkedIn-Version": "202603",
       "X-Restli-Protocol-Version": "2.0.0",
     },
     body: JSON.stringify(postBody),
@@ -416,7 +416,7 @@ export async function addComment(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "LinkedIn-Version": "202501",
+        "LinkedIn-Version": "202603",
         "X-Restli-Protocol-Version": "2.0.0",
       },
       body: JSON.stringify({
