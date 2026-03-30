@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-opus-4-20250514", // Opus for voice extraction — one-time setup, quality matters
+          model: "claude-sonnet-4-20250514", // Sonnet for reliable structured output
           max_tokens: 4000,
           messages: [
             {
@@ -149,9 +149,9 @@ Return ONLY the posts text, separated by --- between each post. No commentary.`,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-20250514", // Opus for voice extraction — one-time setup, quality matters
+        model: "claude-sonnet-4-20250514", // Sonnet for reliable JSON output
         max_tokens: 2000,
-        system: "You are a writing style analyst. Return ONLY valid JSON with no preamble, explanation, or markdown code fences.",
+        system: "You are a writing style analyst. You MUST return ONLY valid JSON with no preamble, explanation, markdown code fences, or any other text. Start your response with { and end with }.",
         messages: [
           {
             role: "user",
@@ -167,16 +167,29 @@ Return ONLY the posts text, separated by --- between each post. No commentary.`,
     }
 
     const claudeData = await claudeRes.json();
-    const responseText = claudeData.content?.[0]?.text || "";
+    // Extract text from the first text content block (skip thinking blocks)
+    const textBlocks = (claudeData.content || []).filter((b: { type: string }) => b.type === "text");
+    const responseText = textBlocks[0]?.text || "";
+
+    if (!responseText) {
+      throw new Error("Claude returned an empty response. Check that a valid API key is configured.");
+    }
 
     // Strip markdown code fences if Claude wrapped the JSON (e.g. ```json ... ```)
     const stripped = responseText.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "").trim();
     const jsonMatch = stripped.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error(`Voice analysis did not return valid JSON. Response: ${responseText.slice(0, 200)}`);
+      console.error("[scan-linkedin] Non-JSON response:", responseText.slice(0, 500));
+      throw new Error(`Claude did not return valid JSON. This usually means the API key needs checking. Raw response starts with: "${responseText.slice(0, 80)}..."`);
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("[scan-linkedin] JSON parse error:", parseErr, "Raw:", jsonMatch[0].slice(0, 300));
+      throw new Error("Claude returned malformed JSON. Please try again.");
+    }
 
     return NextResponse.json({
       profile: {

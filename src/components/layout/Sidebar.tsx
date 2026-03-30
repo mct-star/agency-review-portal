@@ -206,12 +206,12 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            <p className="mt-0.5 text-[10px] text-gray-400">Content Platform</p>
+            <p className="mt-0.5 text-[10px] text-gray-400">Content Creation Platform</p>
           </div>
         ) : (
           <div>
             <h2 className="text-sm font-bold text-gray-900">Copy Magic</h2>
-            <p className="text-[10px] text-gray-400">Content Platform</p>
+            <p className="text-[10px] text-gray-400">Content Creation Platform</p>
           </div>
         )}
       </div>
