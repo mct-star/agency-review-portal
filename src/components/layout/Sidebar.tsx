@@ -10,10 +10,14 @@ interface SidebarProps {
   user: User;
   platformLogoUrl?: string | null;
   companyPlan?: string;
+  complexity?: string;
 }
 
 type PlanTier = "free" | "starter" | "pro" | "agency";
 const PLAN_RANK: Record<PlanTier, number> = { free: 0, starter: 1, pro: 2, agency: 3 };
+
+type ComplexityLevel = "beginner" | "intermediate" | "advanced";
+const COMPLEXITY_RANK: Record<ComplexityLevel, number> = { beginner: 0, intermediate: 1, advanced: 2 };
 
 interface NavItem {
   href: string;
@@ -23,6 +27,7 @@ interface NavItem {
   publisherOnly?: boolean;
   highlight?: boolean;
   minPlan?: PlanTier;
+  minComplexity?: ComplexityLevel;
 }
 
 interface NavSection {
@@ -52,6 +57,7 @@ function buildSections(user: User): NavSection[] {
         phase: 2,
         items: [
           { href: "/calendar", label: "Content Calendar", icon: "calendarView" },
+          { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle" },
         ],
       },
       // Phase 3: Create
@@ -61,6 +67,7 @@ function buildSections(user: User): NavSection[] {
         items: [
           { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
           { href: "/generate", label: "Week Batch", icon: "sparkle" },
+          { href: "/create/article", label: "Blog / Article", icon: "quote" },
         ],
       },
       // Phase 4: Review & Publish
@@ -79,7 +86,7 @@ function buildSections(user: User): NavSection[] {
             {
               title: "Settings",
               items: [
-                { href: `/setup/${cid}`, label: "Brand & People", icon: "building" },
+                { href: "/settings", label: "Brand & People", icon: "building" },
                 { href: `${base}/social`, label: "Connections", icon: "link" },
               ] as NavItem[],
             },
@@ -112,7 +119,8 @@ function buildSections(user: User): NavSection[] {
       title: "Plan",
       phase: 2,
       items: [
-        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: "pro" as PlanTier },
+        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
+        { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
       ],
     },
     // Phase 3: Create
@@ -121,7 +129,8 @@ function buildSections(user: User): NavSection[] {
       phase: 3,
       items: [
         { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
-        { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier },
+        { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
+        { href: "/create/article", label: "Blog / Article", icon: "quote", minComplexity: "intermediate" as ComplexityLevel },
       ],
     },
     // Phase 4: Review & Publish
@@ -130,16 +139,16 @@ function buildSections(user: User): NavSection[] {
       phase: 4,
       items: [
         { href: "/review", label: "Content Review", icon: "checkCircle" },
-        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro" as PlanTier },
-        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro" as PlanTier },
+        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
+        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
       ],
     },
     // Settings (non-phase)
     {
       title: "Settings",
       items: [
-        { href: "/setup/content", label: "Brand & People", icon: "settings" },
-        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: "pro" as PlanTier },
+        { href: "/settings", label: "Brand & People", icon: "settings" },
+        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
       ],
     },
   ];
@@ -181,14 +190,16 @@ const icons: Record<string, string> = {
   lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
   compass: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm3.5-12.5l-5 2-2 5 5-2 2-5Z",
   checkCircle: "M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+  quote: "M6 17h3l2-4V7H5v6h3l-2 4Zm8 0h3l2-4V7h-6v6h3l-2 4Z",
 };
 
-export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced" }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
   const canPublish = isAdmin || (user.can_publish ?? false);
   const planRank = PLAN_RANK[(companyPlan as PlanTier) || "free"] ?? 0;
+  const complexityRank = COMPLEXITY_RANK[(complexity as ComplexityLevel) || "advanced"] ?? 2;
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -266,7 +277,10 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
         {sections.map((section) => {
           const visibleItems = section.items.filter(
-            (item) => (!item.adminOnly || isAdmin) && (!item.publisherOnly || canPublish || item.minPlan)
+            (item) =>
+              (!item.adminOnly || isAdmin) &&
+              (!item.publisherOnly || canPublish || item.minPlan) &&
+              (isAdmin || !item.minComplexity || complexityRank >= COMPLEXITY_RANK[item.minComplexity])
           );
           if (visibleItems.length === 0) return null;
 

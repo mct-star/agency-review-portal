@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import Badge from "@/components/ui/Badge";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
+import ReviewFilters from "@/components/review/ReviewFilters";
 import type { Week, Company } from "@/types/database";
 
 export default async function WeeksPage() {
@@ -23,10 +24,43 @@ export default async function WeeksPage() {
 
   const { data: weeks } = await query;
 
+  // Fetch content piece counts for stat cards
+  let piecesQuery = supabase
+    .from("content_pieces")
+    .select("approval_status");
+
+  if (!isAdmin && profile.company_id) {
+    piecesQuery = piecesQuery.eq("company_id", profile.company_id);
+  }
+
+  const { data: pieces } = await piecesQuery;
+
+  const pendingCount = (pieces || []).filter(
+    (p) => p.approval_status === "pending"
+  ).length;
+  const approvedCount = (pieces || []).filter(
+    (p) => p.approval_status === "approved"
+  ).length;
+  const changesRequestedCount = (pieces || []).filter(
+    (p) => p.approval_status === "changes_requested"
+  ).length;
+
+  // Count published pieces via publishing_jobs
+  let publishedQuery = supabase
+    .from("publishing_jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "published");
+
+  if (!isAdmin && profile.company_id) {
+    publishedQuery = publishedQuery.eq("company_id", profile.company_id);
+  }
+
+  const { count: publishedCount } = await publishedQuery;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Content</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Content Review</h1>
         {isAdmin && (
           <Link
             href="/admin/upload"
@@ -36,6 +70,31 @@ export default async function WeeksPage() {
           </Link>
         )}
       </div>
+
+      {/* Stat Cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-medium text-amber-700">Pending Review</p>
+          <p className="mt-1 text-2xl font-bold text-amber-900">
+            {pendingCount + changesRequestedCount}
+          </p>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-medium text-emerald-700">Approved</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-900">
+            {approvedCount}
+          </p>
+        </div>
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+          <p className="text-sm font-medium text-sky-700">Published</p>
+          <p className="mt-1 text-2xl font-bold text-sky-900">
+            {publishedCount ?? 0}
+          </p>
+        </div>
+      </div>
+
+      {/* Search and Filters */}
+      <ReviewFilters />
 
       {(weeks || []).length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">

@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
   // Protected route prefixes — everything else is public (marketing pages, signup, etc.)
   const protectedPrefixes = [
     "/home", "/dashboard", "/setup", "/generate", "/review", "/compliance",
-    "/calendar", "/publish", "/admin", "/users", "/content",
+    "/calendar", "/publish", "/admin", "/users", "/content", "/create", "/plan",
   ];
   const isProtectedRoute = protectedPrefixes.some((p) =>
     request.nextUrl.pathname.startsWith(p)

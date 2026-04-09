@@ -46,17 +46,19 @@ export default async function AppLayout({
   const companyId = profile.company_id;
   let platformLogoUrl: string | null = null;
   let companyPlan: string = "free";
+  let companyComplexity: string = "advanced";
   let trialDaysRemaining: number | null = null;
 
   if (companyId) {
     // This user is a client user tied to a specific company — show their logo
     const { data: company } = await supabase
       .from("companies")
-      .select("logo_url, plan, trial_plan, trial_expires_at")
+      .select("logo_url, plan, trial_plan, trial_expires_at, setup_complexity")
       .eq("id", companyId)
       .single();
     platformLogoUrl = company?.logo_url || null;
     companyPlan = company ? getEffectivePlan(company as { plan: "free" | "pro" | "agency"; trial_plan?: "free" | "pro" | "agency" | null; trial_expires_at?: string | null }) : "free";
+    companyComplexity = (company as Record<string, unknown>)?.setup_complexity as string || "advanced";
     trialDaysRemaining = company ? getTrialDaysRemaining(company) : null;
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,
@@ -76,7 +78,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} />
+      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} />
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
           <TrialBanner daysRemaining={trialDaysRemaining} />

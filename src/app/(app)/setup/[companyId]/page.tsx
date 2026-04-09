@@ -7,6 +7,7 @@ import PlanSelector from "./PlanSelector";
 import ManageBillingButton from "@/components/billing/ManageBillingButton";
 import UpgradeButton from "@/components/billing/UpgradeButton";
 import QuickStrategySetup from "@/components/setup/QuickStrategySetup";
+import ComplexitySelector from "@/components/settings/ComplexitySelector";
 import CompanyDetailsEditor from "./CompanyDetailsEditor";
 import type { PlanTier } from "@/types/database";
 
@@ -185,6 +186,20 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
 
   return (
     <div className="space-y-8">
+      {/* Platform Complexity */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-gray-900">Platform Complexity</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Choose your level to show or hide advanced features
+          </p>
+        </div>
+        <ComplexitySelector
+          currentLevel={(company as Record<string, unknown>).setup_complexity as string || "advanced"}
+          companyId={companyId}
+        />
+      </div>
+
       {/* Quick Strategy Setup — always visible, collapsible */}
       <QuickStrategySetup
         companyId={companyId}
