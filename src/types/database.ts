@@ -641,3 +641,68 @@ export interface CompanyWithConfig extends Company {
 export interface WeekWithGenerationJobs extends Week {
   content_generation_jobs: ContentGenerationJob[];
 }
+
+// ============================================================
+// Strategy Interview & Content Strategy
+// ============================================================
+
+export type StrategySessionStatus = "in_progress" | "completed" | "abandoned";
+
+export interface StrategySession {
+  id: string;
+  company_id: string;
+  current_step: number;
+  status: StrategySessionStatus;
+  responses: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StrategyAudience {
+  id: string;
+  company_id: string;
+  persona_name: string;
+  job_title: string | null;
+  seniority: string | null;
+  primary_problem: string | null;
+  search_terms: string[];
+  pain_points: string[];
+  sort_order: number;
+  created_at: string;
+}
+
+export interface StrategyPositioning {
+  id: string;
+  company_id: string;
+  positioning_statement: string | null;
+  differentiators: string[];
+  competitor_mistakes: string | null;
+  transformation_before: string | null;
+  transformation_after: string | null;
+  storybrand_guide: string | null;
+  created_at: string;
+}
+
+export interface StrategyNarrativeArc {
+  id: string;
+  company_id: string;
+  week_number: number;
+  phase: "establish" | "build" | "challenge" | "convert";
+  theme_focus: string | null;
+  topic_focus: string | null;
+  post_type_emphasis: string[];
+  notes: string | null;
+  created_at: string;
+}
+
+export interface StrategyDocument {
+  id: string;
+  company_id: string;
+  version: number;
+  content: Record<string, unknown>;
+  pdf_url: string | null;
+  share_token: string | null;
+  generated_at: string;
+}
+
+export type SetupComplexity = "beginner" | "intermediate" | "advanced";
