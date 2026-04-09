@@ -27,57 +27,65 @@ interface NavItem {
 
 interface NavSection {
   title: string;
+  phase?: number; // 1-4 for journey phases, undefined for non-phase sections
   items: NavItem[];
 }
 
 function buildSections(user: User): NavSection[] {
   const isAdmin = user.role === "admin";
   const cid = user.company_id;
+  const base = cid ? `/setup/${cid}` : "/setup";
 
   if (isAdmin) {
     return [
-      // Admin's own company setup (if they have one)
+      // Phase 1: Strategise
+      {
+        title: "Strategise",
+        phase: 1,
+        items: [
+          { href: "/strategy", label: "Strategy Interview", icon: "compass" },
+        ],
+      },
+      // Phase 2: Plan
+      {
+        title: "Plan",
+        phase: 2,
+        items: [
+          { href: "/calendar", label: "Content Calendar", icon: "calendarView" },
+        ],
+      },
+      // Phase 3: Create
+      {
+        title: "Create",
+        phase: 3,
+        items: [
+          { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
+          { href: "/generate", label: "Week Batch", icon: "sparkle" },
+        ],
+      },
+      // Phase 4: Review & Publish
+      {
+        title: "Review & Publish",
+        phase: 4,
+        items: [
+          { href: "/review", label: "Content Review", icon: "checkCircle" },
+          { href: "/compliance", label: "Compliance", icon: "shieldCheck" },
+          { href: "/publish", label: "Publish", icon: "send" },
+        ],
+      },
+      // Settings (non-phase)
       ...(cid
         ? [
             {
-              title: "Setup",
+              title: "Settings",
               items: [
-                { href: `/setup/${cid}`, label: "My Brand", icon: "building" },
-              ],
+                { href: `/setup/${cid}`, label: "Brand & People", icon: "building" },
+                { href: `${base}/social`, label: "Connections", icon: "link" },
+              ] as NavItem[],
             },
           ]
         : []),
-      {
-        title: "Create",
-        items: [
-          { href: "/generate/quick", label: "Quick Generate", icon: "zap", highlight: true },
-          { href: "/generate", label: "Content Studio", icon: "sparkle" },
-        ],
-      },
-      {
-        title: "Review",
-        items: [
-          { href: "/review", label: "Content", icon: "calendar" },
-        ],
-      },
-      {
-        title: "Compliance",
-        items: [
-          { href: "/compliance", label: "Regulatory Review", icon: "shieldCheck", minPlan: "pro" as PlanTier },
-        ],
-      },
-      {
-        title: "Plan",
-        items: [
-          { href: "/calendar", label: "Calendar", icon: "calendarView" },
-        ],
-      },
-      {
-        title: "Publish",
-        items: [
-          { href: "/publish", label: "Post", icon: "send" },
-        ],
-      },
+      // Admin (non-phase)
       {
         title: "Admin",
         items: [
@@ -89,56 +97,64 @@ function buildSections(user: User): NavSection[] {
     ];
   }
 
-  // Client sidebar — expanded with sub-pages and plan gating
-  const base = cid ? `/setup/${cid}` : "/setup";
-
+  // Client sidebar — 4-phase journey
   return [
+    // Phase 1: Strategise
     {
-      title: "Setup",
+      title: "Strategise",
+      phase: 1,
       items: [
-        { href: "/setup/content", label: "Content Setup", icon: "settings" },
+        { href: "/strategy", label: "Strategy Interview", icon: "compass" },
       ],
     },
-    {
-      title: "Connect",
-      items: [
-        { href: `${base}/social`, label: "Social Accounts", icon: "link", minPlan: "pro" as PlanTier },
-        { href: `${base}/api-keys`, label: "API Keys", icon: "key", minPlan: "agency" as PlanTier },
-      ],
-    },
-    {
-      title: "Create",
-      items: [
-        { href: "/generate/quick", label: "Quick Generate", icon: "zap", highlight: true },
-        { href: "/generate", label: "Content Studio", icon: "sparkle", minPlan: "starter" as PlanTier },
-      ],
-    },
-    {
-      title: "Review",
-      items: [
-        { href: "/review", label: "Content", icon: "calendar" },
-      ],
-    },
-    {
-      title: "Compliance",
-      items: [
-        { href: "/compliance", label: "Regulatory Review", icon: "shieldCheck", minPlan: "pro" as PlanTier },
-      ],
-    },
+    // Phase 2: Plan
     {
       title: "Plan",
+      phase: 2,
       items: [
-        { href: "/calendar", label: "Calendar", icon: "calendarView", minPlan: "pro" as PlanTier },
+        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: "pro" as PlanTier },
       ],
     },
+    // Phase 3: Create
     {
-      title: "Publish",
+      title: "Create",
+      phase: 3,
       items: [
-        { href: "/publish", label: "Post", icon: "send", publisherOnly: true, minPlan: "agency" as PlanTier },
+        { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
+        { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier },
+      ],
+    },
+    // Phase 4: Review & Publish
+    {
+      title: "Review & Publish",
+      phase: 4,
+      items: [
+        { href: "/review", label: "Content Review", icon: "checkCircle" },
+        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro" as PlanTier },
+        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro" as PlanTier },
+      ],
+    },
+    // Settings (non-phase)
+    {
+      title: "Settings",
+      items: [
+        { href: "/setup/content", label: "Brand & People", icon: "settings" },
+        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: "pro" as PlanTier },
       ],
     },
   ];
 }
+
+// ── Phase colours ────────────────────────────────────────────
+
+const PHASE_COLORS: Record<number, { dot: string; active: string; label: string }> = {
+  1: { dot: "bg-violet-500", active: "bg-violet-50 text-violet-700", label: "text-violet-600" },
+  2: { dot: "bg-blue-500", active: "bg-blue-50 text-blue-700", label: "text-blue-600" },
+  3: { dot: "bg-amber-500", active: "bg-amber-50 text-amber-700", label: "text-amber-600" },
+  4: { dot: "bg-emerald-500", active: "bg-emerald-50 text-emerald-700", label: "text-emerald-600" },
+};
+
+// ── SVG icon paths ───────────────────────────────────────────
 
 const icons: Record<string, string> = {
   grid: "M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5ZM4 15a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4Z",
@@ -154,10 +170,6 @@ const icons: Record<string, string> = {
     "M3 5a2 2 0 0 1 2-2h2V2a1 1 0 1 1 2 0v1h6V2a1 1 0 1 1 2 0v1h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm16 4H5v10h14V9ZM7 11h2v2H7v-2Zm4 0h2v2h-2v-2Zm4 0h2v2h-2v-2ZM7 15h2v2H7v-2Zm4 0h2v2h-2v-2Z",
   send: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z",
   zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
-  mic: "M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4Zm-1 18.93A7.01 7.01 0 0 1 5 13h2a5 5 0 0 0 10 0h2a7.01 7.01 0 0 1-6 6.93V22h4v2H7v-2h4v-2.07Z",
-  lightbulb: "M12 2a7 7 0 0 0-4 12.72V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.28A7 7 0 0 0 12 2ZM9 20h6v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1Z",
-  clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10a1 1 0 0 1-.3.7l-3 3-1.4-1.4L11 11.58V6h2v6Z",
-  quote: "M6 17h3l2-4V7H5v6h3l-2 4Zm8 0h3l2-4V7h-6v6h3l-2 4Z",
   link: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
   key: "M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78ZM15.5 7.5l2 2L21 6l-3-3-3.5 3.5 2 2Z",
   settings:
@@ -167,6 +179,8 @@ const icons: Record<string, string> = {
   shieldCheck:
     "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4",
   lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+  compass: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm3.5-12.5l-5 2-2 5 5-2 2-5Z",
+  checkCircle: "M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
 };
 
 export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }: SidebarProps) {
@@ -184,13 +198,15 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
 
   function isActive(href: string): boolean {
     if (pathname === href) return true;
-    // /generate should NOT match /generate/quick (they're separate menu items)
     if (href === "/generate" && pathname.startsWith("/generate/quick")) return false;
     if (pathname.startsWith(href + "/")) return true;
     if (href === "/review" && pathname.startsWith("/content/")) return true;
     if (href === "/compliance" && pathname.startsWith("/compliance/")) return true;
+    if (href === "/strategy" && pathname.startsWith("/strategy/")) return true;
     return false;
   }
+
+  const sections = buildSections(user);
 
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
@@ -206,17 +222,17 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            <p className="mt-0.5 text-[10px] text-gray-400">Content Creation Platform</p>
+            <p className="mt-0.5 text-[10px] text-gray-400">Content Platform</p>
           </div>
         ) : (
           <div>
-            <h2 className="text-sm font-bold text-gray-900">Copy Magic</h2>
-            <p className="text-[10px] text-gray-400">Content Creation Platform</p>
+            <h2 className="text-sm font-bold text-gray-900">AGENCY</h2>
+            <p className="text-[10px] text-gray-400">Content Platform</p>
           </div>
         )}
       </div>
 
-      {/* Home + Dashboard links */}
+      {/* Home + Dashboard */}
       <div className="px-2 pt-3 pb-1 space-y-0.5">
         <Link
           href="/home"
@@ -235,7 +251,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
           href="/dashboard"
           className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
             pathname === "/dashboard"
-              ? "bg-sky-50 text-sky-700"
+              ? "bg-gray-100 text-gray-900"
               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
           }`}
         >
@@ -246,23 +262,31 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
         </Link>
       </div>
 
-      {/* Sections */}
-      <nav className="flex-1 space-y-4 overflow-y-auto px-2 py-2">
-        {buildSections(user).map((section) => {
+      {/* Journey phases + settings */}
+      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
+        {sections.map((section) => {
           const visibleItems = section.items.filter(
             (item) => (!item.adminOnly || isAdmin) && (!item.publisherOnly || canPublish || item.minPlan)
           );
           if (visibleItems.length === 0) return null;
 
+          const phaseColor = section.phase ? PHASE_COLORS[section.phase] : null;
+
           return (
-            <div key={section.title}>
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                {section.title}
-              </p>
+            <div key={section.title} className="pt-2">
+              <div className="flex items-center gap-2 px-3 pb-1.5">
+                {phaseColor && (
+                  <div className={`h-1.5 w-1.5 rounded-full ${phaseColor.dot}`} />
+                )}
+                <p className={`text-[10px] font-semibold uppercase tracking-wider ${
+                  phaseColor ? phaseColor.label : "text-gray-400"
+                }`}>
+                  {section.phase ? `${section.phase}. ${section.title}` : section.title}
+                </p>
+              </div>
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {
                   const active = isActive(item.href);
-                  // Admins bypass plan locks
                   const locked = !isAdmin && item.minPlan && planRank < (PLAN_RANK[item.minPlan] ?? 0);
 
                   if (locked) {
@@ -272,7 +296,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
                         className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-not-allowed"
                         title={`Requires ${item.minPlan} plan or higher`}
                       >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={icons[item.icon]} />
                         </svg>
                         <span className="flex-1">{item.label}</span>
@@ -283,19 +307,23 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free" }:
                     );
                   }
 
+                  const activeClass = phaseColor
+                    ? phaseColor.active
+                    : "bg-gray-100 text-gray-900";
+
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
                       className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         active
-                          ? "bg-sky-50 text-sky-700"
+                          ? activeClass
                           : item.highlight
-                          ? "text-sky-600 hover:bg-sky-50 hover:text-sky-700"
+                          ? "text-violet-600 hover:bg-violet-50 hover:text-violet-700"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       }`}
                     >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d={icons[item.icon]} />
                       </svg>
                       {item.label}
