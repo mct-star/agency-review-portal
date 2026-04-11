@@ -312,7 +312,35 @@ export default function QuickGenerate({
 
   // Topic picker from content strategy
   const [strategyTopics, setStrategyTopics] = useState<{ id: string; topic: string; pillar?: string; theme?: string; month?: string }[]>([]);
-  const [showTopicPicker, setShowTopicPicker] = useState(false);
+
+  // Topic input mode: choose between saved topic bank, type-your-own, or off-the-cuff brain dump
+  type TopicMode = "topic_bank" | "type_own" | "off_the_cuff";
+  const [topicMode, setTopicMode] = useState<TopicMode>("type_own");
+  const [topicModeHydrated, setTopicModeHydrated] = useState(false);
+
+  // Hydrate topicMode from localStorage once on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem("quickGenerate:topicMode");
+      if (saved === "topic_bank" || saved === "type_own" || saved === "off_the_cuff") {
+        setTopicMode(saved);
+      }
+    } catch {
+      // localStorage unavailable — non-critical
+    }
+    setTopicModeHydrated(true);
+  }, []);
+
+  // Persist topicMode to localStorage
+  useEffect(() => {
+    if (!topicModeHydrated || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("quickGenerate:topicMode", topicMode);
+    } catch {
+      // non-critical
+    }
+  }, [topicMode, topicModeHydrated]);
 
   // Filter spokespersons for the selected company
   const companyPeople = useMemo(
@@ -523,6 +551,7 @@ export default function QuickGenerate({
           topic: topic.trim(),
           postTypeSlug: selectedPostType.slug,
           platform,
+          mode: topicMode,
         }),
       });
 
@@ -638,19 +667,34 @@ export default function QuickGenerate({
 
   // Fetch strategy topics for the topic picker
   useEffect(() => {
+    let cancelled = false;
     async function fetchTopics() {
       try {
         const res = await fetch(`/api/content/strategy-topics?companyId=${selectedCompany.id}&scope=month`);
         if (res.ok) {
           const data = await res.json();
-          setStrategyTopics(data.topics || []);
+          if (cancelled) return;
+          const topics = data.topics || [];
+          setStrategyTopics(topics);
+          // Auto-default to topic_bank if user has topics and no persisted preference
+          if (topicModeHydrated && typeof window !== "undefined") {
+            try {
+              const saved = window.localStorage.getItem("quickGenerate:topicMode");
+              if (!saved) {
+                setTopicMode(topics.length > 0 ? "topic_bank" : "type_own");
+              }
+            } catch {
+              // non-critical
+            }
+          }
         }
       } catch {
         // Non-critical — topic picker just won't show
       }
     }
     fetchTopics();
-  }, [selectedCompany.id]);
+    return () => { cancelled = true; };
+  }, [selectedCompany.id, topicModeHydrated]);
 
   async function handleApplyOverlay() {
     if (!currentImageUrl) return;
@@ -807,95 +851,153 @@ export default function QuickGenerate({
             )}
           </div>
 
-          {/* Topic input */}
+          {/* Topic input with three-mode selector */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
                 What do you want to post about?
               </label>
-              <div className="flex items-center gap-2">
-                {strategyTopics.length > 0 && (
-                  <button
-                    onClick={() => setShowTopicPicker(!showTopicPicker)}
-                    className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-700 hover:bg-violet-100 transition-colors"
-                  >
-                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 6h16M4 12h16M4 18h7" />
-                    </svg>
-                    This month&apos;s topics
-                  </button>
-                )}
-                <VoiceDictation
-                  onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
-                  companyId={selectedCompany.id}
-                  placeholder="Dictate"
-                />
-              </div>
+              <VoiceDictation
+                onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
+                companyId={selectedCompany.id}
+                placeholder="Dictate"
+              />
             </div>
 
-            {/* Topic picker from content strategy */}
-            {showTopicPicker && strategyTopics.length > 0 && (
-              <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-500">
-                    Topics for {new Date().toLocaleString("default", { month: "long" })}
-                  </p>
+            {/* Mode tabs: Topic Bank | Type your own | Off the cuff */}
+            <div className="mb-3 inline-flex w-full rounded-lg border border-gray-200 bg-gray-50 p-1" role="tablist" aria-label="Topic input mode">
+              {([
+                { id: "topic_bank" as const, icon: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z", label: "From Topic Bank" },
+                { id: "type_own" as const, icon: "M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586M11 11a2 2 0 1 1-4 0 2 2 0 0 1 4 0z", label: "Type your own" },
+                { id: "off_the_cuff" as const, icon: "M13 2L3 14h9l-1 8 10-12h-9l1-8z", label: "Off the cuff" },
+              ]).map((mode) => {
+                const isActive = topicMode === mode.id;
+                return (
                   <button
-                    onClick={() => setShowTopicPicker(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    key={mode.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setTopicMode(mode.id)}
+                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                      isActive
+                        ? "bg-white text-violet-700 shadow-sm ring-1 ring-violet-500"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
                   >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={mode.icon} />
+                    </svg>
+                    <span className="truncate">{mode.label}</span>
                   </button>
-                </div>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {strategyTopics.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => { setTopic(t.topic); setShowTopicPicker(false); }}
-                      className="block w-full rounded-md px-3 py-2 text-left text-xs text-gray-700 hover:bg-violet-100 hover:text-violet-800 transition-colors"
-                    >
-                      <span className="font-medium">{t.topic}</span>
-                      {(t.pillar || t.theme) && (
-                        <span className="ml-2 text-[10px] text-gray-400">
-                          {[t.pillar, t.theme].filter(Boolean).join(" / ")}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                );
+              })}
+            </div>
+
+            {/* Mode-specific content */}
+            {topicMode === "topic_bank" && (
+              <div>
+                {strategyTopics.length > 0 ? (
+                  <>
+                    <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-violet-500">
+                        Your saved topics for {new Date().toLocaleString("default", { month: "long" })}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto">
+                        {strategyTopics.map((t) => {
+                          const isSelected = topic === t.topic;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => setTopic(t.topic)}
+                              className={`rounded-full border px-3 py-1.5 text-left text-xs transition-colors ${
+                                isSelected
+                                  ? "border-violet-500 bg-violet-100 text-violet-800"
+                                  : "border-violet-200 bg-white text-gray-700 hover:border-violet-300 hover:bg-violet-50"
+                              }`}
+                              title={[t.pillar, t.theme].filter(Boolean).join(" / ") || undefined}
+                            >
+                              <span className="font-medium">{t.topic}</span>
+                              {t.pillar && (
+                                <span className="ml-1.5 text-[10px] text-gray-400">{t.pillar}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {topic && (
+                      <p className="mt-2 text-[11px] text-gray-500">
+                        Selected: <span className="font-medium text-gray-700">{topic}</span>
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-center">
+                    <p className="text-xs text-gray-600">
+                      No topics yet.{" "}
+                      <a
+                        href={`/setup/${selectedCompany.id}#topics`}
+                        className="font-medium text-violet-600 hover:text-violet-700 underline"
+                      >
+                        Add some in Strategy → Topics
+                      </a>
+                      .
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="relative">
-            <textarea
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Why most product launches fail in the first 90 days..."
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
-            />
-            {/* Inline autocomplete from topic bank */}
-            {topic.length >= 3 && strategyTopics.length > 0 && !showTopicPicker && (() => {
-              const matches = strategyTopics.filter((t) =>
-                t.topic.toLowerCase().includes(topic.toLowerCase())
-              ).slice(0, 4);
-              if (matches.length === 0) return null;
-              return (
-                <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
-                  {matches.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setTopic(t.topic)}
-                      className="block w-full px-4 py-2.5 text-left text-xs text-gray-700 hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
-                    >
-                      <span className="font-medium">{t.topic}</span>
-                      {t.pillar && <span className="ml-2 text-[10px] text-gray-400">{t.pillar}</span>}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-            </div>
+            {topicMode === "type_own" && (
+              <div className="relative">
+                <textarea
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="e.g. Why most product launches fail in the first 90 days..."
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
+                />
+                {/* Inline autocomplete from topic bank */}
+                {topic.length >= 3 && strategyTopics.length > 0 && (() => {
+                  const matches = strategyTopics.filter((t) =>
+                    t.topic.toLowerCase().includes(topic.toLowerCase())
+                  ).slice(0, 4);
+                  if (matches.length === 0) return null;
+                  return (
+                    <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
+                      {matches.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTopic(t.topic)}
+                          className="block w-full px-4 py-2.5 text-left text-xs text-gray-700 hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
+                        >
+                          <span className="font-medium">{t.topic}</span>
+                          {t.pillar && <span className="ml-2 text-[10px] text-gray-400">{t.pillar}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {topicMode === "off_the_cuff" && (
+              <div>
+                <textarea
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="Tell me what happened, what you're thinking, or what you saw today."
+                  rows={5}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
+                />
+                <p className="mt-1.5 text-[11px] text-gray-500">
+                  Brain-dump mode. The AI will find the angle and structure it into a post for you.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Post type selector */}

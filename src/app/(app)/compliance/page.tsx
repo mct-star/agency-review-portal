@@ -112,6 +112,37 @@ const contentTypeLabels: Record<string, string> = {
   video_script: "Video Script",
 };
 
+const DOC_CATEGORY_LABELS: Record<string, string> = {
+  claims_matrix: "Claims Matrix",
+  messaging_house: "Messaging House",
+  brand_guidelines: "Brand Guidelines",
+  regulatory_policy: "Regulatory Policy",
+  competitor_claims: "Competitor Claims",
+  product_information: "Product Information",
+  custom: "Other",
+};
+
+// Setup checklist item — mirrors dashboard SetupItem pattern
+function SetupItem({ done, label, href }: { done: boolean; label: string; href: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white">
+      <div className={`flex h-5 w-5 items-center justify-center rounded-full ${done ? "bg-emerald-100" : "border-2 border-amber-300"}`}>
+        {done && (
+          <svg className="h-3 w-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+      <span className={done ? "text-gray-400 line-through" : "text-gray-700"}>{label}</span>
+      {!done && (
+        <svg className="ml-auto h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+      )}
+    </Link>
+  );
+}
+
 export default async function ComplianceDashboardPage() {
   const profile = await getUserProfile();
   if (!profile) return null;
@@ -186,6 +217,32 @@ export default async function ComplianceDashboardPage() {
   const currentCompany = companies.find((c) => c.id === companyId);
   const activeFramework = currentCompany?.regulatory_framework || "general_healthcare";
 
+  // Setup status checks
+  const frameworkConfigured =
+    !!currentCompany?.regulatory_framework &&
+    currentCompany.regulatory_framework !== "general" &&
+    currentCompany.regulatory_framework !== "general_healthcare";
+
+  // Fetch compliance documents for setup check and category breakdown
+  const { data: complianceDocs } = await supabase
+    .from("company_compliance_documents")
+    .select("id, category")
+    .eq("company_id", companyId);
+
+  const docs = complianceDocs || [];
+  const docsUploaded = docs.length > 0;
+  const setupComplete = frameworkConfigured && docsUploaded;
+
+  // Group docs by category
+  const docsByCategory = docs.reduce<Record<string, number>>((acc, d) => {
+    const key = d.category || "custom";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const frameworkSetupHref = `/setup/${companyId}`;
+  const docsUploadHref = `/compliance#compliance-documents`;
+
   // Fetch all content pieces for this company
   const { data: allPieces } = await supabase
     .from("content_pieces")
@@ -232,6 +289,101 @@ export default async function ComplianceDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Setup Status */}
+      {setupComplete ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100">
+              <ShieldCheckIcon className="h-5 w-5 text-emerald-700" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-emerald-900">Compliance setup complete</p>
+              <p className="mt-0.5 text-xs text-emerald-800">
+                Framework: {FRAMEWORK_LABELS[activeFramework] || activeFramework}. {docs.length}{" "}
+                document{docs.length === 1 ? "" : "s"} uploaded.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
+          <div className="flex items-center gap-3 border-b border-amber-200/60 px-6 py-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
+              <svg className="h-5 w-5 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Complete your compliance setup</p>
+              <p className="mt-0.5 text-xs text-amber-800">
+                Finish these steps to unlock accurate regulatory reviews
+              </p>
+            </div>
+          </div>
+          <div className="px-3 py-3 space-y-1">
+            <SetupItem
+              done={frameworkConfigured}
+              label="Regulatory framework configured"
+              href={frameworkSetupHref}
+            />
+            <SetupItem
+              done={docsUploaded}
+              label="Compliance documents uploaded"
+              href={docsUploadHref}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Compliance Documents overview (only when setup is complete) */}
+      {setupComplete && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <svg className="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Compliance Documents</h2>
+                <p className="text-xs text-gray-500">
+                  {docs.length} document{docs.length === 1 ? "" : "s"} powering reviews
+                </p>
+              </div>
+            </div>
+            <Link
+              href={docsUploadHref}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Upload more
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(DOC_CATEGORY_LABELS).map(([key, label]) => {
+              const count = docsByCategory[key] || 0;
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2"
+                >
+                  <span className="text-xs font-medium text-gray-700">{label}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      count > 0 ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -325,7 +477,9 @@ export default async function ComplianceDashboardPage() {
       </div>
 
       {/* Compliance Documents */}
-      <ComplianceDocuments companyId={companyId} />
+      <div id="compliance-documents" className="scroll-mt-6">
+        <ComplianceDocuments companyId={companyId} />
+      </div>
 
       {/* Two-column layout: Awaiting Review + Recent Reviews */}
       <div className="grid gap-6 lg:grid-cols-2">

@@ -5,8 +5,15 @@ import RotatingQuote from "@/components/home/RotatingQuote";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
-  description: "Let's create demand for you",
+  description: "Your content command centre",
 };
+
+function greeting(firstName: string): string {
+  const h = new Date().getHours();
+  if (h < 12) return `Good morning, ${firstName}.`;
+  if (h < 17) return `Good afternoon, ${firstName}.`;
+  return `Good evening, ${firstName}.`;
+}
 
 export default async function HomePage() {
   const profile = await getUserProfile();
@@ -15,7 +22,7 @@ export default async function HomePage() {
   const companyId = profile?.company_id;
   const firstName = (profile?.full_name || "there").split(" ")[0];
 
-  // Fetch pending review count for the badge
+  // Fetch pending review count for the tile badge
   let pendingCount = 0;
   {
     let contentQuery = supabase
@@ -30,18 +37,19 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      {/* ===== Mission + Rotating Quote ===== */}
-      <section className="pt-10 pb-10 text-center">
+    <div className="mx-auto max-w-6xl space-y-10 pt-6 pb-12">
+      {/* ===== Greeting bar ===== */}
+      <div className="text-center">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-          Let&apos;s create demand for you, {firstName}.
+          {greeting(firstName)}
         </h1>
+        <p className="mt-2 text-sm text-gray-500">
+          One post. Ten minutes. Compound.
+        </p>
+      </div>
 
-        <RotatingQuote />
-      </section>
-
-      {/* ===== Navigation tiles ===== */}
-      <section className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "380px" }}>
+      {/* ===== Navigation tiles (moved ABOVE the quote) ===== */}
+      <section className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "360px" }}>
         {/* Quick Generate */}
         <Link
           href="/generate/quick"
@@ -64,7 +72,7 @@ export default async function HomePage() {
 
         {/* Content Studio */}
         <Link
-          href="/generate/studio"
+          href="/generate"
           className="group relative flex flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 to-orange-600 p-10 text-white shadow-lg transition-all hover:shadow-2xl hover:scale-[1.01]"
         >
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm transition-transform group-hover:scale-110">
@@ -84,7 +92,7 @@ export default async function HomePage() {
 
         {/* Review Content */}
         <Link
-          href="/content"
+          href="/review"
           className="group relative flex flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-10 text-white shadow-lg transition-all hover:shadow-2xl hover:scale-[1.01]"
         >
           <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm transition-transform group-hover:scale-110">
@@ -100,7 +108,7 @@ export default async function HomePage() {
           <h2 className="mt-6 text-2xl font-bold">Review Content</h2>
           <p className="mt-2 text-sm text-emerald-100 text-center max-w-xs">
             {pendingCount > 0
-              ? `${pendingCount} post${pendingCount !== 1 ? "s" : ""} awaiting review. Approve and publish.`
+              ? `${pendingCount} post${pendingCount !== 1 ? "s" : ""} awaiting review.`
               : "Review, approve, and publish your content."}
           </p>
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-5 py-2.5 text-sm font-semibold transition-all group-hover:bg-white/30 group-hover:gap-3">
@@ -108,6 +116,11 @@ export default async function HomePage() {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           </div>
         </Link>
+      </section>
+
+      {/* ===== Rotating quote (moved BELOW the tiles) ===== */}
+      <section>
+        <RotatingQuote />
       </section>
     </div>
   );

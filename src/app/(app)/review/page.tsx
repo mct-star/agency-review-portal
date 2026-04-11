@@ -15,14 +15,28 @@ export default async function WeeksPage() {
   let query = supabase
     .from("weeks")
     .select("*, company:companies(*)")
-    .order("year", { ascending: false })
-    .order("week_number", { ascending: false });
+    .order("date_start", { ascending: true });
 
   if (!isAdmin && profile.company_id) {
     query = query.eq("company_id", profile.company_id);
   }
 
   const { data: weeks } = await query;
+
+  // Split weeks into upcoming vs past based on date_start
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayIso = today.toISOString().slice(0, 10);
+
+  const allWeeks = (weeks || []) as Array<Week & { company?: Company }>;
+
+  const upcomingWeeks = allWeeks
+    .filter((w) => w.date_start >= todayIso)
+    .sort((a, b) => a.date_start.localeCompare(b.date_start)); // ascending: nearest first
+
+  const pastWeeks = allWeeks
+    .filter((w) => w.date_start < todayIso)
+    .sort((a, b) => b.date_start.localeCompare(a.date_start)); // descending: most recent first
 
   // Fetch content piece counts for stat cards
   let piecesQuery = supabase
@@ -61,14 +75,12 @@ export default async function WeeksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Content Review</h1>
-        {isAdmin && (
-          <Link
-            href="/admin/upload"
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            Create Week
-          </Link>
-        )}
+        <Link
+          href="/generate"
+          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Plan Next Week
+        </Link>
       </div>
 
       {/* Stat Cards */}
@@ -96,105 +108,162 @@ export default async function WeeksPage() {
       {/* Search and Filters */}
       <ReviewFilters />
 
-      {(weeks || []).length === 0 ? (
+      {allWeeks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
           <p className="text-gray-500">No content weeks yet.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(weeks || []).map((week: Week & { company?: Company }) => {
-            const company = week.company as Company | undefined;
+        <div className="space-y-10">
+          {/* Upcoming Weeks */}
+          <section>
+            <div className="mb-4 flex items-baseline justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Upcoming Weeks</h2>
+              {upcomingWeeks.length > 0 && (
+                <span className="text-xs text-gray-400">
+                  {upcomingWeeks.length} {upcomingWeeks.length === 1 ? "week" : "weeks"}
+                </span>
+              )}
+            </div>
 
-            return (
-              <Link
-                key={week.id}
-                href={`/review/${week.id}`}
-                className="group rounded-xl border border-gray-200 bg-white overflow-hidden transition-all hover:shadow-lg hover:border-gray-300"
-              >
-                {/* Brand bar — thicker, branded */}
-                <div
-                  className="h-2"
-                  style={{ backgroundColor: company?.brand_color || "#e5e7eb" }}
-                />
+            {upcomingWeeks.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
+                <p className="text-sm text-gray-500">No upcoming weeks planned.</p>
+                <Link
+                  href="/generate"
+                  className="mt-3 inline-block text-sm font-medium text-sky-700 hover:text-sky-900"
+                >
+                  Plan next week →
+                </Link>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {upcomingWeeks.map((week) => (
+                  <WeekCard key={week.id} week={week} isAdmin={isAdmin} />
+                ))}
+              </div>
+            )}
+          </section>
 
-                {/* Company header — admin only, prominent */}
-                {isAdmin && company && (
-                  <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-3">
-                    {company.logo_url ? (
-                      <img
-                        src={company.logo_url}
-                        alt={company.name}
-                        className="h-8 w-8 rounded object-contain flex-shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-sm font-bold text-white"
-                        style={{ backgroundColor: company.brand_color || "#94a3b8" }}
-                      >
-                        {company.name[0]}
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-800">
-                        {company.name}
-                      </p>
-                      {company.spokesperson_name && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {company.profile_picture_url ? (
-                            <img
-                              src={company.profile_picture_url}
-                              alt={company.spokesperson_name}
-                              className="h-3.5 w-3.5 rounded-full object-cover flex-shrink-0"
-                            />
-                          ) : null}
-                          <span className="truncate text-xs text-gray-400">
-                            {company.spokesperson_name}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+          {/* Divider */}
+          {pastWeeks.length > 0 && (
+            <div className="border-t border-gray-200" />
+          )}
 
-                <div className="p-5">
-                  {/* Week number + status */}
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900 group-hover:text-sky-700">
-                        {formatWeekLabel(week.date_start, week.week_number)}
-                      </h3>
-                      {week.title && (
-                        <p className="text-sm text-gray-600">{week.title}</p>
-                      )}
-                    </div>
-                    <Badge status={week.status} />
-                  </div>
-
-                  {/* Dates */}
-                  <div className="mt-3 text-xs text-gray-400">
-                    {week.date_start} — {week.date_end}
-                  </div>
-
-                  {(week.pillar || week.theme) && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {week.pillar && (
-                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                          {week.pillar}
-                        </span>
-                      )}
-                      {week.theme && (
-                        <span className="rounded bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-600">
-                          {week.theme}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+          {/* Past Weeks */}
+          {pastWeeks.length > 0 && (
+            <section>
+              <div className="mb-4 flex items-baseline justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Past Weeks</h2>
+                <span className="text-xs text-gray-400">
+                  {pastWeeks.length} {pastWeeks.length === 1 ? "week" : "weeks"}
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {pastWeeks.map((week) => (
+                  <WeekCard key={week.id} week={week} isAdmin={isAdmin} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+function WeekCard({
+  week,
+  isAdmin,
+}: {
+  week: Week & { company?: Company };
+  isAdmin: boolean;
+}) {
+  const company = week.company as Company | undefined;
+
+  return (
+    <Link
+      href={`/review/${week.id}`}
+      className="group rounded-xl border border-gray-200 bg-white overflow-hidden transition-all hover:shadow-lg hover:border-gray-300"
+    >
+      {/* Brand bar — thicker, branded */}
+      <div
+        className="h-2"
+        style={{ backgroundColor: company?.brand_color || "#e5e7eb" }}
+      />
+
+      {/* Company header — admin only, prominent */}
+      {isAdmin && company && (
+        <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-3">
+          {company.logo_url ? (
+            <img
+              src={company.logo_url}
+              alt={company.name}
+              className="h-8 w-8 rounded object-contain flex-shrink-0"
+            />
+          ) : (
+            <div
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-sm font-bold text-white"
+              style={{ backgroundColor: company.brand_color || "#94a3b8" }}
+            >
+              {company.name[0]}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-gray-800">
+              {company.name}
+            </p>
+            {company.spokesperson_name && (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {company.profile_picture_url ? (
+                  <img
+                    src={company.profile_picture_url}
+                    alt={company.spokesperson_name}
+                    className="h-3.5 w-3.5 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : null}
+                <span className="truncate text-xs text-gray-400">
+                  {company.spokesperson_name}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="p-5">
+        {/* Week number + status */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 group-hover:text-sky-700">
+              {formatWeekLabel(week.date_start, week.week_number)}
+            </h3>
+            {week.title && (
+              <p className="text-sm text-gray-600">{week.title}</p>
+            )}
+          </div>
+          <Badge status={week.status} />
+        </div>
+
+        {/* Dates */}
+        <div className="mt-3 text-xs text-gray-400">
+          {week.date_start} — {week.date_end}
+        </div>
+
+        {(week.pillar || week.theme) && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {week.pillar && (
+              <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                {week.pillar}
+              </span>
+            )}
+            {week.theme && (
+              <span className="rounded bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-600">
+                {week.theme}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </Link>
   );
 }

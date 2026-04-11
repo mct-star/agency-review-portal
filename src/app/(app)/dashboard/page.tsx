@@ -80,6 +80,55 @@ function StatCard({ value, label, icon, href, color, tintBg }: { value: number |
   return href ? <Link href={href} className="block">{content}</Link> : content;
 }
 
+// Action-oriented KPI card — big clickable tile with arrow
+function ActionCard({
+  value,
+  label,
+  href,
+  accentColor,
+  accentBg,
+  accentBorder,
+}: {
+  value: number;
+  label: string;
+  href: string;
+  accentColor: string;
+  accentBg: string;
+  accentBorder: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group relative block rounded-xl border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+      style={{ borderColor: accentBorder }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-4xl font-bold leading-none" style={{ color: accentColor }}>
+            {value}
+          </p>
+          <p className="mt-2 text-sm font-medium text-gray-700">{label}</p>
+        </div>
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-transform group-hover:translate-x-0.5"
+          style={{ backgroundColor: accentBg }}
+        >
+          <svg
+            className="h-4 w-4"
+            style={{ color: accentColor }}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 // Setup checklist item
 function SetupItem({ done, label, href }: { done: boolean; label: string; href: string }) {
   return (
@@ -288,17 +337,74 @@ export default async function DashboardPage({
     }
   }
 
-  // Fetch recent weeks with piece counts
-  let weeksQuery = supabase
+  // Today's date (YYYY-MM-DD) for splitting upcoming/past weeks and computing next-7-day counts
+  const todayStr = now.toISOString().split("T")[0];
+  const sevenDaysAhead = new Date(now);
+  sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+  const sevenDaysAheadStr = sevenDaysAhead.toISOString().split("T")[0];
+
+  // Fetch upcoming weeks (date_start >= today), nearest first
+  let upcomingWeeksQuery = supabase
     .from("weeks")
     .select("*, company:companies(name), content_pieces(id, approval_status)")
-    .order("year", { ascending: false })
-    .order("week_number", { ascending: false })
-    .limit(6);
+    .gte("date_start", todayStr)
+    .order("date_start", { ascending: true })
+    .limit(4);
   if (!isAdmin && companyId) {
-    weeksQuery = weeksQuery.eq("company_id", companyId);
+    upcomingWeeksQuery = upcomingWeeksQuery.eq("company_id", companyId);
   }
-  const { data: weeks } = await weeksQuery;
+  const { data: upcomingWeeks } = await upcomingWeeksQuery;
+
+  // Fetch past weeks (date_start < today), most recent first
+  let pastWeeksQuery = supabase
+    .from("weeks")
+    .select("*, company:companies(name), content_pieces(id, approval_status)")
+    .lt("date_start", todayStr)
+    .order("date_start", { ascending: false })
+    .limit(4);
+  if (!isAdmin && companyId) {
+    pastWeeksQuery = pastWeeksQuery.eq("company_id", companyId);
+  }
+  const { data: pastWeeks } = await pastWeeksQuery;
+
+  // Count scheduled posts in the next 7 days — pieces on weeks starting within [today, today+7)
+  let next7DaysCount = 0;
+  {
+    let next7Query = supabase
+      .from("weeks")
+      .select("content_pieces(id)")
+      .gte("date_start", todayStr)
+      .lt("date_start", sevenDaysAheadStr);
+    if (!isAdmin && companyId) {
+      next7Query = next7Query.eq("company_id", companyId);
+    }
+    const { data: next7Weeks } = await next7Query;
+    next7DaysCount = (next7Weeks || []).reduce((sum, w: { content_pieces?: { id: string }[] }) => sum + (w.content_pieces?.length || 0), 0);
+  }
+
+  // Count approved pieces that aren't yet published (ready to publish)
+  let readyToPublishCount = 0;
+  {
+    const approvedPieceIds = (allPieces || [])
+      .filter((p) => p.approval_status === "approved")
+      .map((p) => p.id);
+    if (approvedPieceIds.length > 0) {
+      let pubJobsQuery = supabase
+        .from("publishing_jobs")
+        .select("content_piece_id")
+        .in("content_piece_id", approvedPieceIds)
+        .eq("status", "published");
+      if (!isAdmin && companyId) {
+        pubJobsQuery = pubJobsQuery.eq("company_id", companyId);
+      }
+      const { data: publishedJobs } = await pubJobsQuery;
+      const publishedIds = new Set((publishedJobs || []).map((j: { content_piece_id: string }) => j.content_piece_id));
+      readyToPublishCount = approvedPieceIds.filter((id) => !publishedIds.has(id)).length;
+    }
+  }
+
+  // Needs review = pending + changes_requested
+  const needsReviewCount = pendingCount + changesCount;
 
   // Current week's content grouped by day for the weekly view
   // Find the current week record (if any)
@@ -388,22 +494,13 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-6">
-      {/* ===== 1. Compact welcome bar ===== */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {company?.logo_url && (
-            <img src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-contain" />
-          )}
-          <div>
-            <h1 className="text-sm font-bold text-gray-900">
-              {isAdmin ? "Dashboard" : `Welcome back, ${(profile.full_name || "there").split(" ")[0]}`}
-            </h1>
-            <p className="text-[11px] text-gray-400">
-              {todayFormatted} <span className="text-gray-300 mx-1">|</span> Your weekly demand ecosystem
-            </p>
-          </div>
+      {/* ===== 1. Header ===== */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">{todayFormatted}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {isOnTrial && trialDaysLeft !== null && (
             <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-inset ring-violet-200">
               Pro Trial {trialDaysLeft}d
@@ -413,6 +510,9 @@ export default async function DashboardPage({
             <Link href={`/setup/${company.id}`} className="rounded-lg border border-gray-200 px-2.5 py-1 text-[10px] font-medium text-gray-400 hover:bg-gray-50">
               Settings
             </Link>
+          )}
+          {company?.logo_url && (
+            <img src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-lg object-contain" />
           )}
         </div>
       </div>
@@ -479,43 +579,40 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      {/* ===== 3. Activity Strip ===== */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="grid grid-cols-2 divide-x divide-gray-100 sm:grid-cols-4 lg:grid-cols-6">
-          <div className="px-4 py-3">
-            <p className="text-2xl font-bold text-gray-900">{totalPieces || 0}</p>
-            <p className="text-[11px] text-gray-400">Total Posts</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-2xl font-bold" style={{ color: pendingCount > 0 ? "#f59e0b" : "#9ca3af" }}>{pendingCount}</p>
-            <p className="text-[11px] text-gray-400">Pending Review</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-2xl font-bold text-emerald-600">{approvedCount}</p>
-            <p className="text-[11px] text-gray-400">Approved</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-2xl font-bold text-blue-600">{publishedCount}</p>
-            <p className="text-[11px] text-gray-400">Published</p>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-2xl font-bold text-violet-600">{thisWeekCount}</p>
-            <p className="text-[11px] text-gray-400">This Week</p>
-          </div>
-          <div className="px-4 py-3">
-            {hasSchedule ? (
-              <>
-                <p className="text-2xl font-bold" style={{ color: scheduleCompliance !== null && scheduleCompliance >= 80 ? "#10b981" : "#f59e0b" }}>{scheduleCompliance}%</p>
-                <p className="text-[11px] text-gray-400">Schedule Hit</p>
-              </>
-            ) : (
-              <Link href={company ? `${setupHref}/schedule` : "/setup"} className="block">
-                <p className="text-sm font-medium text-gray-300">--</p>
-                <p className="text-[11px] text-sky-500">Set schedule</p>
-              </Link>
-            )}
-          </div>
-        </div>
+      {/* ===== 3. Action KPIs ===== */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ActionCard
+          value={needsReviewCount}
+          label="Needs your review"
+          href="/review"
+          accentColor="#f59e0b"
+          accentBg="#fffbeb"
+          accentBorder="#fde68a"
+        />
+        <ActionCard
+          value={readyToPublishCount}
+          label="Ready to publish"
+          href="/publish"
+          accentColor="#10b981"
+          accentBg="#ecfdf5"
+          accentBorder="#a7f3d0"
+        />
+        <ActionCard
+          value={next7DaysCount}
+          label="Next 7 days"
+          href="/calendar"
+          accentColor="#3b82f6"
+          accentBg="#eff6ff"
+          accentBorder="#bfdbfe"
+        />
+        <ActionCard
+          value={changesCount}
+          label="Needs attention"
+          href="/review?status=changes_requested"
+          accentColor="#ef4444"
+          accentBg="#fef2f2"
+          accentBorder="#fecaca"
+        />
       </div>
 
       {/* Old trial/plan banners removed — info now in welcome section */}
@@ -751,16 +848,42 @@ export default async function DashboardPage({
         )}
       </div>
 
-      {/* ===== 6. Recent Weeks (horizontal cards) ===== */}
+      {/* ===== 6. Upcoming Weeks ===== */}
       <div>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Recent Weeks</h2>
+          <h2 className="text-base font-semibold text-gray-900">Upcoming Weeks</h2>
+          <Link href="/calendar" className="text-xs font-medium text-sky-600 hover:text-sky-700">View calendar</Link>
+        </div>
+
+        {(upcomingWeeks || []).length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-6 text-center">
+            <p className="text-sm text-gray-500">No upcoming weeks</p>
+            <Link
+              href="/generate/studio"
+              className="mt-2 inline-block text-sm font-medium text-sky-600 hover:text-sky-700"
+            >
+              Plan your next week in Content Studio &rarr;
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {(upcomingWeeks || []).map((week: Week & { company?: { name: string }; content_pieces?: { id: string; approval_status: string }[] }) => (
+              <WeekCard key={week.id} week={week} isAdmin={isAdmin} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ===== 7. Past Weeks ===== */}
+      <div>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900">Past Weeks</h2>
           <Link href="/review" className="text-xs font-medium text-sky-600 hover:text-sky-700">View all</Link>
         </div>
 
-        {(weeks || []).length === 0 ? (
+        {(pastWeeks || []).length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-6 text-center">
-            <p className="text-sm text-gray-500">No content weeks yet.</p>
+            <p className="text-sm text-gray-500">No past weeks yet.</p>
             <Link
               href="/generate"
               className="mt-2 inline-block text-sm font-medium text-sky-600 hover:text-sky-700"
@@ -769,65 +892,87 @@ export default async function DashboardPage({
             </Link>
           </div>
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {(weeks || []).map((week: Week & { company?: { name: string }; content_pieces?: { id: string; approval_status: string }[] }) => {
-              const pieces = week.content_pieces || [];
-              const weekApproved = pieces.filter(p => p.approval_status === "approved").length;
-              const weekTotal = pieces.length;
-              const progressPct = weekTotal > 0 ? Math.round((weekApproved / weekTotal) * 100) : 0;
-
-              return (
-                <Link
-                  key={week.id}
-                  href={`/review/${week.id}`}
-                  className="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 group-hover:bg-gray-200">
-                        {formatWeekLabelShort(week.date_start, week.week_number)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900">
-                          {week.title || formatWeekLabel(week.date_start, week.week_number)}
-                        </p>
-                        <p className="mt-0.5 text-xs text-gray-400">
-                          {week.subject || (week.theme ? `Theme: ${week.theme}` : `${week.date_start} - ${week.date_end}`)}
-                          {isAdmin && week.company && ` · ${week.company.name}`}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      week.status === "approved" ? "bg-green-100 text-green-700" :
-                      week.status === "ready_for_review" ? "bg-amber-100 text-amber-700" :
-                      week.status === "changes_requested" ? "bg-red-100 text-red-700" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>
-                      {week.status === "ready_for_review" ? "In review" : week.status === "changes_requested" ? "Changes needed" : week.status?.charAt(0).toUpperCase() + (week.status?.slice(1) || "")}
-                    </span>
-                  </div>
-
-                  {/* Approval progress bar */}
-                  {weekTotal > 0 && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>{weekApproved}/{weekTotal} approved</span>
-                        <span>{progressPct}%</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                        <div
-                          className="h-full rounded-full bg-green-400 transition-all duration-500"
-                          style={{ width: `${progressPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {(pastWeeks || []).map((week: Week & { company?: { name: string }; content_pieces?: { id: string; approval_status: string }[] }) => (
+              <WeekCard key={week.id} week={week} isAdmin={isAdmin} />
+            ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+// Shared week card for Upcoming/Past sections
+function WeekCard({
+  week,
+  isAdmin,
+}: {
+  week: Week & { company?: { name: string }; content_pieces?: { id: string; approval_status: string }[] };
+  isAdmin: boolean;
+}) {
+  const pieces = week.content_pieces || [];
+  const weekApproved = pieces.filter((p) => p.approval_status === "approved").length;
+  const weekTotal = pieces.length;
+  const progressPct = weekTotal > 0 ? Math.round((weekApproved / weekTotal) * 100) : 0;
+
+  return (
+    <Link
+      key={week.id}
+      href={`/review/${week.id}`}
+      className="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:shadow-md"
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-xs font-bold text-gray-600 group-hover:bg-gray-200">
+            {formatWeekLabelShort(week.date_start, week.week_number)}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-gray-900">
+              {week.title || formatWeekLabel(week.date_start, week.week_number)}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              {week.subject || (week.theme ? `Theme: ${week.theme}` : `${week.date_start} - ${week.date_end}`)}
+              {isAdmin && week.company && ` · ${week.company.name}`}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            week.status === "approved"
+              ? "bg-green-100 text-green-700"
+              : week.status === "ready_for_review"
+                ? "bg-amber-100 text-amber-700"
+                : week.status === "changes_requested"
+                  ? "bg-red-100 text-red-700"
+                  : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          {week.status === "ready_for_review"
+            ? "In review"
+            : week.status === "changes_requested"
+              ? "Changes needed"
+              : week.status?.charAt(0).toUpperCase() + (week.status?.slice(1) || "")}
+        </span>
+      </div>
+
+      {/* Approval progress bar */}
+      {weekTotal > 0 && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <span>
+              {weekApproved}/{weekTotal} approved
+            </span>
+            <span>{progressPct}%</span>
+          </div>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full bg-green-400 transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </Link>
   );
 }
