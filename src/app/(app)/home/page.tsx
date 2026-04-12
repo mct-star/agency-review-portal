@@ -22,20 +22,45 @@ export default async function HomePage() {
   const firstName = (profile?.full_name || "there").split(" ")[0];
 
   // ── Fetch counts for smart nudge ──
-  let pendingCount = 0;
   let approvedNotPublished = 0;
   let thisWeekCount = 0;
   let strategyCompleted = false;
 
+  // Review units: individual posts (no week) + distinct weeks with pending pieces
+  let pendingSingles = 0;
+  let pendingWeekCount = 0;
+  let pendingWeekLabels: string[] = [];
+
   if (companyId || isAdmin) {
     const cid = companyId;
 
-    // Pending review
+    // Pending review — grouped by creation unit
     {
-      let q = supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("approval_status", "pending");
+      let q = supabase.from("content_pieces").select("id, week_id").eq("approval_status", "pending");
       if (!isAdmin && cid) q = q.eq("company_id", cid);
-      const { count } = await q;
-      pendingCount = count || 0;
+      const { data: pendingPieces } = await q;
+
+      if (pendingPieces) {
+        const singles = pendingPieces.filter(p => !p.week_id);
+        pendingSingles = singles.length;
+
+        const weekIds = [...new Set(pendingPieces.filter(p => p.week_id).map(p => p.week_id))];
+        pendingWeekCount = weekIds.length;
+
+        // Fetch week labels for the nudge
+        if (weekIds.length > 0) {
+          const { data: weeks } = await supabase
+            .from("weeks")
+            .select("date_start")
+            .in("id", weekIds)
+            .order("date_start", { ascending: true })
+            .limit(3);
+          pendingWeekLabels = (weeks || []).map(w => {
+            const d = new Date(w.date_start + "T00:00:00");
+            return `w/c ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+          });
+        }
+      }
     }
 
     // Approved but not published
@@ -68,6 +93,8 @@ export default async function HomePage() {
     }
   }
 
+  const totalPendingUnits = pendingSingles + pendingWeekCount;
+
   // ── Determine the smart nudge ──
   let nudgeText: string;
   let nudgeHref: string;
@@ -79,8 +106,18 @@ export default async function HomePage() {
     nudgeHref = "/strategy";
     nudgeLabel = "Start here";
     nudgeColor = "bg-violet-50 text-violet-700 border-violet-200";
-  } else if (pendingCount > 0) {
-    nudgeText = `${pendingCount} post${pendingCount !== 1 ? "s are" : " is"} waiting for your review.`;
+  } else if (totalPendingUnits > 0) {
+    // Build a human-readable description of what's pending
+    const parts: string[] = [];
+    if (pendingSingles > 0) parts.push(`${pendingSingles} individual post${pendingSingles !== 1 ? "s" : ""}`);
+    if (pendingWeekCount > 0) {
+      if (pendingWeekCount <= 2 && pendingWeekLabels.length > 0) {
+        parts.push(pendingWeekLabels.join(" and "));
+      } else {
+        parts.push(`${pendingWeekCount} week${pendingWeekCount !== 1 ? "s" : ""}`);
+      }
+    }
+    nudgeText = `${parts.join(" and ")} awaiting review.`;
     nudgeHref = "/review";
     nudgeLabel = "Review now";
     nudgeColor = "bg-amber-50 text-amber-700 border-amber-200";
@@ -172,16 +209,16 @@ export default async function HomePage() {
             <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            {pendingCount > 0 && (
+            {totalPendingUnits > 0 && (
               <span className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white ring-2 ring-white">
-                {pendingCount > 99 ? "99+" : pendingCount}
+                {totalPendingUnits > 99 ? "99+" : totalPendingUnits}
               </span>
             )}
           </div>
           <h2 className="mt-6 text-2xl font-bold">Review Content</h2>
           <p className="mt-2 text-sm text-emerald-100 text-center max-w-xs">
-            {pendingCount > 0
-              ? `${pendingCount} post${pendingCount !== 1 ? "s" : ""} awaiting review.`
+            {totalPendingUnits > 0
+              ? `${totalPendingUnits} item${totalPendingUnits !== 1 ? "s" : ""} awaiting review.`
               : "Review, approve, and publish your content."}
           </p>
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-5 py-2.5 text-sm font-semibold transition-all group-hover:bg-white/30 group-hover:gap-3">
