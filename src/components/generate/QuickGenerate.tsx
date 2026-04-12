@@ -19,9 +19,9 @@ import { setLastActivity } from "@/lib/utils/last-activity";
 /** Static sample image paths for each post type — real generated output examples */
 const SAMPLE_IMAGES: Record<string, string> = {
   insight: "/samples/quote-card-green.png",
-  if_i_was: "/samples/quote-card-purple.png",
+  if_i_was: "/samples/quote-card-purple-arrow.png",
   contrarian: "/samples/quote-card-blue.png",
-  blog_teaser: "/samples/quote-card-emerald.png",
+  blog_teaser: "/images/sample-blog-header.png",
   tactical: "/samples/carousel-cover.png",
   launch_story: "/images/sample-3d-character.jpg",
   founder_friday: "/images/sample-3d-character-male.png",
