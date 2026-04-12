@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import Badge from "@/components/ui/Badge";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import ReviewFilters from "@/components/review/ReviewFilters";
+import InlineApproveButtons from "@/components/review/InlineApproveButtons";
 import type { Week, Company } from "@/types/database";
 
 export default async function WeeksPage() {
@@ -62,7 +63,7 @@ export default async function WeeksPage() {
   // Individual posts (no week assignment)
   let individualQuery = supabase
     .from("content_pieces")
-    .select("id, title, post_type, approval_status, created_at, markdown_body")
+    .select("id, title, post_type, approval_status, created_at, markdown_body, company_id")
     .is("week_id", null)
     .in("approval_status", ["pending", "changes_requested"])
     .order("created_at", { ascending: false })
@@ -118,6 +119,21 @@ export default async function WeeksPage() {
         </div>
       </div>
 
+      {/* Guidance banner */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-start gap-3">
+        <svg className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4M12 8h.01" />
+        </svg>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-blue-900">How review works</p>
+          <p className="text-xs text-blue-700 mt-1">
+            Posts appear here after generation. Review each one, then approve it to move it to Publish,
+            or request changes to send it back for editing. Approved posts can be published to LinkedIn with one click.
+          </p>
+        </div>
+      </div>
+
       {/* Search and Filters */}
       <ReviewFilters />
 
@@ -160,10 +176,14 @@ export default async function WeeksPage() {
                   {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                 </span>
 
-                {/* Arrow */}
-                <svg className="h-4 w-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
+                {/* Inline actions or arrow */}
+                {(post.approval_status === "pending" || post.approval_status === "changes_requested") ? (
+                  <InlineApproveButtons pieceId={post.id} companyId={post.company_id} />
+                ) : (
+                  <svg className="h-4 w-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                )}
               </Link>
             ))}
           </div>

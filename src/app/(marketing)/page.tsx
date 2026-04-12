@@ -166,14 +166,22 @@ export default function LandingPage() {
               7-day free trial &middot; No credit card required
             </p>
             <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl leading-[1.1]">
-              Your weekly demand ecosystem,{" "}
+              Expert content that builds pipeline.{" "}
               <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
-                deployed in minutes.
+                Every week.
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-500 sm:text-xl">
               You have the expertise. You just don&apos;t have the time to share it.
             </p>
+
+            <div className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-2">
+              {["Healthcare", "Financial Services", "Hospitality", "Legal", "Technology", "Professional Services"].map((industry) => (
+                <span key={industry} className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+                  {industry}
+                </span>
+              ))}
+            </div>
 
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link

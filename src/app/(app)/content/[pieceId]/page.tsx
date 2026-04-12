@@ -11,6 +11,7 @@ import ContentAssets from "@/components/content/ContentAssets";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
+import ApproveAndPublishButton from "@/components/content/ApproveAndPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 
@@ -59,6 +60,16 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .select("spokesperson_name, spokesperson_tagline, brand_color")
     .eq("id", piece.company_id)
     .single();
+
+  // Check if LinkedIn is connected for this company
+  const { count: linkedInAccountCount } = await supabase
+    .from("company_social_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", piece.company_id)
+    .eq("platform", "linkedin_personal")
+    .eq("is_active", true);
+
+  const linkedInConnected = (linkedInAccountCount ?? 0) > 0;
 
   // Find the first generated image for preview (if any)
   const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
@@ -188,7 +199,19 @@ export default async function ContentPiecePage({ params }: PageProps) {
         isAdmin={profile.role === "admin"}
       />
 
-      {/* LinkedIn Publish (admin only, social posts only) */}
+      {/* Approve & Publish to LinkedIn (admin only, social posts, not yet approved, LinkedIn connected) */}
+      {profile.role === "admin" &&
+        piece.content_type === "social_post" &&
+        piece.approval_status !== "approved" &&
+        linkedInConnected && (
+          <ApproveAndPublishButton
+            pieceId={piece.id}
+            companyId={piece.company_id}
+            weekId={piece.week_id}
+          />
+        )}
+
+      {/* LinkedIn Publish (admin only, social posts only, already approved) */}
       {profile.role === "admin" && piece.content_type === "social_post" && (
         <LinkedInPublishButton
           pieceId={piece.id}
