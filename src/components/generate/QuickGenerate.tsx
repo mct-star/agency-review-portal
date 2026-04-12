@@ -24,7 +24,7 @@ const SAMPLE_IMAGES: Record<string, string> = {
   blog_teaser: "/samples/quote-card-emerald.png",
   tactical: "/samples/carousel-cover.png",
   launch_story: "/images/sample-3d-character.jpg",
-  founder_friday: "/images/sample-3d-character.jpg",
+  founder_friday: "/images/sample-3d-character-male.png",
   personal_update: "/images/sample-editorial-photo.jpg",
   scene_provocation: "/images/sample-scene-quote.jpg",
 };
