@@ -27,6 +27,9 @@ const SAMPLE_IMAGES: Record<string, string> = {
   founder_friday: "/images/sample-3d-character-male.png",
   personal_update: "/images/sample-editorial-photo.jpg",
   scene_provocation: "/images/sample-scene-quote.jpg",
+  case_study: "/samples/quote-card-amber.png",
+  poll_question: "/samples/quote-card-purple.png",
+  data_point: "/samples/quote-card-teal.png",
 };
 
 /** Mini visual preview — real generated output samples for each post type */
@@ -134,6 +137,30 @@ const POST_TYPES: PostTypeOption[] = [
     archetype: "scene_quote",
     color: "#1E3A5F",
     visualTag: "Scene Quote",
+  },
+  {
+    slug: "case_study",
+    label: "Case Study",
+    description: "\"Here's what happened when we did X.\" Real results, specific details. 200-350 words.",
+    archetype: "quote_card_amber",
+    color: "#D97706",
+    visualTag: "Quote Card",
+  },
+  {
+    slug: "poll_question",
+    label: "Poll / Question",
+    description: "One sharp question with 2-4 options. Drives comments and votes. 30-60 words.",
+    archetype: "text_only",
+    color: "#8B5CF6",
+    visualTag: "Text Only",
+  },
+  {
+    slug: "data_point",
+    label: "Data Point",
+    description: "One compelling stat that reframes the conversation. 100-200 words.",
+    archetype: "quote_card_teal",
+    color: "#0D9488",
+    visualTag: "Quote Card",
   },
 ];
 

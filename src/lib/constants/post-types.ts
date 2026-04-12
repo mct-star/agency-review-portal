@@ -99,6 +99,36 @@ export const POST_TYPES: PostTypeOption[] = [
     visualTag: "Scene Quote",
     ecosystemRole: "Visual pattern interrupt. The image-first post that stops the scroll before the copy even loads.",
   },
+  {
+    slug: "case_study",
+    label: "Case Study",
+    description: "\"Here's what happened when we did X.\" Real results with specific details. 200-350 words.",
+    archetype: "quote_card_amber",
+    color: "#D97706",
+    visualTag: "Quote Card",
+    ecosystemRole: "Social proof that converts. Shows real outcomes, not theoretical benefits. The post people send to their boss.",
+    weekdayHint: "Tuesday",
+  },
+  {
+    slug: "poll_question",
+    label: "Poll / Question",
+    description: "One sharp question with 2-4 options. Drives comments and votes. 30-60 words.",
+    archetype: "text_only",
+    color: "#8B5CF6",
+    visualTag: "Text Only",
+    ecosystemRole: "Highest engagement format on LinkedIn. Gets your audience talking and reveals what they actually think.",
+    weekdayHint: "Wednesday",
+  },
+  {
+    slug: "data_point",
+    label: "Data Point",
+    description: "One compelling stat that reframes the conversation. 100-200 words.",
+    archetype: "quote_card_teal",
+    color: "#0D9488",
+    visualTag: "Quote Card",
+    ecosystemRole: "The shareable stat. One number that makes people stop scrolling and rethink their assumptions.",
+    weekdayHint: "Thursday",
+  },
 ];
 
 export function getPostType(slug: string): PostTypeOption | undefined {
@@ -122,8 +152,8 @@ export const WEEKLY_RHYTHMS = {
     suggested: ["blog_teaser", "insight", "launch_story", "if_i_was", "contrarian", "founder_friday", "personal_update"],
   },
   ecosystem: {
-    postsPerWeek: 9,
-    label: "Full Ecosystem (9/week)",
-    suggested: ["blog_teaser", "insight", "launch_story", "if_i_was", "contrarian", "tactical", "founder_friday", "personal_update", "scene_provocation"],
+    postsPerWeek: 12,
+    label: "Full Ecosystem (12/week)",
+    suggested: ["blog_teaser", "insight", "launch_story", "case_study", "if_i_was", "poll_question", "contrarian", "data_point", "tactical", "founder_friday", "personal_update", "scene_provocation"],
   },
 } as const;
