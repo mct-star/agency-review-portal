@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     const { data: weeks, error: weeksErr } = await weeksQuery;
     if (weeksErr) throw weeksErr;
 
-    // Fetch content pieces for those weeks
+    // Fetch content pieces for those weeks (including cover image URL for thumbnails)
     const weekIds = (weeks || []).map((w) => w.id);
     let pieces: Array<{
       id: string;
@@ -56,19 +56,47 @@ export async function GET(request: Request) {
       image_generation_status: string;
       week_id: string;
       markdown_body: string;
+      cover_image_url: string | null;
+      first_comment: string | null;
     }> = [];
 
     if (weekIds.length > 0) {
       const { data: piecesData, error: piecesErr } = await supabase
         .from("content_pieces")
         .select(
-          "id, title, content_type, day_of_week, scheduled_time, post_type, approval_status, image_generation_status, week_id, markdown_body"
+          "id, title, content_type, day_of_week, scheduled_time, post_type, approval_status, image_generation_status, week_id, markdown_body, cover_image_url, first_comment"
         )
         .in("week_id", weekIds)
         .order("sort_order", { ascending: true });
 
       if (piecesErr) throw piecesErr;
-      pieces = piecesData || [];
+
+      // If cover_image_url is null, try to find the first content_image for each piece
+      const piecesWithImages = piecesData || [];
+      const piecesNeedingImages = piecesWithImages.filter(p => !p.cover_image_url);
+      if (piecesNeedingImages.length > 0) {
+        const { data: images } = await supabase
+          .from("content_images")
+          .select("content_piece_id, public_url")
+          .in("content_piece_id", piecesNeedingImages.map(p => p.id))
+          .order("sort_order", { ascending: true });
+
+        if (images) {
+          const imageMap = new Map<string, string>();
+          for (const img of images) {
+            if (!imageMap.has(img.content_piece_id)) {
+              imageMap.set(img.content_piece_id, img.public_url);
+            }
+          }
+          for (const piece of piecesWithImages) {
+            if (!piece.cover_image_url && imageMap.has(piece.id)) {
+              piece.cover_image_url = imageMap.get(piece.id) || null;
+            }
+          }
+        }
+      }
+
+      pieces = piecesWithImages;
     }
 
     // Also fetch the posting schedule template (slots define what should exist each week)
