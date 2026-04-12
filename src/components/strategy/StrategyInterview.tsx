@@ -861,7 +861,7 @@ export default function StrategyInterview({
                 <div className="space-y-2">
                   {POST_TYPES.map((pt) => {
                     const enabled = enabledPostTypes.includes(pt.slug);
-                    const suggested = WEEKLY_RHYTHMS[selectedRhythm].suggested.includes(pt.slug);
+                    const suggested = (WEEKLY_RHYTHMS[selectedRhythm].suggested as readonly string[]).includes(pt.slug);
                     return (
                       <button
                         key={pt.slug}
