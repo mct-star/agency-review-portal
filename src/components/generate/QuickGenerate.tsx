@@ -16,21 +16,20 @@ import { setLastActivity } from "@/lib/utils/last-activity";
  * content with an image.
  */
 
-/** Static sample image paths for each post type */
+/** Static sample image paths for each post type — real generated output examples */
 const SAMPLE_IMAGES: Record<string, string> = {
   insight: "/samples/quote-card-green.png",
   if_i_was: "/samples/quote-card-purple.png",
   contrarian: "/samples/quote-card-blue.png",
   blog_teaser: "/samples/quote-card-emerald.png",
   tactical: "/samples/carousel-cover.png",
-  // AI types: add paths here after running scripts/generate-ai-samples.ts
-  // launch_story: "/samples/pixar-3d.png",
-  // founder_friday: "/samples/pixar-3d.png",
-  // personal_update: "/samples/editorial-photo.png",
-  // scene_provocation: "/samples/scene-quote.png",
+  launch_story: "/images/sample-3d-character.jpg",
+  founder_friday: "/images/sample-3d-character.jpg",
+  personal_update: "/images/sample-editorial-photo.jpg",
+  scene_provocation: "/images/sample-scene-quote.jpg",
 };
 
-/** Mini visual preview — uses real generated samples where available */
+/** Mini visual preview — real generated output samples for each post type */
 function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: string; color: string }) {
   const sampleSrc = SAMPLE_IMAGES[slug];
   if (sampleSrc) {
@@ -38,54 +37,20 @@ function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: stri
       <img
         src={sampleSrc}
         alt={visualTag}
+        loading="lazy"
         className="h-12 w-12 rounded-lg object-cover shadow-sm"
       />
     );
   }
 
-  // SVG placeholders for AI-generated types
-  const size = 48;
-  switch (visualTag) {
-    case "Cinematic 3D":
-      return (
-        <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
-          <rect width="48" height="48" rx="8" fill="#fce7f3" />
-          <circle cx="24" cy="17" r="9" fill="#f9a8d4" />
-          <rect x="16" y="26" width="16" height="13" rx="4" fill="#f472b6" />
-          <circle cx="20" cy="16" r="2" fill="white" />
-          <circle cx="28" cy="16" r="2" fill="white" />
-          <path d="M21 20 Q24 23 27 20" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      );
-    case "Editorial Photo":
-      return (
-        <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
-          <rect width="48" height="48" rx="8" fill="#fef3c7" />
-          <circle cx="16" cy="16" r="5" fill="#fbbf24" opacity="0.7" />
-          <path d="M4 34 L16 22 L26 30 L34 24 L44 32 L44 44 Q44 48 40 48 L8 48 Q4 48 4 44 Z" fill="#f59e0b" opacity="0.5" />
-          <path d="M4 38 L20 28 L32 36 L44 30 L44 44 Q44 48 40 48 L8 48 Q4 48 4 44 Z" fill="#d97706" opacity="0.4" />
-        </svg>
-      );
-    case "Scene Quote":
-      return (
-        <svg width={size} height={size} viewBox="0 0 48 48" className="rounded-lg shadow-sm">
-          <rect width="48" height="48" rx="8" fill="#e0e7ff" />
-          <rect x="6" y="6" width="36" height="24" rx="3" fill="white" stroke="#a5b4fc" strokeWidth="1.5" />
-          <rect x="12" y="13" width="24" height="2.5" rx="1" fill="#6366f1" opacity="0.7" />
-          <rect x="12" y="19" width="16" height="2.5" rx="1" fill="#6366f1" opacity="0.4" />
-          <rect x="8" y="36" width="10" height="5" rx="1.5" fill="#c7d2fe" />
-          <rect x="20" y="36" width="10" height="5" rx="1.5" fill="#c7d2fe" />
-        </svg>
-      );
-    default:
-      return (
-        <div className="h-12 w-12 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
-          <div className="flex h-full items-center justify-center">
-            <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
-          </div>
-        </div>
-      );
-  }
+  // Fallback for any unknown post types
+  return (
+    <div className="h-12 w-12 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
+      <div className="flex h-full items-center justify-center">
+        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+      </div>
+    </div>
+  );
 }
 
 interface PostTypeOption {
