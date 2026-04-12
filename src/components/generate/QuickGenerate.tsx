@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import LinkedInPreview from "@/components/content/LinkedInPreview";
 import VoiceDictation from "@/components/ui/VoiceDictation";
+import { setLastActivity } from "@/lib/utils/last-activity";
 
 /**
  * Quick Generate — the "make me a post" experience.
@@ -584,6 +585,7 @@ export default function QuickGenerate({
       setEditing(false);
       setAddedToWeek(null);
       setState("complete");
+      setLastActivity({ type: "post", label: topic.trim().slice(0, 40), href: "/generate/quick" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setState("error");

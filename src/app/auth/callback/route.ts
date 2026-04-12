@@ -88,6 +88,7 @@ export async function GET(request: Request) {
           const meta = authUser.user_metadata || {};
           const fullName = meta.full_name || meta.name || authUser.email?.split("@")[0] || "User";
           const companyName = meta.company_name;
+          const industry = meta.industry || null;
 
           if (companyName) {
             // Create company with 7-day pro trial
@@ -110,6 +111,7 @@ export async function GET(request: Request) {
                 trial_started_at: new Date().toISOString(),
                 trial_expires_at: trialExpiresAt.toISOString(),
                 spokesperson_name: fullName,
+                ...(industry ? { industry } : {}),
               })
               .select("id")
               .single();

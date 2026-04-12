@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { POST_TYPES, WEEKLY_RHYTHMS } from "@/lib/constants/post-types";
 import type { StrategySession, StrategyAudience, StrategyPositioning } from "@/types/database";
+import { setLastActivity } from "@/lib/utils/last-activity";
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -112,6 +114,8 @@ export default function StrategyInterview({
   existingAudiences,
   existingPositioning,
 }: StrategyInterviewProps) {
+  const router = useRouter();
+
   // ── State ──────────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(initialSession?.current_step ?? 1);
   const [responses, setResponses] = useState<Record<string, unknown>>(
@@ -288,6 +292,7 @@ export default function StrategyInterview({
     setDirection("forward");
     await saveProgress(data, nextStep);
     setCurrentStep(nextStep);
+    setLastActivity({ type: "strategy", label: `Strategy Interview (Step ${nextStep}/8)`, href: "/strategy/interview" });
   }, [currentStep, collectStepData, saveProgress]);
 
   const goBack = useCallback(async () => {
@@ -1040,16 +1045,29 @@ export default function StrategyInterview({
       {/* ═══ Navigation Buttons ═══ */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/90 backdrop-blur-md border-t border-gray-100">
         <div className="mx-auto max-w-3xl flex items-center justify-between px-6 py-4">
-          <button
-            onClick={goBack}
-            disabled={currentStep <= 1 || saving}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={async () => {
+                const data = collectStepData();
+                await saveProgress(data, currentStep);
+                router.push("/home");
+              }}
+              disabled={saving}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+            >
+              Save & continue later
+            </button>
+            <button
+              onClick={goBack}
+              disabled={currentStep <= 1 || saving}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+          </div>
 
           <div className="flex items-center gap-3">
             {saving && (

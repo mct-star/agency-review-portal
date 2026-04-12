@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import ContinueCard from "@/components/home/ContinueCard";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
@@ -147,6 +148,9 @@ export default async function HomePage() {
         </h1>
       </div>
 
+      {/* ===== Continue where you left off ===== */}
+      <ContinueCard />
+
       {/* ===== Smart nudge ===== */}
       {!strategyCompleted && !isAdmin ? (
         <div className={`mx-auto max-w-xl rounded-xl border px-5 py-4 ${nudgeColor}`}>
@@ -247,6 +251,30 @@ export default async function HomePage() {
           </div>
         </Link>
       </section>
+
+      {/* ===== This week stats ===== */}
+      {(thisWeekCount > 0 || approvedNotPublished > 0 || totalPendingUnits > 0) && (
+        <section className="mx-auto max-w-xl">
+          <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/50 px-6 py-3">
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-lg font-bold text-gray-900">{thisWeekCount}</p>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider">Created this week</p>
+              </div>
+              <div className="h-8 w-px bg-gray-200" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-emerald-600">{approvedNotPublished}</p>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider">Ready to publish</p>
+              </div>
+              <div className="h-8 w-px bg-gray-200" />
+              <div className="text-center">
+                <p className="text-lg font-bold text-amber-600">{totalPendingUnits}</p>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider">Awaiting review</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ===== Dashboard link (subtle, for users who want the detailed view) ===== */}
       <div className="text-center">

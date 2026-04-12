@@ -9,6 +9,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [industry, setIndustry] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export default function SignupPage() {
         data: {
           full_name: fullName,
           company_name: companyName,
+          industry: industry || undefined,
         },
       },
     });
@@ -172,6 +174,31 @@ export default function SignupPage() {
                   required
                   className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="industry" className="block text-sm font-medium text-gray-700">
+                  Industry
+                </label>
+                <select
+                  id="industry"
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white"
+                >
+                  <option value="">Select your industry</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Financial Services">Financial Services</option>
+                  <option value="Legal">Legal</option>
+                  <option value="Technology">Technology</option>
+                  <option value="Construction">Construction</option>
+                  <option value="Energy">Energy</option>
+                  <option value="Education">Education</option>
+                  <option value="Hospitality">Hospitality</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Professional Services">Professional Services</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
 
               {error && (
