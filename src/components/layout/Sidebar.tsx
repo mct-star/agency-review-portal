@@ -243,7 +243,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
         )}
       </div>
 
-      {/* Home + Dashboard */}
+      {/* Home */}
       <div className="px-2 pt-3 pb-1 space-y-0.5">
         <Link
           href="/home"
@@ -257,19 +257,6 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
             <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
           </svg>
           Home
-        </Link>
-        <Link
-          href="/dashboard"
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-            pathname === "/dashboard"
-              ? "bg-gray-100 text-gray-900"
-              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-          }`}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d={icons.grid} />
-          </svg>
-          Dashboard
         </Link>
       </div>
 
@@ -305,10 +292,10 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
 
                   if (locked) {
                     return (
-                      <div
+                      <Link
                         key={item.href}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-not-allowed"
-                        title={`Requires ${item.minPlan} plan or higher`}
+                        href={`/upgrade?feature=${encodeURIComponent(item.label)}&plan=${item.minPlan || "pro"}`}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-pointer hover:bg-gray-50 hover:text-gray-400 transition-colors"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={icons[item.icon]} />
@@ -317,7 +304,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                         <svg className="h-3.5 w-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={icons.lock} />
                         </svg>
-                      </div>
+                      </Link>
                     );
                   }
 

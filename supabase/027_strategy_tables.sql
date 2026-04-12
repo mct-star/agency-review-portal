@@ -115,36 +115,36 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "Users can manage own company strategy sessions" ON strategy_sessions;
   CREATE POLICY "Users can manage own company strategy sessions" ON strategy_sessions
     FOR ALL USING (
-      company_id IN (SELECT company_id FROM user_profiles WHERE id = auth.uid())
-      OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
+      company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+      OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
     );
 
   DROP POLICY IF EXISTS "Users can manage own company strategy audiences" ON strategy_audiences;
   CREATE POLICY "Users can manage own company strategy audiences" ON strategy_audiences
     FOR ALL USING (
-      company_id IN (SELECT company_id FROM user_profiles WHERE id = auth.uid())
-      OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
+      company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+      OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
     );
 
   DROP POLICY IF EXISTS "Users can manage own company strategy positioning" ON strategy_positioning;
   CREATE POLICY "Users can manage own company strategy positioning" ON strategy_positioning
     FOR ALL USING (
-      company_id IN (SELECT company_id FROM user_profiles WHERE id = auth.uid())
-      OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
+      company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+      OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
     );
 
   DROP POLICY IF EXISTS "Users can manage own company narrative arcs" ON strategy_narrative_arcs;
   CREATE POLICY "Users can manage own company narrative arcs" ON strategy_narrative_arcs
     FOR ALL USING (
-      company_id IN (SELECT company_id FROM user_profiles WHERE id = auth.uid())
-      OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
+      company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+      OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
     );
 
   DROP POLICY IF EXISTS "Users can manage own company strategy documents" ON strategy_documents;
   CREATE POLICY "Users can manage own company strategy documents" ON strategy_documents
     FOR ALL USING (
-      company_id IN (SELECT company_id FROM user_profiles WHERE id = auth.uid())
-      OR EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'admin')
+      company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
+      OR EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
     );
 
   -- Public read for shared strategy documents (via share_token)

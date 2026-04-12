@@ -535,7 +535,7 @@ export default function StrategyInterview({
 
         {/* ─── Step 2: Who Do You Help? ─── */}
         {currentStep === 2 && (
-          <StepCard number={2} title="Who Do You Help?" subtitle="Define up to 3 audience personas you create content for.">
+          <StepCard number={2} title="Who Do You Help?" subtitle="Define up to 3 audience personas you create content for. (Think of a real customer you spoke to recently)">
             <div className="space-y-4">
               {personas.map((persona, idx) => (
                 <div key={persona.id} className="rounded-xl border border-gray-200 bg-gray-50/50 p-5 relative">
@@ -555,13 +555,13 @@ export default function StrategyInterview({
                   </p>
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Name / Label" compact>
+                      <Field label="What do you call them?" compact>
                         <input
                           type="text"
                           value={persona.name}
                           onChange={(e) => updatePersona(persona.id, "name", e.target.value)}
                           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                          placeholder="e.g. Procurement Director"
+                          placeholder="e.g. Hotel procurement manager, NHS buyer, CFO"
                         />
                       </Field>
                       <Field label="Job title" compact>
@@ -574,7 +574,7 @@ export default function StrategyInterview({
                         />
                       </Field>
                     </div>
-                    <Field label="Seniority level" compact>
+                    <Field label="Seniority level" hint="(How senior are they?)" compact>
                       <select
                         value={persona.seniority}
                         onChange={(e) => updatePersona(persona.id, "seniority", e.target.value)}
@@ -586,20 +586,20 @@ export default function StrategyInterview({
                         ))}
                       </select>
                     </Field>
-                    <Field label="Their #1 problem" compact>
+                    <Field label="What keeps them up at night?" compact>
                       <textarea
                         value={persona.primaryProblem}
                         onChange={(e) => updatePersona(persona.id, "primaryProblem", e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[72px] resize-y"
-                        placeholder="What keeps them up at night?"
+                        placeholder="e.g. They can't find reliable suppliers who understand their industry"
                       />
                     </Field>
-                    <Field label="What they search for online" compact>
+                    <Field label="What would they Google?" compact>
                       <textarea
                         value={persona.searchTerms}
                         onChange={(e) => updatePersona(persona.id, "searchTerms", e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[72px] resize-y"
-                        placeholder="Keywords, questions, topics they Google"
+                        placeholder="e.g. best linen supplier UK, sustainable hotel textiles"
                       />
                     </Field>
                   </div>
@@ -621,20 +621,20 @@ export default function StrategyInterview({
         {currentStep === 3 && (
           <StepCard number={3} title="What Makes You Different?" subtitle="Your positioning is the foundation of every piece of content.">
             <div className="space-y-5">
-              <Field label="What do most companies in your space get wrong?">
+              <Field label="What frustrates you about your competitors?">
                 <textarea
                   value={competitorMistakes}
                   onChange={(e) => setCompetitorMistakes(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
-                  placeholder="The biggest mistake companies in our industry make is..."
+                  placeholder="e.g. They all say the same thing, nobody actually delivers on sustainability claims"
                 />
               </Field>
-              <Field label="What is the one thing you know that your competitors don't?">
+              <Field label="What do you know that others don't?">
                 <textarea
                   value={secretKnowledge}
                   onChange={(e) => setSecretKnowledge(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
-                  placeholder="The insight we have that others miss..."
+                  placeholder="e.g. We know that 60% of hotel operators are planning to downsize in the next 3 years"
                 />
               </Field>
               <Field label="If a customer described you to a friend, what would they say?">
@@ -642,7 +642,7 @@ export default function StrategyInterview({
                   value={customerDescription}
                   onChange={(e) => setCustomerDescription(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
-                  placeholder="They would say we are..."
+                  placeholder="e.g. They actually care about the detail, not just the sale"
                 />
               </Field>
               <div>
@@ -651,12 +651,12 @@ export default function StrategyInterview({
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Before</span>
+                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Before working with you, your customers...</span>
                     <textarea
                       value={transformBefore}
                       onChange={(e) => setTransformBefore(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 mt-1 min-h-[80px] resize-y"
-                      placeholder="Where your customer starts..."
+                      placeholder="e.g. were struggling with inconsistent quality and unreliable delivery"
                     />
                   </div>
                   <div className="relative">
@@ -665,12 +665,12 @@ export default function StrategyInterview({
                         <path d="M5 12h14M12 5l7 7-7 7" />
                       </svg>
                     </div>
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">After</span>
+                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">After working with you, your customers...</span>
                     <textarea
                       value={transformAfter}
                       onChange={(e) => setTransformAfter(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 mt-1 min-h-[80px] resize-y"
-                      placeholder="Where they end up..."
+                      placeholder="e.g. have a reliable partner they trust, with consistent quality every order"
                     />
                   </div>
                 </div>
@@ -723,27 +723,27 @@ export default function StrategyInterview({
                 </div>
               </div>
 
-              <Field label="5 words that describe your tone" hint="Comma-separated, e.g. bold, direct, warm, witty, grounded">
+              <Field label="How would a colleague describe the way you communicate?">
                 <input
                   type="text"
                   value={toneWords}
                   onChange={(e) => setToneWords(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  placeholder="bold, direct, warm, witty, grounded"
+                  placeholder="e.g. warm, knowledgeable, direct, honest, practical"
                 />
               </Field>
 
-              <Field label="5 words or phrases to never use" hint="Things that feel off-brand or overused in your industry">
+              <Field label="Words or phrases that make you cringe">
                 <input
                   type="text"
                   value={neverUse}
                   onChange={(e) => setNeverUse(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  placeholder="synergy, disrupt, leverage, game-changer, circle back"
+                  placeholder="e.g. synergy, leverage, disrupt, game-changer, revolutionary"
                 />
               </Field>
 
-              <Field label="Voice sample" hint="Write a sentence as you would explain your product to a new lead">
+              <Field label="Write a sentence the way YOU would say it" hint="(Imagine you're explaining what you do to someone at a conference)">
                 <textarea
                   value={voiceSample}
                   onChange={(e) => setVoiceSample(e.target.value)}
@@ -757,7 +757,7 @@ export default function StrategyInterview({
 
         {/* ─── Step 5: Content Pillars ─── */}
         {currentStep === 5 && (
-          <StepCard number={5} title="What Are Your Content Pillars?" subtitle="Pillars are the 3-5 major themes your content revolves around.">
+          <StepCard number={5} title="What Are Your Content Pillars?" subtitle="These are the 3-5 big themes you'll keep coming back to in your content. Think of them as your areas of expertise.">
             <div className="space-y-4">
               {pillars.map((pillar, idx) => (
                 <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50/50 p-5 relative">
@@ -776,21 +776,21 @@ export default function StrategyInterview({
                     Pillar {idx + 1}
                   </p>
                   <div className="space-y-3">
-                    <Field label="Pillar name" compact>
+                    <Field label="Theme" compact>
                       <input
                         type="text"
                         value={pillar.name}
                         onChange={(e) => updatePillar(idx, "name", e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                        placeholder="e.g. Getting Products to Market"
+                        placeholder="e.g. Sustainability in hospitality, Getting products to market, Patient access"
                       />
                     </Field>
-                    <Field label="Description" compact>
+                    <Field label="What you'd say about this" compact>
                       <textarea
                         value={pillar.description}
                         onChange={(e) => updatePillar(idx, "description", e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[72px] resize-y"
-                        placeholder="What does this pillar cover?"
+                        placeholder="e.g. Why most sustainability claims in hospitality are meaningless, and what actually works"
                       />
                     </Field>
                     <Field label="Topic ideas" hint="Comma-separated" compact>
@@ -911,7 +911,7 @@ export default function StrategyInterview({
 
         {/* ─── Step 7: Narrative Arc ─── */}
         {currentStep === 7 && (
-          <StepCard number={7} title="Your Narrative Arc" subtitle="Plan a 12-week content arc across 4 phases. Each phase builds on the last.">
+          <StepCard number={7} title="Your Narrative Arc" subtitle="Don't overthink this. Just type a word or phrase for each week's focus. You can always change it later.">
             <div className="space-y-6">
               {PHASE_CONFIG.map((phase, phaseIdx) => {
                 const startWeek = phaseIdx * 3;

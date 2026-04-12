@@ -15,7 +15,7 @@ const MODULES = [
     description:
       "47,000 lines of code. 39 quality checks. Record a 60-second voice note and we learn your cadence, vocabulary, and energy. Every post passes through 39 quality gates to ensure it matches your tone of voice as closely as possible.",
     features: [
-      "39 quality gates: hook tension, healthcare specificity, AI detection, brand consistency",
+      "39 quality gates: hook tension, industry specificity, AI detection, brand consistency",
       "Voice profile from a 60-second recording, LinkedIn, or writing samples",
       "7 post types designed for B2B engagement and demand generation",
       "Scale from one post to a full month-long content ecosystem",
@@ -50,7 +50,7 @@ const MODULES = [
     availColor: "text-red-600",
     title: "Compliance review that catches what humans miss.",
     description:
-      "Three-colour MLR workflow maps every sentence to Legal, Regulatory, or Compliance responsibilities. Sentence-level analysis with regulation references and suggested compliant alternatives.",
+      "For regulated industries like healthcare, pharma, financial services, and legal. Three-colour MLR workflow maps every sentence to Legal, Regulatory, or Compliance responsibilities. Sentence-level analysis with regulation references and suggested compliant alternatives.",
     features: [
       "ABPI, MHRA, FDA, EU MDR frameworks",
       "Three-colour coding: Legal / Regulatory / Compliance",
@@ -127,7 +127,7 @@ const STEPS = [
     number: "03",
     title: "Generate content",
     description:
-      "AI creates posts in your voice with quality gates for healthcare specificity, hook tension, and brand consistency.",
+      "AI creates posts in your voice with quality gates for industry specificity, hook tension, and brand consistency.",
   },
   {
     number: "04",
@@ -302,7 +302,7 @@ export default function LandingPage() {
       <section className="py-10">
         <div className="mx-auto max-w-6xl px-6">
           <p className="text-center text-sm text-gray-500 mb-6">
-            Built by <strong className="text-gray-700">AGENCY Bristol</strong>, a healthcare demand generation consultancy.
+            Built by <strong className="text-gray-700">AGENCY Bristol</strong>, a B2B demand generation consultancy.
             We built this for our own 10-week production workflow, then opened it up.
           </p>
 

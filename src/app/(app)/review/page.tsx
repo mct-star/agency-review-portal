@@ -59,6 +59,19 @@ export default async function WeeksPage() {
     (p) => p.approval_status === "changes_requested"
   ).length;
 
+  // Individual posts (no week assignment)
+  let individualQuery = supabase
+    .from("content_pieces")
+    .select("id, title, post_type, approval_status, created_at, markdown_body")
+    .is("week_id", null)
+    .in("approval_status", ["pending", "changes_requested"])
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (!isAdmin && profile.company_id) {
+    individualQuery = individualQuery.eq("company_id", profile.company_id);
+  }
+  const { data: individualPosts } = await individualQuery;
+
   // Count published pieces via publishing_jobs
   let publishedQuery = supabase
     .from("publishing_jobs")
@@ -107,6 +120,55 @@ export default async function WeeksPage() {
 
       {/* Search and Filters */}
       <ReviewFilters />
+
+      {/* Individual Posts (no week assignment) */}
+      {individualPosts && individualPosts.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Individual Posts
+              <span className="ml-2 text-sm font-normal text-gray-400">{individualPosts.length}</span>
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {individualPosts.map((post) => (
+              <Link
+                key={post.id}
+                href={`/content/${post.id}`}
+                className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm hover:shadow-md transition-shadow"
+              >
+                {/* Status dot */}
+                <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                  post.approval_status === "pending" ? "bg-amber-400" : "bg-red-400"
+                }`} />
+
+                {/* Post type badge */}
+                <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  {post.post_type?.replace(/_/g, " ") || "Post"}
+                </span>
+
+                {/* Title + preview */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{post.title || "Untitled post"}</p>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                    {post.markdown_body?.slice(0, 80).replace(/[#*_\n]/g, " ").trim() || ""}
+                  </p>
+                </div>
+
+                {/* Date */}
+                <span className="text-xs text-gray-400 flex-shrink-0">
+                  {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </span>
+
+                {/* Arrow */}
+                <svg className="h-4 w-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {allWeeks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">

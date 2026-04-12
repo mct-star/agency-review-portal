@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { seedSampleContent } from "@/lib/utils/seed-sample-content";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      redirectUrl = `${origin}/dashboard`;
+      redirectUrl = `${origin}/home`;
       authSuccess = true;
     } else {
       console.error("Auth callback error (code exchange):", error.message);
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
       type: type as "magiclink" | "email",
     });
     if (!error) {
-      redirectUrl = `${origin}/dashboard`;
+      redirectUrl = `${origin}/home`;
       authSuccess = true;
     } else {
       console.error("Auth callback error (token verify):", error.message);
@@ -131,6 +132,9 @@ export async function GET(request: Request) {
                 is_active: true,
                 sort_order: 0,
               });
+
+              // Seed sample content so the dashboard isn't empty
+              await seedSampleContent(adminSupabase, newCompany.id);
 
               console.log(`[auth] Auto-provisioned company "${companyName}" + user "${fullName}" with 7-day pro trial`);
 

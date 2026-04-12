@@ -102,9 +102,9 @@ export default async function HomePage() {
   let nudgeColor: string; // tailwind classes
 
   if (!strategyCompleted && !isAdmin) {
-    nudgeText = "You haven't built your content strategy yet.";
-    nudgeHref = "/strategy";
-    nudgeLabel = "Start here";
+    nudgeText = "New here? Build a strategy for best results, or jump straight in.";
+    nudgeHref = "/strategy"; // used for left button
+    nudgeLabel = ""; // not used — custom two-button layout below
     nudgeColor = "bg-violet-50 text-violet-700 border-violet-200";
   } else if (totalPendingUnits > 0) {
     // Build a human-readable description of what's pending
@@ -148,15 +148,35 @@ export default async function HomePage() {
       </div>
 
       {/* ===== Smart nudge ===== */}
-      <div className={`mx-auto max-w-xl flex items-center justify-between gap-4 rounded-xl border px-5 py-3.5 ${nudgeColor}`}>
-        <p className="text-sm font-medium">{nudgeText}</p>
-        <Link
-          href={nudgeHref}
-          className="flex-shrink-0 rounded-lg bg-white px-4 py-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md"
-        >
-          {nudgeLabel} &rarr;
-        </Link>
-      </div>
+      {!strategyCompleted && !isAdmin ? (
+        <div className={`mx-auto max-w-xl rounded-xl border px-5 py-4 ${nudgeColor}`}>
+          <p className="text-sm font-medium text-center mb-3">{nudgeText}</p>
+          <div className="flex items-center justify-center gap-3">
+            <Link
+              href="/strategy"
+              className="flex-shrink-0 rounded-lg border border-violet-600 px-4 py-2 text-xs font-semibold text-violet-700 transition-all hover:bg-violet-100"
+            >
+              Build your content strategy &rarr;
+            </Link>
+            <Link
+              href="/generate/quick"
+              className="flex-shrink-0 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-violet-700 hover:shadow-md"
+            >
+              Skip to Quick Generate &rarr;
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className={`mx-auto max-w-xl flex items-center justify-between gap-4 rounded-xl border px-5 py-3.5 ${nudgeColor}`}>
+          <p className="text-sm font-medium">{nudgeText}</p>
+          <Link
+            href={nudgeHref}
+            className="flex-shrink-0 rounded-lg bg-white px-4 py-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md"
+          >
+            {nudgeLabel} &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* ===== Navigation tiles ===== */}
       <section className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "360px" }}>
@@ -227,6 +247,19 @@ export default async function HomePage() {
           </div>
         </Link>
       </section>
+
+      {/* ===== Dashboard link (subtle, for users who want the detailed view) ===== */}
+      <div className="text-center">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-gray-600"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5ZM4 15a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4Z" />
+          </svg>
+          View detailed dashboard &rarr;
+        </Link>
+      </div>
     </div>
   );
 }
