@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
-import RotatingQuote from "@/components/home/RotatingQuote";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
@@ -22,33 +21,107 @@ export default async function HomePage() {
   const companyId = profile?.company_id;
   const firstName = (profile?.full_name || "there").split(" ")[0];
 
-  // Fetch pending review count for the tile badge
+  // ── Fetch counts for smart nudge ──
   let pendingCount = 0;
-  {
-    let contentQuery = supabase
-      .from("content_pieces")
-      .select("id", { count: "exact", head: true })
-      .eq("approval_status", "pending");
-    if (!isAdmin && companyId) {
-      contentQuery = contentQuery.eq("company_id", companyId);
+  let approvedNotPublished = 0;
+  let thisWeekCount = 0;
+  let strategyCompleted = false;
+
+  if (companyId || isAdmin) {
+    const cid = companyId;
+
+    // Pending review
+    {
+      let q = supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("approval_status", "pending");
+      if (!isAdmin && cid) q = q.eq("company_id", cid);
+      const { count } = await q;
+      pendingCount = count || 0;
     }
-    const { count } = await contentQuery;
-    pendingCount = count || 0;
+
+    // Approved but not published
+    {
+      let q = supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("approval_status", "approved");
+      if (!isAdmin && cid) q = q.eq("company_id", cid);
+      const { count } = await q;
+      approvedNotPublished = count || 0;
+    }
+
+    // Posts this week
+    {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const weekStart = new Date(now);
+      weekStart.setDate(weekStart.getDate() + mondayOffset);
+      weekStart.setHours(0, 0, 0, 0);
+
+      let q = supabase.from("content_pieces").select("id", { count: "exact", head: true }).gte("created_at", weekStart.toISOString());
+      if (!isAdmin && cid) q = q.eq("company_id", cid);
+      const { count } = await q;
+      thisWeekCount = count || 0;
+    }
+
+    // Strategy status
+    if (cid) {
+      const { data: company } = await supabase.from("companies").select("strategy_completed").eq("id", cid).single();
+      strategyCompleted = company?.strategy_completed || false;
+    }
+  }
+
+  // ── Determine the smart nudge ──
+  let nudgeText: string;
+  let nudgeHref: string;
+  let nudgeLabel: string;
+  let nudgeColor: string; // tailwind classes
+
+  if (!strategyCompleted && !isAdmin) {
+    nudgeText = "You haven't built your content strategy yet.";
+    nudgeHref = "/strategy";
+    nudgeLabel = "Start here";
+    nudgeColor = "bg-violet-50 text-violet-700 border-violet-200";
+  } else if (pendingCount > 0) {
+    nudgeText = `${pendingCount} post${pendingCount !== 1 ? "s are" : " is"} waiting for your review.`;
+    nudgeHref = "/review";
+    nudgeLabel = "Review now";
+    nudgeColor = "bg-amber-50 text-amber-700 border-amber-200";
+  } else if (thisWeekCount === 0) {
+    nudgeText = "You haven't posted anything this week yet.";
+    nudgeHref = "/generate/quick";
+    nudgeLabel = "Create a post";
+    nudgeColor = "bg-blue-50 text-blue-700 border-blue-200";
+  } else if (approvedNotPublished > 0) {
+    nudgeText = `${approvedNotPublished} approved post${approvedNotPublished !== 1 ? "s" : ""} ready to publish.`;
+    nudgeHref = "/publish";
+    nudgeLabel = "Publish now";
+    nudgeColor = "bg-emerald-50 text-emerald-700 border-emerald-200";
+  } else {
+    nudgeText = "All caught up. Keep the momentum going.";
+    nudgeHref = "/generate/quick";
+    nudgeLabel = "Create next post";
+    nudgeColor = "bg-gray-50 text-gray-600 border-gray-200";
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-10 pt-6 pb-12">
-      {/* ===== Greeting bar ===== */}
+    <div className="mx-auto max-w-6xl space-y-8 pt-6 pb-12">
+      {/* ===== Greeting ===== */}
       <div className="text-center">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
           {greeting(firstName)}
         </h1>
-        <p className="mt-2 text-sm text-gray-500">
-          One post. Ten minutes. Compound.
-        </p>
       </div>
 
-      {/* ===== Navigation tiles (moved ABOVE the quote) ===== */}
+      {/* ===== Smart nudge ===== */}
+      <div className={`mx-auto max-w-xl flex items-center justify-between gap-4 rounded-xl border px-5 py-3.5 ${nudgeColor}`}>
+        <p className="text-sm font-medium">{nudgeText}</p>
+        <Link
+          href={nudgeHref}
+          className="flex-shrink-0 rounded-lg bg-white px-4 py-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md"
+        >
+          {nudgeLabel} &rarr;
+        </Link>
+      </div>
+
+      {/* ===== Navigation tiles ===== */}
       <section className="grid gap-5 sm:grid-cols-3" style={{ minHeight: "360px" }}>
         {/* Quick Generate */}
         <Link
@@ -116,11 +189,6 @@ export default async function HomePage() {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
           </div>
         </Link>
-      </section>
-
-      {/* ===== Rotating quote (moved BELOW the tiles) ===== */}
-      <section>
-        <RotatingQuote />
       </section>
     </div>
   );
