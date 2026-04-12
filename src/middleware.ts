@@ -58,6 +58,11 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
+  // Allow public strategy share pages (must be checked BEFORE protected route logic)
+  if (request.nextUrl.pathname.match(/^\/strategy\/[a-zA-Z0-9-]+$/)) {
+    return supabaseResponse;
+  }
+
   // Protected route prefixes — everything else is public (marketing pages, signup, etc.)
   const protectedPrefixes = [
     "/home", "/dashboard", "/setup", "/generate", "/review", "/compliance",

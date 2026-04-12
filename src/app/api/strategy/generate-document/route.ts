@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -168,6 +169,9 @@ export async function POST(request: Request) {
 
     const nextVersion = existingDocs ? existingDocs.version + 1 : 1;
 
+    // Generate a short, URL-friendly share token
+    const shareToken = crypto.randomUUID().slice(0, 12);
+
     // Save the document
     const { data: document, error: insertErr } = await supabase
       .from("strategy_documents")
@@ -175,6 +179,7 @@ export async function POST(request: Request) {
         company_id: companyId,
         version: nextVersion,
         content: documentContent,
+        share_token: shareToken,
         generated_at: new Date().toISOString(),
       })
       .select("*")

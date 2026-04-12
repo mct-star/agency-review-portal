@@ -49,6 +49,7 @@ function buildSections(user: User): NavSection[] {
         phase: 1,
         items: [
           { href: "/strategy", label: "Strategy Interview", icon: "compass" },
+          { href: "/strategy/competitor", label: "Competitor Analysis", icon: "compass" },
         ],
       },
       // Phase 2: Plan
@@ -66,8 +67,11 @@ function buildSections(user: User): NavSection[] {
         phase: 3,
         items: [
           { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
+          { href: "/create/voice", label: "Voice to Post", icon: "mic" },
           { href: "/generate", label: "Week Batch", icon: "sparkle" },
           { href: "/create/article", label: "Blog / Article", icon: "quote" },
+          { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },
+          { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" as ComplexityLevel },
         ],
       },
       // Phase 4: Review & Publish
@@ -112,6 +116,7 @@ function buildSections(user: User): NavSection[] {
       phase: 1,
       items: [
         { href: "/strategy", label: "Strategy Interview", icon: "compass" },
+        { href: "/strategy/competitor", label: "Competitor Analysis", icon: "compass" },
       ],
     },
     // Phase 2: Plan
@@ -129,8 +134,11 @@ function buildSections(user: User): NavSection[] {
       phase: 3,
       items: [
         { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
+        { href: "/create/voice", label: "Voice to Post", icon: "mic" },
         { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
         { href: "/create/article", label: "Blog / Article", icon: "quote", minComplexity: "intermediate" as ComplexityLevel },
+        { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },
+        { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" as ComplexityLevel },
       ],
     },
     // Phase 4: Review & Publish
@@ -191,6 +199,7 @@ const icons: Record<string, string> = {
   compass: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm3.5-12.5l-5 2-2 5 5-2 2-5Z",
   checkCircle: "M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   quote: "M6 17h3l2-4V7H5v6h3l-2 4Zm8 0h3l2-4V7h-6v6h3l-2 4Z",
+  mic: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3ZM19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8",
 };
 
 export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced" }: SidebarProps) {

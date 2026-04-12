@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
-import MonthFillForm from "@/components/create/MonthFillForm";
+import RepurposeEngine from "@/components/create/RepurposeEngine";
 
 export const metadata: Metadata = {
-  title: "Fill My Month | AGENCY",
-  description: "Generate an entire month of content calendar in one click",
+  title: "Repurpose Content | AGENCY",
+  description: "Turn one blog post or article into multiple content pieces",
 };
 
-export default async function MonthFillPage() {
+export default async function RepurposePage() {
   const profile = await getUserProfile();
   if (!profile) return null;
 
@@ -35,7 +35,7 @@ export default async function MonthFillPage() {
   if (companies.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900">Fill My Month</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Repurpose Content</h1>
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
           <p className="text-sm text-gray-500">
             No company set up yet. Complete your company setup first.
@@ -48,14 +48,12 @@ export default async function MonthFillPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Fill My Month</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Repurpose Content</h1>
         <p className="mt-1 text-sm text-gray-500">
-          One click to plan an entire month. Previews your posting schedule, generates AI-powered
-          titles from your strategy pillars, and creates every week and content slot ready for
-          batch generation.
+          Paste one blog post or article. Get multiple content pieces auto-generated from it.
         </p>
       </div>
-      <MonthFillForm
+      <RepurposeEngine
         companies={companies}
         showCompanyPicker={isAdmin && companies.length > 1}
       />

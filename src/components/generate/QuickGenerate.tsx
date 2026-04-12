@@ -3,6 +3,9 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import LinkedInPreview from "@/components/content/LinkedInPreview";
 import VoiceDictation from "@/components/ui/VoiceDictation";
+import VoiceToPost from "@/components/generate/VoiceToPost";
+import { calculateVoiceMatch } from "@/lib/utils/voice-match";
+import { predictEngagement } from "@/lib/utils/engagement-predictor";
 import { setLastActivity } from "@/lib/utils/last-activity";
 
 /**
@@ -596,6 +599,16 @@ export default function QuickGenerate({
   const livePostText = editing ? editedText : (result?.postText || "");
   const liveFirstComment = editing ? editedFirstComment : (result?.firstComment || "");
 
+  // Voice match & engagement predictions (client-side heuristics)
+  const voiceMatch = useMemo(
+    () => calculateVoiceMatch(livePostText),
+    [livePostText]
+  );
+  const engagement = useMemo(
+    () => predictEngagement(livePostText, selectedPostType?.slug || result?.postType || ""),
+    [livePostText, selectedPostType?.slug, result?.postType]
+  );
+
   function handleStartEdit() {
     if (!result) return;
     setEditedText(result.postText);
@@ -987,7 +1000,26 @@ export default function QuickGenerate({
             )}
 
             {topicMode === "off_the_cuff" && (
-              <div>
+              <div className="space-y-4">
+                {/* Voice-to-Post: primary input */}
+                <div className="rounded-xl border border-violet-100 bg-gradient-to-b from-violet-50/60 to-white p-6">
+                  <VoiceToPost
+                    onTranscript={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
+                    disabled={state !== "idle"}
+                  />
+                </div>
+
+                {/* Divider */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 text-xs text-gray-400">or type it</span>
+                  </div>
+                </div>
+
+                {/* Textarea fallback / edit area */}
                 <textarea
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
@@ -996,7 +1028,7 @@ export default function QuickGenerate({
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
                 />
                 <p className="mt-1.5 text-[11px] text-gray-500">
-                  Brain-dump mode. The AI will find the angle and structure it into a post for you.
+                  Brain-dump mode. Record your thoughts or type them out. The AI will find the angle and structure it into a post for you.
                 </p>
               </div>
             )}
@@ -1389,6 +1421,54 @@ export default function QuickGenerate({
           {overlayError && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
               Overlay error: {overlayError}
+            </div>
+          )}
+
+          {/* Voice Match + Engagement Prediction */}
+          {result && (
+            <div className="grid gap-3 sm:grid-cols-2 mt-4">
+              {/* Voice Match Score */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Voice Match</h4>
+                  <span className={`text-2xl font-bold ${voiceMatch.score >= 80 ? "text-green-600" : voiceMatch.score >= 60 ? "text-amber-600" : "text-red-500"}`}>
+                    {voiceMatch.score}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${voiceMatch.score >= 80 ? "bg-green-500" : voiceMatch.score >= 60 ? "bg-amber-500" : "bg-red-500"}`}
+                    style={{ width: `${voiceMatch.score}%` }}
+                  />
+                </div>
+                <ul className="mt-2 space-y-0.5">
+                  {voiceMatch.feedback.slice(0, 3).map((f, i) => (
+                    <li key={i} className="text-[11px] text-gray-500 flex items-start gap-1">
+                      <span className="text-green-500 mt-px">{"\u2022"}</span> {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Engagement Prediction */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Engagement</h4>
+                  <span className={`text-2xl font-bold ${engagement.multiplier >= 1.5 ? "text-green-600" : engagement.multiplier >= 1.0 ? "text-blue-600" : "text-amber-600"}`}>
+                    {engagement.multiplier}x
+                  </span>
+                </div>
+                <p className={`text-xs font-medium ${engagement.multiplier >= 1.5 ? "text-green-600" : engagement.multiplier >= 1.0 ? "text-blue-600" : "text-amber-600"}`}>
+                  {engagement.label}
+                </p>
+                <ul className="mt-2 space-y-0.5">
+                  {engagement.reasons.slice(0, 3).map((r, i) => (
+                    <li key={i} className="text-[11px] text-gray-500 flex items-start gap-1">
+                      <span className="text-blue-500 mt-px">{"\u2022"}</span> {r}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
 

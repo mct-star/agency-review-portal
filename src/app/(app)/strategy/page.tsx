@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import { ShareStrategyButton } from "./share-button";
 
 export const metadata: Metadata = {
   title: "Strategy | AGENCY",
@@ -45,7 +46,7 @@ export default async function StrategyPage() {
   const { data: strategyDoc } = session?.status === "completed"
     ? await supabase
         .from("strategy_documents")
-        .select("id, pdf_url, version")
+        .select("id, pdf_url, version, share_token")
         .eq("company_id", companyId)
         .order("version", { ascending: false })
         .limit(1)
@@ -198,6 +199,9 @@ export default async function StrategyPage() {
                         </svg>
                         View Strategy Document
                       </a>
+                    )}
+                    {strategyDoc?.share_token && (
+                      <ShareStrategyButton shareToken={strategyDoc.share_token} />
                     )}
                   </>
                 )}
