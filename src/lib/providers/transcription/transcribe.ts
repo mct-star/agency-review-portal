@@ -16,10 +16,57 @@ export interface TranscriptionResult {
  */
 export async function transcribeAudio(
   audioBuffer: Buffer,
-  mimeType: string = "audio/webm"
+  mimeType: string = "audio/webm",
+  companyId?: string
 ): Promise<TranscriptionResult> {
-  // Try 1: Gemini (free)
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini;
+  // Try to get Gemini key from multiple sources
+  let geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || "";
+
+  // If no env var, try to get from company API configs (where image generation stores it)
+  if (!geminiKey && companyId) {
+    try {
+      const { createAdminSupabaseClient } = await import("@/lib/supabase/admin");
+      const supabase = await createAdminSupabaseClient();
+      const { data: configs } = await supabase
+        .from("company_api_configs")
+        .select("credentials_encrypted")
+        .eq("company_id", companyId)
+        .eq("provider", "gemini_imagen")
+        .eq("is_active", true)
+        .limit(1)
+        .single();
+      if (configs?.credentials_encrypted) {
+        const { decrypt } = await import("@/lib/crypto");
+        const decrypted = JSON.parse(decrypt(configs.credentials_encrypted));
+        geminiKey = decrypted.api_key || "";
+      }
+    } catch {
+      // No company config, continue
+    }
+  }
+
+  // Also try platform-level Gemini config (not company-specific)
+  if (!geminiKey) {
+    try {
+      const { createAdminSupabaseClient } = await import("@/lib/supabase/admin");
+      const supabase = await createAdminSupabaseClient();
+      const { data: configs } = await supabase
+        .from("company_api_configs")
+        .select("credentials_encrypted")
+        .eq("provider", "gemini_imagen")
+        .eq("is_active", true)
+        .limit(1)
+        .single();
+      if (configs?.credentials_encrypted) {
+        const { decrypt } = await import("@/lib/crypto");
+        const decrypted = JSON.parse(decrypt(configs.credentials_encrypted));
+        geminiKey = decrypted.api_key || "";
+      }
+    } catch {
+      // No platform config either
+    }
+  }
+
   if (geminiKey) {
     try {
       const text = await transcribeWithGemini(geminiKey, audioBuffer, mimeType);
