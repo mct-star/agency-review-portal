@@ -87,7 +87,7 @@ export function createGeminiImageProvider(
 
       // If predict endpoint doesn't work, fall back to generateContent with image generation
       if (!res.ok) {
-        const fallbackUrl = `${GEMINI_API_BASE}/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
+        const fallbackUrl = `${GEMINI_API_BASE}/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
         const fallbackBody = {
           contents: [
             {
