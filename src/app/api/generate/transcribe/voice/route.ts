@@ -30,10 +30,12 @@ export async function POST(request: Request) {
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
     const mimeType = audioFile.type || "audio/webm";
 
-    // Debug: log which env vars are available
-    const hasGemini = !!(process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini);
-    const hasOpenAI = !!process.env.OPENAI_API_KEY;
-    console.log(`[transcribe/voice] Providers available: Gemini=${hasGemini}, OpenAI=${hasOpenAI}`);
+    // Debug: log all env var names that contain 'GEMINI' or 'gemini' or 'Gemini'
+    const allKeys = Object.keys(process.env).filter(k => k.toLowerCase().includes('gemini') || k.toLowerCase().includes('openai'));
+    console.log(`[transcribe/voice] Env vars matching gemini/openai: ${JSON.stringify(allKeys)}`);
+    console.log(`[transcribe/voice] GOOGLE_GEMINI_API_KEY exists: ${!!process.env.GOOGLE_GEMINI_API_KEY}`);
+    console.log(`[transcribe/voice] Gemini exists: ${!!process.env.Gemini}`);
+    console.log(`[transcribe/voice] OPENAI_API_KEY exists: ${!!process.env.OPENAI_API_KEY}`);
 
     const result = await transcribeAudio(audioBuffer, mimeType);
 
