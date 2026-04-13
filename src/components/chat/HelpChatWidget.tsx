@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import ReportIssueForm from "./ReportIssueForm";
 
 interface Message {
   role: "user" | "assistant";
@@ -37,6 +38,7 @@ export default function HelpChatWidget() {
   const [loading, setLoading] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showReportForm, setShowReportForm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -150,61 +152,84 @@ export default function HelpChatWidget() {
           </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-violet-600 text-white"
-                    : "bg-gray-50 text-gray-900"
-                }`}
-              >
-                {msg.content}
-              </div>
+        {/* Messages or Report Form */}
+        {showReportForm ? (
+          <ReportIssueForm
+            onClose={() => setShowReportForm(false)}
+            onSubmitted={() => {
+              setShowReportForm(false);
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: "Ticket created! We'll investigate and get back to you." },
+              ]);
+            }}
+          />
+        ) : (
+          <>
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-violet-600 text-white"
+                        : "bg-gray-50 text-gray-900"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="flex gap-1 rounded-2xl bg-gray-50 px-4 py-3">
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:0ms]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:150ms]" />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:300ms]" />
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="flex gap-1 rounded-2xl bg-gray-50 px-4 py-3">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:0ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:150ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:300ms]" />
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
 
-        {/* Input */}
-        <div className="border-t border-gray-100 px-3 py-2">
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Scout anything..."
-              disabled={loading}
-              className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-violet-400 focus:bg-white disabled:opacity-50"
-            />
+            {/* Input */}
+            <div className="border-t border-gray-100 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask Scout anything..."
+                  disabled={loading}
+                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-violet-400 focus:bg-white disabled:opacity-50"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={loading || !input.trim()}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
+                  aria-label="Send message"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Report issue link */}
             <button
-              onClick={sendMessage}
-              disabled={loading || !input.trim()}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white transition-colors hover:bg-violet-700 disabled:opacity-40"
-              aria-label="Send message"
+              onClick={() => setShowReportForm(true)}
+              className="w-full text-center py-2 text-xs text-gray-400 hover:text-violet-600 transition-colors border-t border-gray-100"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+              Having a problem? Report an issue
             </button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Floating button */}

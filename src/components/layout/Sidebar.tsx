@@ -102,6 +102,7 @@ function buildSections(user: User): NavSection[] {
         items: [
           { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
           { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
+          { href: "/admin/tickets", label: "Support Tickets", icon: "shield", adminOnly: true },
           { href: "/users", label: "Users", icon: "users", adminOnly: true },
         ],
       },
