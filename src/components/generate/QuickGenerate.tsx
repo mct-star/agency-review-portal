@@ -32,26 +32,31 @@ const SAMPLE_IMAGES: Record<string, string> = {
   data_point: "/samples/data-point-icon.png",
 };
 
-/** Mini visual preview — real generated output samples for each post type */
+/** Square visual preview — real generated output samples for each post type */
 function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: string; color: string }) {
   const sampleSrc = SAMPLE_IMAGES[slug];
-  if (sampleSrc) {
-    return (
-      <img
-        src={sampleSrc}
-        alt={visualTag}
-        loading="lazy"
-        className="h-16 w-16 rounded-lg object-cover shadow-sm"
-      />
-    );
-  }
-
-  // Fallback for any unknown post types
   return (
-    <div className="h-16 w-16 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
-      <div className="flex h-full items-center justify-center">
-        <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
-      </div>
+    <div className="flex flex-col items-center gap-1.5">
+      {sampleSrc ? (
+        <img
+          src={sampleSrc}
+          alt={visualTag}
+          loading="lazy"
+          className="h-24 w-24 rounded-lg object-cover shadow-sm"
+        />
+      ) : (
+        <div className="h-24 w-24 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
+          <div className="flex h-full items-center justify-center">
+            <div className="h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
+          </div>
+        </div>
+      )}
+      <span
+        className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+        style={{ backgroundColor: color }}
+      >
+        {visualTag}
+      </span>
     </div>
   );
 }
@@ -878,15 +883,10 @@ export default function QuickGenerate({
 
           {/* Topic input with three-mode selector */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2">
               <label className="block text-sm font-medium text-gray-700">
                 What do you want to post about?
               </label>
-              <VoiceDictation
-                onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
-                companyId={selectedCompany.id}
-                placeholder="Dictate"
-              />
             </div>
 
             {/* Mode tabs: Topic Bank | Type your own | Off the cuff */}
@@ -977,13 +977,22 @@ export default function QuickGenerate({
 
             {topicMode === "type_own" && (
               <div className="relative">
-                <textarea
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g. Why most product launches fail in the first 90 days..."
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
-                />
+                <div className="relative">
+                  <textarea
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="e.g. Why most product launches fail in the first 90 days..."
+                    rows={3}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 pr-14 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
+                  />
+                  <div className="absolute right-2 top-2">
+                    <VoiceDictation
+                      onTranscription={(text) => setTopic((prev) => (prev ? prev + " " + text : text))}
+                      companyId={selectedCompany.id}
+                      placeholder=""
+                    />
+                  </div>
+                </div>
                 {/* Inline autocomplete from topic bank */}
                 {topic.length >= 3 && strategyTopics.length > 0 && (() => {
                   const matches = strategyTopics.filter((t) =>
@@ -1049,27 +1058,24 @@ export default function QuickGenerate({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Post type
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {POST_TYPES.map((pt) => (
                 <button
                   key={pt.slug}
                   onClick={() => setSelectedPostType(pt)}
-                  className={`rounded-lg border px-3 py-2.5 text-left transition-all ${
+                  className={`rounded-xl border p-3 text-center transition-all ${
                     selectedPostType?.slug === pt.slug
                       ? "border-violet-500 bg-violet-50 ring-1 ring-violet-500"
                       : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                   }`}
                 >
-                  <div className="flex gap-3">
-                    {/* Mini asset preview */}
-                    <div className="flex-shrink-0 mt-0.5">
-                      <MiniPreview slug={pt.slug} visualTag={pt.visualTag || "Quote Card"} color={pt.color} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-gray-900">
+                  <div className="flex flex-col items-center gap-2">
+                    <MiniPreview slug={pt.slug} visualTag={pt.visualTag || "Quote Card"} color={pt.color} />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
                         {pt.label}
-                      </span>
-                      <p className="mt-0.5 text-[11px] text-gray-500 line-clamp-2">
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-gray-500 line-clamp-2">
                         {pt.description}
                       </p>
                     </div>

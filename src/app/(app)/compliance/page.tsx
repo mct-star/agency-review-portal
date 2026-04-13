@@ -303,7 +303,7 @@ export default async function ComplianceDashboardPage() {
             <p className="mt-1 text-sm text-gray-600 max-w-2xl">
               Every post is reviewed against your chosen regulatory framework before it goes live.
               Our three-colour system maps each sentence to Legal, Regulatory, or Compliance responsibilities —
-              the same structure pharmaceutical MLR teams use. No post leaves this platform without a compliance score.
+              the same structure that regulated industries use for content sign-off. No post leaves this platform without a compliance score.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -337,17 +337,17 @@ export default async function ComplianceDashboardPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
-          <div className="flex items-center gap-3 border-b border-amber-200/60 px-6 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
-              <svg className="h-5 w-5 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+        <div className="rounded-xl border border-blue-200 bg-blue-50 shadow-sm">
+          <div className="flex items-center gap-3 border-b border-blue-200/60 px-6 py-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
+              <svg className="h-5 w-5 text-blue-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-semibold text-amber-900">Complete your compliance setup</p>
-              <p className="mt-0.5 text-xs text-amber-800">
-                Finish these steps to unlock accurate regulatory reviews
+              <p className="text-sm font-semibold text-blue-900">Get started with compliance</p>
+              <p className="mt-0.5 text-xs text-blue-800">
+                Complete these steps to unlock accurate regulatory reviews
               </p>
             </div>
           </div>

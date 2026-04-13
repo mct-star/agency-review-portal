@@ -182,18 +182,21 @@ export default function VoiceDictation({
     }
   }, [state, startRecording, stopRecording]);
 
+  // Compact mode when placeholder is empty (inline icon in textarea)
+  const isCompact = !placeholder;
+
   return (
     <div className={`inline-flex flex-col items-start gap-1 ${className}`}>
       <div className="inline-flex items-center gap-2">
-        {/* Main mic / stop button */}
         <button
           type="button"
           onClick={handleClick}
           disabled={state === "transcribing" || state === "done"}
           className={`
-            inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium
+            inline-flex items-center gap-2 font-medium
             transition-all focus:outline-none focus:ring-2 focus:ring-offset-2
             disabled:cursor-not-allowed disabled:opacity-60
+            ${isCompact ? "rounded-lg p-2 text-xs" : "rounded-full px-4 py-2 text-sm"}
             ${
               state === "recording"
                 ? "bg-red-500 text-white hover:bg-red-600 focus:ring-red-400 animate-pulse"
@@ -201,9 +204,12 @@ export default function VoiceDictation({
                 ? "bg-gray-100 text-gray-500"
                 : state === "done"
                 ? "bg-green-50 text-green-700"
+                : isCompact
+                ? "text-gray-400 hover:text-violet-600 hover:bg-violet-50 focus:ring-violet-300"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-300"
             }
           `}
+          title={state === "idle" ? "Click to dictate" : undefined}
           aria-label={
             state === "recording"
               ? "Stop recording"
@@ -211,64 +217,49 @@ export default function VoiceDictation({
               ? "Transcribing audio"
               : state === "done"
               ? "Transcription complete"
-              : "Start voice recording"
+              : "Click to dictate"
           }
         >
           {state === "idle" && (
             <>
-              {/* Mic icon */}
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"
-                />
+              <svg className={isCompact ? "h-5 w-5" : "h-4 w-4"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8" />
               </svg>
-              <span>{placeholder}</span>
+              {placeholder && <span>{placeholder}</span>}
             </>
           )}
 
           {state === "recording" && (
             <>
-              {/* Stop icon */}
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <svg className={isCompact ? "h-5 w-5" : "h-4 w-4"} fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="6" width="12" height="12" rx="1" />
               </svg>
-              <span>Stop {formatTime(duration)}</span>
+              <span>{isCompact ? formatTime(duration) : `Stop ${formatTime(duration)}`}</span>
             </>
           )}
 
           {state === "transcribing" && (
             <>
-              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <svg className={isCompact ? "h-5 w-5 animate-spin" : "h-4 w-4 animate-spin"} fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <span>Transcribing...</span>
+              {!isCompact && <span>Transcribing...</span>}
             </>
           )}
 
           {state === "done" && (
             <>
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className={isCompact ? "h-5 w-5" : "h-4 w-4"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
-              <span>Transcribed</span>
+              {!isCompact && <span>Transcribed</span>}
             </>
           )}
         </button>
       </div>
 
-      {/* Error message */}
       {error && (
         <p className="text-xs text-red-600 max-w-xs">{error}</p>
       )}
