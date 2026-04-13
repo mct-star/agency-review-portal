@@ -13,7 +13,20 @@ export default async function StrategyInterviewPage() {
   if (!profile) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const companyId = profile.company_id;
+  let companyId = profile.company_id;
+
+  // Admin users may not have a company_id — pick the first company
+  if (!companyId && profile.role === "admin") {
+    const { data: firstCompany } = await supabase
+      .from("companies")
+      .select("id")
+      .order("name")
+      .limit(1)
+      .single();
+    if (firstCompany) companyId = firstCompany.id;
+  }
+
+  if (!companyId) redirect("/home");
 
   // Fetch company name
   const { data: company } = await supabase
