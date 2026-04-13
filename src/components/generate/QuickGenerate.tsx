@@ -22,14 +22,14 @@ const SAMPLE_IMAGES: Record<string, string> = {
   if_i_was: "/samples/quote-card-purple-arrow.png",
   contrarian: "/samples/quote-card-blue.png",
   blog_teaser: "/images/sample-blog-header.png",
-  tactical: "/samples/carousel-cover.png",
+  tactical: "/samples/carousel-howto.png",
   launch_story: "/images/sample-3d-character.jpg",
   founder_friday: "/images/sample-3d-character-male.png",
   personal_update: "/images/sample-editorial-photo.jpg",
   scene_provocation: "/images/sample-scene-quote.jpg",
   case_study: "/samples/quote-card-amber.png",
-  poll_question: "/samples/quote-card-purple.png",
-  data_point: "/samples/quote-card-teal.png",
+  poll_question: "/samples/poll-question.png",
+  data_point: "/samples/data-point-stat.png",
 };
 
 /** Mini visual preview — real generated output samples for each post type */

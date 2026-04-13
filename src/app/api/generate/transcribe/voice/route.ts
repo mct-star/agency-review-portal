@@ -1,49 +1,20 @@
 import { NextResponse } from "next/server";
-import { resolveProvider } from "@/lib/providers";
-
-const WHISPER_API_URL = "https://api.openai.com/v1/audio/transcriptions";
+import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
 
 /**
  * POST /api/generate/transcribe/voice
  *
- * Accepts audio as FormData (field: "audio") and transcribes it using
- * OpenAI Whisper. Designed for the VoiceDictation UI component.
+ * Accepts audio as FormData (field: "audio") and transcribes it.
+ * Uses Gemini (free, primary) with OpenAI Whisper as fallback.
+ * Designed for the VoiceDictation UI component.
  *
  * Query params:
- *   - companyId (optional): look up the company's OpenAI API key
+ *   - companyId (optional): reserved for future per-company key lookup
  *
- * Returns: { text: string, duration: number }
+ * Returns: { text: string, duration: number, provider: string }
  */
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url);
-    const companyId = url.searchParams.get("companyId");
-
-    // Resolve the OpenAI API key
-    let apiKey: string | undefined;
-
-    if (companyId) {
-      try {
-        const resolved = await resolveProvider(companyId, "transcription");
-        if (resolved?.credentials?.api_key) {
-          apiKey = resolved.credentials.api_key as string;
-        }
-      } catch {
-        // Fall through to env key
-      }
-    }
-
-    if (!apiKey) {
-      apiKey = process.env.OPENAI_API_KEY;
-    }
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "No OpenAI API key configured. Set OPENAI_API_KEY or configure a transcription provider." },
-        { status: 500 }
-      );
-    }
-
     // Parse the multipart form data
     const formData = await request.formData();
     const audioFile = formData.get("audio");
@@ -55,34 +26,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build the request to OpenAI Whisper
-    const whisperForm = new FormData();
-    whisperForm.append("file", audioFile, "recording.webm");
-    whisperForm.append("model", "whisper-1");
-    whisperForm.append("response_format", "verbose_json");
+    // Convert Blob to Buffer for the shared transcription utility
+    const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+    const mimeType = audioFile.type || "audio/webm";
 
-    const res = await fetch(WHISPER_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: whisperForm,
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("Whisper API error:", res.status, errText);
-      return NextResponse.json(
-        { error: `Transcription failed (${res.status}): ${errText}` },
-        { status: 502 }
-      );
-    }
-
-    const data = await res.json();
+    const result = await transcribeAudio(audioBuffer, mimeType);
 
     return NextResponse.json({
-      text: data.text || "",
-      duration: data.duration || 0,
+      text: result.text,
+      duration: result.duration || 0,
+      provider: result.provider,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

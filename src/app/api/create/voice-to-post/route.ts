@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveProvider } from "@/lib/providers";
-
-const WHISPER_API_URL = "https://api.openai.com/v1/audio/transcriptions";
+import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
 
 /**
  * POST /api/create/voice-to-post
@@ -11,7 +9,7 @@ const WHISPER_API_URL = "https://api.openai.com/v1/audio/transcriptions";
  *   2. JSON body with { transcription, companyId, spokespersonId } for regeneration
  *
  * Pipeline:
- *   1. Transcribe audio via OpenAI Whisper (skipped if transcription provided)
+ *   1. Transcribe audio via Gemini (free) or OpenAI Whisper fallback (skipped if transcription provided)
  *   2. Generate LinkedIn post via Claude
  *
  * Returns: { postText, transcription, postType, imagePrompt }
@@ -46,8 +44,10 @@ export async function POST(request: Request) {
         );
       }
 
-      // Transcribe with Whisper
-      transcription = await transcribeAudio(audioFile, companyId);
+      // Transcribe audio (Gemini primary, Whisper fallback)
+      const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
+      const result = await transcribeAudio(audioBuffer, audioFile.type || "audio/webm");
+      transcription = result.text;
     } else {
       // JSON body — regeneration with existing transcription
       const body = await request.json();
@@ -126,61 +126,6 @@ Write the LinkedIn post:`;
 }
 
 // ── Helpers ────────────────────────────────────────────────────
-
-async function transcribeAudio(
-  audioBlob: Blob,
-  companyId: string
-): Promise<string> {
-  // Try to resolve API key from company provider config first
-  let apiKey: string | undefined;
-
-  try {
-    const resolved = await resolveProvider(companyId, "transcription");
-    if (resolved?.credentials?.api_key) {
-      apiKey = resolved.credentials.api_key as string;
-    }
-  } catch {
-    // Fall through to env key
-  }
-
-  if (!apiKey) {
-    apiKey = process.env.OPENAI_API_KEY;
-  }
-
-  if (!apiKey) {
-    throw new Error(
-      "Transcription API not configured. Set OPENAI_API_KEY or configure a transcription provider."
-    );
-  }
-
-  const whisperForm = new FormData();
-  whisperForm.append("file", audioBlob, "recording.webm");
-  whisperForm.append("model", "whisper-1");
-  whisperForm.append("response_format", "verbose_json");
-
-  const res = await fetch(WHISPER_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: whisperForm,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("Whisper API error:", res.status, errText);
-    throw new Error(`Transcription failed (${res.status})`);
-  }
-
-  const data = await res.json();
-  const text = data.text || "";
-
-  if (!text.trim()) {
-    throw new Error("Could not detect any speech. Please try again.");
-  }
-
-  return text;
-}
 
 function detectPostType(postText: string, transcription: string): string {
   const lower = (postText + " " + transcription).toLowerCase();
