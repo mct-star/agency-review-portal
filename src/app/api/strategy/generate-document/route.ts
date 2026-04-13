@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 // ── POST /api/strategy/generate-document ───────────────────
 // Loads a completed strategy session + related data, calls Claude to generate
@@ -82,81 +82,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve AI provider
-    const resolved = await resolveProvider(companyId, "content_generation");
-    if (!resolved) {
-      return NextResponse.json(
-        { error: "No content generation provider configured for this company." },
-        { status: 400 }
-      );
-    }
-
-    const apiKey = resolved.credentials.api_key as string;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Content generation provider has no API key configured." },
-        { status: 400 }
-      );
-    }
-
     // Build the prompt
     const prompt = buildDocumentPrompt(company, session, audiences, positioning, narrativeArcs);
 
-    // Call AI provider
-    const provider = resolved.provider;
-    const isAnthropic = provider === "anthropic_claude" || provider.startsWith("anthropic");
+    // Call AI provider with three-tier fallback (Claude → Gemini → OpenAI)
+    const aiResult = await generateText({
+      systemPrompt: "You are a content strategist generating a comprehensive content strategy document. Return ONLY a valid JSON object, no surrounding text or markdown code fences.",
+      userPrompt: prompt,
+      maxTokens: 8000,
+      temperature: 0.7,
+      companyId,
+    });
 
-    let documentContent: Record<string, unknown>;
-
-    if (isAnthropic) {
-      const model = (resolved.settings.model as string) || "claude-sonnet-4-20250514";
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 8000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`Anthropic API error (${res.status}): ${errBody}`);
-      }
-
-      const data = await res.json();
-      const text = data.content?.[0]?.text || "";
-      documentContent = parseDocumentResponse(text);
-    } else {
-      // OpenAI-compatible fallback
-      const model = (resolved.settings.model as string) || "gpt-4o";
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 8000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`OpenAI API error (${res.status}): ${errBody}`);
-      }
-
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || "";
-      documentContent = parseDocumentResponse(text);
-    }
+    const documentContent = parseDocumentResponse(aiResult.text);
 
     // Determine version number
     const { data: existingDocs } = await supabase
@@ -187,7 +125,11 @@ export async function POST(request: Request) {
 
     if (insertErr) throw insertErr;
 
-    return NextResponse.json({ document });
+    return NextResponse.json({
+      document,
+      provider: aiResult.provider,
+      model: aiResult.model,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to generate strategy document" },

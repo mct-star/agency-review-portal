@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 export const maxDuration = 120;
 

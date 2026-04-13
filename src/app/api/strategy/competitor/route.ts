@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
-import { resolveProvider } from "@/lib/providers";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 export const maxDuration = 60;
 
@@ -40,83 +40,23 @@ export async function POST(request: Request) {
   const profileType = slugMatch?.[1] === "company" ? "company" : "person";
 
   try {
-    // Resolve AI provider
-    const resolved = await resolveProvider(companyId, "content_generation");
-    if (!resolved) {
-      return NextResponse.json(
-        { error: "No content generation provider configured for this company." },
-        { status: 400 }
-      );
-    }
-
-    const apiKey = resolved.credentials.api_key as string;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Content generation provider has no API key configured." },
-        { status: 400 }
-      );
-    }
-
     const prompt = buildPrompt(linkedInSlug, profileType, linkedInUrl);
 
-    // Call AI provider
-    const provider = resolved.provider;
-    const isAnthropic =
-      provider === "anthropic_claude" || provider.startsWith("anthropic");
+    // Call AI provider with three-tier fallback (Claude → Gemini → OpenAI)
+    const aiResult = await generateText({
+      systemPrompt: "You are a competitive content strategist. Return ONLY a valid JSON object, no surrounding text or markdown code fences.",
+      userPrompt: prompt,
+      maxTokens: 4000,
+      temperature: 0.7,
+      companyId,
+    });
 
-    let responseText: string;
-
-    if (isAnthropic) {
-      const model =
-        (resolved.settings.model as string) || "claude-sonnet-4-20250514";
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`Anthropic API error (${res.status}): ${errBody}`);
-      }
-
-      const data = await res.json();
-      responseText = data.content?.[0]?.text || "";
-    } else {
-      // OpenAI-compatible fallback
-      const model = (resolved.settings.model as string) || "gpt-4o";
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`OpenAI API error (${res.status}): ${errBody}`);
-      }
-
-      const data = await res.json();
-      responseText = data.choices?.[0]?.message?.content || "";
-    }
-
-    const parsed = parseResponse(responseText);
-    return NextResponse.json(parsed);
+    const parsed = parseResponse(aiResult.text);
+    return NextResponse.json({
+      ...parsed,
+      provider: aiResult.provider,
+      model: aiResult.model,
+    });
   } catch (err) {
     return NextResponse.json(
       {

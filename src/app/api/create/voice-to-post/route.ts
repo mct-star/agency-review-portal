@@ -70,17 +70,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── Generate LinkedIn post via Claude ───────────────────────
+    // ── Generate LinkedIn post via fallback chain ────────────────
 
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    if (!anthropicKey) {
-      return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY not configured." },
-        { status: 500 }
-      );
-    }
+    const { generateText } = await import("@/lib/providers/content-generation/generate-text");
 
-    const prompt = `You are a LinkedIn ghostwriter. A professional just recorded a voice note about their work. Turn their raw thoughts into a polished LinkedIn post that:
+    const systemPrompt = "You are a LinkedIn ghostwriter. Turn raw voice transcriptions into polished LinkedIn posts.";
+    const userPrompt = `A professional just recorded a voice note about their work. Turn their raw thoughts into a polished LinkedIn post that:
 - Keeps their authentic voice and specific details
 - Structures it with a strong opening hook (under 12 words)
 - Uses short paragraphs (1-2 sentences each)
@@ -96,32 +91,19 @@ ${transcription}
 
 Write the LinkedIn post:`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    if (!claudeRes.ok) {
-      const errText = await claudeRes.text();
-      console.error("Claude API error:", claudeRes.status, errText);
+    let postText: string;
+    let provider: string;
+    try {
+      const result = await generateText({ systemPrompt, userPrompt, maxTokens: 1024 });
+      postText = result.text;
+      provider = result.provider;
+    } catch (err) {
+      console.error("All AI providers failed:", err);
       return NextResponse.json(
-        { error: `Post generation failed (${claudeRes.status})` },
+        { error: "Post generation failed. No AI provider available." },
         { status: 502 }
       );
     }
-
-    const claudeData = await claudeRes.json();
-    const postText =
-      claudeData.content?.[0]?.text || "Unable to generate post.";
 
     // Auto-detect post type from content
     const postType = detectPostType(postText, transcription!);
@@ -134,6 +116,7 @@ Write the LinkedIn post:`;
       transcription,
       postType,
       imagePrompt,
+      provider,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
