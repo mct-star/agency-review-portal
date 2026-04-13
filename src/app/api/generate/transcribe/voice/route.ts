@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
  * POST /api/generate/transcribe/voice
  *
  * Transcribes audio using Gemini (free) or OpenAI Whisper (fallback).
- * All logic is INLINE in this file to avoid import caching issues.
  */
 export async function POST(request: Request) {
   try {
@@ -12,14 +11,12 @@ export async function POST(request: Request) {
     const audioFile = formData.get("audio");
 
     if (!audioFile || !(audioFile instanceof Blob)) {
-      return NextResponse.json(
-        { error: "No audio file provided." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No audio file provided." }, { status: 400 });
     }
 
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
     const mimeType = audioFile.type || "audio/webm";
+    const errors: string[] = [];
 
     // ── Try Gemini (free) ────────────────────────────────────
     const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || "";
@@ -27,6 +24,10 @@ export async function POST(request: Request) {
     if (geminiKey) {
       try {
         const base64Audio = audioBuffer.toString("base64");
+
+        // Gemini prefers simpler MIME types
+        const cleanMime = mimeType.split(";")[0] || "audio/webm";
+
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
           {
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
               contents: [{
                 parts: [
                   { text: "Transcribe this audio recording exactly. Return only the transcription text, nothing else." },
-                  { inline_data: { mime_type: mimeType, data: base64Audio } },
+                  { inline_data: { mime_type: cleanMime, data: base64Audio } },
                 ],
               }],
               generationConfig: { temperature: 0 },
@@ -50,12 +51,16 @@ export async function POST(request: Request) {
           if (text.trim()) {
             return NextResponse.json({ text: text.trim(), provider: "gemini", duration: 0 });
           }
+          errors.push("Gemini returned empty transcription");
         } else {
-          console.error("[voice] Gemini failed:", res.status, await res.text());
+          const errText = await res.text();
+          errors.push(`Gemini API ${res.status}: ${errText.slice(0, 200)}`);
         }
       } catch (err) {
-        console.error("[voice] Gemini error:", err);
+        errors.push(`Gemini error: ${err instanceof Error ? err.message : String(err)}`);
       }
+    } else {
+      errors.push("No Gemini API key found");
     }
 
     // ── Try OpenAI Whisper (fallback) ─────────────────────────
@@ -77,16 +82,20 @@ export async function POST(request: Request) {
           const data = await res.json();
           return NextResponse.json({ text: data.text || "", provider: "openai", duration: data.duration || 0 });
         } else {
-          console.error("[voice] Whisper failed:", res.status, await res.text());
+          const errText = await res.text();
+          errors.push(`Whisper API ${res.status}: ${errText.slice(0, 200)}`);
         }
       } catch (err) {
-        console.error("[voice] Whisper error:", err);
+        errors.push(`Whisper error: ${err instanceof Error ? err.message : String(err)}`);
       }
+    } else {
+      errors.push("No OpenAI API key found");
     }
 
-    // ── Both failed ──────────────────────────────────────────
+    // ── Both failed — return all errors for diagnosis ─────────
+    console.error("[voice] All providers failed:", errors);
     return NextResponse.json(
-      { error: `No transcription provider available. Gemini key: ${!!geminiKey}, OpenAI key: ${!!openaiKey}` },
+      { error: errors.join(" | ") },
       { status: 500 }
     );
   } catch (err) {
