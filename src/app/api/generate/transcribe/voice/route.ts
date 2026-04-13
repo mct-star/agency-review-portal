@@ -30,6 +30,11 @@ export async function POST(request: Request) {
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
     const mimeType = audioFile.type || "audio/webm";
 
+    // Debug: log which env vars are available
+    const hasGemini = !!(process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini);
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    console.log(`[transcribe/voice] Providers available: Gemini=${hasGemini}, OpenAI=${hasOpenAI}`);
+
     const result = await transcribeAudio(audioBuffer, mimeType);
 
     return NextResponse.json({
