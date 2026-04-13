@@ -28,8 +28,8 @@ const SAMPLE_IMAGES: Record<string, string> = {
   personal_update: "/images/sample-editorial-photo.jpg",
   scene_provocation: "/images/sample-scene-quote.jpg",
   case_study: "/samples/quote-card-amber.png",
-  poll_question: "/samples/poll-question.png",
-  data_point: "/samples/data-point-stat.png",
+  poll_question: "/samples/poll-icon.png",
+  data_point: "/samples/data-point-icon.png",
 };
 
 /** Mini visual preview — real generated output samples for each post type */
