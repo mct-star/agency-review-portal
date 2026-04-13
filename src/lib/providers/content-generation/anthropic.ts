@@ -501,13 +501,42 @@ export function createClaudeContentProvider(
   return {
     async generate(input: ContentGenerationInput): Promise<ContentGenerationOutput> {
       const system = buildContentPrompt(input);
-      const text = await callClaude(
-        apiKey,
-        model,
-        system,
-        [{ role: "user", content: "Generate the content now." }],
-        8192
-      );
+
+      // Try Claude first, fall back to Gemini if it fails
+      let text: string;
+      try {
+        text = await callClaude(
+          apiKey,
+          model,
+          system,
+          [{ role: "user", content: "Generate the content now." }],
+          8192
+        );
+      } catch (claudeErr) {
+        console.error("[ContentProvider] Claude failed, trying Gemini fallback:", claudeErr);
+        const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
+        if (!geminiKey) throw claudeErr; // No Gemini key, re-throw original error
+
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: system }] },
+              contents: [{ parts: [{ text: "Generate the content now." }] }],
+              generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
+            }),
+          }
+        );
+        if (!geminiRes.ok) {
+          throw new Error(`Gemini fallback also failed (${geminiRes.status}): ${await geminiRes.text()}`);
+        }
+        const geminiData = await geminiRes.json();
+        text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (!text) throw new Error("Gemini returned empty response");
+        console.log("[ContentProvider] Successfully fell back to Gemini");
+      }
 
       // Parse JSON response — strip any markdown fences if present
       const cleaned = text
@@ -518,14 +547,13 @@ export function createClaudeContentProvider(
 
       try {
         const parsed = JSON.parse(cleaned) as ContentGenerationOutput;
-        // Ensure imagePrompt has a fallback
         if (!parsed.imagePrompt) {
           parsed.imagePrompt = null;
         }
         return parsed;
       } catch {
         throw new Error(
-          `Failed to parse Claude response as JSON. Raw output: ${text.substring(0, 500)}`
+          `Failed to parse LLM response as JSON. Raw output: ${text.substring(0, 500)}`
         );
       }
     },

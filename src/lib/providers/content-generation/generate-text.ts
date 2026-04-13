@@ -125,22 +125,7 @@ async function callOpenAI(
 export async function generateText(
   options: GenerateTextOptions
 ): Promise<GenerateTextResult> {
-  // Try 1: Claude (Anthropic)
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    try {
-      const result = await callClaude(anthropicKey, options);
-      return {
-        text: result,
-        provider: "claude",
-        model: "claude-sonnet-4-20250514",
-      };
-    } catch (err) {
-      console.error("[generateText] Claude failed, trying Gemini:", err);
-    }
-  }
-
-  // Try 2: Gemini (Google)
+  // Try 1: Gemini (Google) — free, primary provider
   const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY || process.env.GEMINI;
   if (geminiKey) {
     try {
@@ -151,11 +136,26 @@ export async function generateText(
         model: "gemini-2.5-pro",
       };
     } catch (err) {
-      console.error("[generateText] Gemini failed, trying OpenAI:", err);
+      console.error("[generateText] Gemini failed, trying Claude:", err);
     }
   }
 
-  // Try 3: OpenAI
+  // Try 2: Claude (Anthropic) — fallback
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey) {
+    try {
+      const result = await callClaude(anthropicKey, options);
+      return {
+        text: result,
+        provider: "claude",
+        model: "claude-sonnet-4-20250514",
+      };
+    } catch (err) {
+      console.error("[generateText] Claude failed, trying OpenAI:", err);
+    }
+  }
+
+  // Try 3: OpenAI — last resort
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     try {
@@ -171,6 +171,6 @@ export async function generateText(
   }
 
   throw new Error(
-    "No AI provider available. Configure ANTHROPIC_API_KEY, GOOGLE_GEMINI_API_KEY, or OPENAI_API_KEY."
+    "No AI provider available. Configure GOOGLE_GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY."
   );
 }

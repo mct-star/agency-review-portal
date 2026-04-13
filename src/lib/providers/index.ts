@@ -240,14 +240,31 @@ export async function getContentProvider(
   const resolved = await resolveProvider(companyId, "content_generation");
 
   if (!resolved) {
-    // Return a stub that explains no provider is configured
+    // No company-level provider configured — use env var fallback (Gemini → Claude → OpenAI)
+    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+    if (geminiKey || anthropicKey) {
+      // Use the Anthropic provider with env var key — it has built-in Gemini fallback
+      const { createClaudeContentProvider } = await import(
+        "./content-generation/anthropic"
+      );
+      return {
+        providerName: geminiKey ? "gemini_fallback" : "anthropic_env",
+        provider: createClaudeContentProvider(
+          { api_key: anthropicKey || "no-key-will-fall-through-to-gemini" },
+          {}
+        ),
+      };
+    }
+
     return {
       providerName: "none",
       provider: {
         async generate() {
           throw new Error(
-            "No content generation provider configured for this company. " +
-              "Go to Admin > Companies > [Company] > API Providers to set one up."
+            "No AI provider available. Configure GOOGLE_GEMINI_API_KEY or ANTHROPIC_API_KEY in Vercel environment variables, " +
+              "or set up a provider in Admin > Companies > [Company] > API Providers."
           );
         },
       },

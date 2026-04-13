@@ -81,10 +81,18 @@ export async function POST(request: Request) {
     } else if (process.env.OPENAI_API_KEY) {
       aiResponse = await callOpenAI(process.env.OPENAI_API_KEY, transcript);
     } else {
-      return NextResponse.json(
-        { error: "No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY." },
-        { status: 500 }
-      );
+      // Fall back to Gemini via generateText
+      const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
+      if (geminiKey) {
+        const { generateText } = await import("@/lib/providers/content-generation/generate-text");
+        const result = await generateText({ systemPrompt: "", userPrompt: transcript, maxTokens: 4096 });
+        aiResponse = result.text;
+      } else {
+        return NextResponse.json(
+          { error: "No AI provider configured. Set GOOGLE_GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY." },
+          { status: 500 }
+        );
+      }
     }
 
     // Parse the JSON response

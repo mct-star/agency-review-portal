@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
 import { SUPPORTED_LANGUAGES } from "@/lib/generation/regulatory-knowledge";
 
 export const maxDuration = 120;
@@ -62,10 +63,7 @@ export async function POST(request: Request) {
 
   // Resolve Claude API key
   const provider = await resolveProvider(companyId, "content_generation");
-  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "No API key configured" }, { status: 400 });
-  }
+  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
 
   const translations: {
     pieceId: string;
@@ -110,40 +108,19 @@ Respond with JSON (no code fences):
   "translationNotes": "string (any notes about adaptation choices made)"
 }`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 8192,
+      let text: string;
+      try {
+        text = await callClaude(
+          apiKey,
+          "claude-sonnet-4-20250514",
           system,
-          messages: [
-            {
-              role: "user",
-              content: `Translate this content into ${langConfig.nativeName}:
-
-TITLE: ${piece.title}
-
-BODY:
-${piece.markdown_body}
-
-${piece.first_comment ? `FIRST COMMENT:\n${piece.first_comment}` : "No first comment."}`,
-            },
-          ],
-        }),
-      });
-
-      if (!res.ok) {
-        console.error(`[translate] API error for piece ${piece.id} → ${lang}`);
+          `Translate this content into ${langConfig.nativeName}:\n\nTITLE: ${piece.title}\n\nBODY:\n${piece.markdown_body}\n\n${piece.first_comment ? `FIRST COMMENT:\n${piece.first_comment}` : "No first comment."}`,
+          8192
+        );
+      } catch (err) {
+        console.error(`[translate] LLM error for piece ${piece.id} → ${lang}:`, err);
         continue;
       }
-
-      const data = await res.json();
-      const text = data.content?.find((c: { type: string }) => c.type === "text")?.text || "";
       const cleaned = text
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")

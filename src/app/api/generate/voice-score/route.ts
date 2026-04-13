@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * POST /api/generate/voice-score
@@ -90,44 +91,18 @@ ${postText}
 Score the voice match from 0-100 and provide exactly 2 bullet points of feedback.
 Return ONLY valid JSON with no other text: { "score": 85, "feedback": ["First feedback point", "Second feedback point"] }`;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Anthropic API key not configured" },
-        { status: 500 }
-      );
-    }
+    const apiKey = process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
 
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL_HAIKU,
-        max_tokens: 256,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[voice-score] Anthropic API error:", errText);
+    let rawText: string;
+    try {
+      rawText = await callClaude(apiKey, MODEL_HAIKU, "", prompt, 256);
+    } catch (err) {
+      console.error("[voice-score] LLM error:", err);
       return NextResponse.json(
         { error: "Voice scoring failed" },
         { status: 500 }
       );
     }
-
-    const data = await response.json();
-    const rawText = data.content?.[0]?.text || "";
 
     // Parse the JSON from the response
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);

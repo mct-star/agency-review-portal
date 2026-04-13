@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
 import {
   buildRegulatoryContext,
   COUNTRY_PROFILES,
@@ -140,9 +141,10 @@ export async function POST(request: Request) {
 
   // Resolve Claude API key
   const provider = await resolveProvider(companyId, "content_generation");
-  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "No API key configured" }, { status: 400 });
+  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
+  if (apiKey === "no-anthropic-key-will-fallback-to-gemini" && !geminiKey) {
+    return NextResponse.json({ error: "No AI provider configured (need ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY)" }, { status: 400 });
   }
 
   // Build the regulatory context
@@ -271,24 +273,11 @@ Respond with JSON (no code fences):
 
 If the content appears compliant, return an empty issues array with overallScore 100, riskLevel "low", a list of passed checks, and a positive summary.`;
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system,
-        messages: [{ role: "user", content: "Perform the regulatory compliance review now." }],
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[regulatory-review] API error for piece ${piece.id}:`, errText);
+    let text: string;
+    try {
+      text = await callClaude(apiKey, "claude-sonnet-4-20250514", system, "Perform the regulatory compliance review now.", 4096);
+    } catch (err) {
+      console.error(`[regulatory-review] LLM error for piece ${piece.id}:`, err);
       results.push({
         pieceId: piece.id,
         title: piece.title,
@@ -298,13 +287,10 @@ If the content appears compliant, return an empty issues array with overallScore
         framework: frameworkLabel,
         issues: [],
         passedChecks: [],
-        summary: `Review failed: ${res.status}`,
+        summary: `Review failed: ${err instanceof Error ? err.message : "Unknown error"}`,
       });
       continue;
     }
-
-    const data = await res.json();
-    const text = data.content?.find((c: { type: string }) => c.type === "text")?.text || "";
     const cleaned = text
       .replace(/^```json\s*/i, "")
       .replace(/^```\s*/i, "")
