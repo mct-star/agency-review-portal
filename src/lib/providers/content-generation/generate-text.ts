@@ -141,7 +141,7 @@ export async function generateText(
   }
 
   // Try 2: Gemini (Google)
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY || process.env.GEMINI;
   if (geminiKey) {
     try {
       const result = await callGemini(geminiKey, options);

@@ -41,14 +41,14 @@ function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: stri
         src={sampleSrc}
         alt={visualTag}
         loading="lazy"
-        className="h-12 w-12 rounded-lg object-cover shadow-sm"
+        className="h-16 w-16 rounded-lg object-cover shadow-sm"
       />
     );
   }
 
   // Fallback for any unknown post types
   return (
-    <div className="h-12 w-12 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
+    <div className="h-16 w-16 rounded-lg shadow-sm" style={{ backgroundColor: color + "20" }}>
       <div className="flex h-full items-center justify-center">
         <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
       </div>
@@ -856,6 +856,24 @@ export default function QuickGenerate({
             {!selectedPersonId && !showCompanyPicker && (
               <span className="ml-auto rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">Company Page</span>
             )}
+          </div>
+
+          {/* Visual flow guide */}
+          <div className="flex items-center justify-center gap-4 py-4 text-xs text-gray-400">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-600">1</span>
+              <span>Choose a topic</span>
+            </div>
+            <svg className="h-3 w-3 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-600">2</span>
+              <span>Pick a post type</span>
+            </div>
+            <svg className="h-3 w-3 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-600">3</span>
+              <span>Generate</span>
+            </div>
           </div>
 
           {/* Topic input with three-mode selector */}

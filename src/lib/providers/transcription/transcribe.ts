@@ -20,7 +20,13 @@ export async function transcribeAudio(
   companyId?: string
 ): Promise<TranscriptionResult> {
   // Try to get Gemini key from multiple sources
-  let geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || "";
+  // Check every possible env var name — Vercel has been inconsistent about which one is visible
+  let geminiKey =
+    process.env.GOOGLE_GEMINI_API_KEY ||
+    process.env.Gemini ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GEMINI ||
+    "";
 
   // If no env var, try to get from company API configs (where image generation stores it)
   if (!geminiKey && companyId) {
