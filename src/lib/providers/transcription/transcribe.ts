@@ -1,5 +1,5 @@
 /**
- * Shared Transcription Utility
+ * Shared Transcription Utility — v2 (April 13 2026)
  *
  * Transcribes audio using Gemini (free, primary) or OpenAI Whisper (fallback).
  * Used by voice-to-post, voice dictation, and other transcription endpoints.
@@ -20,13 +20,14 @@ export async function transcribeAudio(
   companyId?: string
 ): Promise<TranscriptionResult> {
   // Try to get Gemini key from multiple sources
-  // Check every possible env var name — Vercel has been inconsistent about which one is visible
   let geminiKey =
     process.env.GOOGLE_GEMINI_API_KEY ||
     process.env.Gemini ||
     process.env.GEMINI_API_KEY ||
     process.env.GEMINI ||
     "";
+
+  console.log(`[transcribe v2] geminiKey found: ${!!geminiKey}, length: ${geminiKey.length}, openai: ${!!process.env.OPENAI_API_KEY}`);
 
   // If no env var, try to get from company API configs (where image generation stores it)
   if (!geminiKey && companyId) {
