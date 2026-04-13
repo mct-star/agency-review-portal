@@ -3,6 +3,7 @@ import { getUser, getUserProfile } from "@/lib/supabase/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/Sidebar";
 import TrialBanner from "@/components/layout/TrialBanner";
+import HelpChatWidget from "@/components/chat/HelpChatWidget";
 import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
 
 /**
@@ -85,6 +86,7 @@ export default async function AppLayout({
         )}
         <div className="p-6">{children}</div>
       </main>
+      <HelpChatWidget />
     </div>
   );
 }
