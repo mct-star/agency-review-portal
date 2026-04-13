@@ -107,20 +107,6 @@ export async function POST(request: Request) {
     ? `\n\nVOICE: Match this tone and style: ${voiceProfile.voice_description}`
     : "";
 
-  // Resolve API key
-  const resolved = await resolveProvider(companyId, "content_generation");
-  const apiKey =
-    (resolved?.credentials as Record<string, string>)?.apiKey ||
-    (resolved?.credentials as Record<string, string>)?.api_key ||
-    process.env.ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "No content generation provider configured. Add an API key in Settings." },
-      { status: 400 }
-    );
-  }
-
   // Generate
   const systemPrompt = `You are a content repurposing expert. You write in the first person as ${speakerName}.${voiceNote}
 
@@ -157,7 +143,8 @@ Rules:
 - No emojis except ♻️ in sign-offs`;
 
   try {
-    const raw = await callClaude(apiKey, "claude-sonnet-4-20250514", systemPrompt, userPrompt, 8192);
+    const genResult = await generateText({ systemPrompt, userPrompt, maxTokens: 8192 });
+    const raw = genResult.text;
 
     // Parse JSON -- handle potential markdown fences
     let cleaned = raw.trim();
