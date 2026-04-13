@@ -82,6 +82,7 @@ function buildSections(user: User): NavSection[] {
           { href: "/review", label: "Content Review", icon: "checkCircle" },
           { href: "/compliance", label: "Compliance", icon: "shieldCheck" },
           { href: "/publish", label: "Publish", icon: "send" },
+          { href: "/analytics", label: "Analytics", icon: "sparkle" },
         ],
       },
       // Settings (non-phase)
@@ -150,6 +151,7 @@ function buildSections(user: User): NavSection[] {
         { href: "/review", label: "Content Review", icon: "checkCircle" },
         { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
         { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
+        { href: "/analytics", label: "Analytics", icon: "sparkle", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
       ],
     },
     // Settings (non-phase)

@@ -284,8 +284,38 @@ export default async function ComplianceDashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Regulatory Compliance</h1>
             <p className="text-sm text-gray-500">
-              Healthcare content compliance review and audit trail
+              Content compliance review and audit trail for regulated industries
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Compliance framing */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
+            <svg className="h-6 w-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Built for regulated industries</h2>
+            <p className="mt-1 text-sm text-gray-600 max-w-2xl">
+              Every post is reviewed against your chosen regulatory framework before it goes live.
+              Our three-colour system maps each sentence to Legal, Regulatory, or Compliance responsibilities —
+              the same structure pharmaceutical MLR teams use. No post leaves this platform without a compliance score.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                <span className="h-2 w-2 rounded-full bg-red-500" /> Legal
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                <span className="h-2 w-2 rounded-full bg-amber-500" /> Regulatory
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                <span className="h-2 w-2 rounded-full bg-blue-500" /> Compliance
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -386,73 +416,84 @@ export default async function ComplianceDashboardPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-3xl font-bold text-slate-800">{reviewed.length}</p>
-              <p className="mt-1 text-sm text-gray-500">Total Reviewed</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-2">
-              <ShieldIcon className="h-5 w-5 text-slate-600" />
+      {reviewed.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 p-6 text-center">
+          <p className="text-sm font-medium text-emerald-800">No posts reviewed yet</p>
+          <p className="mt-1 text-xs text-emerald-600">Generate some content first, then come back here to run compliance checks before publishing.</p>
+          <Link href="/generate/quick" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+            Create your first post
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </Link>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-3xl font-bold text-slate-800">{reviewed.length}</p>
+                <p className="mt-1 text-sm text-gray-500">Total Reviewed</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-2">
+                <ShieldIcon className="h-5 w-5 text-slate-600" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-3xl font-bold text-red-700">{flagged.length}</p>
-              <p className="mt-1 text-sm text-gray-500">Issues Found</p>
-            </div>
-            <div className="rounded-lg bg-red-50 p-2">
-              <svg className="h-5 w-5 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-3xl font-bold text-red-700">{flagged.length}</p>
+                <p className="mt-1 text-sm text-gray-500">Issues Found</p>
+              </div>
+              <div className="rounded-lg bg-red-50 p-2">
+                <svg className="h-5 w-5 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-3xl font-bold text-green-700">{clean.length}</p>
-              <p className="mt-1 text-sm text-gray-500">Clean / Approved</p>
-            </div>
-            <div className="rounded-lg bg-green-50 p-2">
-              <ShieldCheckIcon className="h-5 w-5 text-green-600" />
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-3xl font-bold text-green-700">{clean.length}</p>
+                <p className="mt-1 text-sm text-gray-500">Clean / Approved</p>
+              </div>
+              <div className="rounded-lg bg-green-50 p-2">
+                <ShieldCheckIcon className="h-5 w-5 text-green-600" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-3xl font-bold text-gray-400">{pending.length}</p>
-              <p className="mt-1 text-sm text-gray-500">Awaiting Review</p>
-            </div>
-            <div className="rounded-lg bg-gray-50 p-2">
-              <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10a1 1 0 0 1-.3.7l-3 3-1.4-1.4L11 11.58V6h2v6Z" />
-              </svg>
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-3xl font-bold text-gray-400">{pending.length}</p>
+                <p className="mt-1 text-sm text-gray-500">Awaiting Review</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-2">
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10a1 1 0 0 1-.3.7l-3 3-1.4-1.4L11 11.58V6h2v6Z" />
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-800 p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-3xl font-bold text-white">{scoredPieces.length > 0 ? avgScore : "--"}</p>
-              <p className="mt-1 text-sm text-slate-300">Avg. Score</p>
-            </div>
-            <div className="rounded-lg bg-slate-700 p-2">
-              <svg className="h-5 w-5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm10 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM5.5 18.5l13-13" />
-              </svg>
+          <div className="rounded-xl border border-slate-200 bg-slate-800 p-5 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-3xl font-bold text-white">{scoredPieces.length > 0 ? avgScore : "--"}</p>
+                <p className="mt-1 text-sm text-slate-300">Avg. Score</p>
+              </div>
+              <div className="rounded-lg bg-slate-700 p-2">
+                <svg className="h-5 w-5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm10 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM5.5 18.5l13-13" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Framework Configuration */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -468,11 +509,22 @@ export default async function ComplianceDashboardPage() {
               currentFramework={activeFramework}
               autoReview={currentCompany?.auto_regulatory_review ?? false}
             />
+            <p className="mt-2 text-xs text-gray-400">
+              Choose the framework that matches your industry. ABPI for UK pharma. MHRA for medical devices.
+              FDA for US markets. FCA for financial services. Each framework has specific rules your content will be checked against.
+            </p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-400 uppercase tracking-wider">Current</p>
             <p className="text-sm font-medium text-slate-800">{FRAMEWORK_LABELS[activeFramework] || activeFramework}</p>
           </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {["ABPI", "MHRA", "FDA", "EU MDR", "FCA", "MiFID II", "SRA", "ASA/CAP", "GDPR"].map(fw => (
+            <span key={fw} className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-[11px] font-medium text-gray-600">
+              {fw}
+            </span>
+          ))}
         </div>
       </div>
 
