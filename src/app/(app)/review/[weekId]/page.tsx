@@ -111,7 +111,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
             )}
             <p className="mt-1 text-sm text-gray-500">
               {week.date_start} — {week.date_end}
-              <span className="ml-2 text-gray-400">| {company.name}</span>
+              <span className="ml-2 text-gray-500">| {company.name}</span>
             </p>
             {week.pillar && (
               <div className="mt-2 flex gap-1">

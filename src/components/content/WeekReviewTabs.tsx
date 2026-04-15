@@ -209,7 +209,7 @@ export default function WeekReviewTabs({
                     <div className="flex items-center gap-3">
                       {/* Day badge */}
                       <div className="flex flex-col items-center rounded-lg bg-gray-50 px-3 py-1.5">
-                        <span className="text-[10px] font-medium uppercase text-gray-400">
+                        <span className="text-[10px] font-medium uppercase text-gray-500">
                           {piece.day_of_week || `#${piece.sort_order + 1}`}
                         </span>
                         {piece.scheduled_time && (
@@ -247,7 +247,7 @@ export default function WeekReviewTabs({
                             </span>
                           )}
                           {piece.word_count && (
-                            <span className="text-[10px] text-gray-400">
+                            <span className="text-[10px] text-gray-500">
                               {piece.word_count} words
                             </span>
                           )}
@@ -405,7 +405,7 @@ export default function WeekReviewTabs({
                   {/* Inline images grid */}
                   {inlineImages.length > 0 && (
                     <div className="mt-6 border-t border-gray-100 pt-4">
-                      <p className="mb-3 text-xs font-semibold uppercase text-gray-400">Article Images</p>
+                      <p className="mb-3 text-xs font-semibold uppercase text-gray-500">Article Images</p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         {inlineImages.map((img) => (
                           <div key={img.id} className="space-y-1">
@@ -414,7 +414,7 @@ export default function WeekReviewTabs({
                               alt={img.filename}
                               className="rounded-lg border border-gray-200"
                             />
-                            <p className="text-[10px] text-gray-400">{img.filename}</p>
+                            <p className="text-[10px] text-gray-500">{img.filename}</p>
                           </div>
                         ))}
                       </div>
@@ -425,7 +425,7 @@ export default function WeekReviewTabs({
                 {/* First comment */}
                 {piece.first_comment && (
                   <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase text-gray-400">First Comment</p>
+                    <p className="text-[10px] font-semibold uppercase text-gray-500">First Comment</p>
                     <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{piece.first_comment}</p>
                   </div>
                 )}
@@ -511,12 +511,12 @@ export default function WeekReviewTabs({
 
                   {bodyImages.length > 0 && (
                     <div className="mt-6 border-t border-gray-100 pt-4">
-                      <p className="mb-3 text-xs font-semibold uppercase text-gray-400">In-Article Images</p>
+                      <p className="mb-3 text-xs font-semibold uppercase text-gray-500">In-Article Images</p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         {bodyImages.map((img) => (
                           <div key={img.id} className="space-y-1">
                             <img src={img.public_url} alt={img.filename} className="rounded-lg border border-gray-200" />
-                            <p className="text-[10px] text-gray-400">{img.filename}</p>
+                            <p className="text-[10px] text-gray-500">{img.filename}</p>
                           </div>
                         ))}
                       </div>
@@ -526,7 +526,7 @@ export default function WeekReviewTabs({
 
                 {piece.first_comment && (
                   <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase text-gray-400">First Comment</p>
+                    <p className="text-[10px] font-semibold uppercase text-gray-500">First Comment</p>
                     <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{piece.first_comment}</p>
                   </div>
                 )}
@@ -554,7 +554,7 @@ export default function WeekReviewTabs({
               <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
                 <div className="border-b border-gray-100 px-4 py-3">
                   <h3 className="text-sm font-semibold text-gray-900">{piece.title}</h3>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-500">
                     {piece.day_of_week || piece.content_type}
                   </span>
                 </div>
@@ -581,7 +581,7 @@ export default function WeekReviewTabs({
                           />
                           <p className="text-xs text-gray-500">{img.filename}</p>
                           {img.archetype && (
-                            <p className="text-xs text-gray-400">{img.archetype}</p>
+                            <p className="text-xs text-gray-500">{img.archetype}</p>
                           )}
                         </div>
                       ))}

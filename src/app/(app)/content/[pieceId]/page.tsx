@@ -96,7 +96,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
       <div className="rounded-lg border border-gray-200 bg-white p-6">
         <div className="flex items-start justify-between">
           <div>
-            <span className="text-xs font-medium uppercase text-gray-400">
+            <span className="text-xs font-medium uppercase text-gray-500">
               {contentTypeLabels[piece.content_type]}
             </span>
             <h1 className="mt-1 text-xl font-bold text-gray-900">
@@ -133,7 +133,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
             </span>
           )}
           {piece.post_type && (
-            <span className="text-gray-400">{piece.post_type}</span>
+            <span className="text-gray-500">{piece.post_type}</span>
           )}
         </div>
       </div>
@@ -168,7 +168,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
                 />
                 <p className="text-xs text-gray-500">{img.filename}</p>
                 {img.archetype && (
-                  <p className="text-xs text-gray-400">{img.archetype}</p>
+                  <p className="text-xs text-gray-500">{img.archetype}</p>
                 )}
               </div>
             ))}

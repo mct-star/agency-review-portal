@@ -202,7 +202,7 @@ export default function LandingPage() {
             <div className="mt-6 flex flex-col items-center gap-2">
               <div className="flex items-center gap-3">
                 <div className="h-px w-12 bg-gray-200" />
-                <span className="text-xs text-gray-400">or get started instantly</span>
+                <span className="text-xs text-gray-500">or get started instantly</span>
                 <div className="h-px w-12 bg-gray-200" />
               </div>
               <GoogleSignInButton />
@@ -211,7 +211,7 @@ export default function LandingPage() {
 
           {/* ── Sample output images ── */}
           <div className="mx-auto mt-14 max-w-4xl">
-            <p className="text-center text-sm text-gray-400 mb-6">
+            <p className="text-center text-sm text-gray-500 mb-6">
               Written copy &middot; Scroll-stopping creative &middot; First comment &middot; Ready to publish.
             </p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -284,7 +284,7 @@ export default function LandingPage() {
       {/* ═══════════ CONTENT TYPES STRIP ═══════════ */}
       <section className="border-y border-gray-100 bg-gray-50/80 py-10">
         <div className="mx-auto max-w-6xl px-6 text-center">
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-sm text-gray-500 mb-4">
             Best practice social media content&hellip; <span className="font-semibold text-gray-700">Made by you.</span>
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -315,7 +315,7 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col items-center gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
               Publish to
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -423,7 +423,7 @@ export default function LandingPage() {
       {/* ═══════════ PLATFORM FEATURES ═══════════ */}
       <section className="py-16">
         <div className="mx-auto max-w-6xl px-6">
-          <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-gray-400 mb-10">
+          <h3 className="text-center text-sm font-semibold uppercase tracking-wider text-gray-500 mb-10">
             Every plan includes the full toolkit
           </h3>
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -617,7 +617,7 @@ export default function LandingPage() {
 
       {/* ═══════════ QUOTE DIVIDER ═══════════ */}
       <div className="bg-gray-50 py-8">
-        <p className="text-center text-lg font-semibold text-gray-400 italic">
+        <p className="text-center text-lg font-semibold text-gray-500 italic">
           Great content, every week, without the grind.
         </p>
       </div>

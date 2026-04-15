@@ -43,7 +43,7 @@ export default function BrandStylePage() {
   }
 
   if (loading) {
-    return <div className="text-center text-sm text-gray-400 py-12">Loading...</div>;
+    return <div className="text-center text-sm text-gray-500 py-12">Loading...</div>;
   }
 
   return (

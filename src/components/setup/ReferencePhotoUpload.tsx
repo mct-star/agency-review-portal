@@ -124,7 +124,7 @@ export default function ReferencePhotoUpload({
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:border-violet-400 hover:text-violet-500 transition-colors disabled:opacity-50"
+            className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-violet-400 hover:text-violet-500 transition-colors disabled:opacity-50"
           >
             {uploading ? (
               <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -153,7 +153,7 @@ export default function ReferencePhotoUpload({
         <p className="text-xs text-red-600">{error}</p>
       )}
 
-      <p className="text-[10px] text-gray-400">
+      <p className="text-[10px] text-gray-500">
         {photos.length}/5 photos uploaded. Best results with: headshot, full body, side profile, candid, and professional setting.
       </p>
     </div>

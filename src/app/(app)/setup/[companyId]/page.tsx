@@ -224,7 +224,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   label="Logo"
                   size={80}
                 />
-                <p className="mt-1 text-[9px] text-gray-400">Main</p>
+                <p className="mt-1 text-[9px] text-gray-500">Main</p>
               </div>
               <div className="text-center">
                 <ImageUploader
@@ -234,7 +234,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   label="Overlay"
                   size={80}
                 />
-                <p className="mt-1 text-[9px] text-gray-400 max-w-[80px] leading-tight">White version for images</p>
+                <p className="mt-1 text-[9px] text-gray-500 max-w-[80px] leading-tight">White version for images</p>
               </div>
             </div>
 
@@ -270,11 +270,11 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                     className="h-5 w-5 rounded-full border-2 border-white shadow-sm"
                     style={{ backgroundColor: company.brand_color || "#e5e7eb" }}
                   />
-                  <span className="text-xs text-gray-400">{company.brand_color || "No colour"}</span>
+                  <span className="text-xs text-gray-500">{company.brand_color || "No colour"}</span>
                 </div>
 
                 {company.blog_base_url && (
-                  <span className="text-xs text-gray-400 truncate max-w-[200px]">{company.blog_base_url}</span>
+                  <span className="text-xs text-gray-500 truncate max-w-[200px]">{company.blog_base_url}</span>
                 )}
               </div>
             </div>
@@ -283,11 +283,11 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
             <div className="hidden sm:flex items-center gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold text-gray-900">{weekCount || 0}</p>
-                <p className="text-[10px] text-gray-400 uppercase">Weeks</p>
+                <p className="text-[10px] text-gray-500 uppercase">Weeks</p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{pieceCount || 0}</p>
-                <p className="text-[10px] text-gray-400 uppercase">Pieces</p>
+                <p className="text-[10px] text-gray-500 uppercase">Pieces</p>
               </div>
             </div>
           </div>
@@ -326,7 +326,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   <h4 className="text-sm font-bold text-gray-900">Starter</h4>
                   {company.plan === "starter" && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-semibold text-violet-700">Current</span>}
                 </div>
-                <p className="mt-1 text-xl font-bold text-gray-900">£30<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <p className="mt-1 text-xl font-bold text-gray-900">£30<span className="text-xs font-normal text-gray-500">/mo</span></p>
                 <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
                   <li>20 posts/month</li>
                   <li>All visual styles inc Cinematic 3D</li>
@@ -345,7 +345,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   <h4 className="text-sm font-bold text-gray-900">Pro</h4>
                   {company.plan === "pro" && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-semibold text-violet-700">Current</span>}
                 </div>
-                <p className="mt-1 text-xl font-bold text-gray-900">£99<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <p className="mt-1 text-xl font-bold text-gray-900">£99<span className="text-xs font-normal text-gray-500">/mo</span></p>
                 <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
                   <li>Unlimited posts + spokespersons</li>
                   <li>Full voice matching (39 gates)</li>
@@ -364,7 +364,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   <h4 className="text-sm font-bold text-gray-900">Agency</h4>
                   {company.plan === "agency" && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-semibold text-violet-700">Current</span>}
                 </div>
-                <p className="mt-1 text-xl font-bold text-gray-900">£299<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <p className="mt-1 text-xl font-bold text-gray-900">£299<span className="text-xs font-normal text-gray-500">/mo</span></p>
                 <ul className="mt-3 space-y-1 text-[11px] text-gray-500">
                   <li>Everything in Pro</li>
                   <li>Face-match AI (looks like you)</li>
@@ -417,7 +417,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                     {person.profile_picture_url ? (
                       <img src={person.profile_picture_url} alt={person.name} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
+                      <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-500">
                         {person.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
                       </div>
                     )}
@@ -518,12 +518,12 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-400">{step.label}</h4>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-gray-400">
+                      <h4 className="text-sm font-semibold text-gray-500">{step.label}</h4>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-gray-500">
                         {step.minPlan}+
                       </span>
                     </div>
-                    <p className="mt-0.5 text-xs text-gray-400">{step.description}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">{step.description}</p>
                   </div>
                 </div>
               </div>
@@ -553,7 +553,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                     </svg>
                   ) : (
                     <svg
-                      className="h-4 w-4 text-gray-400 group-hover:text-sky-500"
+                      className="h-4 w-4 text-gray-500 group-hover:text-sky-500"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -569,7 +569,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
                     <h4 className="text-sm font-semibold text-gray-900">{step.label}</h4>
                     <span
                       className={`text-[10px] font-medium ${
-                        isDone ? "text-green-600" : "text-gray-400"
+                        isDone ? "text-green-600" : "text-gray-500"
                       }`}
                     >
                       {status?.detail || ""}

@@ -320,14 +320,14 @@ export default function ComplianceDetailClient({
             {/* Post details (beside the phone on desktop) */}
             <div className="flex-1 min-w-0 space-y-4">
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Post Copy</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Post Copy</h3>
                 <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">
                   {markdownBody}
                 </div>
               </div>
               {firstComment && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">First Comment</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">First Comment</h3>
                   <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap">
                     {firstComment}
                   </div>
@@ -335,7 +335,7 @@ export default function ComplianceDetailClient({
               )}
               {postImageUrl && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Image</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Image</h3>
                   <img
                     src={postImageUrl}
                     alt="Post image"
@@ -403,7 +403,7 @@ export default function ComplianceDetailClient({
               </div>
               <p className="text-sm text-gray-600 max-w-md">{(review as RegulatoryReviewResult & { summary?: string })?.summary || ""}</p>
               {review?.targetCountries && (
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-gray-500">
                   Markets: {review.targetCountries.join(", ")}
                 </p>
               )}
@@ -427,14 +427,14 @@ export default function ComplianceDetailClient({
           </div>
           {firstComment && (
             <div className="mt-4 border-t border-gray-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">First Comment</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">First Comment</p>
               <div className="whitespace-pre-wrap text-gray-700 text-sm">
                 {highlightSentences(firstComment, issues)}
               </div>
             </div>
           )}
         </div>
-        <div className="mt-4 flex items-center gap-4 text-xs text-gray-400 border-t border-gray-100 pt-3">
+        <div className="mt-4 flex items-center gap-4 text-xs text-gray-500 border-t border-gray-100 pt-3">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-3 w-6 rounded bg-green-50 border border-green-200" /> Clean
           </span>
@@ -483,7 +483,7 @@ export default function ComplianceDetailClient({
                         </div>
                       </div>
                     </div>
-                    <svg className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg className={`h-5 w-5 flex-shrink-0 text-gray-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M6 9l6 6 6-6" />
                     </svg>
                   </button>
@@ -492,7 +492,7 @@ export default function ComplianceDetailClient({
                     <div className="border-t border-gray-100 bg-gray-50/50 px-6 py-4 space-y-4">
                       {issue.sentence && (
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Flagged Text</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Flagged Text</p>
                           <p className="text-sm text-gray-800 bg-white rounded-lg border border-gray-200 px-3 py-2 italic">
                             &ldquo;{issue.sentence}&rdquo;
                           </p>
@@ -500,20 +500,20 @@ export default function ComplianceDetailClient({
                       )}
 
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Explanation</p>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Explanation</p>
                         <p className="text-sm text-gray-700">{issue.explanation}</p>
                       </div>
 
                       {issue.regulation && (
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Regulatory Reference</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Regulatory Reference</p>
                           <p className="text-sm font-medium text-slate-700">{issue.regulation}</p>
                         </div>
                       )}
 
                       {issue.suggestion && (
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Suggested Alternative</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Suggested Alternative</p>
                           <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
                             <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M9 12l2 2 4-4" />
@@ -526,7 +526,7 @@ export default function ComplianceDetailClient({
 
                       {issue.countries && issue.countries.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Affected Markets</p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Affected Markets</p>
                           <div className="flex gap-1.5">
                             {issue.countries.map((c) => (
                               <span key={c} className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{c}</span>

@@ -948,7 +948,7 @@ export default function QuickGenerate({
                             >
                               <span className="font-medium">{t.topic}</span>
                               {t.pillar && (
-                                <span className="ml-1.5 text-[10px] text-gray-400">{t.pillar}</span>
+                                <span className="ml-1.5 text-[10px] text-gray-500">{t.pillar}</span>
                               )}
                             </button>
                           );
@@ -1012,7 +1012,7 @@ export default function QuickGenerate({
                           className="block w-full px-4 py-2.5 text-left text-xs text-gray-700 hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
                         >
                           <span className="font-medium">{t.topic}</span>
-                          {t.pillar && <span className="ml-2 text-[10px] text-gray-400">{t.pillar}</span>}
+                          {t.pillar && <span className="ml-2 text-[10px] text-gray-500">{t.pillar}</span>}
                         </button>
                       ))}
                     </div>
@@ -1037,7 +1037,7 @@ export default function QuickGenerate({
                     <div className="w-full border-t border-gray-200" />
                   </div>
                   <div className="relative flex justify-center">
-                    <span className="bg-white px-3 text-xs text-gray-400">or type it</span>
+                    <span className="bg-white px-3 text-xs text-gray-500">or type it</span>
                   </div>
                 </div>
 
@@ -1156,7 +1156,7 @@ export default function QuickGenerate({
                     }}
                   />
                 </div>
-                <span className="text-[10px] font-semibold text-gray-400">{postUsage.limit - postUsage.used} left</span>
+                <span className="text-[10px] font-semibold text-gray-500">{postUsage.limit - postUsage.used} left</span>
               </div>
             </div>
           )}
@@ -1307,7 +1307,7 @@ export default function QuickGenerate({
               {!published && (linkedInConnected || blueskyConnected) && (
                 <>
                   {linkedInConnected && (
-                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToLinkedIn ? "bg-blue-50 text-blue-700" : "text-gray-400 hover:bg-gray-100"}`}>
+                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToLinkedIn ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-100"}`}>
                       <input type="checkbox" checked={publishToLinkedIn} onChange={(e) => setPublishToLinkedIn(e.target.checked)} className="sr-only" />
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
@@ -1316,7 +1316,7 @@ export default function QuickGenerate({
                     </label>
                   )}
                   {blueskyConnected && (
-                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToBluesky ? "bg-blue-50 text-blue-700" : "text-gray-400 hover:bg-gray-100"}`}>
+                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToBluesky ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-100"}`}>
                       <input type="checkbox" checked={publishToBluesky} onChange={(e) => setPublishToBluesky(e.target.checked)} className="sr-only" />
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
@@ -1398,7 +1398,7 @@ export default function QuickGenerate({
                   </button>
                   {showWeekPicker && (
                     <div className="absolute right-0 top-full mt-1 z-10 rounded-lg border border-gray-200 bg-white shadow-lg p-2 min-w-[160px]">
-                      <p className="px-2 py-1 text-[10px] font-semibold uppercase text-gray-400">Select week</p>
+                      <p className="px-2 py-1 text-[10px] font-semibold uppercase text-gray-500">Select week</p>
                       {(() => {
                         const now = new Date();
                         const currentWeek = Math.ceil(
@@ -1449,7 +1449,7 @@ export default function QuickGenerate({
               {/* Voice Match Score */}
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Voice Match</h4>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Voice Match</h4>
                   <span className={`text-2xl font-bold ${voiceMatch.score >= 80 ? "text-green-600" : voiceMatch.score >= 60 ? "text-amber-600" : "text-red-500"}`}>
                     {voiceMatch.score}%
                   </span>
@@ -1472,7 +1472,7 @@ export default function QuickGenerate({
               {/* Engagement Prediction */}
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Engagement</h4>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Engagement</h4>
                   <span className={`text-2xl font-bold ${engagement.multiplier >= 1.5 ? "text-green-600" : engagement.multiplier >= 1.0 ? "text-blue-600" : "text-amber-600"}`}>
                     {engagement.multiplier}x
                   </span>
@@ -1495,14 +1495,14 @@ export default function QuickGenerate({
           {result.carouselImageUrls && result.carouselImageUrls.length > 1 && (
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold uppercase text-gray-400">
+                <h3 className="text-xs font-semibold uppercase text-gray-500">
                   Carousel Slides ({result.carouselImageUrls.length})
                 </h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCarouselIndex(Math.max(0, carouselIndex - 1))}
                     disabled={carouselIndex === 0}
-                    className="rounded p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                    className="rounded p-1 text-gray-500 hover:text-gray-600 disabled:opacity-30"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
                   </button>
@@ -1510,7 +1510,7 @@ export default function QuickGenerate({
                   <button
                     onClick={() => setCarouselIndex(Math.min(result.carouselImageUrls!.length - 1, carouselIndex + 1))}
                     disabled={carouselIndex >= result.carouselImageUrls.length - 1}
-                    className="rounded p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                    className="rounded p-1 text-gray-500 hover:text-gray-600 disabled:opacity-30"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
                   </button>
@@ -1550,11 +1550,11 @@ export default function QuickGenerate({
                   rows={12}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
-                <p className="mt-1 text-[10px] text-gray-400">{editedText.length} characters</p>
+                <p className="mt-1 text-[10px] text-gray-500">{editedText.length} characters</p>
               </div>
               {result.firstComment !== null && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="text-xs font-semibold uppercase text-gray-400 mb-2">Edit First Comment</h3>
+                  <h3 className="text-xs font-semibold uppercase text-gray-500 mb-2">Edit First Comment</h3>
                   <textarea
                     value={editedFirstComment}
                     onChange={(e) => setEditedFirstComment(e.target.value)}
@@ -1605,7 +1605,7 @@ export default function QuickGenerate({
               {liveFirstComment && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold uppercase text-gray-400">
+                    <h3 className="text-xs font-semibold uppercase text-gray-500">
                       First Comment
                     </h3>
                     <button

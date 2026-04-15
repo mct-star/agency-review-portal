@@ -73,7 +73,7 @@ export default function VoiceMatchScore({ companyId, postText }: VoiceMatchScore
         </div>
         <div>
           <p className="text-xs font-medium text-gray-500">Analysing voice...</p>
-          <p className="text-[10px] text-gray-400">Comparing against your voice profile</p>
+          <p className="text-[10px] text-gray-500">Comparing against your voice profile</p>
         </div>
       </div>
     );

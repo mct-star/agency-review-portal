@@ -1042,7 +1042,7 @@ export default function GeneratePage() {
                     ))}
                   </select>
                 ) : (
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-400">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-500">
                     Select a company first
                   </div>
                 )}
@@ -1055,7 +1055,7 @@ export default function GeneratePage() {
                 {isCompanyPage ? (
                   <>
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-100">
-                      <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                      <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
                       </svg>
                     </div>
@@ -1070,7 +1070,7 @@ export default function GeneratePage() {
                       {selectedPerson.profile_picture_url ? (
                         <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-400">
+                        <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs font-bold text-gray-500">
                           {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                         </div>
                       )}
@@ -1079,7 +1079,7 @@ export default function GeneratePage() {
                       <p className="text-sm font-medium text-gray-900">{selectedPerson.name}</p>
                       {selectedPerson.tagline && <p className="text-xs text-gray-500">{selectedPerson.tagline}</p>}
                     </div>
-                    <span className="ml-auto text-xs text-gray-400">{selectedCompany?.name}</span>
+                    <span className="ml-auto text-xs text-gray-500">{selectedCompany?.name}</span>
                   </>
                 ) : null}
               </div>
@@ -1104,7 +1104,7 @@ export default function GeneratePage() {
       {/* Step 2: What to Generate */}
       {step === "scope" && (
         <div className="space-y-4">
-          <button onClick={() => setStep("company")} className="text-sm text-gray-400 hover:text-gray-600">
+          <button onClick={() => setStep("company")} className="text-sm text-gray-500 hover:text-gray-600">
             ← Back
           </button>
 
@@ -1113,7 +1113,7 @@ export default function GeneratePage() {
             <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
               {isCompanyPage ? (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-100">
-                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                  <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
                   </svg>
                 </div>
@@ -1122,7 +1122,7 @@ export default function GeneratePage() {
                   {selectedPerson.profile_picture_url ? (
                     <img src={selectedPerson.profile_picture_url} alt={selectedPerson.name} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-400">
+                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-[9px] font-bold text-gray-500">
                       {selectedPerson.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                     </div>
                   )}
@@ -1171,12 +1171,12 @@ export default function GeneratePage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-gray-400">{opt.label}</h3>
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-gray-400">
+                          <h3 className="font-semibold text-gray-500">{opt.label}</h3>
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-gray-500">
                             {opt.minPlan}+
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-gray-400 leading-relaxed">{opt.description}</p>
+                        <p className="mt-1 text-xs text-gray-500 leading-relaxed">{opt.description}</p>
                       </div>
                     </div>
                   </div>
@@ -1210,7 +1210,7 @@ export default function GeneratePage() {
       {/* Step 3: Configure */}
       {step === "configure" && (
         <div className="space-y-4">
-          <button onClick={() => { setStep("scope"); setSelectedScope(""); }} className="text-sm text-gray-400 hover:text-gray-600">
+          <button onClick={() => { setStep("scope"); setSelectedScope(""); }} className="text-sm text-gray-500 hover:text-gray-600">
             ← Back to options
           </button>
 
@@ -1253,7 +1253,7 @@ export default function GeneratePage() {
                   {/* Quarter filter for topic bank */}
                   {topicMode === "bank" && topics.length > 12 && (
                     <div className="mt-2 flex items-center gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Quarter:</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Quarter:</span>
                       <div className="flex rounded-md border border-gray-200 p-0.5 bg-gray-50">
                         {[1, 2, 3, 4].map((q) => (
                           <button
@@ -1268,7 +1268,7 @@ export default function GeneratePage() {
                           </button>
                         ))}
                       </div>
-                      <span className="text-[10px] text-gray-400">
+                      <span className="text-[10px] text-gray-500">
                         {(() => {
                           const topicsPerQ = Math.ceil(topics.length / 4);
                           const start = (selectedQuarter - 1) * topicsPerQ;
@@ -1306,7 +1306,7 @@ export default function GeneratePage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <span className="text-[10px] text-gray-400 font-mono">#{topic.topic_number}</span>
+                              <span className="text-[10px] text-gray-500 font-mono">#{topic.topic_number}</span>
                               <p className="text-sm font-medium text-gray-900 leading-snug mt-0.5">{topic.title}</p>
                               {topic.description && (
                                 <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{topic.description}</p>
@@ -1431,7 +1431,7 @@ export default function GeneratePage() {
                             {calWeek ? (
                               <p className="mt-0.5 text-xs text-gray-500">{formatWeekLabel(calWeek.date_start, calWeek.week_number)}</p>
                             ) : (
-                              <p className="mt-0.5 text-xs text-gray-400">No calendar entry</p>
+                              <p className="mt-0.5 text-xs text-gray-500">No calendar entry</p>
                             )}
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1686,7 +1686,7 @@ export default function GeneratePage() {
                       style={{ width: `${status.total ? (status.current / status.total) * 100 : 0}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-400">{status.current}/{status.total} pieces</p>
+                  <p className="text-xs text-gray-500">{status.current}/{status.total} pieces</p>
                 </>
               )}
             </>
@@ -1770,7 +1770,7 @@ export default function GeneratePage() {
                               "bg-blue-500 text-white"
                             }`}>{issue.flag}</span>
                             <span className="font-semibold text-gray-800">{issue.title}</span>
-                            <span className="text-gray-400">{issue.countries.join(", ")}</span>
+                            <span className="text-gray-500">{issue.countries.join(", ")}</span>
                           </div>
                           <p className="mt-1 text-gray-600">{issue.description}</p>
                           <p className="mt-1 text-gray-800 font-medium">Fix: {issue.suggestion}</p>

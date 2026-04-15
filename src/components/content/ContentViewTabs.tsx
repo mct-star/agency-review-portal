@@ -151,7 +151,7 @@ export default function ContentViewTabs({
       {/* First Comment — shown below both views in Content mode */}
       {activeTab === "content" && firstComment && (
         <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500">
             First Comment
           </h3>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">

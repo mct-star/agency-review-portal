@@ -157,7 +157,7 @@ export default function AddCompanyButton() {
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleReset}
-                className="text-sm text-gray-400 hover:text-gray-600"
+                className="text-sm text-gray-500 hover:text-gray-600"
               >
                 Cancel
               </button>
@@ -169,7 +169,7 @@ export default function AddCompanyButton() {
         {mode === "linkedin" && !enrichResult && (
           <div className="p-6">
             <div className="flex items-center gap-2">
-              <button onClick={() => setMode("choose")} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setMode("choose")} className="text-gray-500 hover:text-gray-600">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -196,7 +196,7 @@ export default function AddCompanyButton() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Company Website <span className="text-gray-400 text-xs font-normal">(optional)</span>
+                  Company Website <span className="text-gray-500 text-xs font-normal">(optional)</span>
                 </label>
                 <input
                   type="url"
@@ -205,7 +205,7 @@ export default function AddCompanyButton() {
                   placeholder="https://example.com"
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none"
                 />
-                <p className="mt-1 text-[11px] text-gray-400">
+                <p className="mt-1 text-[11px] text-gray-500">
                   Helps us extract brand colour and logo
                 </p>
               </div>
@@ -328,7 +328,7 @@ export default function AddCompanyButton() {
         {mode === "manual" && (
           <div className="p-6">
             <div className="flex items-center gap-2">
-              <button onClick={() => setMode("choose")} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setMode("choose")} className="text-gray-500 hover:text-gray-600">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>

@@ -268,7 +268,7 @@ export default function StrategyPage() {
 
       {/* ── Loading ───────────────────────────────────── */}
       {loading && (
-        <div className="py-12 text-center text-sm text-gray-400">Loading strategy data…</div>
+        <div className="py-12 text-center text-sm text-gray-500">Loading strategy data…</div>
       )}
 
       {/* ── Load Error ────────────────────────────────── */}
@@ -302,7 +302,7 @@ export default function StrategyPage() {
             />
           </svg>
           <p className="mt-3 text-sm text-gray-500">No strategy imported yet.</p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             Click &ldquo;+ Import Strategy&rdquo; above to get started.
           </p>
         </div>
@@ -337,7 +337,7 @@ export default function StrategyPage() {
             <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5">
               <p className="text-[11px] font-bold text-gray-500">Total</p>
               <p className="mt-1 text-xl font-bold text-gray-900">{strategyData.totalTopics}</p>
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-gray-500">
                 {strategyData.usedTopics} used
               </p>
             </div>
@@ -361,7 +361,7 @@ export default function StrategyPage() {
                 .filter((q) => themesByQuarter[q]?.length > 0)
                 .map((qKey) => (
                   <div key={qKey}>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                       {qKey === "General"
                         ? "General"
                         : QUARTER_LABELS[parseInt(qKey[1])] || qKey}

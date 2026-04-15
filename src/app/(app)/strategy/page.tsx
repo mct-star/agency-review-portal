@@ -80,7 +80,7 @@ export default async function StrategyPage() {
                 We will ask about your audience, positioning, voice, and content rhythm, then
                 generate a strategy you can share with your team.
               </p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-sm text-gray-400">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-sm text-gray-500">
                 {STEP_LABELS.map((label, i) => (
                   <span key={i} className="flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">
@@ -145,7 +145,7 @@ export default async function StrategyPage() {
                                 ? "bg-violet-600 text-white"
                                 : active
                                   ? "bg-violet-100 text-violet-700 ring-2 ring-violet-600"
-                                  : "bg-gray-100 text-gray-400"
+                                  : "bg-gray-100 text-gray-500"
                             }`}
                           >
                             {done ? (
@@ -156,7 +156,7 @@ export default async function StrategyPage() {
                               stepNum
                             )}
                           </div>
-                          <span className="mt-1 text-[10px] text-gray-400 text-center leading-tight hidden sm:block">
+                          <span className="mt-1 text-[10px] text-gray-500 text-center leading-tight hidden sm:block">
                             {label}
                           </span>
                         </div>

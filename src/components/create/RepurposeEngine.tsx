@@ -199,9 +199,9 @@ export default function RepurposeEngine({ companies, showCompanyPicker }: Repurp
                 onChange={(e) => setSourceText(e.target.value)}
                 placeholder="Paste your blog post or article here (minimum 100 characters)..."
                 rows={12}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 {sourceText.length} characters
                 {sourceText.length > 0 && sourceText.length < 100 && " (minimum 100)"}
               </p>
@@ -220,7 +220,7 @@ export default function RepurposeEngine({ companies, showCompanyPicker }: Repurp
                 value={sourceUrl}
                 onChange={(e) => setSourceUrl(e.target.value)}
                 placeholder="https://example.com/blog/your-article"
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
               />
             </div>
           )}
@@ -251,7 +251,7 @@ export default function RepurposeEngine({ companies, showCompanyPicker }: Repurp
             type="button"
             onClick={handleGenerate}
             disabled={!canGenerate}
-            className="w-full rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+            className="w-full rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
           >
             {generating ? "Repurposing..." : "Repurpose"}
           </button>

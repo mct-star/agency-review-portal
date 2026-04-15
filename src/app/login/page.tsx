@@ -63,7 +63,7 @@ function LoginForm() {
           AGENCY
         </h1>
         <p className="mt-1 text-sm text-gray-500">Content Platform</p>
-        <p className="mt-3 text-xs text-gray-400">
+        <p className="mt-3 text-xs text-gray-500">
           One voice. Your voice. Every week. Without the work.
         </p>
       </div>
@@ -101,7 +101,7 @@ function LoginForm() {
 
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-            <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] text-gray-400">or sign in with email</span></div>
+            <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] text-gray-500">or sign in with email</span></div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -153,7 +153,7 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => setLoginMode(loginMode === "password" ? "magic" : "password")}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-xs text-gray-500 hover:text-gray-600 transition-colors"
               >
                 {loginMode === "password" ? "Use magic link instead" : "Use password instead"}
               </button>

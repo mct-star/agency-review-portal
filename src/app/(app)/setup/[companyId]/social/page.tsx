@@ -387,7 +387,7 @@ export default function CompanySocialPage() {
                   ) : platform.value === "twitter" ? (
                     <p className="mt-1 text-[10px] text-gray-300 font-medium">Coming soon</p>
                   ) : (
-                    <p className="mt-1 text-xs text-gray-400">Not connected</p>
+                    <p className="mt-1 text-xs text-gray-500">Not connected</p>
                   )}
                 </div>
               </div>
@@ -406,7 +406,7 @@ export default function CompanySocialPage() {
               </svg>
               <h3 className="text-sm font-semibold text-gray-900">Connect Bluesky</h3>
             </div>
-            <button onClick={() => { setShowBskyForm(false); setBskyError(null); }} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setShowBskyForm(false); setBskyError(null); }} className="text-gray-500 hover:text-gray-600">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
           </div>
@@ -465,7 +465,7 @@ export default function CompanySocialPage() {
       )}
 
       {loading && (
-        <p className="text-center text-sm text-gray-400">Loading...</p>
+        <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
   );

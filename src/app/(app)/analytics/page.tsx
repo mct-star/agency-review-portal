@@ -192,7 +192,7 @@ export default async function AnalyticsPage() {
                 <span className="w-20 shrink-0 text-right text-sm font-medium text-gray-900">
                   {pt.avgEngagement.toFixed(1)} avg
                 </span>
-                <span className="w-16 shrink-0 text-right text-xs text-gray-400">
+                <span className="w-16 shrink-0 text-right text-xs text-gray-500">
                   {pt.count} post{pt.count !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -226,7 +226,7 @@ export default async function AnalyticsPage() {
                 <span className="w-20 shrink-0 text-right text-sm font-medium text-gray-900">
                   {d.avgEngagement.toFixed(1)} avg
                 </span>
-                <span className="w-16 shrink-0 text-right text-xs text-gray-400">
+                <span className="w-16 shrink-0 text-right text-xs text-gray-500">
                   {d.count} post{d.count !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -310,7 +310,7 @@ export default async function AnalyticsPage() {
                             })
                           : "-"}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-400 tabular-nums">
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
                         {row.poll_count}
                       </td>
                     </tr>
@@ -336,7 +336,7 @@ function SummaryCard({
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
-      <p className="text-xs font-medium uppercase tracking-wider text-gray-400">
+      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>

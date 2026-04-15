@@ -69,7 +69,7 @@ export default function ContentSetupSelector({
 
       {/* Profile cards */}
       <div className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
           Choose a profile to configure
         </h2>
 
@@ -207,10 +207,10 @@ export default function ContentSetupSelector({
 
             {spokespersons.length === 0 && (
               <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center col-span-full sm:col-span-1">
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-500">
                   No spokespersons configured yet.
                 </p>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-gray-500">
                   Add people in Company Settings.
                 </p>
               </div>
@@ -244,7 +244,7 @@ export default function ContentSetupSelector({
             />
           </svg>
           Company Settings
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500">
             Logo, URLs, API keys, social accounts
           </span>
         </Link>

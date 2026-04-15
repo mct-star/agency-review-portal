@@ -337,7 +337,7 @@ export default function TopicBankPage() {
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-8 text-center text-sm text-gray-400"
+                  className="px-4 py-8 text-center text-sm text-gray-500"
                 >
                   No topics found
                 </td>
@@ -348,7 +348,7 @@ export default function TopicBankPage() {
       </div>
 
       {loading && (
-        <p className="text-center text-sm text-gray-400">Loading...</p>
+        <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
   );

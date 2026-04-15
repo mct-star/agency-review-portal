@@ -282,7 +282,7 @@ export default function ApiProvidersPage() {
                       placeholder="Enter API key..."
                       className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-500">
                       Leave blank to keep existing credentials
                     </p>
                   </div>
@@ -322,7 +322,7 @@ export default function ApiProvidersPage() {
       </div>
 
       {loading && (
-        <p className="text-center text-sm text-gray-400">Loading...</p>
+        <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
   );

@@ -23,7 +23,7 @@ export default function NotFound() {
             Home
           </Link>
         </div>
-        <p className="mt-8 text-xs text-gray-400">
+        <p className="mt-8 text-xs text-gray-500">
           You have the expertise. We give you the time to share it.
         </p>
       </div>

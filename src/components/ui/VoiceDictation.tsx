@@ -205,7 +205,7 @@ export default function VoiceDictation({
                 : state === "done"
                 ? "bg-green-50 text-green-700"
                 : isCompact
-                ? "text-gray-400 hover:text-violet-600 hover:bg-violet-50 focus:ring-violet-300"
+                ? "text-gray-500 hover:text-violet-600 hover:bg-violet-50 focus:ring-violet-300"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-300"
             }
           `}

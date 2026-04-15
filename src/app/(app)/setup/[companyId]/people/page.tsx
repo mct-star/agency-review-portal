@@ -203,7 +203,7 @@ export default function PeoplePage() {
                 {person.profile_picture_url ? (
                   <img src={person.profile_picture_url} alt={person.name} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-lg font-bold text-gray-400">
+                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-lg font-bold text-gray-500">
                     {person.name
                       .split(" ")
                       .map((n) => n[0])

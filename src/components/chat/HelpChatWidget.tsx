@@ -224,7 +224,7 @@ export default function HelpChatWidget() {
             {/* Report issue link */}
             <button
               onClick={() => setShowReportForm(true)}
-              className="w-full text-center py-2 text-xs text-gray-400 hover:text-violet-600 transition-colors border-t border-gray-100"
+              className="w-full text-center py-2 text-xs text-gray-500 hover:text-violet-600 transition-colors border-t border-gray-100"
             >
               Having a problem? Report an issue
             </button>

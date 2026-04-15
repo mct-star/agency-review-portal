@@ -431,7 +431,7 @@ export default function PersonDetailPage() {
       <div className="flex items-center gap-3">
         <Link
           href={`/setup/${companyId}/people`}
-          className="rounded-md border border-gray-200 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+          className="rounded-md border border-gray-200 p-1.5 text-gray-500 hover:text-gray-600 hover:bg-gray-50 transition-colors"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -487,7 +487,7 @@ export default function PersonDetailPage() {
               {person.profile_picture_url ? (
                 <img src={person.profile_picture_url} alt={person.name} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xl font-bold text-gray-400">
+                <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xl font-bold text-gray-500">
                   {initials}
                 </div>
               )}
@@ -1011,7 +1011,7 @@ export default function PersonDetailPage() {
                           </div>
                         ))
                       ) : (
-                        <p className="mt-1 text-xs text-gray-400">Not connected</p>
+                        <p className="mt-1 text-xs text-gray-500">Not connected</p>
                       )}
                     </div>
                   </div>

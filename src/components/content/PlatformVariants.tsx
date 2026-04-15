@@ -81,7 +81,7 @@ export default function PlatformVariants({
   if (loading) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <p className="text-sm text-gray-400">Loading variants...</p>
+        <p className="text-sm text-gray-500">Loading variants...</p>
       </div>
     );
   }
@@ -92,7 +92,7 @@ export default function PlatformVariants({
         <h3 className="mb-2 text-sm font-semibold text-gray-900">
           Platform Variants
         </h3>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-500">
           No platform variants created yet. Variants are generated when
           adapting social posts for multiple channels.
         </p>
@@ -178,7 +178,7 @@ export default function PlatformVariants({
                   {/* Char count */}
                   <span
                     className={`text-xs ${
-                      charPercent > 100 ? "text-red-500 font-medium" : "text-gray-400"
+                      charPercent > 100 ? "text-red-500 font-medium" : "text-gray-500"
                     }`}
                   >
                     {variant.character_count || variant.adapted_copy.length}/
@@ -201,7 +201,7 @@ export default function PlatformVariants({
                     onClick={() =>
                       setExpandedVariant(isExpanded ? null : variant.id)
                     }
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="text-xs text-gray-500 hover:text-gray-600"
                   >
                     {isExpanded ? "Collapse" : "View"}
                   </button>
@@ -224,10 +224,10 @@ export default function PlatformVariants({
                             className="rounded-md border border-gray-200 bg-gray-50 p-3"
                           >
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-gray-400">
+                              <span className="text-xs font-medium text-gray-500">
                                 {i + 1}/{variant.thread_parts!.length}
                               </span>
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-gray-500">
                                 {part.length} chars
                               </span>
                             </div>

@@ -21,7 +21,7 @@ export default async function AdminLayout({
             You&apos;re signed in as <strong>{user.email}</strong> but your
             account hasn&apos;t been set up yet.
           </p>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             Ask an admin to add you to the portal.
           </p>
         </div>

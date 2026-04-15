@@ -247,7 +247,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            <p className="mt-0.5 text-[10px] text-gray-400">Content Platform</p>
+            <p className="mt-0.5 text-[10px] text-gray-500">Content Platform</p>
           </div>
         ) : (
           <div>
@@ -294,7 +294,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                   <div className={`h-1.5 w-1.5 rounded-full ${phaseColor.dot}`} />
                 )}
                 <p className={`text-[10px] font-semibold uppercase tracking-wider ${
-                  phaseColor ? phaseColor.label : "text-gray-400"
+                  phaseColor ? phaseColor.label : "text-gray-500"
                 }`}>
                   {section.phase ? `${section.phase}. ${section.title}` : section.title}
                 </p>
@@ -309,7 +309,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                       <Link
                         key={item.href}
                         href={`/upgrade?feature=${encodeURIComponent(item.label)}&plan=${item.minPlan || "pro"}`}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-pointer hover:bg-gray-50 hover:text-gray-400 transition-colors"
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-pointer hover:bg-gray-50 hover:text-gray-500 transition-colors"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={icons[item.icon]} />
@@ -369,7 +369,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
         <p className="truncate text-xs text-gray-500">{user.email}</p>
         <button
           onClick={handleSignOut}
-          className="mt-2 text-xs text-gray-400 hover:text-gray-600"
+          className="mt-2 text-xs text-gray-500 hover:text-gray-600"
         >
           Sign out
         </button>

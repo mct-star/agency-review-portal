@@ -258,7 +258,7 @@ export default function GeneratePage() {
                       ? "bg-sky-500 text-white"
                       : isDone
                         ? "bg-sky-100 text-sky-700"
-                        : "bg-gray-100 text-gray-400"
+                        : "bg-gray-100 text-gray-500"
                   }`}
                 >
                   {isDone && !isActive ? "✓" : i + 1}
@@ -269,7 +269,7 @@ export default function GeneratePage() {
                       ? "font-medium text-gray-900"
                       : isDone
                         ? "text-sky-600"
-                        : "text-gray-400"
+                        : "text-gray-500"
                   }`}
                 >
                   {labels[i]}
@@ -295,9 +295,9 @@ export default function GeneratePage() {
             Select Company
           </h2>
           {loadingCompanies ? (
-            <p className="text-sm text-gray-400">Loading companies...</p>
+            <p className="text-sm text-gray-500">Loading companies...</p>
           ) : companies.length === 0 ? (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-500">
               No companies found. Create one first.
             </p>
           ) : (
@@ -333,15 +333,15 @@ export default function GeneratePage() {
             </h2>
             <button
               onClick={() => setStep("company")}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-gray-500 hover:text-gray-600"
             >
               ← Back
             </button>
           </div>
           {loadingWeeks ? (
-            <p className="text-sm text-gray-400">Loading weeks...</p>
+            <p className="text-sm text-gray-500">Loading weeks...</p>
           ) : weeks.length === 0 ? (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-500">
               No weeks found. Create a week first in the upload section.
             </p>
           ) : (
@@ -391,19 +391,19 @@ export default function GeneratePage() {
             </h2>
             <button
               onClick={() => setStep("week")}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-gray-500 hover:text-gray-600"
             >
               ← Back
             </button>
           </div>
           {loadingTopics ? (
-            <p className="text-sm text-gray-400">Loading topics...</p>
+            <p className="text-sm text-gray-500">Loading topics...</p>
           ) : unusedTopics.length === 0 ? (
             <div className="text-center">
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-gray-500">
                 No unused topics available.
               </p>
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-gray-500">
                 Add topics in{" "}
                 <Link
                   href={`/setup/${selectedCompany?.id}/topic-bank`}
@@ -463,7 +463,7 @@ export default function GeneratePage() {
             </h2>
             <button
               onClick={() => setStep("topic")}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-gray-500 hover:text-gray-600"
             >
               ← Back
             </button>
@@ -597,12 +597,12 @@ export default function GeneratePage() {
                 style={{ width: `${jobStatus?.progress || 5}%` }}
               />
             </div>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               {jobStatus?.progress || 0}% complete
             </p>
           </div>
 
-          <p className="mt-4 text-xs text-gray-400">
+          <p className="mt-4 text-xs text-gray-500">
             This typically takes 15-30 seconds. Do not close this page.
           </p>
         </div>
@@ -677,7 +677,7 @@ export default function GeneratePage() {
                     {job.company?.name || "Unknown"} —{" "}
                     {formatWeekLabel(job.week?.date_start, job.week?.week_number ?? 0)}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-500">
                     {job.job_type.replace(/_/g, " ")} · {new Date(job.created_at).toLocaleString()}
                   </p>
                 </div>

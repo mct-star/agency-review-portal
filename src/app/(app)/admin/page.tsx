@@ -158,7 +158,7 @@ export default function AdminPage() {
             {PLAN_OPTIONS.find((p) => p.value === selectedPlanView)?.features.map((feature, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                 {feature.endsWith(":") ? (
-                  <span className="text-xs font-medium text-gray-400 mt-0.5">{feature}</span>
+                  <span className="text-xs font-medium text-gray-500 mt-0.5">{feature}</span>
                 ) : (
                   <>
                     <svg className="h-4 w-4 shrink-0 text-sky-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -205,7 +205,7 @@ export default function AdminPage() {
                   )}
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{company.name}</p>
-                    <p className="text-[11px] text-gray-400">{company.slug}</p>
+                    <p className="text-[11px] text-gray-500">{company.slug}</p>
                   </div>
                 </div>
 

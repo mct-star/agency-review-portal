@@ -33,7 +33,7 @@ export default function MarketingFooter() {
         </div>
 
         <div className="mt-8 border-t border-gray-200 pt-6">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             &copy; {new Date().getFullYear()} AGENCY Bristol Ltd. All rights reserved.
           </p>
         </div>

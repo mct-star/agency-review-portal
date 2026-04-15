@@ -93,7 +93,7 @@ export default async function CompaniesPage() {
 
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">{company.slug}</span>
+                    <span className="text-xs text-gray-500">{company.slug}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
                       company.plan === "agency"
                         ? "bg-purple-100 text-purple-700"

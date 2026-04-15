@@ -198,7 +198,7 @@ export default function ComplexitySelector({
             {cfg.hidden.length > 0 && (
               <ul className="mt-2 space-y-1">
                 {cfg.hidden.map((feature) => (
-                  <li key={feature} className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                  <li key={feature} className="flex items-center gap-1.5 text-[11px] text-gray-500">
                     <svg
                       className="h-3 w-3 shrink-0 text-gray-300"
                       fill="none"

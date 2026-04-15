@@ -111,7 +111,7 @@ export default function ImageUploader({
               <svg className="mx-auto h-5 w-5 text-gray-300 group-hover:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              <p className="mt-0.5 text-[8px] font-medium text-gray-400 group-hover:text-sky-500">{label}</p>
+              <p className="mt-0.5 text-[8px] font-medium text-gray-500 group-hover:text-sky-500">{label}</p>
             </div>
           </div>
         )}

@@ -236,7 +236,7 @@ function LinkedInCard({
     <div className="w-full max-w-[555px] mx-auto">
       {/* Preview label */}
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
           Post Preview
         </span>
         <span className="text-[10px] text-gray-300">LinkedIn Feed View</span>
@@ -256,14 +256,14 @@ function LinkedInCard({
               <span className="text-sm font-semibold text-gray-900 truncate">
                 {authorName}
               </span>
-              <span className="text-xs text-gray-400 shrink-0">
+              <span className="text-xs text-gray-500 shrink-0">
                 &bull; 1st
               </span>
             </div>
             <p className="text-xs text-gray-500 truncate leading-tight">
               {authorTagline}
             </p>
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
               <span>{timeAgo}</span>
               <span>&bull;</span>
               {/* Globe icon */}
@@ -273,7 +273,7 @@ function LinkedInCard({
             </div>
           </div>
           {/* Three-dot menu */}
-          <button className="shrink-0 p-1 text-gray-400" disabled>
+          <button className="shrink-0 p-1 text-gray-500" disabled>
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="5" r="2" />
               <circle cx="12" cy="12" r="2" />

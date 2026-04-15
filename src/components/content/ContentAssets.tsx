@@ -97,7 +97,7 @@ export default function ContentAssets({ pieceId, isAdmin }: ContentAssetsProps) 
   if (loading) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <p className="text-sm text-gray-400">Loading assets...</p>
+        <p className="text-sm text-gray-500">Loading assets...</p>
       </div>
     );
   }
@@ -108,7 +108,7 @@ export default function ContentAssets({ pieceId, isAdmin }: ContentAssetsProps) 
         <h3 className="mb-2 text-sm font-semibold text-gray-900">
           Content Assets
         </h3>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-500">
           No assets generated yet. Assets are created during the content generation
           process.
         </p>
@@ -151,11 +151,11 @@ export default function ContentAssets({ pieceId, isAdmin }: ContentAssetsProps) 
                   {group.label}
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-gray-500">
                     {groupAssets.length} item{groupAssets.length !== 1 ? "s" : ""}
                   </span>
                   <svg
-                    className={`h-4 w-4 text-gray-400 transition-transform ${
+                    className={`h-4 w-4 text-gray-500 transition-transform ${
                       isExpanded ? "rotate-180" : ""
                     }`}
                     viewBox="0 0 20 20"

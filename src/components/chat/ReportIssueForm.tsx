@@ -177,7 +177,7 @@ export default function ReportIssueForm({ onClose, onSubmitted }: ReportIssueFor
         </div>
 
         {/* Context note */}
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-gray-500">
           We&apos;ll automatically capture your current page, browser, and any error messages.
         </p>
 

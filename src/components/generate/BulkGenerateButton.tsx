@@ -144,7 +144,7 @@ export default function BulkGenerateButton({
               <p className="text-sm font-semibold text-gray-900">
                 Generating {progress + 1} of {slots.length}...
               </p>
-              <span className="text-xs text-gray-400">{Math.round(((progress) / slots.length) * 100)}%</span>
+              <span className="text-xs text-gray-500">{Math.round(((progress) / slots.length) * 100)}%</span>
             </div>
             <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
               <div
@@ -201,7 +201,7 @@ export default function BulkGenerateButton({
       )}
 
       {!done && !generating && (
-        <p className="mt-2 text-center text-[10px] text-gray-400">
+        <p className="mt-2 text-center text-[10px] text-gray-500">
           Creates content for all {slots.length} slots. You can review and edit each post before publishing.
         </p>
       )}

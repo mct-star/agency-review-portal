@@ -225,7 +225,7 @@ export default function UsersPage() {
               className="h-4 w-4 rounded border-gray-300 text-sky-500 focus:ring-sky-400"
             />
             <span className="text-sm text-gray-600">
-              Can post to LinkedIn <span className="text-xs text-gray-400">(grants access to Post section)</span>
+              Can post to LinkedIn <span className="text-xs text-gray-500">(grants access to Post section)</span>
             </span>
           </label>
           <button
@@ -290,7 +290,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     {user.role === "admin" ? (
-                      <span className="text-xs text-gray-400">always</span>
+                      <span className="text-xs text-gray-500">always</span>
                     ) : user.can_publish ? (
                       <span className="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Yes</span>
                     ) : (

@@ -201,7 +201,7 @@ export default function RepurposeForm({ companies, showCompanyPicker, existingAr
             placeholder="Paste your long-form content here (minimum 100 characters)..."
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
           />
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             {sourceText.length} characters
           </p>
         </div>
@@ -316,7 +316,7 @@ export default function RepurposeForm({ companies, showCompanyPicker, existingAr
 
                       {piece.firstComment && isExpanded && (
                         <div className="mt-3 rounded-lg bg-gray-50 p-3">
-                          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">First Comment</p>
+                          <p className="text-[10px] font-semibold text-gray-500 uppercase mb-1">First Comment</p>
                           <p className="text-sm text-gray-600">{piece.firstComment}</p>
                         </div>
                       )}

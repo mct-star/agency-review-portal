@@ -317,7 +317,7 @@ function PiecePopover({
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+        className="absolute top-2 right-2 text-gray-500 hover:text-gray-600"
         aria-label="Close preview"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -764,7 +764,7 @@ export default function ContentCalendar({
         {/* Row 1: Search bar + Recent button */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-md">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -772,12 +772,12 @@ export default function ContentCalendar({
               placeholder="Search posts by title or content..."
               value={searchQuery}
               onChange={(e) => enterSearchMode(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-9 text-sm placeholder:text-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-9 text-sm placeholder:text-gray-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
             {(viewMode === "search" || viewMode === "recent") && (
               <button
                 onClick={exitSearchMode}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
                 aria-label="Clear search"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -873,7 +873,7 @@ export default function ContentCalendar({
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
                 {timezone && (
-                  <p className="text-xs text-gray-400">{timezone}</p>
+                  <p className="text-xs text-gray-500">{timezone}</p>
                 )}
               </div>
             </div>
@@ -999,7 +999,7 @@ export default function ContentCalendar({
             <div className="h-3 w-px bg-gray-200" />
             <div className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 rounded border-2 border-dashed border-gray-300" />
-              <span className="text-[10px] text-gray-400">Scheduled (empty)</span>
+              <span className="text-[10px] text-gray-500">Scheduled (empty)</span>
             </div>
           </>
         )}
@@ -1140,13 +1140,13 @@ function MonthDayCellView({
                 ? "flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-white"
                 : isCurrentMonth
                 ? "text-gray-900"
-                : "text-gray-400"
+                : "text-gray-500"
             }`}
           >
             {date.getDate()}
           </span>
           {week && (
-            <Link href={`/review/${week.id}`} className="text-[9px] text-gray-400 hover:text-violet-600">
+            <Link href={`/review/${week.id}`} className="text-[9px] text-gray-500 hover:text-violet-600">
               {formatWeekLabelShort(week.date_start, week.week_number)}
             </Link>
           )}
@@ -1220,7 +1220,7 @@ function MonthDayCellView({
                 const slug = slot.post_types?.slug || "";
                 router.push(`/generate/quick?postType=${slug}&day=${dayName}`);
               }}
-              className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-400 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
+              className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
             >
               <div className="flex items-center gap-1">
                 <div className="h-1.5 w-1.5 rounded-full border border-gray-300 flex-shrink-0 group-hover:border-violet-400" />
@@ -1271,14 +1271,14 @@ function WeekDayCellView({
               <span className={`text-sm font-semibold ${isToday ? "text-violet-700" : "text-gray-900"}`}>
                 {DAY_NAMES[gridDay]}
               </span>
-              <span className={`text-xs ${isToday ? "text-violet-500" : "text-gray-400"}`}>
+              <span className={`text-xs ${isToday ? "text-violet-500" : "text-gray-500"}`}>
                 {date.getDate()} {MONTH_NAMES[date.getMonth()].slice(0, 3)}
               </span>
             </div>
             {week && (
               <Link
                 href={`/review/${week.id}`}
-                className="text-[10px] text-gray-400 hover:text-violet-600"
+                className="text-[10px] text-gray-500 hover:text-violet-600"
               >
                 {formatWeekLabelShort(week.date_start, week.week_number)}
               </Link>
@@ -1289,7 +1289,7 @@ function WeekDayCellView({
         {/* Content cards */}
         <div className="space-y-2 p-2">
           {pieces.length === 0 && templateSlots.length === 0 && (
-            <p className="py-4 text-center text-xs text-gray-400">No content</p>
+            <p className="py-4 text-center text-xs text-gray-500">No content</p>
           )}
 
           {/* Actual pieces */}
@@ -1351,18 +1351,18 @@ function WeekDayCellView({
               className="w-full text-left rounded-lg border-2 border-dashed border-gray-200 p-2.5 transition-colors hover:border-violet-400 hover:bg-violet-50 cursor-pointer group"
             >
               <div className="flex items-start justify-between gap-1">
-                <span className="text-xs font-medium text-gray-400">
+                <span className="text-xs font-medium text-gray-500">
                   {slot.post_types?.label || slot.slot_label || "Scheduled Post"}
                 </span>
                 <svg className="h-4 w-4 text-gray-300 flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </div>
-              <p className="mt-0.5 text-[10px] text-gray-400">
+              <p className="mt-0.5 text-[10px] text-gray-500">
                 {formatTime(slot.scheduled_time)}
                 {slot.image_archetype ? ` · ${slot.image_archetype.replace(/_/g, " ")}` : ""}
               </p>
-              <p className="mt-1 text-[10px] text-gray-400 italic">Not yet generated</p>
+              <p className="mt-1 text-[10px] text-gray-500 italic">Not yet generated</p>
             </button>
           ))}
         </div>
@@ -1467,7 +1467,7 @@ function SearchResultsView({
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-900 truncate">{piece.title || "Untitled post"}</p>
                 {piece.markdown_body && (
-                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
                     {piece.markdown_body.slice(0, 120).replace(/[#*_\n]/g, " ").trim()}
                   </p>
                 )}
@@ -1475,7 +1475,7 @@ function SearchResultsView({
 
               {/* Week info */}
               {week && (
-                <span className="text-[11px] text-gray-400 flex-shrink-0">
+                <span className="text-[11px] text-gray-500 flex-shrink-0">
                   {formatWeekLabelShort(week.date_start, week.week_number)}
                 </span>
               )}
@@ -1484,7 +1484,7 @@ function SearchResultsView({
               <span className={`text-[11px] font-medium flex-shrink-0 ${
                 piece.approval_status === "approved" ? "text-green-600" :
                 piece.approval_status === "changes_requested" ? "text-amber-600" :
-                "text-gray-400"
+                "text-gray-500"
               }`}>
                 {status.label}
               </span>

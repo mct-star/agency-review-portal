@@ -440,7 +440,7 @@ export default function StrategyInterview({
                       ? "bg-violet-600 text-white"
                       : active
                         ? "bg-white text-violet-700 ring-2 ring-violet-600 shadow-md"
-                        : "bg-gray-100 text-gray-400"
+                        : "bg-gray-100 text-gray-500"
                   }`}
                 >
                   {done ? (
@@ -453,7 +453,7 @@ export default function StrategyInterview({
                 </div>
                 <span
                   className={`mt-1.5 text-[10px] leading-tight text-center hidden sm:block ${
-                    active ? "text-violet-700 font-semibold" : "text-gray-400"
+                    active ? "text-violet-700 font-semibold" : "text-gray-500"
                   }`}
                 >
                   {label}
@@ -547,7 +547,7 @@ export default function StrategyInterview({
                   {personas.length > 1 && (
                     <button
                       onClick={() => removePersona(persona.id)}
-                      className="absolute top-3 right-3 p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="absolute top-3 right-3 p-1 rounded-md text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"
                       aria-label="Remove persona"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -555,7 +555,7 @@ export default function StrategyInterview({
                       </svg>
                     </button>
                   )}
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                     Persona {idx + 1}
                   </p>
                   <div className="space-y-3">
@@ -656,7 +656,7 @@ export default function StrategyInterview({
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Before working with you, your customers...</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Before working with you, your customers...</span>
                     <textarea
                       value={transformBefore}
                       onChange={(e) => setTransformBefore(e.target.value)}
@@ -670,7 +670,7 @@ export default function StrategyInterview({
                         <path d="M5 12h14M12 5l7 7-7 7" />
                       </svg>
                     </div>
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-semibold">After working with you, your customers...</span>
+                    <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">After working with you, your customers...</span>
                     <textarea
                       value={transformAfter}
                       onChange={(e) => setTransformAfter(e.target.value)}
@@ -695,7 +695,7 @@ export default function StrategyInterview({
                   <span className="text-xs text-violet-600 font-semibold">{FORMALITY_LABELS[formality]}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400 w-14 text-right">Casual</span>
+                  <span className="text-xs text-gray-500 w-14 text-right">Casual</span>
                   <input
                     type="range"
                     min={0}
@@ -704,7 +704,7 @@ export default function StrategyInterview({
                     onChange={(e) => setFormality(Number(e.target.value))}
                     className="flex-1 accent-violet-600"
                   />
-                  <span className="text-xs text-gray-400 w-14">Formal</span>
+                  <span className="text-xs text-gray-500 w-14">Formal</span>
                 </div>
               </div>
 
@@ -715,7 +715,7 @@ export default function StrategyInterview({
                   <span className="text-xs text-violet-600 font-semibold">{ENERGY_LABELS[energy]}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400 w-14 text-right">Calm</span>
+                  <span className="text-xs text-gray-500 w-14 text-right">Calm</span>
                   <input
                     type="range"
                     min={0}
@@ -724,7 +724,7 @@ export default function StrategyInterview({
                     onChange={(e) => setEnergy(Number(e.target.value))}
                     className="flex-1 accent-violet-600"
                   />
-                  <span className="text-xs text-gray-400 w-14">Intense</span>
+                  <span className="text-xs text-gray-500 w-14">Intense</span>
                 </div>
               </div>
 
@@ -769,7 +769,7 @@ export default function StrategyInterview({
                   {pillars.length > 3 && (
                     <button
                       onClick={() => removePillar(idx)}
-                      className="absolute top-3 right-3 p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="absolute top-3 right-3 p-1 rounded-md text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"
                       aria-label="Remove pillar"
                     >
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -777,7 +777,7 @@ export default function StrategyInterview({
                       </svg>
                     </button>
                   )}
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                     Pillar {idx + 1}
                   </p>
                   <div className="space-y-3">
@@ -895,7 +895,7 @@ export default function StrategyInterview({
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-gray-900">{pt.label}</span>
                             {pt.weekdayHint && (
-                              <span className="text-[10px] text-gray-400">{pt.weekdayHint}</span>
+                              <span className="text-[10px] text-gray-500">{pt.weekdayHint}</span>
                             )}
                             {suggested && (
                               <span className="text-[10px] bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded font-medium">
@@ -927,7 +927,7 @@ export default function StrategyInterview({
                       <h3 className={`text-sm font-bold ${phase.text}`}>
                         Phase {phaseIdx + 1}: {phase.label}
                       </h3>
-                      <span className="text-xs text-gray-400 ml-auto">
+                      <span className="text-xs text-gray-500 ml-auto">
                         Weeks {startWeek + 1}-{startWeek + 3}
                       </span>
                     </div>
@@ -967,7 +967,7 @@ export default function StrategyInterview({
             <div className="space-y-6">
               {/* Section preview */}
               <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
                   Document sections
                 </p>
                 <ol className="space-y-2">
@@ -1053,7 +1053,7 @@ export default function StrategyInterview({
                 router.push("/home");
               }}
               disabled={saving}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+              className="text-sm text-gray-500 hover:text-gray-600 transition-colors disabled:opacity-50"
             >
               Save & continue later
             </button>
@@ -1071,11 +1071,11 @@ export default function StrategyInterview({
 
           <div className="flex items-center gap-3">
             {saving && (
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5 text-xs text-gray-500">
                 <Spinner /> Saving...
               </span>
             )}
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500">
               Step {currentStep} of 8
             </span>
           </div>
@@ -1147,7 +1147,7 @@ function Field({
     <div>
       <label className={`block font-medium text-gray-700 ${compact ? "text-xs mb-1" : "text-sm mb-1.5"}`}>
         {label}
-        {hint && <span className="ml-1.5 font-normal text-gray-400 text-xs">({hint})</span>}
+        {hint && <span className="ml-1.5 font-normal text-gray-500 text-xs">({hint})</span>}
       </label>
       {children}
     </div>

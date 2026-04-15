@@ -133,7 +133,7 @@ export default async function ContentStudioPage() {
         <div className="lg:col-span-2 space-y-4">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-base font-bold text-gray-900">Posting Schedule</h2>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               {hasSchedule
                 ? `${slots!.length} posting slot${slots!.length !== 1 ? "s" : ""} configured. Generate content for each slot.`
                 : "No schedule configured yet."}
@@ -208,7 +208,7 @@ export default async function ContentStudioPage() {
         <div className="space-y-4">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="text-base font-bold text-gray-900">Topic Ideas</h2>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               {hasTopics
                 ? `${topics!.length} unused topics from your strategy.`
                 : "No topics configured."}
@@ -224,7 +224,7 @@ export default async function ContentStudioPage() {
                   >
                     <span className="font-medium">{t.topic}</span>
                     {(t.pillar || t.theme) && (
-                      <span className="ml-2 text-[10px] text-gray-400">
+                      <span className="ml-2 text-[10px] text-gray-500">
                         {[t.pillar, t.theme].filter(Boolean).join(" / ")}
                       </span>
                     )}
@@ -233,7 +233,7 @@ export default async function ContentStudioPage() {
               </div>
             ) : (
               <div className="mt-4 text-center">
-                <p className="text-xs text-gray-400">Upload your content strategy to get topic suggestions.</p>
+                <p className="text-xs text-gray-500">Upload your content strategy to get topic suggestions.</p>
                 <Link
                   href={`/setup/${companyId}/topics`}
                   className="mt-2 inline-block text-xs font-medium text-violet-600"
@@ -246,7 +246,7 @@ export default async function ContentStudioPage() {
 
           {/* Quick links */}
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase text-gray-400 mb-3">Quick Links</h3>
+            <h3 className="text-xs font-semibold uppercase text-gray-500 mb-3">Quick Links</h3>
             <div className="space-y-1">
               <Link href="/calendar" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>

@@ -186,7 +186,7 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
                   ? "bg-green-500 text-white"
                   : s.n === step
                   ? "bg-violet-600 text-white shadow-md shadow-violet-200"
-                  : "bg-gray-100 text-gray-400"
+                  : "bg-gray-100 text-gray-500"
               }`}
             >
               {s.n < step ? (
@@ -199,7 +199,7 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
             </div>
             <span
               className={`text-xs font-medium ${
-                s.n === step ? "text-gray-900" : "text-gray-400"
+                s.n === step ? "text-gray-900" : "text-gray-500"
               }`}
             >
               {s.label}
@@ -253,7 +253,7 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
               placeholder="https://linkedin.com/in/yourname"
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
-            <p className="mt-1 text-xs text-gray-400">We'll pull your photo and tagline automatically</p>
+            <p className="mt-1 text-xs text-gray-500">We'll pull your photo and tagline automatically</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -331,12 +331,12 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
               placeholder="https://linkedin.com/in/yourname"
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
             />
-            <p className="mt-1 text-xs text-gray-400">We'll read your recent posts to learn your style</p>
+            <p className="mt-1 text-xs text-gray-500">We'll read your recent posts to learn your style</p>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400 font-medium">OR</span>
+            <span className="text-xs text-gray-500 font-medium">OR</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 

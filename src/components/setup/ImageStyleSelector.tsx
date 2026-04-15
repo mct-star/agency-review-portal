@@ -126,7 +126,7 @@ export default function ImageStyleSelector({
 
       {categories.map((cat) => (
         <div key={cat}>
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
             {CATEGORY_LABELS[cat] || cat}
           </h4>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -184,7 +184,7 @@ export default function ImageStyleSelector({
       ))}
 
       <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           {selected.length === 0
             ? "No styles selected — all styles will be available"
             : `${selected.length} style${selected.length !== 1 ? "s" : ""} selected`}

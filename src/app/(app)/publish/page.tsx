@@ -349,7 +349,7 @@ export default function PublishPage() {
               <div>
                 <p className="text-sm font-medium text-gray-900">Connected as {linkedInAccount.account_name}</p>
                 {linkedInAccount.token_expires_at && (
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-500">
                     Token expires {new Date(linkedInAccount.token_expires_at).toLocaleDateString()}
                   </p>
                 )}
@@ -442,13 +442,13 @@ export default function PublishPage() {
                     Standalone Posts Ready for Publishing
                   </h2>
                   {loading ? (
-                    <p className="text-sm text-gray-400">Loading...</p>
+                    <p className="text-sm text-gray-500">Loading...</p>
                   ) : singlePieces.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
                       <p className="text-sm text-gray-500">
                         No standalone posts awaiting publish.
                       </p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-500">
                         Create one in Quick Generate.
                       </p>
                     </div>
@@ -472,14 +472,14 @@ export default function PublishPage() {
                 <div className="space-y-4">
                   {loading ? (
                     <div className="rounded-lg border border-gray-200 bg-white p-6">
-                      <p className="text-sm text-gray-400">Loading...</p>
+                      <p className="text-sm text-gray-500">Loading...</p>
                     </div>
                   ) : weekList.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
                       <p className="text-sm text-gray-500">
                         No week batches ready to publish.
                       </p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-500">
                         Plan a week in Content Studio.
                       </p>
                     </div>
@@ -507,7 +507,7 @@ export default function PublishPage() {
                             </div>
 
                             {(week.date_start || week.date_end) && (
-                              <div className="mt-2 text-xs text-gray-400">
+                              <div className="mt-2 text-xs text-gray-500">
                                 {week.date_start} — {week.date_end}
                               </div>
                             )}
@@ -577,14 +577,14 @@ export default function PublishPage() {
                 <div className="space-y-4">
                   {loading ? (
                     <div className="rounded-lg border border-gray-200 bg-white p-6">
-                      <p className="text-sm text-gray-400">Loading...</p>
+                      <p className="text-sm text-gray-500">Loading...</p>
                     </div>
                   ) : monthList.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
                       <p className="text-sm text-gray-500">
                         No monthly plans yet.
                       </p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-500">
                         Month batch is coming soon.
                       </p>
                     </div>
@@ -666,19 +666,19 @@ export default function PublishPage() {
                 </h2>
                 <button
                   onClick={fetchData}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  className="text-xs text-gray-500 hover:text-gray-600"
                 >
                   Refresh
                 </button>
               </div>
               {loadingJobs ? (
-                <p className="text-sm text-gray-400">Loading...</p>
+                <p className="text-sm text-gray-500">Loading...</p>
               ) : jobs.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
                   <p className="text-sm text-gray-500">
                     No publishing jobs yet.
                   </p>
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-gray-500">
                     Queue approved content from the &quot;Ready to Publish&quot; tab.
                   </p>
                 </div>

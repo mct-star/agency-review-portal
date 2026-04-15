@@ -346,7 +346,7 @@ export default function VideoProductionPage() {
                   disabled={isDisabled || stepStatus.status === "running"}
                   className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                     isDisabled || stepStatus.status === "running"
-                      ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                      ? "cursor-not-allowed bg-gray-100 text-gray-500"
                       : stepStatus.status === "done"
                       ? "bg-green-100 text-green-700 hover:bg-green-200"
                       : "bg-sky-600 text-white hover:bg-sky-700"
@@ -397,7 +397,7 @@ export default function VideoProductionPage() {
                 </div>
                 <p className="mt-1 text-sm text-gray-700">{s.description}</p>
                 {s.suggestedPrompt && (
-                  <p className="mt-1 text-xs text-gray-400 italic">
+                  <p className="mt-1 text-xs text-gray-500 italic">
                     Prompt: {s.suggestedPrompt}
                   </p>
                 )}

@@ -431,7 +431,7 @@ export default function VoiceToPostPage({
               <p className="text-base text-gray-600">
                 Tap to record.
               </p>
-              <p className="mt-1 text-sm text-gray-400">
+              <p className="mt-1 text-sm text-gray-500">
                 Talk about what happened today, what you are thinking, or what you noticed.
               </p>
               <p className="mt-2 text-xs text-gray-300">
@@ -461,7 +461,7 @@ export default function VoiceToPostPage({
           <p className="text-base font-medium text-gray-700">
             Turning your voice into a post...
           </p>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             Transcribing and writing. This takes a few seconds.
           </p>
           <style>{`
@@ -478,7 +478,7 @@ export default function VoiceToPostPage({
         <div className="space-y-4">
           {/* LinkedIn Preview */}
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               Preview
             </p>
             {editing ? (
@@ -530,7 +530,7 @@ export default function VoiceToPostPage({
             >
               <span>Original transcription</span>
               <svg
-                className={`h-4 w-4 text-gray-400 transition-transform ${showTranscript ? "rotate-180" : ""}`}
+                className={`h-4 w-4 text-gray-500 transition-transform ${showTranscript ? "rotate-180" : ""}`}
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -607,7 +607,7 @@ export default function VoiceToPostPage({
           </div>
 
           {/* Post type badge */}
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
             <span>Auto-detected type:</span>
             <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-600 font-medium">
               {result.postType.replace(/_/g, " ")}

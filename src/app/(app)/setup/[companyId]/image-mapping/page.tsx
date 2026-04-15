@@ -49,7 +49,7 @@ function StylePreview({ style, color }: { style: string; color?: string }) {
   if (!imageStyle) {
     return (
       <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
-        <span className="text-gray-400 text-xs">?</span>
+        <span className="text-gray-500 text-xs">?</span>
       </div>
     );
   }
@@ -59,7 +59,7 @@ function StylePreview({ style, color }: { style: string; color?: string }) {
   if (style === "real_photo") {
     return (
       <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
-        <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <svg className="h-5 w-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11z" />
           <circle cx="12" cy="13" r="4" />
         </svg>
@@ -130,7 +130,7 @@ export default function ImageMappingPage() {
   }
 
   if (loading) {
-    return <div className="text-center text-sm text-gray-400 py-12">Loading...</div>;
+    return <div className="text-center text-sm text-gray-500 py-12">Loading...</div>;
   }
 
   if (slots.length === 0) {
@@ -189,19 +189,19 @@ export default function ImageMappingPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Day
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Post Type
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Image Style
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Config
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 w-16">
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 w-16">
                   Preview
                 </th>
               </tr>
@@ -225,7 +225,7 @@ export default function ImageMappingPage() {
                               {DAY_NAMES[Number(day)] || `Day ${day}`}
                             </span>
                           ) : (
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gray-500">
                               {DAY_NAMES[Number(day)] || ""}
                             </span>
                           )}
@@ -238,7 +238,7 @@ export default function ImageMappingPage() {
                               {slot.slot_label || slot.post_types?.label || "—"}
                             </p>
                             {slot.post_types?.slug && (
-                              <p className="text-xs text-gray-400">{slot.post_types.slug}</p>
+                              <p className="text-xs text-gray-500">{slot.post_types.slug}</p>
                             )}
                           </div>
                         </td>
@@ -302,11 +302,11 @@ export default function ImageMappingPage() {
                                   characterDescription: e.target.value,
                                 })
                               }
-                              className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                              className="w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 placeholder:text-gray-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                             />
                           )}
                           {!isQuoteCard && !is3D && selectedStyle && (
-                            <span className="text-xs text-gray-400">No config needed</span>
+                            <span className="text-xs text-gray-500">No config needed</span>
                           )}
                           {!selectedStyle && (
                             <span className="text-xs text-gray-300">-</span>
@@ -339,7 +339,7 @@ export default function ImageMappingPage() {
 
       {/* Style legend */}
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
           Available Styles
         </h3>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -351,7 +351,7 @@ export default function ImageMappingPage() {
               />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-gray-700 truncate">{style.name}</p>
-                <p className="text-[10px] text-gray-400 truncate">{style.category}</p>
+                <p className="text-[10px] text-gray-500 truncate">{style.category}</p>
               </div>
             </div>
           ))}
@@ -360,7 +360,7 @@ export default function ImageMappingPage() {
 
       {/* Save button */}
       <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-500">
           {Object.keys(mapping).length} of {slots.length} slots configured
         </p>
         <button

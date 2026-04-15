@@ -149,7 +149,7 @@ export default function OverlayPreview({
 
       {/* Explanation */}
       <div className="border-t border-gray-100 px-5 py-3">
-        <p className="text-[11px] text-gray-400 leading-relaxed">
+        <p className="text-[11px] text-gray-500 leading-relaxed">
           The overlay adds your brand colour gradient bar, circular headshot, spokesperson name,
           follow CTA, and company logo to every image. You can also upload a custom transparent
           PNG mask to override this auto-generated overlay.

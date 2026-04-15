@@ -106,7 +106,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
           </div>
           <div>
             <dt className="text-xs font-medium uppercase text-gray-500">ID</dt>
-            <dd className="mt-1 font-mono text-xs text-gray-400">
+            <dd className="mt-1 font-mono text-xs text-gray-500">
               {company.id}
             </dd>
           </div>

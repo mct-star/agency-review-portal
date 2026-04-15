@@ -43,7 +43,7 @@ function Gauge({ value, max, label, color, sublabel }: { value: number; max: num
         </div>
       </div>
       <p className="mt-2 text-sm font-medium text-gray-700">{label}</p>
-      {sublabel && <p className="text-xs text-gray-400">{sublabel}</p>}
+      {sublabel && <p className="text-xs text-gray-500">{sublabel}</p>}
     </div>
   );
 }
@@ -140,7 +140,7 @@ function SetupItem({ done, label, href }: { done: boolean; label: string; href: 
           </svg>
         )}
       </div>
-      <span className={done ? "text-gray-400 line-through" : "text-gray-700"}>{label}</span>
+      <span className={done ? "text-gray-500 line-through" : "text-gray-700"}>{label}</span>
       {!done && (
         <svg className="ml-auto h-4 w-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 5l7 7-7 7" />
@@ -507,7 +507,7 @@ export default async function DashboardPage({
             </span>
           )}
           {company && (
-            <Link href={`/setup/${company.id}`} className="rounded-lg border border-gray-200 px-2.5 py-1 text-[10px] font-medium text-gray-400 hover:bg-gray-50">
+            <Link href={`/setup/${company.id}`} className="rounded-lg border border-gray-200 px-2.5 py-1 text-[10px] font-medium text-gray-500 hover:bg-gray-50">
               Settings
             </Link>
           )}
@@ -545,7 +545,7 @@ export default async function DashboardPage({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">Quick Generate</p>
-            <p className="text-[11px] text-gray-400">Create a post in 30 seconds</p>
+            <p className="text-[11px] text-gray-500">Create a post in 30 seconds</p>
           </div>
         </Link>
         <Link
@@ -557,7 +557,7 @@ export default async function DashboardPage({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">Content Studio</p>
-            <p className="text-[11px] text-gray-400">Plan a full week or month</p>
+            <p className="text-[11px] text-gray-500">Plan a full week or month</p>
           </div>
         </Link>
         <Link
@@ -574,7 +574,7 @@ export default async function DashboardPage({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">Review Content</p>
-            <p className="text-[11px] text-gray-400">{pendingCount > 0 ? `${pendingCount} pending` : "All caught up"}</p>
+            <p className="text-[11px] text-gray-500">{pendingCount > 0 ? `${pendingCount} pending` : "All caught up"}</p>
           </div>
         </Link>
       </div>
@@ -647,7 +647,7 @@ export default async function DashboardPage({
                   style={{ borderColor: brandColor + "40", backgroundColor: brandColor + "08" }}
                 >
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Next step</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Next step</p>
                     <p className="mt-0.5 text-sm font-semibold text-gray-900">{nextStep.label}</p>
                   </div>
                   <span className="text-sm font-medium" style={{ color: brandColor }}>
@@ -800,7 +800,7 @@ export default async function DashboardPage({
               const isToday = idx === ((now.getDay() + 6) % 7); // Adjust for Mon=0
               return (
                 <div key={day} className="min-h-[80px]">
-                  <p className={`mb-2 text-center text-xs font-semibold uppercase tracking-wide ${isToday ? "text-gray-900" : "text-gray-400"}`}>
+                  <p className={`mb-2 text-center text-xs font-semibold uppercase tracking-wide ${isToday ? "text-gray-900" : "text-gray-500"}`}>
                     {day}
                     {isToday && <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ backgroundColor: brandColor }} />}
                   </p>
@@ -931,7 +931,7 @@ function WeekCard({
             <p className="truncate text-sm font-semibold text-gray-900">
               {week.title || formatWeekLabel(week.date_start, week.week_number)}
             </p>
-            <p className="mt-0.5 text-xs text-gray-400">
+            <p className="mt-0.5 text-xs text-gray-500">
               {week.subject || (week.theme ? `Theme: ${week.theme}` : `${week.date_start} - ${week.date_end}`)}
               {isAdmin && week.company && ` · ${week.company.name}`}
             </p>
@@ -959,7 +959,7 @@ function WeekCard({
       {/* Approval progress bar */}
       {weekTotal > 0 && (
         <div className="mt-3">
-          <div className="flex items-center justify-between text-xs text-gray-400">
+          <div className="flex items-center justify-between text-xs text-gray-500">
             <span>
               {weekApproved}/{weekTotal} approved
             </span>

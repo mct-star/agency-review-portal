@@ -86,12 +86,12 @@ export default function SignoffsPage() {
             </button>
           </div>
           <div className="mt-2 rounded-md bg-gray-50 p-3">
-            <p className="text-xs font-medium uppercase text-gray-400">Sign-off Text</p>
+            <p className="text-xs font-medium uppercase text-gray-500">Sign-off Text</p>
             <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{s.signoff_text}</p>
           </div>
           {s.first_comment_template && (
             <div className="mt-2 rounded-md bg-gray-50 p-3">
-              <p className="text-xs font-medium uppercase text-gray-400">First Comment Template</p>
+              <p className="text-xs font-medium uppercase text-gray-500">First Comment Template</p>
               <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{s.first_comment_template}</p>
             </div>
           )}

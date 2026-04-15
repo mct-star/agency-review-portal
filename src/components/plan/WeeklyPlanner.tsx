@@ -194,7 +194,7 @@ export default function WeeklyPlanner({
           </div>
         </div>
         {saving && (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
             <div className="h-3 w-3 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
             Saving...
           </div>
@@ -280,7 +280,7 @@ export default function WeeklyPlanner({
                           <p className="text-xs font-medium leading-tight text-gray-900">
                             {info?.label || dbType?.label || "Unknown"}
                           </p>
-                          <p className="mt-0.5 text-[10px] text-gray-400">
+                          <p className="mt-0.5 text-[10px] text-gray-500">
                             {formatTime(slot.scheduled_time)}
                           </p>
                         </div>
@@ -288,7 +288,7 @@ export default function WeeklyPlanner({
 
                       {/* Ecosystem role */}
                       {info?.ecosystemRole && (
-                        <p className="mt-1.5 text-[10px] leading-snug text-gray-400">
+                        <p className="mt-1.5 text-[10px] leading-snug text-gray-500">
                           {info.ecosystemRole}
                         </p>
                       )}
@@ -305,7 +305,7 @@ export default function WeeklyPlanner({
                   className={`w-full rounded-lg border border-dashed p-2.5 text-center text-xs font-medium transition-colors ${
                     addingToDay === dayIndex
                       ? "border-blue-400 bg-blue-50 text-blue-600"
-                      : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-500"
                   } disabled:opacity-50`}
                 >
                   + Add slot
@@ -325,7 +325,7 @@ export default function WeeklyPlanner({
             </h3>
             <button
               onClick={() => setAddingToDay(null)}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-gray-500 hover:text-gray-600"
             >
               Cancel
             </button>
@@ -359,7 +359,7 @@ export default function WeeklyPlanner({
                       {pt.ecosystemRole}
                     </p>
                     {pt.weekdayHint && (
-                      <p className="mt-1 text-[10px] text-gray-400">
+                      <p className="mt-1 text-[10px] text-gray-500">
                         Suggested: {pt.weekdayHint}
                       </p>
                     )}
@@ -394,7 +394,7 @@ export default function WeeklyPlanner({
               />
               <div>
                 <p className="text-xs font-medium text-gray-800">{pt.label}</p>
-                <p className="text-[10px] text-gray-400">
+                <p className="text-[10px] text-gray-500">
                   {pt.weekdayHint ? `${pt.weekdayHint} ` : ""}
                   {pt.description}
                 </p>

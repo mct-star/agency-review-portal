@@ -123,7 +123,7 @@ export default function PersonContentSetup({
       <div>
         <Link
           href="/setup/content"
-          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-sm text-gray-500 hover:text-gray-600 transition-colors"
         >
           &larr; Back to Content Setup
         </Link>
@@ -360,7 +360,7 @@ function PersonVoiceTab({
           Create Personal Voice Profile
         </button>
         {linkedinUrl && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             LinkedIn profile available for voice scanning: {linkedinUrl}
           </p>
         )}
@@ -503,7 +503,7 @@ function PersonTopicsTab({
   if (topics.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-500">
           No topics in the company topic bank yet.
         </p>
       </div>
@@ -553,7 +553,7 @@ function PersonTopicsTab({
         {saved && (
           <span className="text-sm text-green-600">Saved successfully</span>
         )}
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-gray-500">
           {selectedTopicIds.length} of {topics.length} selected
         </span>
       </div>
@@ -680,7 +680,7 @@ function PersonScheduleTab({
             setScheduleJson("");
             setHasOverride(false);
           }}
-          className="text-sm text-gray-400 hover:text-gray-600"
+          className="text-sm text-gray-500 hover:text-gray-600"
         >
           Revert to company default
         </button>
@@ -803,7 +803,7 @@ function PersonSignoffsTab({
             setSignoffTemplate("");
             setHasOverride(false);
           }}
-          className="text-sm text-gray-400 hover:text-gray-600"
+          className="text-sm text-gray-500 hover:text-gray-600"
         >
           Revert to company default
         </button>

@@ -235,7 +235,7 @@ export default function SocialAccountsPage() {
                       </div>
                     ))
                   ) : (
-                    <p className="mt-1 text-xs text-gray-400">Not connected</p>
+                    <p className="mt-1 text-xs text-gray-500">Not connected</p>
                   )}
                 </div>
               </div>
@@ -245,7 +245,7 @@ export default function SocialAccountsPage() {
       </div>
 
       {loading && (
-        <p className="text-center text-sm text-gray-400">Loading...</p>
+        <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
   );

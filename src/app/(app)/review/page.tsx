@@ -143,7 +143,7 @@ export default async function WeeksPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-900">
               Individual Posts
-              <span className="ml-2 text-sm font-normal text-gray-400">{individualPosts.length}</span>
+              <span className="ml-2 text-sm font-normal text-gray-500">{individualPosts.length}</span>
             </h2>
           </div>
           <div className="space-y-2">
@@ -166,13 +166,13 @@ export default async function WeeksPage() {
                 {/* Title + preview */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{post.title || "Untitled post"}</p>
-                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
                     {post.markdown_body?.slice(0, 80).replace(/[#*_\n]/g, " ").trim() || ""}
                   </p>
                 </div>
 
                 {/* Date */}
-                <span className="text-xs text-gray-400 flex-shrink-0">
+                <span className="text-xs text-gray-500 flex-shrink-0">
                   {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                 </span>
 
@@ -201,7 +201,7 @@ export default async function WeeksPage() {
             <div className="mb-4 flex items-baseline justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Upcoming Weeks</h2>
               {upcomingWeeks.length > 0 && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-500">
                   {upcomingWeeks.length} {upcomingWeeks.length === 1 ? "week" : "weeks"}
                 </span>
               )}
@@ -236,7 +236,7 @@ export default async function WeeksPage() {
             <section>
               <div className="mb-4 flex items-baseline justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">Past Weeks</h2>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-500">
                   {pastWeeks.length} {pastWeeks.length === 1 ? "week" : "weeks"}
                 </span>
               </div>
@@ -303,7 +303,7 @@ function WeekCard({
                     className="h-3.5 w-3.5 rounded-full object-cover flex-shrink-0"
                   />
                 ) : null}
-                <span className="truncate text-xs text-gray-400">
+                <span className="truncate text-xs text-gray-500">
                   {company.spokesperson_name}
                 </span>
               </div>
@@ -327,7 +327,7 @@ function WeekCard({
         </div>
 
         {/* Dates */}
-        <div className="mt-3 text-xs text-gray-400">
+        <div className="mt-3 text-xs text-gray-500">
           {week.date_start} — {week.date_end}
         </div>
 

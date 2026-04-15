@@ -127,7 +127,7 @@ export default function LinkedInPreview({
               </span>
             </div>
             <p className="text-xs text-gray-500 line-clamp-1">{authorTagline}</p>
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
               <span>Just now</span>
               <span>·</span>
               <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
@@ -138,7 +138,7 @@ export default function LinkedInPreview({
           </div>
 
           {/* More icon */}
-          <button className="mt-1 text-gray-400">
+          <button className="mt-1 text-gray-500">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="5" cy="12" r="2" />
               <circle cx="12" cy="12" r="2" />
@@ -204,7 +204,7 @@ export default function LinkedInPreview({
               <svg className="mx-auto h-8 w-8 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
               </svg>
-              <p className="mt-1 text-xs text-gray-400">Image will be generated</p>
+              <p className="mt-1 text-xs text-gray-500">Image will be generated</p>
             </div>
           </div>
         )}
@@ -268,13 +268,13 @@ export default function LinkedInPreview({
               <div className="rounded-xl bg-gray-50 px-3 py-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-semibold text-gray-900">{authorName}</span>
-                  <span className="text-[10px] text-gray-400">Author</span>
+                  <span className="text-[10px] text-gray-500">Author</span>
                 </div>
                 <p className="mt-1 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
                   {firstComment}
                 </p>
               </div>
-              <div className="mt-1 flex items-center gap-3 px-1 text-[10px] text-gray-400">
+              <div className="mt-1 flex items-center gap-3 px-1 text-[10px] text-gray-500">
                 <span>Just now</span>
                 <button className="font-semibold hover:text-gray-600">Like</button>
                 <button className="font-semibold hover:text-gray-600">Reply</button>

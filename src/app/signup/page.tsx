@@ -60,7 +60,7 @@ export default function SignupPage() {
           <p className="mt-2 text-sm text-gray-500">
             7 days of full Pro access. No credit card required.
           </p>
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs text-gray-500">
             You have the expertise. We give you the time to share it.
           </p>
         </div>
@@ -77,7 +77,7 @@ export default function SignupPage() {
                 Click it to activate your trial.
               </p>
             </div>
-            <p className="text-center text-xs text-gray-400">
+            <p className="text-center text-xs text-gray-500">
               Didn&apos;t receive it? Check your spam folder or{" "}
               <button
                 onClick={() => { setSent(false); setError(null); }}
@@ -111,7 +111,7 @@ export default function SignupPage() {
 
             <div className="relative my-1">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-              <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] text-gray-400">or sign up with email</span></div>
+              <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] text-gray-500">or sign up with email</span></div>
             </div>
 
             <form onSubmit={handleSignup} className="space-y-4">

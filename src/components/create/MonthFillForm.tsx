@@ -507,7 +507,7 @@ function StepIndicator({ label, status }: { label: string; status: "pending" | "
       {status === "pending" && (
         <span className="h-2 w-2 rounded-full bg-gray-300" />
       )}
-      <span className={status === "active" ? "font-medium text-violet-700" : status === "complete" ? "text-violet-600" : "text-gray-400"}>
+      <span className={status === "active" ? "font-medium text-violet-700" : status === "complete" ? "text-violet-600" : "text-gray-500"}>
         {label}
       </span>
     </span>

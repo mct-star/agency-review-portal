@@ -417,14 +417,14 @@ export default function BatchGeneratePage() {
                     ? "bg-purple-500 text-white"
                     : isDone
                       ? "bg-purple-100 text-purple-700"
-                      : "bg-gray-100 text-gray-400"
+                      : "bg-gray-100 text-gray-500"
                 }`}
               >
                 {isDone && !isActive ? "\u2713" : i + 1}
               </span>
               <span
                 className={`hidden sm:inline ${
-                  isActive ? "font-medium text-gray-900" : isDone ? "text-purple-600" : "text-gray-400"
+                  isActive ? "font-medium text-gray-900" : isDone ? "text-purple-600" : "text-gray-500"
                 }`}
               >
                 {labels[i]}
@@ -445,7 +445,7 @@ export default function BatchGeneratePage() {
         <div className="rounded-lg border border-gray-200 bg-white p-6">
           <h2 className="mb-4 text-sm font-semibold text-gray-900">Select Company</h2>
           {loadingCompanies ? (
-            <p className="text-sm text-gray-400">Loading...</p>
+            <p className="text-sm text-gray-500">Loading...</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {companies.map((company) => (
@@ -475,14 +475,14 @@ export default function BatchGeneratePage() {
             <h2 className="text-sm font-semibold text-gray-900">
               Select Week for {selectedCompany?.name}
             </h2>
-            <button onClick={() => setStep("company")} className="text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => setStep("company")} className="text-xs text-gray-500 hover:text-gray-600">
               &larr; Back
             </button>
           </div>
           {loadingWeeks || loadingSlots ? (
-            <p className="text-sm text-gray-400">Loading...</p>
+            <p className="text-sm text-gray-500">Loading...</p>
           ) : weeks.length === 0 ? (
-            <p className="text-sm text-gray-400">No weeks found. Create one first.</p>
+            <p className="text-sm text-gray-500">No weeks found. Create one first.</p>
           ) : (
             <>
               {slots.length === 0 && (
@@ -559,7 +559,7 @@ export default function BatchGeneratePage() {
                 >
                   Auto-Assign
                 </button>
-                <button onClick={() => setStep("week")} className="text-xs text-gray-400 hover:text-gray-600">
+                <button onClick={() => setStep("week")} className="text-xs text-gray-500 hover:text-gray-600">
                   &larr; Back
                 </button>
               </div>
@@ -648,7 +648,7 @@ export default function BatchGeneratePage() {
                                 />
                               </div>
                             ) : (
-                              <p className="mt-2 text-[10px] italic text-gray-400">
+                              <p className="mt-2 text-[10px] italic text-gray-500">
                                 Click a topic from the bank to assign
                               </p>
                             )}
@@ -703,10 +703,10 @@ export default function BatchGeneratePage() {
                           </p>
                           <div className="flex gap-1">
                             {topic.pillar && (
-                              <span className="text-[10px] text-gray-400">{topic.pillar}</span>
+                              <span className="text-[10px] text-gray-500">{topic.pillar}</span>
                             )}
                             {topic.audience_theme && (
-                              <span className="text-[10px] text-gray-400">
+                              <span className="text-[10px] text-gray-500">
                                 \u00b7 {topic.audience_theme}
                               </span>
                             )}
@@ -745,7 +745,7 @@ export default function BatchGeneratePage() {
                   Select platforms to auto-generate adapted versions after content creation.
                 </p>
               </div>
-              <button onClick={() => setStep("assign")} className="text-xs text-gray-400 hover:text-gray-600">
+              <button onClick={() => setStep("assign")} className="text-xs text-gray-500 hover:text-gray-600">
                 &larr; Back
               </button>
             </div>
@@ -862,7 +862,7 @@ export default function BatchGeneratePage() {
                         {pt?.label || pt?.content_type?.replace("_", " ") || "social post"}
                       </span>
                       {slot && (
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-[10px] text-gray-500">
                           {formatTime(slot.scheduled_time)}
                         </span>
                       )}

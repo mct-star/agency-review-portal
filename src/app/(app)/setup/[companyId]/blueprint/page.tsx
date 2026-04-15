@@ -122,7 +122,7 @@ export default function BlueprintPage() {
             full markdown document here.
           </p>
           {activeBlueprint && (
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-500">
               Version {activeBlueprint.version} · Last updated{" "}
               {new Date(activeBlueprint.updated_at).toLocaleDateString()}
             </p>
@@ -187,7 +187,7 @@ export default function BlueprintPage() {
           <p className="text-sm text-gray-500">
             No blueprint configured for this company yet.
           </p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="mt-1 text-xs text-gray-500">
             The blueprint is the master document that drives all content
             generation.
           </p>
@@ -226,7 +226,7 @@ export default function BlueprintPage() {
       )}
 
       {loading && (
-        <p className="text-center text-sm text-gray-400">Loading...</p>
+        <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
   );

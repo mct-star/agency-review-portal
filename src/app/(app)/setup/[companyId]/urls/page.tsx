@@ -100,11 +100,11 @@ export default function UrlsPage() {
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${config.color} ${config.bgColor} border`}>
                 {config.label}
               </span>
-              <span className="text-xs text-gray-400">{config.description}</span>
+              <span className="text-xs text-gray-500">{config.description}</span>
             </div>
             {tierUrls.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-200 p-3 mb-3">
-                <p className="text-xs text-gray-400 text-center">No {tier} CTAs configured</p>
+                <p className="text-xs text-gray-500 text-center">No {tier} CTAs configured</p>
               </div>
             ) : (
               <div className="space-y-1.5 mb-3">

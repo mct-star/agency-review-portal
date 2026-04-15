@@ -18,7 +18,7 @@ function timeAgo(dateStr: string): string {
 export default function CommentThread({ comments }: CommentThreadProps) {
   if (comments.length === 0) {
     return (
-      <p className="mb-4 text-sm text-gray-400">No comments yet.</p>
+      <p className="mb-4 text-sm text-gray-500">No comments yet.</p>
     );
   }
 
@@ -36,7 +36,7 @@ export default function CommentThread({ comments }: CommentThreadProps) {
               <span className="text-sm font-medium text-gray-900">
                 {comment.user?.full_name || comment.user?.email}
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 {timeAgo(comment.created_at)}
               </span>
             </div>

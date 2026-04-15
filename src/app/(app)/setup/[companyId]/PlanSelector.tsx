@@ -52,7 +52,7 @@ export default function PlanSelector({ companyId, currentPlan }: PlanSelectorPro
         ))}
       </select>
       <svg
-        className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400"
+        className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

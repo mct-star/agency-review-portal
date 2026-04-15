@@ -36,7 +36,7 @@ export default function ReviewFilters() {
       {/* Search */}
       <div className="relative">
         <svg
-          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+          className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

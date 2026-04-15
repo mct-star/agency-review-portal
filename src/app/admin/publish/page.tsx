@@ -200,13 +200,13 @@ export default function PublishPage() {
                 Approved Content Ready for Publishing
               </h2>
               {loading ? (
-                <p className="text-sm text-gray-400">Loading...</p>
+                <p className="text-sm text-gray-500">Loading...</p>
               ) : pieces.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
                   <p className="text-sm text-gray-500">
                     No approved content pieces found.
                   </p>
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-gray-500">
                     Content needs to be approved before it can be published.
                   </p>
                 </div>
@@ -288,19 +288,19 @@ export default function PublishPage() {
                 </h2>
                 <button
                   onClick={fetchData}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  className="text-xs text-gray-500 hover:text-gray-600"
                 >
                   Refresh
                 </button>
               </div>
               {loadingJobs ? (
-                <p className="text-sm text-gray-400">Loading...</p>
+                <p className="text-sm text-gray-500">Loading...</p>
               ) : jobs.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
                   <p className="text-sm text-gray-500">
                     No publishing jobs yet.
                   </p>
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-gray-500">
                     Queue approved content from the &quot;Ready to Publish&quot; tab.
                   </p>
                 </div>

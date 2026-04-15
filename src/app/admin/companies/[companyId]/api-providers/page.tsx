@@ -283,7 +283,7 @@ export default function ApiProvidersPage() {
                       placeholder="Enter API key..."
                       className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-gray-500">
                       Leave blank to keep existing credentials
                     </p>
                   </div>
@@ -323,7 +323,7 @@ export default function ApiProvidersPage() {
       </div>
 
       {loading && (
-        <p className="text-center text-sm text-gray-400">Loading...</p>
+        <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
 
       {/* ===== Provider Routing Matrix ===== */}
@@ -431,7 +431,7 @@ function ProviderRoutingMatrix({ companyId }: { companyId: string }) {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-gray-400">{style.cost}</td>
+                <td className="px-4 py-2.5 text-gray-500">{style.cost}</td>
                 <td className="px-4 py-2.5">
                   <select
                     value={routing[style.slug] || "auto"}
@@ -464,7 +464,7 @@ function ProviderRoutingMatrix({ companyId }: { companyId: string }) {
         )}
       </div>
 
-      <p className="mt-2 text-[10px] text-gray-400">
+      <p className="mt-2 text-[10px] text-gray-500">
         Auto routing uses Gemini for photography (free), fal.ai for Cinematic 3D (£0.04), and programmatic for text-based images (free).
       </p>
     </div>

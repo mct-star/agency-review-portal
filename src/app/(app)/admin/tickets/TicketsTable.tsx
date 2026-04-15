@@ -131,7 +131,7 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
                     <span className="px-4 py-3 w-[100px] text-gray-500 text-xs">
                       {formatDate(ticket.created_at)}
                     </span>
-                    <span className="px-4 py-3 w-[140px] text-gray-400 text-xs truncate">
+                    <span className="px-4 py-3 w-[140px] text-gray-500 text-xs truncate">
                       {ticket.page_url ? new URL(ticket.page_url).pathname : "-"}
                     </span>
                   </button>

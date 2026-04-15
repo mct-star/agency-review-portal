@@ -154,7 +154,7 @@ export default function CompanyDetailsEditor({
             <option value="energy">Energy / Sustainability</option>
             <option value="other">Other</option>
           </select>
-          <p className="mt-1 text-[10px] text-gray-400">
+          <p className="mt-1 text-[10px] text-gray-500">
             Shapes content context, scene quotes, and compliance frameworks.
           </p>
         </div>
@@ -189,7 +189,7 @@ export default function CompanyDetailsEditor({
               style={{ backgroundColor: brandColor }}
             />
           </div>
-          <p className="mt-1 text-[10px] text-gray-400">
+          <p className="mt-1 text-[10px] text-gray-500">
             Used as the default colour for quote cards and carousels. Set per-post-type colours in{" "}
             <a href={`/setup/${companyId}/image-mapping`} className="text-violet-600 underline">Image Mapping</a>.
           </p>
@@ -200,7 +200,7 @@ export default function CompanyDetailsEditor({
       <div>
         <label className="mb-2 block text-xs font-medium text-gray-600">
           Brand Colour Palette
-          <span className="ml-1 font-normal text-gray-400">(used for quote cards, carousels, accents)</span>
+          <span className="ml-1 font-normal text-gray-500">(used for quote cards, carousels, accents)</span>
         </label>
         <div className="flex flex-wrap items-center gap-2">
           {brandPalette.map((color, i) => (
@@ -217,7 +217,7 @@ export default function CompanyDetailsEditor({
               >
                 x
               </button>
-              <span className="mt-0.5 block text-center text-[9px] font-mono text-gray-400">{color}</span>
+              <span className="mt-0.5 block text-center text-[9px] font-mono text-gray-500">{color}</span>
             </div>
           ))}
           {brandPalette.length < 8 && (
@@ -242,12 +242,12 @@ export default function CompanyDetailsEditor({
           )}
         </div>
         {brandPalette.length === 0 && (
-          <p className="mt-2 text-[10px] text-gray-400">
+          <p className="mt-2 text-[10px] text-gray-500">
             No palette colours set. Quote cards will use vibrant defaults. Add your brand colours for on-brand cards.
           </p>
         )}
         {brandPalette.length > 0 && (
-          <p className="mt-2 text-[10px] text-gray-400">
+          <p className="mt-2 text-[10px] text-gray-500">
             {brandPalette.length} colour{brandPalette.length !== 1 ? "s" : ""} in palette. These are assigned to post types automatically (or manually in Image Mapping).
           </p>
         )}

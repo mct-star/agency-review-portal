@@ -133,7 +133,7 @@ function SetupItem({ done, label, href }: { done: boolean; label: string; href: 
           </svg>
         )}
       </div>
-      <span className={done ? "text-gray-400 line-through" : "text-gray-700"}>{label}</span>
+      <span className={done ? "text-gray-500 line-through" : "text-gray-700"}>{label}</span>
       {!done && (
         <svg className="ml-auto h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 5l7 7-7 7" />
@@ -468,11 +468,11 @@ export default async function ComplianceDashboardPage() {
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-3xl font-bold text-gray-400">{pending.length}</p>
+                <p className="text-3xl font-bold text-gray-500">{pending.length}</p>
                 <p className="mt-1 text-sm text-gray-500">Awaiting Review</p>
               </div>
               <div className="rounded-lg bg-gray-50 p-2">
-                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg className="h-5 w-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10a1 1 0 0 1-.3.7l-3 3-1.4-1.4L11 11.58V6h2v6Z" />
                 </svg>
               </div>
@@ -509,13 +509,13 @@ export default async function ComplianceDashboardPage() {
               currentFramework={activeFramework}
               autoReview={currentCompany?.auto_regulatory_review ?? false}
             />
-            <p className="mt-2 text-xs text-gray-400">
+            <p className="mt-2 text-xs text-gray-500">
               Choose the framework that matches your industry. ABPI for UK pharma. MHRA for medical devices.
               FDA for US markets. FCA for financial services. Each framework has specific rules your content will be checked against.
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-400 uppercase tracking-wider">Current</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Current</p>
             <p className="text-sm font-medium text-slate-800">{FRAMEWORK_LABELS[activeFramework] || activeFramework}</p>
           </div>
         </div>
@@ -576,7 +576,7 @@ export default async function ComplianceDashboardPage() {
                       </span>
                       <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400 ml-[calc(1.5rem+0.5rem)]">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 ml-[calc(1.5rem+0.5rem)]">
                       <span>{contentTypeLabels[piece.content_type] || piece.content_type}</span>
                       <span>&#183;</span>
                       <span>{new Date(piece.created_at).toLocaleDateString()}</span>
@@ -633,7 +633,7 @@ export default async function ComplianceDashboardPage() {
                         </span>
                         <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-400 ml-[calc(1.5rem+0.5rem)]">
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500 ml-[calc(1.5rem+0.5rem)]">
                         <span>{contentTypeLabels[piece.content_type] || piece.content_type}</span>
                         <span>&#183;</span>
                         <span>{piece.regulatory_reviewed_at ? new Date(piece.regulatory_reviewed_at).toLocaleDateString() : ""}</span>
@@ -675,7 +675,7 @@ export default async function ComplianceDashboardPage() {
                   <span className="inline-block h-3 w-3 rounded-full bg-green-500" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-gray-900">{piece.title}</p>
-                    <p className="text-xs text-gray-400">{contentTypeLabels[piece.content_type] || piece.content_type}</p>
+                    <p className="text-xs text-gray-500">{contentTypeLabels[piece.content_type] || piece.content_type}</p>
                   </div>
                 </div>
                 {piece.regulatory_score != null && (

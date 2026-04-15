@@ -47,7 +47,7 @@ export default function BrandContentSetup({
         <div>
           <Link
             href="/setup/content"
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-600 transition-colors"
           >
             &larr; Back to Content Setup
           </Link>
@@ -255,7 +255,7 @@ function VoiceTab({ companyId }: { companyId: string }) {
           placeholder="e.g. authoritative, warm, pragmatic, direct"
           className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
         />
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Comma-separated keywords that define your tone
         </p>
       </div>
@@ -342,7 +342,7 @@ function TopicsTab({ companyId }: { companyId: string }) {
 
       {topics.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-          <p className="text-sm text-gray-400">No topics configured yet.</p>
+          <p className="text-sm text-gray-500">No topics configured yet.</p>
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -452,7 +452,7 @@ function ScheduleTab({ companyId }: { companyId: string }) {
 
       {slots.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             No posting schedule configured yet.
           </p>
         </div>
@@ -540,7 +540,7 @@ function SignoffsTab({ companyId }: { companyId: string }) {
     <div className="space-y-4">
       {signoffs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-gray-500">
             No sign-offs configured yet.
           </p>
         </div>

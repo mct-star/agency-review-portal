@@ -173,7 +173,7 @@ export default function RotatingQuote() {
                   {quote.author}
                 </p>
                 {quote.role && (
-                  <p className="text-xs italic text-gray-400">{quote.role}</p>
+                  <p className="text-xs italic text-gray-500">{quote.role}</p>
                 )}
               </div>
             </div>

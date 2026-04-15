@@ -125,7 +125,7 @@ export default function UploadPage() {
         {[1, 2, 3].map((s) => (
           <div
             key={s}
-            className={`flex items-center gap-2 ${step >= s ? "text-sky-600" : "text-gray-400"}`}
+            className={`flex items-center gap-2 ${step >= s ? "text-sky-600" : "text-gray-500"}`}
           >
             <span
               className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
@@ -259,7 +259,7 @@ export default function UploadPage() {
                   className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3"
                 >
                   <div>
-                    <span className="text-xs font-medium uppercase text-gray-400">
+                    <span className="text-xs font-medium uppercase text-gray-500">
                       {contentTypeLabels[piece.content_type]}
                     </span>
                     <p className="text-sm font-medium text-gray-900">

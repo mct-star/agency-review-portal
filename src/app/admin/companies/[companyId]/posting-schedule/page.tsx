@@ -247,7 +247,7 @@ export default function PostingSchedulePage() {
           <div className="flex items-center gap-3">
             <Link
               href={`/admin/companies/${companyId}`}
-              className="text-sm text-gray-400 hover:text-gray-600"
+              className="text-sm text-gray-500 hover:text-gray-600"
             >
               &larr; {companyName}
             </Link>
@@ -283,7 +283,7 @@ export default function PostingSchedulePage() {
               <div className="border-b border-gray-100 px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-900">{dayName}</span>
-                  <span className="text-[10px] text-gray-400">{daySlots.length}</span>
+                  <span className="text-[10px] text-gray-500">{daySlots.length}</span>
                 </div>
               </div>
 
@@ -314,13 +314,13 @@ export default function PostingSchedulePage() {
                           {formatTime(slot.scheduled_time)}
                         </span>
                         {slot.image_archetype && (
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-gray-500">
                             {slot.image_archetype.replace("_", " ")}
                           </span>
                         )}
                       </div>
                       {pt?.word_count_min && pt?.word_count_max && (
-                        <p className="mt-0.5 text-[10px] text-gray-400">
+                        <p className="mt-0.5 text-[10px] text-gray-500">
                           {pt.word_count_min}-{pt.word_count_max} words
                         </p>
                       )}
@@ -334,7 +334,7 @@ export default function PostingSchedulePage() {
                   className={`w-full rounded-md border border-dashed p-2 text-center text-xs transition-colors ${
                     addingToDay === dayIndex
                       ? "border-sky-400 bg-sky-50 text-sky-700"
-                      : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-600"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-600"
                   }`}
                 >
                   + Add
@@ -354,7 +354,7 @@ export default function PostingSchedulePage() {
             </h2>
             <button
               onClick={() => setAddingToDay(null)}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-xs text-gray-500 hover:text-gray-600"
             >
               Cancel
             </button>
@@ -372,12 +372,12 @@ export default function PostingSchedulePage() {
                 <p className="text-xs font-medium text-gray-900">{pt.label}</p>
                 <div className="mt-1 flex items-center gap-2">
                   {pt.word_count_min && pt.word_count_max && (
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-gray-500">
                       {pt.word_count_min}-{pt.word_count_max}w
                     </span>
                   )}
                   {pt.default_image_archetype && (
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-gray-500">
                       {pt.default_image_archetype.replace("_", " ")}
                     </span>
                   )}
@@ -396,7 +396,7 @@ export default function PostingSchedulePage() {
                 className="rounded-md border border-gray-200 bg-white p-3 text-left transition-colors hover:border-sky-300 hover:bg-sky-50/50"
               >
                 <p className="text-xs font-medium text-gray-900">{pt.label}</p>
-                <span className="text-[10px] text-gray-400">
+                <span className="text-[10px] text-gray-500">
                   {pt.content_type.replace("_", " ")}
                   {pt.word_count_min && pt.word_count_max
                     ? ` · ${pt.word_count_min}-${pt.word_count_max}w`
@@ -428,7 +428,7 @@ export default function PostingSchedulePage() {
               )}
               <button
                 onClick={() => setEditingSlot(null)}
-                className="text-xs text-gray-400 hover:text-gray-600"
+                className="text-xs text-gray-500 hover:text-gray-600"
               >
                 Cancel
               </button>

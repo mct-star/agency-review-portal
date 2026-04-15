@@ -203,7 +203,7 @@ export default function QuickStrategySetup({
               <p className="text-xs text-gray-500">Tell us about your business or paste URLs to get started</p>
             </div>
           </div>
-          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </div>
@@ -218,7 +218,7 @@ export default function QuickStrategySetup({
           {/* Collapse button */}
           <button
             onClick={() => setIsExpanded(false)}
-            className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+            className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-600 transition-colors"
             title="Collapse"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -306,21 +306,21 @@ export default function QuickStrategySetup({
 
                 {voiceAnalysis.companyDescription && (
                   <div>
-                    <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">Company</h4>
+                    <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">Company</h4>
                     <p className="text-sm text-gray-700">{voiceAnalysis.companyDescription}</p>
                   </div>
                 )}
 
                 {voiceAnalysis.targetAudience && (
                   <div>
-                    <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">Target Audience</h4>
+                    <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">Target Audience</h4>
                     <p className="text-sm text-gray-700">{voiceAnalysis.targetAudience}</p>
                   </div>
                 )}
 
                 {voiceAnalysis.differentiators && voiceAnalysis.differentiators.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">Differentiators</h4>
+                    <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">Differentiators</h4>
                     <ul className="list-disc list-inside space-y-0.5">
                       {voiceAnalysis.differentiators.map((d, i) => (
                         <li key={i} className="text-sm text-gray-700">{d}</li>
@@ -331,7 +331,7 @@ export default function QuickStrategySetup({
 
                 {voiceAnalysis.voiceCharacteristics && (
                   <div>
-                    <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">Voice Profile</h4>
+                    <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">Voice Profile</h4>
                     <div className="flex flex-wrap gap-2">
                       <span className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700">
                         {voiceAnalysis.voiceCharacteristics.formality}
@@ -351,7 +351,7 @@ export default function QuickStrategySetup({
 
                 {voiceAnalysis.suggestedTopics && voiceAnalysis.suggestedTopics.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">
+                    <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">
                       Suggested Topics ({voiceAnalysis.suggestedTopics.length})
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
@@ -366,7 +366,7 @@ export default function QuickStrategySetup({
 
                 {voiceAnalysis.keyVocabulary && voiceAnalysis.keyVocabulary.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-semibold uppercase text-gray-400 mb-1">Key Vocabulary</h4>
+                    <h4 className="text-xs font-semibold uppercase text-gray-500 mb-1">Key Vocabulary</h4>
                     <div className="flex flex-wrap gap-1.5">
                       {voiceAnalysis.keyVocabulary.map((w, i) => (
                         <span key={i} className="inline-flex items-center rounded-full bg-gray-50 border border-gray-200 px-2 py-0.5 text-xs text-gray-600">
@@ -419,7 +419,7 @@ export default function QuickStrategySetup({
                     placeholder="Tell us about your business"
                     className="justify-center"
                   />
-                  <p className="mt-2 text-xs text-gray-400">
+                  <p className="mt-2 text-xs text-gray-500">
                     Tell us about your company, what you do, who you help, and what makes you different
                   </p>
                 </div>
@@ -437,7 +437,7 @@ export default function QuickStrategySetup({
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
                         placeholder="Your transcribed text will appear here..."
                       />
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-1 text-xs text-gray-500">
                         Review and edit before analysing. You can also record again to add more.
                       </p>
                     </div>
@@ -481,7 +481,7 @@ export default function QuickStrategySetup({
                 placeholder="https://linkedin.com/in/yourname or https://linkedin.com/company/yourcompany"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
-              <p className="mt-1 text-xs text-gray-400">We&apos;ll extract your name, photo, tagline, and company</p>
+              <p className="mt-1 text-xs text-gray-500">We&apos;ll extract your name, photo, tagline, and company</p>
             </div>
 
             <div>
@@ -495,7 +495,7 @@ export default function QuickStrategySetup({
                 placeholder="https://yourcompany.com"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
               />
-              <p className="mt-1 text-xs text-gray-400">We&apos;ll detect your logo, brand colours, and company description</p>
+              <p className="mt-1 text-xs text-gray-500">We&apos;ll detect your logo, brand colours, and company description</p>
             </div>
 
             {error && (
@@ -517,7 +517,7 @@ export default function QuickStrategySetup({
               )}
             </button>
 
-            <p className="text-center text-xs text-gray-400">
+            <p className="text-center text-xs text-gray-500">
               You can always edit everything afterwards
             </p>
           </div>

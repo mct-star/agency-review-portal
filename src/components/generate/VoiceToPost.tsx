@@ -292,7 +292,7 @@ export default function VoiceToPost({ onTranscript, disabled = false }: VoiceToP
           <p className="text-sm text-gray-800 leading-relaxed">
             {transcript}
             {interimText && (
-              <span className="text-gray-400 italic">{" "}{interimText}</span>
+              <span className="text-gray-500 italic">{" "}{interimText}</span>
             )}
           </p>
         </div>

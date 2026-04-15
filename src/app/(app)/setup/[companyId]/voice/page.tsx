@@ -105,7 +105,7 @@ export default function VoiceProfilePage() {
                   {person.profile_picture_url ? (
                     <img src={person.profile_picture_url} alt={person.name} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-sm font-bold text-gray-400">
+                    <div className="flex h-full w-full items-center justify-center bg-gray-100 text-sm font-bold text-gray-500">
                       {initials}
                     </div>
                   )}
@@ -136,7 +136,7 @@ export default function VoiceProfilePage() {
                       </span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">Not configured</span>
+                    <span className="text-xs text-gray-500">Not configured</span>
                   )}
                 </div>
 
@@ -157,7 +157,7 @@ export default function VoiceProfilePage() {
       )}
 
       <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
-        <p className="text-[11px] text-gray-400 leading-relaxed">
+        <p className="text-[11px] text-gray-500 leading-relaxed">
           Voice profiles define how content sounds when written in someone&apos;s name. Each person can have
           their own voice description, writing samples, signature devices, and banned vocabulary. During
           content generation, the selected spokesperson&apos;s voice profile is injected into the AI prompt

@@ -31,7 +31,7 @@ export default function ContinueCard() {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-900">Continue: {activity.label}</p>
-            <p className="text-xs text-gray-400">{timeLabel}</p>
+            <p className="text-xs text-gray-500">{timeLabel}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -43,7 +43,7 @@ export default function ContinueCard() {
           </Link>
           <button
             onClick={() => { clearLastActivity(); setActivity(null); }}
-            className="rounded-lg px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:text-gray-600 transition-colors"
           >
             Dismiss
           </button>

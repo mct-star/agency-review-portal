@@ -363,7 +363,7 @@ export default function GenerateActions({
           {/* Social Platforms */}
           {platformGroups.social.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Social
               </p>
               <div className="flex flex-wrap gap-2">
@@ -422,7 +422,7 @@ export default function GenerateActions({
           {/* Content Platforms */}
           {platformGroups.content.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Content / Newsletter
               </p>
               <div className="flex flex-wrap gap-2">
@@ -451,7 +451,7 @@ export default function GenerateActions({
           {/* Video Platforms */}
           {platformGroups.video.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Video
               </p>
               <div className="flex flex-wrap gap-2">

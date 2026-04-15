@@ -259,17 +259,17 @@ export default async function HomePage() {
             <div className="flex items-center gap-6">
               <div className="text-center">
                 <p className="text-lg font-bold text-gray-900">{thisWeekCount}</p>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider">Created this week</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Created this week</p>
               </div>
               <div className="h-8 w-px bg-gray-200" />
               <div className="text-center">
                 <p className="text-lg font-bold text-emerald-600">{approvedNotPublished}</p>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider">Ready to publish</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Ready to publish</p>
               </div>
               <div className="h-8 w-px bg-gray-200" />
               <div className="text-center">
                 <p className="text-lg font-bold text-amber-600">{totalPendingUnits}</p>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider">Awaiting review</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider">Awaiting review</p>
               </div>
             </div>
           </div>
@@ -280,7 +280,7 @@ export default async function HomePage() {
       <div className="text-center">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-400 transition-colors hover:text-gray-600"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-600"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
             <path d="M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5ZM4 15a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4Z" />

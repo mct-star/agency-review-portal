@@ -141,7 +141,7 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
                 <div className="text-xs font-bold tracking-widest text-gray-900" style={{ fontFamily: "system-ui" }}>
                   AGENCY
                 </div>
-                <span className="text-[9px] text-gray-400 tracking-wide">CONTENT PLATFORM</span>
+                <span className="text-[9px] text-gray-500 tracking-wide">CONTENT PLATFORM</span>
               </div>
             </div>
 
@@ -184,19 +184,19 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
             {/* Meta information grid */}
             <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 sm:grid-cols-4 text-xs">
               <div>
-                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Content Type</span>
+                <span className="text-gray-500 uppercase tracking-wider text-[10px]">Content Type</span>
                 <p className="mt-0.5 font-medium text-gray-700">{contentTypeLabels[piece.content_type] || piece.content_type}</p>
               </div>
               <div>
-                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Framework</span>
+                <span className="text-gray-500 uppercase tracking-wider text-[10px]">Framework</span>
                 <p className="mt-0.5 font-medium text-gray-700">{frameworkLabels[framework] || framework}</p>
               </div>
               <div>
-                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Created</span>
+                <span className="text-gray-500 uppercase tracking-wider text-[10px]">Created</span>
                 <p className="mt-0.5 font-medium text-gray-700">{new Date(piece.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
               </div>
               <div>
-                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Reviewed</span>
+                <span className="text-gray-500 uppercase tracking-wider text-[10px]">Reviewed</span>
                 <p className="mt-0.5 font-medium text-gray-700">
                   {piece.regulatory_reviewed_at
                     ? new Date(piece.regulatory_reviewed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
@@ -205,24 +205,24 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
               </div>
               {spokesperson && (
                 <div>
-                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Spokesperson</span>
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Spokesperson</span>
                   <p className="mt-0.5 font-medium text-gray-700">{spokesperson.name}</p>
                 </div>
               )}
               {piece.post_type && (
                 <div>
-                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Post Type</span>
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Post Type</span>
                   <p className="mt-0.5 font-medium text-gray-700">{piece.post_type}</p>
                 </div>
               )}
               {piece.day_of_week && (
                 <div>
-                  <span className="text-gray-400 uppercase tracking-wider text-[10px]">Scheduled</span>
+                  <span className="text-gray-500 uppercase tracking-wider text-[10px]">Scheduled</span>
                   <p className="mt-0.5 font-medium text-gray-700">{piece.day_of_week} {piece.scheduled_time || ""}</p>
                 </div>
               )}
               <div>
-                <span className="text-gray-400 uppercase tracking-wider text-[10px]">Company</span>
+                <span className="text-gray-500 uppercase tracking-wider text-[10px]">Company</span>
                 <p className="mt-0.5 font-medium text-gray-700">{company?.name || "—"}</p>
               </div>
             </div>
@@ -285,15 +285,15 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
               <p className="text-xs font-semibold text-gray-600">
                 Regulatory Compliance Report
               </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
+              <p className="text-[10px] text-gray-500 mt-0.5">
                 {company?.name} | {frameworkLabels[framework] || framework} | Score: {review?.overallScore ?? "N/A"}/100
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-gray-500">
                 Generated {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
               </p>
-              <p className="text-[10px] text-gray-400">
+              <p className="text-[10px] text-gray-500">
                 Report ID: {pieceId.slice(0, 8)}
               </p>
             </div>
@@ -301,9 +301,9 @@ export default async function ComplianceDetailPage({ params }: PageProps) {
           <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold tracking-widest text-gray-500">AGENCY</span>
-              <span className="text-[9px] text-gray-400">Content Platform</span>
+              <span className="text-[9px] text-gray-500">Content Platform</span>
             </div>
-            <p className="text-[9px] text-gray-400 italic">
+            <p className="text-[9px] text-gray-500 italic">
               This report is generated by automated compliance analysis and should be reviewed by qualified regulatory personnel before final approval.
             </p>
           </div>

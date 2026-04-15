@@ -19,7 +19,7 @@ export default function PostShowcase() {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">Jessica Hughes</p>
-              <p className="text-xs text-gray-400">VP Commercial, MedTech Innovations</p>
+              <p className="text-xs text-gray-500">VP Commercial, MedTech Innovations</p>
             </div>
           </div>
 
@@ -66,9 +66,9 @@ export default function PostShowcase() {
                 <span className="inline-block h-4 w-4 rounded-full bg-red-400" />
                 <span className="inline-block h-4 w-4 rounded-full bg-green-400" />
               </div>
-              <span className="text-xs text-gray-400 ml-1">47</span>
+              <span className="text-xs text-gray-500 ml-1">47</span>
             </div>
-            <span className="text-xs text-gray-400">12 comments</span>
+            <span className="text-xs text-gray-500">12 comments</span>
           </div>
 
           {/* First comment */}
@@ -78,7 +78,7 @@ export default function PostShowcase() {
                 JH
               </div>
               <div>
-                <p className="text-xs font-semibold text-gray-700">Jessica Hughes <span className="font-normal text-gray-400">&#183; Author</span></p>
+                <p className="text-xs font-semibold text-gray-700">Jessica Hughes <span className="font-normal text-gray-500">&#183; Author</span></p>
                 <p className="text-xs text-gray-600 mt-0.5">
                   Want the framework we used? I put together a guide on building pre-launch demand. Grab it here &#x2192; <span className="text-blue-600">medtechinnovations.com/demand-guide</span>
                 </p>

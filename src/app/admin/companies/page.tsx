@@ -61,7 +61,7 @@ export default async function CompaniesPage() {
                 <td className="px-4 py-3 text-right">
                   <Link
                     href={`/admin/companies/${company.id}/api-providers`}
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="text-xs text-gray-500 hover:text-gray-600"
                   >
                     Configure →
                   </Link>
