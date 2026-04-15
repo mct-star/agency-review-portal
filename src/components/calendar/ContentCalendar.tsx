@@ -416,7 +416,7 @@ function MorePiecesPopover({
             <DraggablePill piece={piece}>
               <button
                 onClick={() => setExpandedPieceId(expandedPieceId === piece.id ? null : piece.id)}
-                className={`w-full text-left rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${statusBg}`}
+                className={`w-full text-left rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate text-gray-900 ${statusBg}`}
                 style={{ borderLeft: `3px solid ${colors.accent}` }}
                 title={piece.title}
               >
@@ -1018,7 +1018,7 @@ function DragOverlayPill({ piece }: { piece: CalendarPiece }) {
 
   return (
     <div
-      className={`rounded px-2 py-1 text-[11px] font-medium shadow-lg ${statusBg}`}
+      className={`rounded px-2 py-1 text-[11px] font-medium shadow-lg text-gray-900 ${statusBg}`}
       style={{ borderLeft: `3px solid ${colors.accent}`, width: 160 }}
     >
       <div className="flex items-center gap-1">
