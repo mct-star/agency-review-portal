@@ -167,11 +167,13 @@ function buildSections(user: User): NavSection[] {
 
 // ── Phase colours ────────────────────────────────────────────
 
+// Phase label colours tuned for WCAG AA contrast at 10px text.
+// text-*-600 shades (3.0-3.6:1) fail; -700/-800 give ≥4.5:1 on white.
 const PHASE_COLORS: Record<number, { dot: string; active: string; label: string }> = {
-  1: { dot: "bg-violet-500", active: "bg-violet-50 text-violet-700", label: "text-violet-600" },
-  2: { dot: "bg-blue-500", active: "bg-blue-50 text-blue-700", label: "text-blue-600" },
-  3: { dot: "bg-amber-500", active: "bg-amber-50 text-amber-700", label: "text-amber-600" },
-  4: { dot: "bg-emerald-500", active: "bg-emerald-50 text-emerald-700", label: "text-emerald-600" },
+  1: { dot: "bg-violet-500", active: "bg-violet-50 text-violet-700", label: "text-violet-700" },
+  2: { dot: "bg-blue-500", active: "bg-blue-50 text-blue-700", label: "text-blue-700" },
+  3: { dot: "bg-amber-500", active: "bg-amber-50 text-amber-700", label: "text-amber-800" },
+  4: { dot: "bg-emerald-500", active: "bg-emerald-50 text-emerald-700", label: "text-emerald-700" },
 };
 
 // ── SVG icon paths ───────────────────────────────────────────
@@ -250,7 +252,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
         ) : (
           <div>
             <h2 className="text-sm font-bold text-gray-900">AGENCY</h2>
-            <p className="text-[10px] text-gray-400">Content Platform</p>
+            <p className="text-[10px] text-gray-600">Content Platform</p>
           </div>
         )}
       </div>

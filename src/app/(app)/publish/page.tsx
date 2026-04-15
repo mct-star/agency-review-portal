@@ -326,6 +326,7 @@ export default function PublishPage() {
         <select
           value={selectedCompanyId}
           onChange={(e) => setSelectedCompanyId(e.target.value)}
+          aria-label="Select company"
           className="w-full max-w-xs rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-sky-300 focus:outline-none focus:ring-1 focus:ring-sky-300"
         >
           <option value="">Choose a company...</option>

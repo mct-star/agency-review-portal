@@ -780,6 +780,7 @@ export default function QuickGenerate({
                       setSelectedPersonId(null);
                     }
                   }}
+                  aria-label="Select company"
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 >
                   {companies.map((c) => (
@@ -795,6 +796,7 @@ export default function QuickGenerate({
                   <select
                     value={selectedPerson?.id || ""}
                     onChange={(e) => setSelectedPersonId(e.target.value || null)}
+                    aria-label="Select spokesperson"
                     className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                   >
                     {companyPeople.map((p) => (
@@ -825,6 +827,7 @@ export default function QuickGenerate({
                     setSelectedPersonId(e.target.value);
                   }
                 }}
+                aria-label="Posting as"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
               >
                 <optgroup label="Brand Page">

@@ -831,6 +831,7 @@ export default function ContentCalendar({
                     const c = companies.find((co) => co.id === e.target.value);
                     if (c) setSelectedCompany(c);
                   }}
+                  aria-label="Select company"
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 >
                   {companies.map((c) => (

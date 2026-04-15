@@ -29,3 +29,13 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# quality sweep artifacts
+tests/.auth/
+test-results/
+playwright-report/
+sweep-results/
+
+# Local data dumps and env backups (not part of codebase)
+data/monday_export/
+.env.local.backup.*
