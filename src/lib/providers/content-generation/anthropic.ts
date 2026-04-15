@@ -48,6 +48,13 @@ interface AnthropicResponse {
   usage: { input_tokens: number; output_tokens: number };
 }
 
+/**
+ * Delegates to the shared 4-tier fallback callClaude in claude-util.
+ * Signature-compatible wrapper: takes messages array (first message's content is the user prompt).
+ * All content generation now flows through the fallback chain.
+ */
+import { callClaude as callWithFallback } from "../content-adaptation/claude-util";
+
 async function callClaude(
   apiKey: string,
   model: string,
@@ -55,30 +62,8 @@ async function callClaude(
   messages: AnthropicMessage[],
   maxTokens: number = 4096
 ): Promise<string> {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system,
-      messages,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Anthropic API error (${res.status}): ${err}`);
-  }
-
-  const data: AnthropicResponse = await res.json();
-  const textBlock = data.content.find((c) => c.type === "text");
-  if (!textBlock) throw new Error("No text content in Anthropic response");
-  return textBlock.text;
+  const userMessage = messages.find((m) => m.role === "user")?.content || "Generate now.";
+  return callWithFallback(apiKey, model, system, userMessage, maxTokens);
 }
 
 // ── Content Type Instructions ───────────────────────────────
@@ -502,41 +487,15 @@ export function createClaudeContentProvider(
     async generate(input: ContentGenerationInput): Promise<ContentGenerationOutput> {
       const system = buildContentPrompt(input);
 
-      // Try Claude first, fall back to Gemini if it fails
-      let text: string;
-      try {
-        text = await callClaude(
-          apiKey,
-          model,
-          system,
-          [{ role: "user", content: "Generate the content now." }],
-          8192
-        );
-      } catch (claudeErr) {
-        console.error("[ContentProvider] Claude failed, trying Gemini fallback:", claudeErr);
-        const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-        if (!geminiKey) throw claudeErr; // No Gemini key, re-throw original error
-
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${geminiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: system }] },
-              contents: [{ parts: [{ text: "Generate the content now." }] }],
-              generationConfig: { maxOutputTokens: 8192, temperature: 0.7 },
-            }),
-          }
-        );
-        if (!geminiRes.ok) {
-          throw new Error(`Gemini fallback also failed (${geminiRes.status}): ${await geminiRes.text()}`);
-        }
-        const geminiData = await geminiRes.json();
-        text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        if (!text) throw new Error("Gemini returned empty response");
-        console.log("[ContentProvider] Successfully fell back to Gemini");
-      }
+      // The local callClaude now delegates to the 4-tier fallback chain in claude-util
+      // (Claude → Gemini 2.5 Pro → Gemini 2.5 Flash → OpenAI GPT-4o).
+      const text = await callClaude(
+        apiKey,
+        model,
+        system,
+        [{ role: "user", content: "Generate the content now." }],
+        8192
+      );
 
       // Parse JSON response — strip any markdown fences if present
       const cleaned = text
