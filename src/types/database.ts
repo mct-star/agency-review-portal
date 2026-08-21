@@ -8,6 +8,16 @@ export type WeekStatus =
   | "ready_for_review"
   | "approved"
   | "changes_requested";
+
+// Week Board run-state axis. Deliberately separate from WeekStatus
+// above, which is editorial review status and is untouched by the
+// Week Board.
+export type WeekRunState =
+  | "idle"
+  | "queued"
+  | "running"
+  | "failed"
+  | "complete";
 export type ApprovalStatus = "pending" | "approved" | "changes_requested";
 export type ContentType =
   | "social_post"
@@ -123,7 +133,8 @@ export type GenerationJobType =
   | "video_rendering"
   | "transcription"
   | "pdf_generation"
-  | "platform_adaptation";
+  | "platform_adaptation"
+  | "weekly_production";
 
 export type JobStatus =
   | "queued"
@@ -223,6 +234,11 @@ export interface Week {
   theme: string | null;
   subject: string | null;
   status: WeekStatus;
+  run_state: WeekRunState;
+  current_job_id: string | null;
+  current_phase: string | null;
+  last_error: string | null;
+  last_run_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -397,7 +413,15 @@ export interface ContentGenerationJob {
   started_at: string | null;
   completed_at: string | null;
   triggered_by: string | null;
+  heartbeat_at: string | null;
+  lease_expires_at: string | null;
+  worker_id: string | null;
+  attempt: number;
+  max_attempts: number;
+  run_id: string | null;
+  priority: number;
   created_at: string;
+  updated_at: string | null;
 }
 
 export interface PublishingJob {

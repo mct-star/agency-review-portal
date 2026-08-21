@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import { useRouter } from "next/navigation";
 import type { User } from "@/types/database";
 
@@ -105,6 +106,9 @@ function buildSections(user: User): NavSection[] {
           { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
           { href: "/admin/tickets", label: "Support Tickets", icon: "shield", adminOnly: true },
           { href: "/users", label: "Users", icon: "users", adminOnly: true },
+          ...(isWeekBoardEnabled()
+            ? [{ href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true } as NavItem]
+            : []),
         ],
       },
     ];
