@@ -7,6 +7,7 @@
  * Usage:
  *   node scripts/seed-agency-bristol.mjs                       # seed everything except API key
  *   node scripts/seed-agency-bristol.mjs --anthropic-key sk-... # also configure Anthropic
+ *   node scripts/seed-agency-bristol.mjs --blueprint <path>     # override the blueprint source file
  *
  * What it does:
  *   1. Finds the AGENCY Bristol company (from seed data)
@@ -69,9 +70,14 @@ function encryptJson(data) {
 
 const args = process.argv.slice(2);
 let anthropicKey = null;
+let blueprintPathArg = null;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--anthropic-key" && args[i + 1]) {
     anthropicKey = args[i + 1];
+    i++;
+  }
+  if (args[i] === "--blueprint" && args[i + 1]) {
+    blueprintPathArg = args[i + 1];
     i++;
   }
 }
@@ -99,9 +105,11 @@ async function main() {
 
   // 2. Upload Blueprint
   console.log("\n2. Uploading Company Blueprint...");
-  const blueprintPath = resolve(
-    "/Users/michaelcolling-tuck/Library/CloudStorage/GoogleDrive-mct@agencybristol.com/Shared drives",
-    "Agency Internal/AGENCY INTERNAL | Marketing/AGENCY | Content Workflow Templates/COMPANY_BLUEPRINT_AGENCY_BRISTOL.md"
+  // Local canon. The former Google Drive path ("AGENCY INTERNAL | Marketing")
+  // no longer exists. Override with --blueprint <path> if the file moves again.
+  const blueprintPath = blueprintPathArg || resolve(
+    process.env.HOME || "",
+    "Documents/AGENCY Brain/04_Companies/AGENCY_Bristol_Blueprint.md"
   );
 
   let blueprintContent;

@@ -80,7 +80,7 @@ STRUCTURE:
 - At least one bracketed aside somewhere in the body (MANDATORY).
 - End with the EXACT sign-off from the blueprint (Section E3). Do not paraphrase it. Copy it verbatim.
 - Before the sign-off, include a context-appropriate engagement question related to the post topic.
-- NO HASHTAGS. Never include hashtags in posts. This is a strict rule.
+- HASHTAGS: none in the body copy. If the platform uses hashtags, put a maximum of 3 at the very end, after the sign-off. Never vanity tags (#Grateful, #ProudMoment, #Blessed, #Inspired).
 - Post type should be one of: insight, story, framework, contrarian, list, question.
 
 FIRST COMMENT:
@@ -304,13 +304,13 @@ ${"═".repeat(60)}
 
 Read the blueprint carefully and follow these rules EXACTLY:
 
-1. VOICE CHARACTER (Blueprint Section C2)
-   Find the "Voice Character" section. Embody that description completely.
+1. VOICE CHARACTER (Blueprint Section C2 "Voice Character Description")
+   Find that section. Embody the description completely.
    Pay close attention to: hedging vs declaring, sentence length, perspective,
    and emotional register. The voice should match EXACTLY — not a generic
    professional voice, not a motivational speaker, not a consultant's blog.
 
-2. SIGNATURE DEVICES (Blueprint Section C4)
+2. SIGNATURE DEVICES (Blueprint Section C3 "Signature Devices")
    You MUST include at least ONE bracketed aside in every piece.
    Examples: "(He wasn't wrong to be annoyed, to be fair.)"
    "(Took us a while to figure that out.)" "(Ask me how I know.)"
@@ -319,8 +319,8 @@ Read the blueprint carefully and follow these rules EXACTLY:
    ("I think there's...", "Probably worth...", "Fair to say..."),
    and self-deprecating asides. These are MANDATORY, not decorative.
 
-3. BANNED VOCABULARY (Blueprint Section C5)
-   Find the "Banned Vocabulary" section. NEVER use ANY word or phrase listed there.
+3. BANNED VOCABULARY (Blueprint Section C4 "Banned Words and Phrases")
+   Find that section. NEVER use ANY word or phrase listed there.
    Common traps to avoid: leverage, optimise, comprehensive, robust, synergy,
    ecosystem, best practices, impactful, game-changer, revolutionary, exciting,
    resonates, crucial, spot on, nailed it, certainly, indeed, awesome,
@@ -328,7 +328,7 @@ Read the blueprint carefully and follow these rules EXACTLY:
    If you catch yourself reaching for any corporate, hype, or validation word
    — find a different, more human way to say it.
 
-4. FORMATTING MANDATES (Blueprint Section C6)
+4. FORMATTING MANDATES (Blueprint Section C5 "Formatting Rules")
    - UK spelling ALWAYS: organisation, recognise, colour, behaviour, centre, programme
    - 1-2 sentence paragraphs for social posts. Blank line between each.
    - NO em-dashes (—) or en-dashes (–) ANYWHERE. Use commas, full stops, or line breaks.
@@ -342,7 +342,7 @@ Read the blueprint carefully and follow these rules EXACTLY:
 
 ${signoffSection}
 
-6. WRITING SAMPLES (Blueprint Section C7)
+6. WRITING SAMPLES (Blueprint Section C7 "Writing Samples")
    Study every writing sample in the blueprint. These are your north star.
    Match the sentence rhythm, paragraph length, narrative arc, and emotional
    register of these samples. When in doubt about any stylistic choice,
@@ -411,7 +411,7 @@ ${"═".repeat(60)}
 Respond with a JSON object (no markdown code fences) matching this structure:
 {
   "title": "string",
-  "markdownBody": "string (the full content in markdown, including sign-off. NO hashtags.)",
+  "markdownBody": "string (the full content in markdown, including sign-off. No hashtags in the body copy; maximum 3 at the very end if the platform uses them.)",
   "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
   "wordCount": number,
   "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
@@ -439,7 +439,7 @@ ${"═".repeat(60)}
 
 A. POST STRUCTURE
    [ ] Sign-off is the EXACT text provided (not paraphrased)
-   [ ] Sign-off appears at the end of the post body (NO hashtags anywhere)
+   [ ] Sign-off appears at the end of the post body (no hashtags in the body copy; max 3 at the very end)
    [ ] Engagement question appears before the sign-off
    [ ] CTA URL is in the FIRST COMMENT ONLY, not in the post body
    [ ] First comment follows the template provided
@@ -611,7 +611,7 @@ const PLATFORM_RULES: Record<string, string> = {
 - Maximum 500 characters
 - Instagram-adjacent audience
 - Slightly more casual tone
-- Hashtags in body text (3-5)`,
+- No hashtags in body text. Maximum 3 at the very end.`,
 
   facebook: `Facebook rules:
 - No strict character limit (but keep under 500 for engagement)
@@ -631,13 +631,13 @@ const PLATFORM_RULES: Record<string, string> = {
 - Professional but personal tone
 - Hook in first 2 lines (before "see more")
 - End with sign-off (use the EXACT sign-off from the blueprint)
-- NO hashtags. Never include hashtags.`,
+- No hashtags in body copy. Maximum 3 after the sign-off, and none at all is the house default.`,
 
   linkedin_company: `LinkedIn Company Page rules:
 - Maximum 3000 characters
 - More formal/brand voice
 - Include company perspective
-- 3-5 hashtags
+- No hashtags in body copy. Maximum 3 at the very end.
 - CTA to company resources`,
 };
 

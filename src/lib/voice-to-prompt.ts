@@ -115,7 +115,7 @@ export function structuredVoiceToPrompt(voice: StructuredVoice): string {
   if (!voice.formatting_rules.em_dashes_allowed) fmtLines.push("NO em-dashes (—) or en-dashes (–) anywhere. Use commas, full stops, or line breaks instead.");
   if (!voice.formatting_rules.exclamation_marks_allowed) fmtLines.push("NO exclamation marks (unless genuinely warranted, which is almost never).");
   if (!voice.formatting_rules.emoji_in_body) fmtLines.push("NO emoji in body copy.");
-  if (!voice.formatting_rules.hashtags_in_body) fmtLines.push("NO hashtags in body copy (hashtags go at the end only).");
+  if (!voice.formatting_rules.hashtags_in_body) fmtLines.push("NO hashtags in body copy. Maximum 3 at the very end, after the sign-off. Never vanity tags.");
   if (voice.formatting_rules.oxford_comma) fmtLines.push("Use Oxford comma.");
   if (!voice.formatting_rules.contractions_allowed) fmtLines.push("NO contractions in long-form content. Write \"do not\" not \"don't\", \"cannot\" not \"can't\".");
   if (voice.formatting_rules.paragraph_max_lines > 0) fmtLines.push(`Maximum ${voice.formatting_rules.paragraph_max_lines} lines per paragraph.`);

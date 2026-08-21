@@ -130,7 +130,7 @@ const ANTI_AI_RULES = `ANTI-AI WRITING RULES (patterns that signal AI-generated 
 - Gushing openers: "Words cannot fully express...", "Absolutely delighted...", "Thrilled to announce..."
 - Empty closers: "excited for what comes next", "watch this space", "the future is bright"
 - Em-dash emphasis: "not just because of X — but because of Y" — use full stops instead
-- Hashtag stacking: maximum 3 hashtags, ONLY at the end, NEVER #ProudMoment
+- Hashtag stacking: none in body copy, maximum 3 at the very end, NEVER #ProudMoment
 - Self-congratulatory framing: "We were absolutely delighted to be awarded..." — show do not tell
 - Wall-of-text paragraphs: every paragraph max 2 lines on mobile
 - Name-dropping lists: tagging 8+ people adds nothing for the reader`;
