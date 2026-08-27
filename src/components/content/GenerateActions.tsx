@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import type { DistributionPlatform, AdaptationType, ContentType } from "@/types/database";
 import {
   getPlatformsByCategory,
   type PlatformCapability,
 } from "@/lib/platform-registry";
+import { useDirectUpload } from "@/lib/upload/use-direct-upload";
+import { PHOTO_MIME_TYPES, MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
 
 interface GenerateActionsProps {
   pieceId: string;
@@ -45,6 +48,22 @@ export default function GenerateActions({
   const [imageResult, setImageResult] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
 
+  // Photo upload state. A real photo takes the same place in the
+  // post a generated one would: it lands in content_images with
+  // archetype "uploaded", so every downstream reader of
+  // content_images.public_url needs no change.
+  const router = useRouter();
+  const {
+    uploadFile,
+    status: photoUploadStatus,
+    progress: photoUploadProgress,
+  } = useDirectUpload();
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const [photoInputKey, setPhotoInputKey] = useState(0);
+  const [registeringPhoto, setRegisteringPhoto] = useState(false);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   // Platform adaptation state
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformSelection[]>([]);
   const [generatingVariants, setGeneratingVariants] = useState(false);
@@ -74,6 +93,7 @@ export default function GenerateActions({
 
   // Form visibility
   const [showImageForm, setShowImageForm] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [showVideoForm, setShowVideoForm] = useState(false);
   const [showTranscribeForm, setShowTranscribeForm] = useState(false);
@@ -106,6 +126,59 @@ export default function GenerateActions({
       setImageError(err instanceof Error ? err.message : "Failed to generate images");
     } finally {
       setGeneratingImages(false);
+    }
+  }
+
+  async function handleUploadPhoto() {
+    if (!selectedPhoto) return;
+
+    if (selectedPhoto.size > MAX_PHOTO_BYTES) {
+      setUploadError(
+        `File too large (${(selectedPhoto.size / 1024 / 1024).toFixed(1)} MB). Max: ${(
+          MAX_PHOTO_BYTES / 1024 / 1024
+        ).toFixed(0)} MB`
+      );
+      return;
+    }
+
+    setUploadError(null);
+    setUploadResult(null);
+
+    try {
+      const uploaded = await uploadFile(selectedPhoto, { companyId, kind: "photo" });
+
+      setRegisteringPhoto(true);
+      const res = await fetch("/api/media/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          kind: "photo",
+          bucket: uploaded.bucket,
+          path: uploaded.path,
+          mimeType: selectedPhoto.type,
+          sizeBytes: selectedPhoto.size,
+          originalFilename: selectedPhoto.name,
+          sha256: uploaded.sha256,
+          width: null,
+          height: null,
+          durationSeconds: null,
+          weekNumber: null,
+          target: { type: "content_piece", contentPieceId: pieceId },
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not attach the photo");
+
+      setUploadResult("Photo uploaded and added to this post.");
+      setSelectedPhoto(null);
+      setPhotoInputKey((key) => key + 1);
+      router.refresh();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to upload photo");
+    } finally {
+      setRegisteringPhoto(false);
     }
   }
 
@@ -227,6 +300,7 @@ export default function GenerateActions({
 
   function hideAllForms() {
     setShowImageForm(false);
+    setShowUploadForm(false);
     setShowVariantForm(false);
     setShowVideoForm(false);
     setShowTranscribeForm(false);
@@ -254,6 +328,16 @@ export default function GenerateActions({
           className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
         >
           {showImageForm ? "Hide" : "Generate Images"}
+        </button>
+        <button
+          onClick={() => {
+            const next = !showUploadForm;
+            hideAllForms();
+            setShowUploadForm(next);
+          }}
+          className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          {showUploadForm ? "Hide" : "Upload Photo"}
         </button>
         {hasPlatforms && (
           <button
@@ -352,6 +436,62 @@ export default function GenerateActions({
         </div>
       )}
 
+      {/* Upload Photo Form */}
+      {showUploadForm && (
+        <div className="mt-4 space-y-3 rounded-md border border-gray-100 bg-gray-50 p-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              Photo File
+            </label>
+            <input
+              key={photoInputKey}
+              type="file"
+              accept={PHOTO_MIME_TYPES.join(",")}
+              onChange={(e) => setSelectedPhoto(e.target.files?.[0] ?? null)}
+              className="block w-full text-xs text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-sky-700 hover:file:bg-sky-100"
+            />
+            <p className="mt-1 text-[11px] text-gray-400">
+              JPEG, PNG or WEBP, up to {(MAX_PHOTO_BYTES / 1024 / 1024).toFixed(0)} MB.
+            </p>
+          </div>
+          {(photoUploadStatus === "uploading" || registeringPhoto) && (
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-sky-600 transition-all"
+                style={{
+                  width: `${registeringPhoto ? 100 : Math.round(photoUploadProgress * 100)}%`,
+                }}
+              />
+            </div>
+          )}
+          <button
+            onClick={handleUploadPhoto}
+            disabled={
+              !selectedPhoto ||
+              photoUploadStatus === "hashing" ||
+              photoUploadStatus === "signing" ||
+              photoUploadStatus === "uploading" ||
+              registeringPhoto
+            }
+            className="rounded-md bg-sky-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+          >
+            {registeringPhoto
+              ? "Attaching..."
+              : photoUploadStatus === "uploading"
+                ? `Uploading... ${Math.round(photoUploadProgress * 100)}%`
+                : photoUploadStatus === "hashing" || photoUploadStatus === "signing"
+                  ? "Preparing..."
+                  : "Upload Photo"}
+          </button>
+          {uploadResult && (
+            <p className="text-xs text-green-600">{uploadResult}</p>
+          )}
+          {uploadError && (
+            <p className="text-xs text-red-600">{uploadError}</p>
+          )}
+        </div>
+      )}
+
       {/* Platform Adaptation Form */}
       {showVariantForm && (
         <div className="mt-4 space-y-4 rounded-md border border-gray-100 bg-gray-50 p-4">
@@ -387,7 +527,7 @@ export default function GenerateActions({
                       }}
                       title={
                         sel
-                          ? `${cap.label} (${sel.adaptationType}) — click to cycle, right-click to deselect`
+                          ? `${cap.label} (${sel.adaptationType}): click to cycle, right-click to deselect`
                           : cap.label
                       }
                       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
