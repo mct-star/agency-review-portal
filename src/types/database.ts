@@ -68,7 +68,7 @@ export type DistributionPlatform =
   | "youtube"
   | "youtube_shorts";
 
-// Subset type for backward compatibility — social-only platforms
+// Subset type for backward compatibility, social-only platforms
 export type SocialPlatform = Extract<
   DistributionPlatform,
   | "linkedin_personal"
