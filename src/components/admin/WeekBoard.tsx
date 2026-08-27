@@ -5,8 +5,12 @@ import {
   RUN_STATE_META,
   ACTIVE_RUN_STATES,
   WEEK_BOARD_POLL_INTERVAL_MS,
+  PHOTO_TIER_META,
+  PHOTO_TIER_UNSET_BADGE_CLASS,
 } from "@/lib/constants/week-board";
 import type { WeekBoardRow } from "@/lib/weeks/board-data";
+import { useDirectUpload } from "@/lib/upload/use-direct-upload";
+import { PHOTO_MIME_TYPES, MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
 
 interface WeekBoardProps {
   initialWeeks: WeekBoardRow[];
@@ -180,6 +184,7 @@ export default function WeekBoard({
               pending={pendingWeekId === week.id}
               errorMessage={cardErrors[week.id]}
               onAction={handleAction}
+              onRefresh={refresh}
             />
           ))}
         </div>
@@ -200,9 +205,10 @@ interface WeekCardProps {
   pending: boolean;
   errorMessage?: string;
   onAction: (weekId: string, mode: RunMode) => void;
+  onRefresh: () => void;
 }
 
-function WeekCard({ week, pending, errorMessage, onAction }: WeekCardProps) {
+function WeekCard({ week, pending, errorMessage, onAction, onRefresh }: WeekCardProps) {
   const meta = RUN_STATE_META[week.run_state];
   const isActive = ACTIVE_RUN_STATES.includes(week.run_state);
   const job = week.current_job;
@@ -254,6 +260,29 @@ function WeekCard({ week, pending, errorMessage, onAction }: WeekCardProps) {
         )}
       </div>
 
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600">
+            {week.unused_photo_count} photo{week.unused_photo_count === 1 ? "" : "s"} banked
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${
+              week.photo_tier
+                ? PHOTO_TIER_META[week.photo_tier].badgeClass
+                : PHOTO_TIER_UNSET_BADGE_CLASS
+            }`}
+          >
+            {week.photo_tier ? PHOTO_TIER_META[week.photo_tier].label : "Tier unset"}
+          </span>
+        </div>
+
+        <WeekCardPhotoDropzone
+          companyId={week.company_id}
+          weekNumber={week.week_number}
+          onUploaded={onRefresh}
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {isActive ? (
           <span className="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-500">
@@ -293,6 +322,185 @@ function WeekCard({ week, pending, errorMessage, onAction }: WeekCardProps) {
           Download CSV
         </a>
       </div>
+    </div>
+  );
+}
+
+interface PhotoUploadItem {
+  id: string;
+  file: File;
+  progress: number;
+  status: "uploading" | "done" | "already_exists" | "error";
+  error?: string;
+}
+
+interface WeekCardPhotoDropzoneProps {
+  companyId: string;
+  weekNumber: number;
+  onUploaded: () => void;
+}
+
+/**
+ * Photos only, one useDirectUpload instance shared across however
+ * many files are dropped at once. Concurrent calls to its uploadFile
+ * are safe here because each call closes over its own file and its
+ * own onProgress callback; the only state the hook shares across
+ * calls is its own status/progress/error, which this component
+ * deliberately never reads, tracking per-file state itself instead.
+ */
+function WeekCardPhotoDropzone({
+  companyId,
+  weekNumber,
+  onUploaded,
+}: WeekCardPhotoDropzoneProps) {
+  const { uploadFile } = useDirectUpload();
+  const [items, setItems] = useState<PhotoUploadItem[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function updateItem(id: string, patch: Partial<PhotoUploadItem>) {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }
+
+  async function processFile(item: PhotoUploadItem) {
+    try {
+      const uploaded = await uploadFile(item.file, {
+        companyId,
+        kind: "photo",
+        onProgress: (fraction) => updateItem(item.id, { progress: fraction }),
+      });
+
+      const res = await fetch("/api/media/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          kind: "photo",
+          bucket: uploaded.bucket,
+          path: uploaded.path,
+          mimeType: item.file.type,
+          sizeBytes: item.file.size,
+          originalFilename: item.file.name,
+          sha256: uploaded.sha256,
+          width: null,
+          height: null,
+          durationSeconds: null,
+          weekNumber,
+          target: { type: "photo_bank", source: "weekly_capture" },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+
+      updateItem(item.id, {
+        status: data.alreadyExists ? "already_exists" : "done",
+        progress: 1,
+      });
+      onUploaded();
+    } catch (err) {
+      updateItem(item.id, {
+        status: "error",
+        error: err instanceof Error ? err.message : "Upload failed",
+      });
+    }
+  }
+
+  function handleFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return;
+
+    Array.from(fileList).forEach((file) => {
+      const id = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      if (!PHOTO_MIME_TYPES.includes(file.type)) {
+        setItems((prev) => [
+          ...prev,
+          { id, file, progress: 0, status: "error", error: "Photos only: JPEG, PNG or WEBP." },
+        ]);
+        return;
+      }
+
+      if (file.size > MAX_PHOTO_BYTES) {
+        setItems((prev) => [
+          ...prev,
+          {
+            id,
+            file,
+            progress: 0,
+            status: "error",
+            error: `Too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max ${(
+              MAX_PHOTO_BYTES /
+              1024 /
+              1024
+            ).toFixed(0)} MB.`,
+          },
+        ]);
+        return;
+      }
+
+      const item: PhotoUploadItem = { id, file, progress: 0, status: "uploading" };
+      setItems((prev) => [...prev, item]);
+      void processFile(item);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDraggingOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setIsDraggingOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDraggingOver(false);
+          handleFiles(e.dataTransfer.files);
+        }}
+        className={`cursor-pointer rounded-md border border-dashed px-2 py-1.5 text-center text-[11px] transition-colors ${
+          isDraggingOver
+            ? "border-violet-400 bg-violet-50 text-violet-700"
+            : "border-gray-200 text-gray-400 hover:border-gray-300 hover:bg-gray-50"
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={PHOTO_MIME_TYPES.join(",")}
+          multiple
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = "";
+          }}
+          className="hidden"
+        />
+        Drop photos here, or click to add
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-1">
+          {items.map((it) => (
+            <div key={it.id} className="flex items-center gap-2 text-[11px]">
+              <span className="flex-1 truncate text-gray-500">{it.file.name}</span>
+              {it.status === "uploading" && (
+                <span className="shrink-0 text-gray-400">{Math.round(it.progress * 100)}%</span>
+              )}
+              {it.status === "done" && <span className="shrink-0 text-emerald-600">Uploaded</span>}
+              {it.status === "already_exists" && (
+                <span className="shrink-0 text-amber-600">Already in the bank</span>
+              )}
+              {it.status === "error" && (
+                <span className="max-w-[60%] shrink-0 truncate text-red-600" title={it.error}>
+                  {it.error || "Failed"}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,13 @@ export interface WeekBoardCompany {
 export interface WeekBoardRow extends Week {
   company: WeekBoardCompany | null;
   current_job: ContentGenerationJob | null;
+  /**
+   * Unused, distinct-scene photos banked for this week's company
+   * (photo_inventory: distinct_scene true, used_in_weeks empty). A
+   * company-level supply figure, not a per-week one, so every week
+   * belonging to the same company carries the same number.
+   */
+  unused_photo_count: number;
 }
 
 export interface WeekBoardData {
@@ -28,6 +35,41 @@ export interface WeekBoardData {
 function isParserArtefact(week: Week): boolean {
   const title = (week.title || "").trim().toLowerCase();
   return title === "version history" || title.startsWith("version history");
+}
+
+/**
+ * Unused photo supply, per company. Mirrors the predicate on
+ * idx_photo_inventory_unused exactly: distinct_scene = true and
+ * used_in_weeks = '{}'. The empty array has to be passed through
+ * .filter() rather than .eq(), because postgrest-js builds an .eq()
+ * value with a plain template-literal join (`eq.${value}`), which
+ * turns an empty JS array into the bare string "eq." rather than
+ * the Postgres array literal "eq.{}" the column actually needs.
+ *
+ * One query per distinct company, not a single grouped query,
+ * because supabase-js has no group-by count and the board's company
+ * count is small enough that an RPC is not worth adding for it.
+ */
+async function getUnusedPhotoCounts(
+  supabase: SupabaseClient,
+  companyIds: string[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+
+  await Promise.all(
+    companyIds.map(async (companyId) => {
+      const { count } = await supabase
+        .from("photo_inventory")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("distinct_scene", true)
+        .filter("used_in_weeks", "eq", "{}");
+
+      counts.set(companyId, count ?? 0);
+    })
+  );
+
+  return counts;
 }
 
 /**
@@ -76,9 +118,13 @@ export async function getWeekBoardData(
     );
   }
 
+  const companyIds = Array.from(new Set(visible.map((w) => w.company_id)));
+  const unusedPhotoCounts = await getUnusedPhotoCounts(supabase, companyIds);
+
   const weeks: WeekBoardRow[] = visible.map((w) => ({
     ...w,
     current_job: w.current_job_id ? jobsById.get(w.current_job_id) || null : null,
+    unused_photo_count: unusedPhotoCounts.get(w.company_id) ?? 0,
   }));
 
   return { weeks, hiddenCount };
