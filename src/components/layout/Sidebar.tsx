@@ -111,6 +111,7 @@ function buildSections(user: User): NavSection[] {
                 { href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true },
                 { href: "/admin/calendar", label: "Source Calendar", icon: "calendarView", adminOnly: true },
                 { href: "/admin/plan/weekly", label: "Slot Planner", icon: "sparkle", adminOnly: true },
+                { href: "/admin/clips", label: "Clips", icon: "video", adminOnly: true },
               ] as NavItem[])
             : []),
         ],
@@ -118,7 +119,7 @@ function buildSections(user: User): NavSection[] {
     ];
   }
 
-  // Client sidebar — 4-phase journey
+  // Client sidebar, 4-phase journey
   return [
     // Phase 1: Strategise
     {
@@ -213,6 +214,8 @@ const icons: Record<string, string> = {
   checkCircle: "M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   quote: "M6 17h3l2-4V7H5v6h3l-2 4Zm8 0h3l2-4V7h-6v6h3l-2 4Z",
   mic: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3ZM19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8",
+  video:
+    "M4 6h11a1 1 0 0 1 1 1v3.5l4-2.5v8l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z",
 };
 
 export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced" }: SidebarProps) {
