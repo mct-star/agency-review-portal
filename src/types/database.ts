@@ -241,6 +241,16 @@ export interface Week {
   last_run_at: string | null;
   created_at: string;
   updated_at: string;
+
+  // Migration 032. Photo supply tier and quarterly arc context, set
+  // at planning time. Null until a weeks row exists for the ISO week,
+  // which for weeks seeded via calendar_slots may be a while: see
+  // CalendarSlot below, which carries its own week fields for exactly
+  // that reason.
+  photo_tier: WeekPhotoTier | null;
+  tier_set_at: string | null;
+  arc_movement: string | null;
+  seasonality_note: string | null;
 }
 
 export interface ContentPiece {
@@ -730,3 +740,77 @@ export interface StrategyDocument {
 }
 
 export type SetupComplexity = "beginner" | "intermediate" | "advanced";
+
+// ============================================================
+// Calendar slots: the content calendar as data (migration 032)
+// ============================================================
+
+export type WeekPhotoTier = "a" | "b" | "c";
+
+export type CalendarSlotType = "thesis" | "doc" | "carousel" | "reactive";
+
+export type CalendarSlotDayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export type CalendarSlotSourceOwner =
+  | "booksy"
+  | "stratty_canon"
+  | "amy"
+  | "ppcy"
+  | "voice_note"
+  | "industry_radar";
+
+export type CalendarSlotStatus =
+  | "planned"
+  | "briefed"
+  | "written"
+  | "shipped"
+  | "dropped";
+
+export type CalendarSlotCtaTier = "hot" | "warm" | "cool" | "none";
+
+// One row per slot per week. week_id is nullable by design: rows are
+// often seeded before their weeks row exists, so week_number/year/
+// week_start_date are carried directly on the slot rather than only
+// reachable through the FK. Treat any join to weeks as opportunistic.
+export interface CalendarSlot {
+  id: string;
+  company_id: string;
+  week_id: string | null;
+  week_number: number;
+  year: number;
+  week_start_date: string;
+  source_week_label: string | null;
+  slot_date: string;
+  day_of_week: CalendarSlotDayOfWeek;
+  slot_type: CalendarSlotType;
+  slot_role: string | null;
+  post_type_slug: string | null;
+  topic: string;
+  pillar: string;
+  theme: string | null;
+  six_source_tags: string[] | null;
+  source_owner: CalendarSlotSourceOwner;
+  source_alternates: string[] | null;
+  source_anchor: string | null;
+  anchor_pending: boolean;
+  image_direction: string | null;
+  photo_needed: boolean;
+  elu: string | null;
+  elu_e: number | null;
+  elu_l: number | null;
+  elu_u: number | null;
+  cta_tier: CalendarSlotCtaTier | null;
+  status: CalendarSlotStatus;
+  notes: string | null;
+  seeded_from: string | null;
+  seeded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
