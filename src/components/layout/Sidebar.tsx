@@ -107,7 +107,11 @@ function buildSections(user: User): NavSection[] {
           { href: "/admin/tickets", label: "Support Tickets", icon: "shield", adminOnly: true },
           { href: "/users", label: "Users", icon: "users", adminOnly: true },
           ...(isWeekBoardEnabled()
-            ? [{ href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true } as NavItem]
+            ? ([
+                { href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true },
+                { href: "/admin/calendar", label: "Source Calendar", icon: "calendarView", adminOnly: true },
+                { href: "/admin/plan/weekly", label: "Slot Planner", icon: "sparkle", adminOnly: true },
+              ] as NavItem[])
             : []),
         ],
       },
