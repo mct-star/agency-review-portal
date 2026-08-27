@@ -92,7 +92,19 @@ function loadEnv() {
     if (eq === -1) continue;
     // .env.local in this repo wraps values in double quotes, which
     // createClient rejects as an invalid URL. Strip a matching pair.
-    const value = trimmed.slice(eq + 1).replace(/^(['"])(.*)\1$/, "$2");
+    //
+    // Every value in that file also carries a LITERAL backslash-n on
+    // the end (the two characters, not a newline). That makes the URL
+    // unresolvable and the keys read as malformed, which surfaces as
+    // "Invalid API key" and is indistinguishable from a rotated
+    // secret. The keys are valid; the file is corrupted. Strip it here
+    // so a formatting defect cannot be misdiagnosed as a credentials
+    // problem again.
+    const value = trimmed
+      .slice(eq + 1)
+      .replace(/^(['"])(.*)\1$/, "$2")
+      .replace(/\\[nr]/g, "")
+      .trim();
     vars[trimmed.slice(0, eq)] = value;
   }
   return vars;
