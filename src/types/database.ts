@@ -814,3 +814,28 @@ export interface CalendarSlot {
   created_at: string;
   updated_at: string;
 }
+
+export type PhotoInventorySource = "photo_pack" | "weekly_capture" | "shoot";
+
+// Migration 032 created this table around file_ref alone, when every
+// photo lived in Google Drive. 033 added the storage columns, all
+// nullable: null means the photo is not in Supabase Storage and
+// file_ref is a Drive reference, not that the value is unknown.
+export interface PhotoInventory {
+  id: string;
+  company_id: string;
+  file_ref: string;
+  scene_label: string | null;
+  source: PhotoInventorySource;
+  distinct_scene: boolean;
+  used_in_weeks: number[];
+  storage_path: string | null;
+  bucket: string | null;
+  mime_type: string | null;
+  width: number | null;
+  height: number | null;
+  size_bytes: number | null;
+  original_filename: string | null;
+  added_at: string;
+  updated_at: string;
+}
