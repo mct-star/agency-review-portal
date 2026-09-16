@@ -9,6 +9,7 @@ import {
   PHOTO_TIER_UNSET_BADGE_CLASS,
 } from "@/lib/constants/week-board";
 import type { WeekBoardRow } from "@/lib/weeks/board-data";
+import SinglePostButton from "@/components/admin/SinglePostButton";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
 import { PHOTO_MIME_TYPES, MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
 
@@ -157,12 +158,15 @@ export default function WeekBoard({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Week Board</h1>
-        <button
-          onClick={refresh}
-          className="text-xs font-medium text-gray-500 hover:text-gray-700"
-        >
-          Refresh now
-        </button>
+        <div className="flex items-start gap-4">
+          <SinglePostButton label="Today's post" />
+          <button
+            onClick={refresh}
+            className="text-xs font-medium text-gray-500 hover:text-gray-700"
+          >
+            Refresh now
+          </button>
+        </div>
       </div>
 
       {listError && (

@@ -1,4 +1,5 @@
 import type { CalendarSlotRow, WeekGroup } from "@/lib/calendar-slots/data";
+import SinglePostButton from "@/components/admin/SinglePostButton";
 import {
   SOURCE_OWNER_META,
   PHOTO_TIER_META,
@@ -177,6 +178,7 @@ function SlotChip({ slot }: { slot: CalendarSlotRow }) {
           </span>
         )}
       </div>
+      {slot.day_of_week !== "sunday" && <SinglePostButton slotId={slot.id} compact />}
     </div>
   );
 }
