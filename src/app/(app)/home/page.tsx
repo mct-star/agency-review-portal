@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ContinueCard from "@/components/home/ContinueCard";
+import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
@@ -35,7 +36,7 @@ export default async function HomePage() {
   if (companyId || isAdmin) {
     const cid = companyId;
 
-    // Pending review — grouped by creation unit
+    // Pending review, grouped by creation unit
     {
       let q = supabase.from("content_pieces").select("id, week_id").eq("approval_status", "pending");
       if (!isAdmin && cid) q = q.eq("company_id", cid);
@@ -97,6 +98,20 @@ export default async function HomePage() {
   const totalPendingUnits = pendingSingles + pendingWeekCount;
 
   // ── Determine the smart nudge ──
+  // This week's calendar week, for the admin Week Board card.
+  let thisWeek: { id: string; week_number: number; title: string | null; run_state: string | null; date_start: string } | null = null;
+  if (isAdmin && isWeekBoardEnabled()) {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const { data } = await supabase
+      .from("weeks")
+      .select("id, week_number, title, run_state, date_start")
+      .lte("date_start", todayIso)
+      .gte("date_end", todayIso)
+      .order("date_start", { ascending: false })
+      .limit(1);
+    thisWeek = (data && data[0]) || null;
+  }
+
   let nudgeText: string;
   let nudgeHref: string;
   let nudgeLabel: string;
@@ -105,7 +120,7 @@ export default async function HomePage() {
   if (!strategyCompleted && !isAdmin) {
     nudgeText = "New here? Build a strategy for best results, or jump straight in.";
     nudgeHref = "/strategy"; // used for left button
-    nudgeLabel = ""; // not used — custom two-button layout below
+    nudgeLabel = ""; // not used: custom two-button layout below
     nudgeColor = "bg-violet-50 text-violet-700 border-violet-200";
   } else if (totalPendingUnits > 0) {
     // Build a human-readable description of what's pending
@@ -178,6 +193,19 @@ export default async function HomePage() {
             className="flex-shrink-0 rounded-lg bg-white px-4 py-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md"
           >
             {nudgeLabel} &rarr;
+          </Link>
+        </div>
+      )}
+
+      {/* ===== This week (admin, Week Board on) ===== */}
+      {thisWeek && (
+        <div className="mx-auto max-w-xl flex items-center justify-between gap-4 rounded-xl border border-violet-200 bg-white px-5 py-3.5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">This week · Week {thisWeek.week_number}</p>
+            <p className="truncate text-sm text-gray-700">{thisWeek.title || "Untitled week"}</p>
+          </div>
+          <Link href="/admin/weeks" className="flex-shrink-0 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-violet-700">
+            {thisWeek.run_state === "complete" ? "Open Week Board" : "Write this week"} &rarr;
           </Link>
         </div>
       )}

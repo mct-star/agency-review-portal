@@ -60,6 +60,12 @@ function buildSections(user: User): NavSection[] {
         items: [
           { href: "/calendar", label: "Content Calendar", icon: "calendarView" },
           { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle" },
+          ...(isWeekBoardEnabled()
+            ? ([
+                { href: "/admin/calendar", label: "Source Calendar", icon: "calendarView", adminOnly: true },
+                { href: "/admin/plan/weekly", label: "Slot Planner", icon: "sparkle", adminOnly: true },
+              ] as NavItem[])
+            : []),
         ],
       },
       // Phase 3: Create
@@ -67,6 +73,12 @@ function buildSections(user: User): NavSection[] {
         title: "Create",
         phase: 3,
         items: [
+          ...(isWeekBoardEnabled()
+            ? ([
+                { href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true, highlight: true },
+                { href: "/admin/clips", label: "Clips", icon: "video", adminOnly: true },
+              ] as NavItem[])
+            : []),
           { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
           { href: "/create/voice", label: "Voice to Post", icon: "mic" },
           { href: "/generate", label: "Week Batch", icon: "sparkle" },
@@ -106,14 +118,6 @@ function buildSections(user: User): NavSection[] {
           { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
           { href: "/admin/tickets", label: "Support Tickets", icon: "shield", adminOnly: true },
           { href: "/users", label: "Users", icon: "users", adminOnly: true },
-          ...(isWeekBoardEnabled()
-            ? ([
-                { href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true },
-                { href: "/admin/calendar", label: "Source Calendar", icon: "calendarView", adminOnly: true },
-                { href: "/admin/plan/weekly", label: "Slot Planner", icon: "sparkle", adminOnly: true },
-                { href: "/admin/clips", label: "Clips", icon: "video", adminOnly: true },
-              ] as NavItem[])
-            : []),
         ],
       },
     ];
