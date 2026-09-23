@@ -3,26 +3,45 @@
  *
  * Instead of just showing the topic title ("The 73% problem: why most
  * healthcare launches miss forecasting targets"), this creates a
- * contextual label like "Mon Problem — Healthcare launch forecasting"
+ * contextual label like "Mon Problem, Healthcare launch forecasting"
  *
  * Used in: compliance/regulatory views, content review lists, week overview
  */
 
-const POST_TYPE_SHORT_LABELS: Record<string, string> = {
-  insight: "Problem",
-  launch_story: "Launch Story",
-  if_i_was: "If I Was",
-  contrarian: "Contrarian",
-  tactical: "Tactical",
-  founder_friday: "Founder",
-  blog_teaser: "Blog Teaser",
+import { getPostType } from "@/lib/constants/post-types";
+
+// Short labels for content_pieces.content_type / calendar_slots.post_type_slug
+// values that are not in the post-type registry (legacy slugs, long-form
+// content types). Registry post types resolve their short label below.
+const NON_REGISTRY_SHORT_LABELS: Record<string, string> = {
   blog_cta: "Blog CTA",
   triage_cta: "Triage CTA",
   blog_article: "Blog",
   linkedin_article: "Article",
   pdf_guide: "PDF Guide",
   video_script: "Video",
+  video: "Video",
+  meme: "Meme",
 };
+
+function shortLabel(slug: string): string {
+  const registryLabel = getPostType(slug)?.label;
+  if (registryLabel) {
+    // Registry labels are full ("Problem Diagnosis"); keep short-name
+    // overrides for the ones with an established compact form.
+    const compact: Record<string, string> = {
+      insight: "Problem",
+      launch_story: "Launch Story",
+      if_i_was: "If I Was",
+      contrarian: "Contrarian",
+      tactical: "Tactical",
+      founder_friday: "Founder",
+      blog_teaser: "Blog Teaser",
+    };
+    return compact[slug] || registryLabel;
+  }
+  return NON_REGISTRY_SHORT_LABELS[slug] || slug;
+}
 
 const DAY_SHORT: Record<string, string> = {
   Sunday: "Sun",
@@ -38,10 +57,10 @@ const DAY_SHORT: Record<string, string> = {
  * Create a display name for a content piece.
  *
  * Examples:
- * - "Mon Problem — Healthcare launch forecasting"
- * - "Wed If I Was — Demand gen for diagnostics"
- * - "Fri Founder — Fantasy vs reality of pipeline"
- * - "Blog — The real cost of a rep visit"
+ * - "Mon Problem, Healthcare launch forecasting"
+ * - "Wed If I Was, Demand gen for diagnostics"
+ * - "Fri Founder, Fantasy vs reality of pipeline"
+ * - "Blog, The real cost of a rep visit"
  */
 export function getPostDisplayName(options: {
   title: string;
@@ -53,9 +72,9 @@ export function getPostDisplayName(options: {
 
   // Get the short post type label
   const typeLabel = postType
-    ? POST_TYPE_SHORT_LABELS[postType] || postType
+    ? shortLabel(postType)
     : contentType
-    ? POST_TYPE_SHORT_LABELS[contentType] || contentType
+    ? shortLabel(contentType)
     : null;
 
   // Get the day prefix
@@ -82,7 +101,7 @@ export function getPostDisplayName(options: {
   if (typeLabel) parts.push(typeLabel);
 
   if (parts.length > 0) {
-    return `${parts.join(" ")} — ${shortTitle}`;
+    return `${parts.join(" ")}, ${shortTitle}`;
   }
 
   return shortTitle;
@@ -111,5 +130,12 @@ export function getPostTypeBadge(postType: string | null | undefined): {
     video_script: { label: "Video", color: "#8B5CF6" },
   };
 
-  return badges[postType || ""] || { label: postType || "Post", color: "#6B7280" };
+  if (postType && badges[postType]) {
+    return badges[postType];
+  }
+  const registryType = postType ? getPostType(postType) : undefined;
+  if (registryType) {
+    return { label: registryType.visualTag || registryType.label, color: registryType.color };
+  }
+  return { label: postType || "Post", color: "#6B7280" };
 }
