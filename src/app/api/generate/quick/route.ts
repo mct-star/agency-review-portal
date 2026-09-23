@@ -17,11 +17,12 @@ import { generateSceneQuote, getScenePrompt } from "@/lib/image/scene-quote";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
+import { getPostType } from "@/lib/constants/post-types";
 
 /**
  * POST /api/generate/quick
  *
- * Quick Generate — creates a single post (text + image) in one call.
+ * Quick Generate , creates a single post (text + image) in one call.
  * No week/calendar required. Used by the dashboard Quick Generate widget.
  *
  * Body: {
@@ -39,7 +40,7 @@ import type { PlanTier } from "@/types/database";
  * }
  */
 
-// Post type → archetype + image style mapping (from the atoms)
+// Post type to archetype + image style mapping (from the atoms)
 // Pixar archetypes use a dynamic character description from the company's
 // spokesperson_appearance field, so the Pixar character resembles the real person.
 const DEFAULT_APPEARANCE = "professional in smart business attire";
@@ -54,7 +55,29 @@ interface PostTypeConfig {
   contentInstructions?: string;
 }
 
-// Image style slug → prompt template map. Used when a company overrides
+const DEFAULT_DIMENSIONS = { width: 1080, height: 1080 };
+
+/**
+ * Builds the per-request post type config from the post-type registry
+ * (src/lib/constants/post-types.ts), so there is one place to add or edit
+ * a post type instead of a duplicate map per route.
+ */
+function getTypeConfig(postTypeSlug: string): PostTypeConfig {
+  const postType = getPostType(postTypeSlug) || getPostType("insight");
+  if (!postType) {
+    throw new Error(`Unknown post type: ${postTypeSlug}`);
+  }
+  return {
+    archetype: postType.archetype,
+    imageStyle: postType.generation.imageStyle || "SKIP",
+    dimensions: postType.generation.dimensions || DEFAULT_DIMENSIONS,
+    wordCountMin: postType.generation.minWords,
+    wordCountMax: postType.generation.maxWords,
+    contentInstructions: postType.generation.contentInstructions,
+  };
+}
+
+// Image style slug to prompt template map. Used when a company overrides
 // the default archetype for a post type via image-mapping setup.
 // Functions receive (appearance: string) for styles that depict a person.
 const STYLE_PROMPTS: Record<string, string | ((appearance: string) => string)> = {
@@ -65,78 +88,11 @@ const STYLE_PROMPTS: Record<string, string | ((appearance: string) => string)> =
   quote_card: "PROGRAMMATIC", // Handled by quote card generator, not AI
   carousel_framework: "Clean white background with purple (#A27BF9) accents. Typography-led framework slide. Oversized accent number + heading + body text. Generous whitespace. Line-art icon. Professional, airy layout.",
   infographic: "Clean infographic with structured data visualisation. Modern flat design, clear hierarchy. Brand accent colours. White background, minimal decoration. Statistics and data points clearly presented.",
-  editorial_photo: "Candid editorial photography. Natural light, warm golden tones. Lifestyle scene — walking outdoors, coffee shop, workspace, nature, city streets. Authentic and unposed, real-life moment. Shot on 35mm film aesthetic. Shallow depth of field. Warm, human, relatable. No text on image. No people's faces unless specifically described.",
+  editorial_photo: "Candid editorial photography. Natural light, warm golden tones. Lifestyle scene , walking outdoors, coffee shop, workspace, nature, city streets. Authentic and unposed, real-life moment. Shot on 35mm film aesthetic. Shallow depth of field. Warm, human, relatable. No text on image. No people's faces unless specifically described.",
   real_photo: "SKIP", // User-uploaded photos, no generation
   flat_illustration: "Modern flat vector illustration with clean lines and bold shapes. Minimal detail, geometric forms. Professional and approachable. Limited colour palette with one accent colour. Concept-level abstraction.",
 };
 
-const POST_TYPE_CONFIG: Record<string, PostTypeConfig> = {
-  insight: {
-    archetype: "quote_card",
-    imageStyle: "Flat solid green (#CDD856) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. No scenes, people, objects, gradients, textures. The power comes from the emptiness.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 150, wordCountMax: 250,
-    contentInstructions: `POST TYPE: Problem Diagnosis. Identify a common mistake, blind spot, or misconception in the audience's industry. Structure: punchy hook (the mistake) → why it happens (2 paras) → what they should do instead (1-2 paras) → reflective question. Tone: direct but empathetic. You have seen this mistake before.`,
-  },
-  launch_story: {
-    archetype: "pixar_healthcare",
-    imageStyle: (appearance) =>
-      `Pixar/Disney-adjacent 3D rendered scene in a professional business environment. Sophisticated lighting, slightly exaggerated proportions. Main character: ${appearance}. The Pixar character should clearly resemble this person.`,
-    dimensions: { width: 1080, height: 1350 },
-    wordCountMin: 200, wordCountMax: 350,
-    contentInstructions: `POST TYPE: Experience Story. Share a real or realistic experience that reveals a pattern. Structure: hook (the moment) → set the scene (what happened) → the pattern you noticed → what it taught you → takeaway for the reader. Tone: narrative, observational, first-person.`,
-  },
-  if_i_was: {
-    archetype: "quote_card",
-    imageStyle: "Flat solid purple (#A27BF9) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. Hand-drawn black arrow curving downward beneath the text. No scenes, people, objects, gradients, textures.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 200, wordCountMax: 300,
-    contentInstructions: `POST TYPE: Expert Perspective. "If I was in your role..." practical, specific advice. Structure: hook (the situation) → "If I was in your role, here is what I would do" → 3-4 specific, actionable steps → why this works → open question. Tone: authoritative but generous. Sharing expertise freely.`,
-  },
-  contrarian: {
-    archetype: "quote_card",
-    imageStyle: "Flat solid blue (#41C9FE) background, edge to edge. Bold italic white text centred in middle third. Max 12 words. Accusation, revelation, or confrontation tone. No scenes, people, objects, gradients, textures.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 200, wordCountMax: 300,
-    contentInstructions: `POST TYPE: Contrarian Take. Challenge a widely-held industry assumption. Structure: hook (the assumption everyone believes) → why it is wrong or incomplete → evidence from your experience → what to do instead → provocative closing question. Tone: confident, slightly provocative but not arrogant. Back it up with specifics.`,
-  },
-  tactical: {
-    archetype: "carousel",
-    imageStyle: "Clean white background with purple (#A27BF9) accents. Typography-led framework slide. Oversized purple number + heading + body text. Generous whitespace. Line-art icon. Professional, airy layout.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 150, wordCountMax: 250,
-    contentInstructions: `POST TYPE: Tactical How-To. Actionable steps to solve a specific problem. Structure: hook (the problem) → numbered steps (3-5, each with a heading and 1-2 sentence explanation) → brief closing. IMPORTANT: Use numbered points (1. 2. 3.) because the image generator will parse these into carousel slides. Tone: practical, no fluff, each step must be immediately actionable.`,
-  },
-  founder_friday: {
-    archetype: "pixar_fantasy",
-    imageStyle: (appearance) =>
-      `Pixar/Disney-adjacent 3D rendered scene showing a 'fantasy vs reality' moment. Split composition or contrasting elements. Main character: ${appearance}. The Pixar character should clearly resemble this person. Warm, intimate lighting. Candid, reflective moment.`,
-    dimensions: { width: 1080, height: 1350 },
-    wordCountMin: 250, wordCountMax: 400,
-    contentInstructions: `POST TYPE: Personal Reflection. Behind the scenes — expectations vs reality. Structure: hook (the expectation) → what actually happened → the gap between expectation and reality → what you learned → reflective closing. Tone: honest, vulnerable, self-aware. This is the most personal post type. Show the human behind the professional.`,
-  },
-  blog_teaser: {
-    archetype: "quote_card",
-    imageStyle: "Flat solid emerald (#059669) background, edge to edge. Bold white text centred. Article title as hook. Clean, minimal.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 60, wordCountMax: 120,
-    contentInstructions: `POST TYPE: Article Teaser. SHORT. Drive traffic to a longer piece of content. Structure: hook (the insight) → 1-2 sentences teasing the full article → call to read more. This is NOT a full post. It is a teaser. Maximum 120 words. Make the reader curious enough to click through.`,
-  },
-  personal_update: {
-    archetype: "editorial_photo",
-    imageStyle: "Candid editorial photography. Natural light, warm tones. Lifestyle scene matching the topic — walking, coffee shop, workspace, travel, family, nature. Authentic and unposed. Shot on 35mm film look. Shallow depth of field. No text on the image.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 100, wordCountMax: 200,
-    contentInstructions: `POST TYPE: Personal Update. Share what you are up to — candid, human, relatable. Structure: hook (what you were doing) → the moment or observation → a brief business insight that connects it back to work → warm closing. Tone: casual, warm, conversational. This reads like a friend talking, not a professional posting. Short paragraphs, natural language.`,
-  },
-  scene_provocation: {
-    archetype: "scene_quote",
-    imageStyle: "Industry-relevant scene with a blank surface for text overlay. Whiteboard, billboard, chalkboard, or screen in a professional setting.",
-    dimensions: { width: 1080, height: 1080 },
-    wordCountMin: 150, wordCountMax: 250,
-    contentInstructions: `POST TYPE: Scene Provocation. A bold, provocative statement that challenges the status quo. Structure: hook (the bold claim) → why this matters → evidence or experience backing it up → what should change → call to debate. Tone: confident, slightly confrontational. The hook should be something you would write on a whiteboard in a meeting to make people stop and think.`,
-  },
-};
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -149,6 +105,16 @@ export async function POST(request: Request) {
     );
   }
 
+  const requestedType = getPostType(postTypeSlug);
+  if (requestedType?.medium === "video" && requestedType.production === "mac") {
+    return NextResponse.json(
+      {
+        error: `${requestedType.label} is produced on the Mac, not Quick Post. Add it to the Week Board and it will pick it up.`,
+      },
+      { status: 400 }
+    );
+  }
+
   // Allow admin OR the company's own users to generate
   const user = await requireCompanyUser(companyId);
   if (!user) {
@@ -156,7 +122,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
-  const typeConfig = POST_TYPE_CONFIG[postTypeSlug] || POST_TYPE_CONFIG.insight;
+  const typeConfig = getTypeConfig(postTypeSlug);
 
   try {
     // ── 1. Fetch company context + spokesperson ─────────────────
@@ -295,7 +261,7 @@ export async function POST(request: Request) {
       weekNumber: 0,
       spokespersonName: activeSpokesPerson?.name || company?.spokesperson_name || null,
       postTypeSlug,
-      postTypeLabel: POST_TYPES_LABELS[postTypeSlug] || postTypeSlug,
+      postTypeLabel: getPostType(postTypeSlug)?.label || postTypeSlug,
       imageArchetype: typeConfig.archetype,
       wordCountMin: typeConfig.wordCountMin,
       wordCountMax: typeConfig.wordCountMax,
@@ -370,7 +336,7 @@ export async function POST(request: Request) {
         }
       }
     } catch (gateErr) {
-      // Quality gates are additive — don't block content delivery
+      // Quality gates are additive , don't block content delivery
       console.warn("[quick] Quality gate evaluation error:", gateErr);
     }
 
@@ -401,23 +367,29 @@ export async function POST(request: Request) {
       quote_card_green: "quote_card",
       quote_card_purple: "quote_card",
       quote_card_blue: "quote_card",
+      quote_card_amber: "quote_card",
+      quote_card_teal: "quote_card",
       pixar_healthcare: "pixar_3d",
       pixar_fantasy: "pixar_3d",
       carousel: "carousel_framework",
       editorial_photo: "editorial_photo",
       scene_quote: "scene_quote",
+      text_only: "skip",
+      meme_card: "skip",
     };
     const styleSlug = archetypeToStyle[effectiveStyle] || effectiveStyle;
 
     const isQuoteCard = styleSlug === "quote_card";
     const isCarousel = styleSlug === "carousel_framework";
     const isSceneQuote = styleSlug === "scene_quote";
-    const isSkip = styleSlug === "real_photo";
+    const isSkip = styleSlug === "real_photo" || styleSlug === "skip";
 
     // Check if the visual style is allowed on this plan
-    // If not, fall back to quote card (always free, always available)
-    if (!isVisualStyleAllowed(effectivePlan, styleSlug)) {
-      console.log(`[quick] Style "${styleSlug}" not allowed on ${effectivePlan} plan — falling back to quote_card`);
+    // If not, fall back to quote card (always free, always available).
+    // Text-only and meme post types are a deliberate no-image state, not a
+    // plan restriction, so they are exempt from the fallback.
+    if (!isSkip && !isVisualStyleAllowed(effectivePlan, styleSlug)) {
+      console.log(`[quick] Style "${styleSlug}" not allowed on ${effectivePlan} plan , falling back to quote_card`);
       // Override to quote card
       effectiveStyle = "quote_card";
     }
@@ -434,7 +406,7 @@ export async function POST(request: Request) {
           .replace(/^[""]|[""]$/g, "")
           .trim();
 
-        // ENFORCE max 12 words for quote cards — truncate if longer
+        // ENFORCE max 12 words for quote cards , truncate if longer
         const words = cleanHookText.split(/\s+/);
         if (words.length > 12) {
           // Try to find a natural break point (period, comma, dash) within 12 words
@@ -540,7 +512,7 @@ export async function POST(request: Request) {
         imagePrompt = `[Programmatic quote card] "${cleanHookText}" on ${cardColor} background`;
       } catch (quoteErr) {
         console.warn("[quick] Programmatic quote card generation failed:", quoteErr);
-        // Fall through — imageUrl stays null, content is still usable
+        // Fall through , imageUrl stays null, content is still usable
       }
     } else if (isCarousel) {
       // Carousel: parse generated content into slides and render programmatically
@@ -694,7 +666,7 @@ export async function POST(request: Request) {
         console.warn("[quick] Scene quote generation failed:", sceneErr);
       }
     } else if (isSkip) {
-      // real_photo style — user provides their own photos, no generation
+      // real_photo style , user provides their own photos, no generation
       imageUrl = null;
       imagePrompt = null;
     } else {
@@ -712,7 +684,7 @@ export async function POST(request: Request) {
         const effectiveProviderKey = (providerOverride && providerOverride !== "auto")
           ? providerOverride as "gemini_imagen" | "fal_flux" | "openai_gpt_image"
           : getEffectiveProvider(route.provider);
-        console.log(`[quick] Image routing: ${route.reason}${providerOverride ? ` (override: ${providerOverride})` : ""} → using ${effectiveProviderKey}`);
+        console.log(`[quick] Image routing: ${route.reason}${providerOverride ? ` (override: ${providerOverride})` : ""} to using ${effectiveProviderKey}`);
 
         // Get the routed provider (may differ from company default)
         let imgProvider;
@@ -782,7 +754,7 @@ export async function POST(request: Request) {
                 return urlData.publicUrl;
               });
             } else if (refFiles && refFiles.length > 0) {
-              console.log(`[quick] Face-match photos found but plan "${effectivePlan}" does not include PuLID — using generic Pixar`);
+              console.log(`[quick] Face-match photos found but plan "${effectivePlan}" does not include PuLID , using generic Pixar`);
             }
           }
         }
@@ -803,11 +775,11 @@ export async function POST(request: Request) {
 
           let buffer: Buffer;
           if (imgUrl.startsWith("data:")) {
-            // Gemini returns base64 data URIs — decode directly
+            // Gemini returns base64 data URIs , decode directly
             const base64Data = imgUrl.split(",")[1];
             buffer = Buffer.from(base64Data, "base64");
           } else {
-            // fal.ai / OpenAI return HTTP URLs — fetch the image
+            // fal.ai / OpenAI return HTTP URLs , fetch the image
             const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(30_000) });
             if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
             buffer = Buffer.from(await imgRes.arrayBuffer());
@@ -823,7 +795,7 @@ export async function POST(request: Request) {
           imageUrl = urlData.publicUrl;
         }
       } catch (imgErr) {
-        // Image generation is optional — content is still usable without it
+        // Image generation is optional , content is still usable without it
         console.warn("[quick] Image generation failed:", imgErr);
       }
     }
@@ -832,6 +804,7 @@ export async function POST(request: Request) {
       postText: contentResult.markdownBody || "",
       firstComment: contentResult.firstComment || null,
       imageUrl,
+      imagePending: isSkip && !imageUrl,
       imagePrompt: imagePrompt || contentResult.imagePrompt || null,
       carouselImageUrls,
       qualityGates,
@@ -846,15 +819,3 @@ export async function POST(request: Request) {
   }
 }
 
-// Labels for post types (used in content generation prompt)
-const POST_TYPES_LABELS: Record<string, string> = {
-  insight: "Problem Diagnosis",
-  launch_story: "Experience Story",
-  if_i_was: "Expert Perspective",
-  contrarian: "Contrarian Take",
-  tactical: "Tactical How-To",
-  founder_friday: "Personal Reflection",
-  blog_teaser: "Article Teaser",
-  personal_update: "Personal Update",
-  scene_provocation: "Scene Provocation",
-};
