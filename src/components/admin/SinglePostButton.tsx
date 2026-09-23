@@ -12,7 +12,7 @@ interface JobRow {
   id: string;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
   error_message: string | null;
-  output_payload: { file?: string; summary?: string } | null;
+  output_payload: { file?: string; summary?: string; content_piece_id?: string } | null;
   input_payload: { slot_id?: string; post_date?: string } | null;
 }
 
@@ -22,11 +22,15 @@ export default function SinglePostButton({
   slotId,
   label,
   compact = false,
+  kind = "post",
 }: {
   slotId?: string;
   label?: string;
   compact?: boolean;
+  /** What the slot produces; changes the wording, not the route. */
+  kind?: "post" | "video" | "meme";
 }) {
+  const noun = kind === "video" ? "video" : kind === "meme" ? "meme" : "post";
   const [job, setJob] = useState<JobRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -82,9 +86,9 @@ export default function SinglePostButton({
   const active = job?.status === "queued" || job?.status === "running";
   const status =
     job?.status === "queued" ? "Queued. It starts when the Mac picks it up."
-    : job?.status === "running" ? "Writing the post..."
-    : job?.status === "completed" ? `Written: ${job.output_payload?.file ?? "see the week folder"}`
-    : job?.status === "failed" ? (job.error_message || "The post was not written.")
+    : job?.status === "running" ? (kind === "video" ? "Producing the video..." : `Writing the ${noun}...`)
+    : job?.status === "completed" ? (job.output_payload?.content_piece_id ? "In Content Review" : `Written: ${job.output_payload?.file ?? "see the week folder"}`)
+    : job?.status === "failed" ? (job.error_message || `The ${noun} was not produced.`)
     : null;
 
   return (
@@ -98,11 +102,13 @@ export default function SinglePostButton({
             : "rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
         }
       >
-        {busy ? "Queuing..." : active ? "In progress" : job?.status === "completed" ? "Write again" : label || "Write this post"}
+        {busy ? "Queuing..." : active ? "In progress" : job?.status === "completed" ? (kind === "video" ? "Produce again" : "Write again") : label || (kind === "video" ? "Produce this video" : kind === "meme" ? "Write this meme" : "Write this post")}
       </button>
       {(message || status) && (
         <p className={`text-[11px] ${job?.status === "failed" || message ? "text-red-700" : job?.status === "completed" ? "text-emerald-700" : "text-amber-800"}`}>
-          {message || status}
+          {job?.status === "completed" && job.output_payload?.content_piece_id
+            ? <a href={`/content/${job.output_payload.content_piece_id}`} className="underline">{message || status}</a>
+            : (message || status)}
         </p>
       )}
     </div>

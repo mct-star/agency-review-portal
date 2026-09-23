@@ -48,13 +48,32 @@ export async function POST(request: Request) {
     );
   }
   const slot = slots[0];
-  if (slot.day_of_week === "sunday") {
+  if (slot.day_of_week === "sunday" && slot.slot_type !== "video" && slot.slot_type !== "meme") {
     return NextResponse.json({ error: "There is no Sunday post in the MCT feed." }, { status: 400 });
   }
 
+  // A video slot is produced on the Mac by the video_post handler, routed by
+  // its post type; everything else (including the meme) is a single_post.
+  const isVideo = slot.slot_type === "video";
+  if (isVideo && !slot.post_type_slug) {
+    return NextResponse.json({ error: "This video slot has no post type. Set post_type_slug on the calendar slot first." }, { status: 400 });
+  }
   const { data: job, error: jobErr } = await supabase
     .from("content_generation_jobs")
-    .insert({
+    .insert(isVideo ? {
+      job_type: "video_post",
+      status: "queued",
+      company_id: slot.company_id,
+      week_id: null,
+      triggered_by: admin.id,
+      run_id: crypto.randomUUID(),
+      input_payload: {
+        post_type_slug: slot.post_type_slug,
+        post_date: slot.slot_date,
+        slot_id: slot.id,
+        topic: slot.topic, notes: slot.slot_role, pillar: slot.pillar,
+      },
+    } : {
       job_type: "single_post",
       status: "queued",
       company_id: slot.company_id,
@@ -101,7 +120,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from("content_generation_jobs")
     .select("id, status, error_message, output_payload, input_payload, created_at, completed_at")
-    .eq("job_type", "single_post")
+    .in("job_type", ["single_post", "video_post"])
     .order("created_at", { ascending: false })
     .limit(200);
   if (slotIds.length) query = query.in("input_payload->>slot_id", slotIds);

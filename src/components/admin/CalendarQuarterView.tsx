@@ -178,7 +178,9 @@ function SlotChip({ slot }: { slot: CalendarSlotRow }) {
           </span>
         )}
       </div>
-      {slot.day_of_week !== "sunday" && <SinglePostButton slotId={slot.id} compact />}
+      {(slot.day_of_week !== "sunday" || slot.slot_type === "video" || slot.slot_type === "meme") && (
+        <SinglePostButton slotId={slot.id} compact kind={slot.slot_type === "video" ? "video" : slot.slot_type === "meme" ? "meme" : "post"} />
+      )}
     </div>
   );
 }

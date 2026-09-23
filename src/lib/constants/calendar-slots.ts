@@ -75,6 +75,8 @@ const SLOT_TYPE_LABELS: Record<string, string> = {
   doc: "Doc",
   carousel: "Carousel",
   reactive: "Reactive",
+  video: "Video",
+  meme: "Meme",
 };
 
 /** slot_type is the production class (see migration 032 comments), not the topic. */

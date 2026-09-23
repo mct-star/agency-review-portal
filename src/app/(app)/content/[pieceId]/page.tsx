@@ -25,6 +25,8 @@ const contentTypeLabels: Record<string, string> = {
   linkedin_article: "LinkedIn Article",
   pdf_guide: "PDF Guide",
   video_script: "Video Script",
+  video: "Video",
+  meme: "Meme",
 };
 
 export default async function ContentPiecePage({ params }: PageProps) {
@@ -73,6 +75,14 @@ export default async function ContentPiecePage({ params }: PageProps) {
 
   // Find the first generated image for preview (if any)
   const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
+
+  // Rendered videos written back by the Mac (phone clips and podcast hook clips).
+  const { data: videoAssets } = await supabase
+    .from("content_assets")
+    .select("id, file_url, text_content, asset_metadata")
+    .eq("content_piece_id", pieceId)
+    .eq("asset_metadata->>type", "rendered_video")
+    .order("created_at", { ascending: true });
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -137,6 +147,23 @@ export default async function ContentPiecePage({ params }: PageProps) {
           )}
         </div>
       </div>
+
+      {(videoAssets || []).length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6">
+          <h3 className="mb-3 text-sm font-semibold text-gray-900">Video</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(videoAssets || []).map((v) => {
+              const meta = (v.asset_metadata || {}) as { aspect?: string; durationSeconds?: number; thumbnailUrl?: string };
+              return (
+                <div key={v.id} className="space-y-1">
+                  <video controls playsInline preload="metadata" poster={meta.thumbnailUrl} src={v.file_url || undefined} className="w-full rounded-lg border border-gray-200 bg-black" />
+                  <p className="text-xs text-gray-500">{[meta.aspect, meta.durationSeconds ? `${meta.durationSeconds}s` : null, v.text_content].filter(Boolean).join(" · ")}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Content Body + LinkedIn Preview (tabbed) */}
       <ContentViewTabs

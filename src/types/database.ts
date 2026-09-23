@@ -751,7 +751,7 @@ export type SetupComplexity = "beginner" | "intermediate" | "advanced";
 
 export type WeekPhotoTier = "a" | "b" | "c";
 
-export type CalendarSlotType = "thesis" | "doc" | "carousel" | "reactive";
+export type CalendarSlotType = "thesis" | "doc" | "carousel" | "reactive" | "video" | "meme";
 
 export type CalendarSlotDayOfWeek =
   | "monday"
