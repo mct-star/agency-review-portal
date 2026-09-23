@@ -14,7 +14,8 @@
     "sweep:perf": "node scripts/psi-sweep.mjs",
     "sweep:bundle": "node scripts/bundle-check.mjs",
     "sweep:consolidate": "node scripts/consolidate-findings.mjs",
-    "sweep:all": "npm run test:smoke && npm run test:a11y && npm run test:ux && npm run test:api && npm run sweep:perf && npm run sweep:consolidate"
+    "sweep:all": "npm run test:smoke && npm run test:a11y && npm run test:ux && npm run test:api && npm run sweep:perf && npm run sweep:consolidate",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -47,6 +48,7 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.3.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^5.0.1"
   }
 }
