@@ -24,7 +24,9 @@ export type ContentType =
   | "blog_article"
   | "linkedin_article"
   | "pdf_guide"
-  | "video_script";
+  | "video_script"
+  | "video"
+  | "meme";
 export type NotificationType =
   | "content_ready"
   | "piece_approved"
@@ -134,7 +136,9 @@ export type GenerationJobType =
   | "transcription"
   | "pdf_generation"
   | "platform_adaptation"
-  | "weekly_production";
+  | "weekly_production"
+  | "single_post"
+  | "video_post";
 
 export type JobStatus =
   | "queued"
