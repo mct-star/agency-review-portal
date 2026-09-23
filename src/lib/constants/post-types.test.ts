@@ -64,7 +64,8 @@ describe("post type registry", () => {
       __dirname,
       "../../../supabase/migrations/036_post_types_new_media.sql"
     );
-    const migration = readFileSync(migrationPath, "utf8");
+    const migration = readFileSync(migrationPath, "utf8")
+      + readFileSync(migrationPath.replace("036_post_types_new_media", "037_post_type_mini_infographic"), "utf8");
     for (const slug of NEW_SLUGS) {
       expect(migration, `migration mentions ${slug}`).toContain(slug);
     }
