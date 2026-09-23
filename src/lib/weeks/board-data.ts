@@ -95,7 +95,19 @@ export async function getWeekBoardData(
     company: WeekBoardCompany | null;
   })[];
 
-  const visible = rows.filter((w) => !isParserArtefact(w));
+  // Current and upcoming weeks first, nearest at the top; finished weeks
+  // after them, most recent first. The board is worked from today forward.
+  const today = new Date().toISOString().slice(0, 10);
+  const visible = rows
+    .filter((w) => !isParserArtefact(w))
+    .sort((a, b) => {
+      const aLive = a.date_end >= today ? 0 : 1;
+      const bLive = b.date_end >= today ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+      return aLive === 0
+        ? a.date_start.localeCompare(b.date_start)
+        : b.date_start.localeCompare(a.date_start);
+    });
   const hiddenCount = rows.length - visible.length;
 
   const jobIds = visible
