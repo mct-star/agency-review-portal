@@ -7,16 +7,17 @@ import VoiceToPost from "@/components/generate/VoiceToPost";
 import { calculateVoiceMatch } from "@/lib/utils/voice-match";
 import { predictEngagement } from "@/lib/utils/engagement-predictor";
 import { setLastActivity } from "@/lib/utils/last-activity";
+import { POST_TYPES as REGISTRY_POST_TYPES } from "@/lib/constants/post-types";
 
 /**
- * Quick Generate — the "make me a post" experience.
+ * Quick Generate , the "make me a post" experience.
  *
  * Lives on the dashboard. User picks a company, a person (spokesperson),
  * a topic, post type, and platform, hits generate, and gets copy-ready
  * content with an image.
  */
 
-/** Static sample image paths for each post type — real generated output examples */
+/** Static sample image paths for each post type , real generated output examples */
 const SAMPLE_IMAGES: Record<string, string> = {
   insight: "/samples/quote-card-green.png",
   if_i_was: "/samples/quote-card-purple-arrow.png",
@@ -32,7 +33,7 @@ const SAMPLE_IMAGES: Record<string, string> = {
   data_point: "/samples/data-point-icon.png",
 };
 
-/** Square visual preview — real generated output samples for each post type */
+/** Square visual preview , real generated output samples for each post type */
 function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: string; color: string }) {
   const sampleSrc = SAMPLE_IMAGES[slug];
   return (
@@ -68,106 +69,20 @@ interface PostTypeOption {
   archetype: string;
   color: string;
   visualTag?: string;  // Short label for the image style
+  medium: "image" | "carousel" | "video" | "text";
+  production: "portal" | "mac" | "manual";
 }
 
-const POST_TYPES: PostTypeOption[] = [
-  {
-    slug: "insight",
-    label: "Problem Diagnosis",
-    description: "Identify a common mistake your audience makes. 150-250 words.",
-    archetype: "quote_card_green",
-    color: "#CDD856",
-    visualTag: "Quote Card",
-  },
-  {
-    slug: "launch_story",
-    label: "Experience Story",
-    description: "Share a real experience with pattern recognition. 200-350 words.",
-    archetype: "pixar_healthcare",
-    color: "#41CDA9",
-    visualTag: "Cinematic 3D",
-  },
-  {
-    slug: "if_i_was",
-    label: "Expert Perspective",
-    description: "\"If I was in your role...\" practical advice. 200-300 words.",
-    archetype: "quote_card_purple",
-    color: "#A27BF9",
-    visualTag: "Quote Card",
-  },
-  {
-    slug: "contrarian",
-    label: "Contrarian Take",
-    description: "Challenge a widely-held industry assumption. 200-300 words.",
-    archetype: "quote_card_blue",
-    color: "#41C9FE",
-    visualTag: "Quote Card",
-  },
-  {
-    slug: "tactical",
-    label: "Tactical How-To",
-    description: "Actionable steps to solve a specific problem. 150-250 words.",
-    archetype: "carousel",
-    color: "#CDD856",
-    visualTag: "Carousel",
-  },
-  {
-    slug: "founder_friday",
-    label: "Personal Reflection",
-    description: "Behind the scenes: expectations vs reality. 250-400 words.",
-    archetype: "pixar_fantasy",
-    color: "#F59E0B",
-    visualTag: "Cinematic 3D",
-  },
-  {
-    slug: "blog_teaser",
-    label: "Article Teaser",
-    description: "Drive traffic to a longer piece of content. 60-120 words.",
-    archetype: "quote_card",
-    color: "#059669",
-    visualTag: "Quote Card",
-  },
-  {
-    slug: "personal_update",
-    label: "Personal Update",
-    description: "Share what you're up to. Candid, human, relatable. 100-200 words.",
-    archetype: "editorial_photo",
-    color: "#E11D48",
-    visualTag: "Editorial Photo",
-  },
-  {
-    slug: "scene_provocation",
-    label: "Scene Provocation",
-    description: "Bold statement on a whiteboard, billboard, or real-world surface. 150-250 words.",
-    archetype: "scene_quote",
-    color: "#1E3A5F",
-    visualTag: "Scene Quote",
-  },
-  {
-    slug: "case_study",
-    label: "Case Study",
-    description: "\"Here's what happened when we did X.\" Real results, specific details. 200-350 words.",
-    archetype: "quote_card_amber",
-    color: "#D97706",
-    visualTag: "Quote Card",
-  },
-  {
-    slug: "poll_question",
-    label: "Poll / Question",
-    description: "One sharp question with 2-4 options. Drives comments and votes. 30-60 words.",
-    archetype: "text_only",
-    color: "#8B5CF6",
-    visualTag: "Text Only",
-  },
-  {
-    slug: "data_point",
-    label: "Data Point",
-    description: "One compelling stat that reframes the conversation. 100-200 words.",
-    archetype: "quote_card_teal",
-    color: "#0D9488",
-    visualTag: "Quote Card",
-  },
-];
+const POST_TYPES: PostTypeOption[] = REGISTRY_POST_TYPES.map((pt) => ({
+  slug: pt.slug,
+  label: pt.label,
+  description: pt.description,
+  archetype: pt.archetype,
+  color: pt.color,
+  visualTag: pt.visualTag,
+  medium: pt.medium,
+  production: pt.production,
+}));
 
 interface CompanyOption {
   id: string;
@@ -328,7 +243,7 @@ export default function QuickGenerate({
         setTopicMode(saved);
       }
     } catch {
-      // localStorage unavailable — non-critical
+      // localStorage unavailable , non-critical
     }
     setTopicModeHydrated(true);
   }, []);
@@ -355,7 +270,7 @@ export default function QuickGenerate({
     return companyPeople.find((p) => p.isPrimary) || companyPeople[0] || null;
   }, [companyPeople, selectedPersonId]);
 
-  // Author info for preview — use selected person if available, otherwise company defaults
+  // Author info for preview , use selected person if available, otherwise company defaults
   const authorName = selectedPerson?.name || selectedCompany.authorName;
   const authorTagline = selectedPerson?.tagline || selectedCompany.authorTagline;
   const authorAvatar = selectedPerson?.profilePictureUrl || selectedCompany.profilePictureUrl;
@@ -537,6 +452,14 @@ export default function QuickGenerate({
 
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
+
+    if (selectedPostType.medium === "video" && selectedPostType.production === "mac") {
+      setError(
+        `${selectedPostType.label} is produced on the Mac, not Quick Post. Add it to the Week Board and it will pick it up.`
+      );
+      return;
+    }
+
     setState("generating");
     setError(null);
     setResult(null);
@@ -642,7 +565,7 @@ export default function QuickGenerate({
     await navigator.clipboard.writeText(liveFirstComment);
   }
 
-  // Add to week — save the post as a content piece assigned to a week
+  // Add to week , save the post as a content piece assigned to a week
   async function handleAddToWeek(weekNumber: number) {
     if (!result) return;
     setAddingToWeek(true);
@@ -701,7 +624,7 @@ export default function QuickGenerate({
           }
         }
       } catch {
-        // Non-critical — topic picker just won't show
+        // Non-critical , topic picker just won't show
       }
     }
     fetchTopics();
@@ -759,7 +682,7 @@ export default function QuickGenerate({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-      {/* Removed: duplicate header — page title already shown above */}
+      {/* Removed: duplicate header , page title already shown above */}
 
       {state === "idle" || state === "error" ? (
         <div className="p-6 space-y-5">
@@ -1066,12 +989,17 @@ export default function QuickGenerate({
                 <button
                   key={pt.slug}
                   onClick={() => setSelectedPostType(pt)}
-                  className={`rounded-xl border p-3 text-center transition-all ${
+                  className={`relative rounded-xl border p-3 text-center transition-all ${
                     selectedPostType?.slug === pt.slug
                       ? "border-violet-500 bg-violet-50 ring-1 ring-violet-500"
                       : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                   }`}
                 >
+                  {pt.medium === "video" && (
+                    <span className="absolute right-2 top-2 rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                      Video
+                    </span>
+                  )}
                   <div className="flex flex-col items-center gap-2">
                     <MiniPreview slug={pt.slug} visualTag={pt.visualTag || "Quote Card"} color={pt.color} />
                     <div>

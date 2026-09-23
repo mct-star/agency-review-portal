@@ -133,6 +133,14 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── Text-only and meme archetypes have no image to regenerate ──
+  if (archetype === "text_only" || archetype === "meme_card") {
+    return NextResponse.json(
+      { error: "This post type has no image to regenerate.", imagePending: true },
+      { status: 400 }
+    );
+  }
+
   // ── Non-quote-card: use AI image generation as before ─────
   try {
     const { provider: imgProvider } = await getImageProvider(companyId);
