@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireCompanyUser } from "@/lib/supabase/admin";
 import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
 
 /**
@@ -44,6 +45,11 @@ export async function POST(request: Request) {
         );
       }
 
+      // Signed-in company members only: transcription and generation cost money.
+      if (!(await requireCompanyUser(companyId))) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
       // Transcribe audio (Gemini primary, Whisper fallback)
       const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
       const result = await transcribeAudio(audioBuffer, audioFile.type || "audio/webm");
@@ -67,6 +73,10 @@ export async function POST(request: Request) {
           { error: "companyId is required." },
           { status: 400 }
         );
+      }
+
+      if (!(await requireCompanyUser(companyId))) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }
 
