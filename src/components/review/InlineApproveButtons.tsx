@@ -19,10 +19,15 @@ export default function InlineApproveButtons({ pieceId, companyId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pieceId, status: newStatus }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || `failed (${res.status})`);
+      }
       setResult(newStatus === "approved" ? "Approved" : "Changes requested");
       setStatus("done");
-    } catch {
+    } catch (err) {
+      // Say so: a silent reset looks like nothing happened, or like it worked.
+      setResult(`Not saved: ${err instanceof Error ? err.message : "failed"}`);
       setStatus("idle");
     }
   }
@@ -37,6 +42,7 @@ export default function InlineApproveButtons({ pieceId, companyId }: Props) {
 
   return (
     <div className="flex items-center gap-1.5" onClick={(e) => e.preventDefault()}>
+      {result && status === "idle" && <span className="text-[11px] text-red-600">{result}</span>}
       <button
         onClick={(e) => { e.preventDefault(); handleAction("approved"); }}
         disabled={status !== "idle"}

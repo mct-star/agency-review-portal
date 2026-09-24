@@ -19,16 +19,30 @@ export default function ApprovalButtons({
   const [loading, setLoading] = useState(false);
   const [changeComment, setChangeComment] = useState("");
   const [showChangeForm, setShowChangeForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // A blocked update returns no error and changes nothing, so every write
+  // asks for the row back and treats "no row" as a failure.
+  async function setStatus(status: ApprovalStatus): Promise<boolean> {
+    const supabase = createClient();
+    const { data, error: updErr } = await supabase
+      .from("content_pieces")
+      .update({ approval_status: status })
+      .eq("id", pieceId)
+      .select("id");
+    if (updErr || !data || data.length === 0) {
+      setError(`Not saved: ${updErr?.message || "you do not have permission to change this piece"}. Nothing was approved.`);
+      return false;
+    }
+    return true;
+  }
 
   async function handleApprove() {
     setLoading(true);
+    setError(null);
     const supabase = createClient();
-
-    await supabase
-      .from("content_pieces")
-      .update({ approval_status: "approved" })
-      .eq("id", pieceId);
+    if (!(await setStatus("approved"))) { setLoading(false); return; }
 
     // Check if all pieces in the week are approved
     const { data: pieces } = await supabase
@@ -63,12 +77,9 @@ export default function ApprovalButtons({
   async function handleRequestChanges() {
     if (!changeComment.trim()) return;
     setLoading(true);
+    setError(null);
     const supabase = createClient();
-
-    await supabase
-      .from("content_pieces")
-      .update({ approval_status: "changes_requested" })
-      .eq("id", pieceId);
+    if (!(await setStatus("changes_requested"))) { setLoading(false); return; }
 
     // Update week status
     await supabase
@@ -110,6 +121,7 @@ export default function ApprovalButtons({
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">Review</h3>
+      {error && <p className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {currentStatus === "approved" ? (
         <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
