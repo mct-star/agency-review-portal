@@ -339,7 +339,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "One industry inside joke a week on the founder feed. Signals you are close enough to the work to laugh at it.",
     weekdayHint: "Saturday",
     medium: "image",
-    production: "portal",
+    production: "mac",
     slotType: "meme",
     contentType: "meme",
     dbSlug: "meme",

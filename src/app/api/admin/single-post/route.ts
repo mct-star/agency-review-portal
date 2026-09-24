@@ -31,6 +31,12 @@ export async function POST(request: Request) {
   const slotId = typeof body?.slotId === "string" ? body.slotId : null;
   const supabase = await createAdminSupabaseClient();
 
+  // Direct mode: Quick Post hands a Mac-made format (meme, infographic,
+  // video) straight to the Mac without a calendar slot.
+  if (!slotId && typeof body?.postTypeSlug === "string") {
+    return queueDirect(supabase, admin.id, body);
+  }
+
   let query = supabase.from("calendar_slots").select(SLOT_COLUMNS);
   query = slotId ? query.eq("id", slotId) : query.eq("slot_date", londonToday());
   const { data: slots, error: slotErr } = await query;
@@ -134,3 +140,53 @@ export async function GET(request: Request) {
   }
   return NextResponse.json({ data: latest, today: londonToday() });
 }
+
+// Script-first video types only: a podcast hook clip needs a clip spec from
+// the calendar and a talking head needs footage from Clips.
+const MAC_VIDEO_TYPES = new Set(["story_video", "reaction_ranking"]);
+const MAC_IMAGE_TYPES = new Set(["meme", "mini_infographic"]);
+
+async function queueDirect(
+  supabase: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
+  adminId: string,
+  body: { postTypeSlug: string; topic?: string; postDate?: string; companyId?: string; pillar?: string },
+) {
+  const slug = body.postTypeSlug;
+  if (!MAC_VIDEO_TYPES.has(slug) && !MAC_IMAGE_TYPES.has(slug)) {
+    return NextResponse.json({ error: `${slug} is generated in the portal, not on the Mac.` }, { status: 400 });
+  }
+  if (!body.companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
+  const postDate = /^\d{4}-\d{2}-\d{2}$/.test(body.postDate || "") ? body.postDate! : londonToday();
+  const topic = (body.topic || "").trim().slice(0, 500) || null;
+  const d = new Date(`${postDate}T12:00:00Z`);
+  const isoWeek = (() => {
+    const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    return { week: Math.ceil(((t.getTime() - y.getTime()) / 86400000 + 1) / 7), year: t.getUTCFullYear() };
+  })();
+
+  const isVideo = MAC_VIDEO_TYPES.has(slug);
+  const { data: job, error } = await supabase
+    .from("content_generation_jobs")
+    .insert({
+      job_type: isVideo ? "video_post" : "single_post",
+      status: "queued",
+      company_id: body.companyId,
+      week_id: null,
+      triggered_by: adminId,
+      run_id: crypto.randomUUID(),
+      input_payload: isVideo
+        ? { post_type_slug: slug, post_date: postDate, topic, pillar: body.pillar || null, origin: "quick_post" }
+        : {
+            week: isoWeek.week, year: isoWeek.year, post_date: postDate, origin: "quick_post",
+            slot: { topic, slot_role: slug === "meme" ? "Meme" : "Mini infographic", slot_type: "meme",
+                    pillar: body.pillar || "Personal", theme: null, source_owner: "quick_post", post_type_slug: slug },
+          },
+    })
+    .select("id, status, created_at, input_payload")
+    .single();
+  if (error || !job) return NextResponse.json({ error: error?.message || "Failed to queue" }, { status: 500 });
+  return NextResponse.json({ data: { job } });
+}
+

@@ -194,6 +194,7 @@ export default function QuickGenerate({
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [macQueued, setMacQueued] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
   const [postUsage, setPostUsage] = useState<{ used: number; limit: number } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -453,10 +454,36 @@ export default function QuickGenerate({
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
 
-    if (selectedPostType.medium === "video" && selectedPostType.production === "mac") {
-      setError(
-        `${selectedPostType.label} is produced on the Mac, not Quick Post. Add it to the Week Board and it will pick it up.`
-      );
+    // Formats made on the Mac (house cards, script-first videos) are queued
+    // there; the finished piece lands in Review with its image or script.
+    if (selectedPostType.production === "mac" || selectedPostType.production === "manual") {
+      if (["podcast_hook_clip", "talking_head"].includes(selectedPostType.slug)) {
+        setError(
+          selectedPostType.slug === "talking_head"
+            ? "A talking head starts from your footage. Drop the clip into Clips and it is cut from there."
+            : "A podcast hook clip is cut from an episode. Add it to the Source Calendar with the episode and clip, and the Mac cuts it."
+        );
+        return;
+      }
+      setError(null);
+      setMacQueued(null);
+      setState("generating");
+      setProgress("Sending to the Mac...");
+      try {
+        const res = await fetch("/api/admin/single-post", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postTypeSlug: selectedPostType.slug, topic: topic.trim(), companyId: selectedCompany.id }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || `Could not queue it (${res.status})`);
+        setMacQueued(`${selectedPostType.label} queued on the Mac. It lands in Review, with its ${selectedPostType.medium === "video" ? "script" : "card"}, in about a minute.`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not queue it");
+      } finally {
+        setState("idle");
+        setProgress("");
+      }
       return;
     }
 
@@ -1052,6 +1079,13 @@ export default function QuickGenerate({
               })}
             </div>
           </div>
+
+          {macQueued && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <p>{macQueued}</p>
+              <a href="/review" className="mt-1 inline-block text-xs font-semibold underline">Open Review</a>
+            </div>
+          )}
 
           {/* Error message */}
           {error && (
