@@ -104,23 +104,28 @@ export default function LinkedInPublishButton({
             <span className="text-sm font-medium text-gray-900">Confirm LinkedIn Publish</span>
           </div>
 
-          <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-600 space-y-1">
-            <p>
-              <strong>Account:</strong>{" "}
-              {(dryRunData.linkedInAccount as Record<string, string>)?.name || "Unknown"}
+          {/* Exactly what the route will send: the same text and images as the preview. */}
+          <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-700 space-y-2">
+            <p className="text-xs text-gray-500">
+              Posting as <strong>{(dryRunData.linkedInAccount as Record<string, string>)?.name || "Unknown"}</strong>
+              {" · "}
+              {(() => {
+                const m = dryRunData.media as { shape: string; urls: string[] } | undefined;
+                if (!m || m.shape === "none") return "text only, no image";
+                return m.urls.length === 1 ? "one image" : `${m.urls.length} images`;
+              })()}
             </p>
-            <p>
-              <strong>Text length:</strong>{" "}
-              {dryRunData.postTextLength as number} characters
-            </p>
-            <p>
-              <strong>Image:</strong>{" "}
-              {dryRunData.hasImage ? "Yes" : "No"}
-            </p>
-            <p>
-              <strong>First comment:</strong>{" "}
-              {dryRunData.hasFirstComment ? "Yes" : "No"}
-            </p>
+            <p className="whitespace-pre-wrap break-words text-sm text-gray-900">{dryRunData.postText as string}</p>
+            {((dryRunData.media as { urls?: string[] } | undefined)?.urls || []).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {((dryRunData.media as { urls: string[] }).urls).map((u) => (
+                  <img key={u} src={u} alt="" className="h-24 w-auto rounded border border-gray-200" />
+                ))}
+              </div>
+            )}
+            {typeof dryRunData.firstComment === "string" && dryRunData.firstComment && (
+              <p className="text-xs text-gray-600"><strong>First comment:</strong> {dryRunData.firstComment as string}</p>
+            )}
           </div>
 
           <div className="flex gap-2">

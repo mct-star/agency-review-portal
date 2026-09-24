@@ -262,7 +262,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
 
       {/* Approve & Publish to LinkedIn (admin only, social posts, not yet approved, LinkedIn connected) */}
       {profile.role === "admin" &&
-        piece.content_type === "social_post" &&
+        (piece.content_type === "social_post" || piece.content_type === "meme") &&
         piece.approval_status !== "approved" &&
         linkedInConnected && (
           <ApproveAndPublishButton
@@ -273,7 +273,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
         )}
 
       {/* LinkedIn Publish (admin only, social posts only, already approved) */}
-      {profile.role === "admin" && piece.content_type === "social_post" && (
+      {profile.role === "admin" && (piece.content_type === "social_post" || piece.content_type === "meme") && (
         <LinkedInPublishButton
           pieceId={piece.id}
           companyId={piece.company_id}

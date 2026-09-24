@@ -545,7 +545,7 @@ export default function PublishPage() {
                                     </p>
                                   </div>
                                   <div className="flex shrink-0 items-center gap-2">
-                                    {linkedInAccount && piece.content_type === "social_post" && (
+                                    {linkedInAccount && (piece.content_type === "social_post" || piece.content_type === "meme") && (
                                       <button
                                         onClick={() => handlePublishNow(piece.id)}
                                         disabled={publishingPieceId === piece.id}
@@ -821,7 +821,7 @@ function renderPieceRow(
         </Link>
       </div>
       {/* Direct LinkedIn publish — only shown when connected */}
-      {linkedInAccount && piece.content_type === "social_post" && (
+      {linkedInAccount && (piece.content_type === "social_post" || piece.content_type === "meme") && (
         <div className="mt-2">
           <button
             onClick={() => handlePublishNow(piece.id)}

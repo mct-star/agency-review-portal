@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "No active LinkedIn account found. Connect one at /admin/companies/[id]/social-accounts",
+          `No active LinkedIn account found. Connect one at /setup/${companyId}/social`,
       },
       { status: 404 }
     );
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "LinkedIn access token has expired. Re-authorize at /admin/companies/[id]/social-accounts",
+            `Your LinkedIn connection has expired. Reconnect it at /setup/${companyId}/social, then publish again.`,
         },
         { status: 401 }
       );
