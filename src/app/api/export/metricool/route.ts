@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import type { ContentPiece, ContentImage } from "@/types/database";
+import { postDateFor } from "@/lib/export/post-date";
+import { toLinkedInText } from "@/lib/linkedin/post-text";
+import { resolvePieceMedia, type MediaSourceAsset } from "@/lib/content/piece-media";
 
 /**
  * GET /api/export/metricool?weekId=uuid&draft=false
@@ -165,17 +168,6 @@ const METRICOOL_HEADERS = [
   "Brand name",
 ];
 
-// Day name to offset from Sunday (0)
-const DAY_NAME_TO_OFFSET: Record<string, number> = {
-  Sunday: 0,
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
-};
-
 /**
  * Escape a string for CSV: wrap in double-quotes, double any internal quotes.
  * Convert \n to \r\n for Metricool compatibility.
@@ -185,21 +177,6 @@ function csvEscape(value: string): string {
   const normalized = value.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
   // Wrap in quotes, escape internal quotes
   return `"${normalized.replace(/"/g, '""')}"`;
-}
-
-/**
- * Calculate the actual date for a post given the week start date and day name.
- * week.date_start is typically a Sunday.
- */
-function calculatePostDate(weekStart: string, dayOfWeek: string | null): string {
-  if (!dayOfWeek) return weekStart;
-
-  const start = new Date(weekStart + "T00:00:00");
-  const offset = DAY_NAME_TO_OFFSET[dayOfWeek] ?? 0;
-  const postDate = new Date(start);
-  postDate.setDate(start.getDate() + offset);
-
-  return postDate.toISOString().split("T")[0]; // YYYY-MM-DD
 }
 
 /**
@@ -218,25 +195,6 @@ function isCarouselPost(postType: string | null, imageCount: number): boolean {
   return postType === "tactical" && imageCount > 1;
 }
 
-/**
- * Strip markdown formatting from post text for LinkedIn plain text.
- * LinkedIn doesn't support markdown — we need clean text.
- */
-function stripMarkdown(text: string): string {
-  return text
-    // Remove bold markers
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/__(.*?)__/g, "$1")
-    // Remove italic markers
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/_(.*?)_/g, "$1")
-    // Remove heading markers
-    .replace(/^#{1,6}\s+/gm, "")
-    // Remove link markdown, keep text
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    // Clean up multiple blank lines
-    .replace(/\n{3,}/g, "\n\n");
-}
 
 export async function GET(request: Request) {
   const admin = await requireAdmin();
@@ -273,7 +231,8 @@ export async function GET(request: Request) {
     .from("content_pieces")
     .select("*")
     .eq("week_id", weekId)
-    .eq("content_type", "social_post")
+    // Feed posts, including memes and cards; blogs and articles do not go to Metricool.
+    .in("content_type", ["social_post", "meme"])
     .order("sort_order", { ascending: true });
 
   // In non-draft mode, only export approved pieces
@@ -298,6 +257,17 @@ export async function GET(request: Request) {
     .in("content_piece_id", pieceIds)
     .order("sort_order", { ascending: true });
 
+  // Cards and photos the Mac stores as assets or cover images count too.
+  const { data: assets } = await supabase
+    .from("content_assets")
+    .select("content_piece_id, asset_type, file_url, text_content, asset_metadata")
+    .in("content_piece_id", pieceIds)
+    .not("file_url", "is", null);
+  const assetsByPiece = new Map<string, MediaSourceAsset[]>();
+  for (const a of (assets || []) as Array<MediaSourceAsset & { content_piece_id: string }>) {
+    assetsByPiece.set(a.content_piece_id, [...(assetsByPiece.get(a.content_piece_id) || []), a]);
+  }
+
   const imagesByPiece = new Map<string, ContentImage[]>();
   for (const img of (images || []) as ContentImage[]) {
     const existing = imagesByPiece.get(img.content_piece_id) || [];
@@ -313,14 +283,16 @@ export async function GET(request: Request) {
 
   // Data rows — one per social post
   for (const piece of pieces as ContentPiece[]) {
-    const pieceImages = imagesByPiece.get(piece.id) || [];
+    // The same media the preview shows, from the same rule.
+    const media = resolvePieceMedia(piece, imagesByPiece.get(piece.id) || [], assetsByPiece.get(piece.id) || []);
+    const pieceImages = media.items.map((m) => ({ public_url: m.url, archetype: m.alt, filename: m.alt }));
     const row = new Array(88).fill("");
 
-    // Column 0: Text (stripped of markdown)
-    row[0] = csvEscape(stripMarkdown(piece.markdown_body));
+    // Column 0: Text, exactly as the LinkedIn preview shows it
+    row[0] = csvEscape(toLinkedInText(piece.markdown_body));
 
-    // Column 1: Date (YYYY-MM-DD)
-    row[1] = calculatePostDate(week.date_start, piece.day_of_week);
+    // Column 1: Date (YYYY-MM-DD): the piece's own date first
+    row[1] = postDateFor(piece, week.date_start);
 
     // Column 2: Time (HH:MM:SS)
     const time = piece.scheduled_time
@@ -355,7 +327,7 @@ export async function GET(request: Request) {
 
     // Column 61: First Comment Text
     if (piece.first_comment) {
-      row[61] = csvEscape(piece.first_comment);
+      row[61] = csvEscape(toLinkedInText(piece.first_comment));
     }
 
     // Column 77: LinkedIn Type
