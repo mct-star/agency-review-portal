@@ -15,6 +15,8 @@ interface ContentViewTabsProps {
   brandColor?: string;
   postType?: string | null;
   imageUrl?: string | null;
+  /** The spokesperson's photo, as LinkedIn shows it beside the post. */
+  authorAvatarUrl?: string;
   /** What will actually post, from resolvePieceMedia. */
   media?: PieceMedia | null;
   // Required for Apply Brand Overlay button
@@ -41,6 +43,7 @@ export default function ContentViewTabs({
   brandColor,
   postType,
   imageUrl,
+  authorAvatarUrl,
   media,
   companyId,
   contentPieceId,
@@ -147,6 +150,7 @@ export default function ContentViewTabs({
           <LinkedInPreview
             authorName={authorName}
             authorTagline={authorTagline}
+            authorAvatarUrl={authorAvatarUrl}
             postText={markdownBody}
             firstComment={firstComment}
             postType={postType}
