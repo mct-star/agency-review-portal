@@ -14,6 +14,7 @@ import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import ApproveAndPublishButton from "@/components/content/ApproveAndPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
+import { resolvePieceMedia } from "@/lib/content/piece-media";
 
 interface PageProps {
   params: Promise<{ pieceId: string }>;
@@ -49,6 +50,14 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .select("*")
     .eq("content_piece_id", pieceId)
     .order("sort_order", { ascending: true });
+
+  // Every asset with a file: the media rule needs cards, videos and PDFs, not just gallery images.
+  const { data: mediaAssets } = await supabase
+    .from("content_assets")
+    .select("asset_type, file_url, text_content, asset_metadata")
+    .eq("content_piece_id", pieceId)
+    .not("file_url", "is", null);
+  const media = resolvePieceMedia(piece, images || [], mediaAssets || []);
 
   const { data: comments } = await supabase
     .from("comments")
@@ -198,6 +207,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
         brandColor={company?.brand_color || "#0a66c2"}
         postType={piece.post_type}
         imageUrl={previewImageUrl}
+        media={media}
         companyId={piece.company_id}
         contentPieceId={piece.id}
       />

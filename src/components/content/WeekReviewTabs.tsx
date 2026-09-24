@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import LinkedInPreview from "./LinkedInPreview";
+import { resolvePieceMedia } from "@/lib/content/piece-media";
 import MarkdownRenderer from "./MarkdownRenderer";
 import type { ContentPiece, ContentImage, ContentAsset } from "@/types/database";
 
@@ -195,7 +196,11 @@ export default function WeekReviewTabs({
           ) : (
             sortedSocialPieces.map((piece) => {
               const isExpanded = expandedPieces.has(piece.id);
-              const previewImage = generatedImages.get(piece.id) || (piece.images.length > 0 ? piece.images[0].public_url : null);
+              const generated = generatedImages.get(piece.id);
+              const media = generated
+                ? { shape: "image" as const, items: [{ kind: "image" as const, url: generated, alt: "" }] }
+                : resolvePieceMedia(piece, piece.images, piece.assets);
+              const previewImage = media.items.find((m) => m.kind === "image")?.url ?? null;
               const hasImagePrompt = piece.assets.some((a) => a.asset_type === "image_prompt");
               // Show generate button when no image exists, OR when there's an existing image (allow regeneration)
               const needsImage = hasImagePrompt;
@@ -315,6 +320,7 @@ export default function WeekReviewTabs({
                         firstComment={piece.first_comment}
                         postType={piece.post_type}
                         imageUrl={previewImage}
+                        media={media}
                         brandColor={brandColor}
                       />
                     </div>

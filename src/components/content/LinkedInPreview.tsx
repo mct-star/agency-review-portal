@@ -1,13 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { toLinkedInText, seeMoreFold, type FeedDevice } from "@/lib/linkedin/post-text";
+import type { PieceMedia, MediaItem } from "@/lib/content/piece-media";
 
 interface LinkedInPreviewProps {
   authorName: string;
   authorTagline?: string;
   authorAvatarUrl?: string;
+  /** The stored body. It is converted with the same function the publish route uses. */
   postText: string;
   firstComment: string | null;
+  /** What will actually be attached, from resolvePieceMedia. Preferred over imageUrl. */
+  media?: PieceMedia | null;
+  /** Legacy single image, used only when media is not supplied. */
   imageUrl?: string | null;
   postType?: string | null;
   brandColor?: string;
@@ -15,16 +21,13 @@ interface LinkedInPreviewProps {
   linkedinProfileUrl?: string | null;
 }
 
+const WIDTH: Record<FeedDevice, number> = { desktop: 555, mobile: 375 };
+
 /**
- * LinkedIn Post Mock-up
- *
- * Renders a content piece as it would appear in the LinkedIn feed.
- * Pure CSS — no LinkedIn connection needed. Shows:
- * - Profile section (avatar, name, tagline, "1st" badge)
- * - Post text with "...see more" truncation at the right point
- * - Optional image placeholder
- * - Reaction bar (Like, Comment, Repost, Send)
- * - First comment as a reply below
+ * LinkedIn feed preview, built to match what the publish route sends:
+ * the same text (toLinkedInText), the same media (resolvePieceMedia), the
+ * fold where LinkedIn puts "...more" on desktop and on a phone. Nothing is
+ * shown that will not post: a text-only post shows no image.
  */
 export default function LinkedInPreview({
   authorName,
@@ -32,257 +35,155 @@ export default function LinkedInPreview({
   authorAvatarUrl,
   postText,
   firstComment,
+  media,
   imageUrl,
   postType,
   brandColor = "#0a66c2",
-  companyLogoUrl,
   linkedinProfileUrl,
 }: LinkedInPreviewProps) {
   const [expanded, setExpanded] = useState(false);
+  const [device, setDevice] = useState<FeedDevice>("desktop");
 
-  // LinkedIn truncates at roughly 210 characters (3 lines) before "...see more"
-  const TRUNCATE_LENGTH = 210;
-  const shouldTruncate = postText.length > TRUNCATE_LENGTH;
-  const displayText = expanded || !shouldTruncate
-    ? postText
-    : postText.substring(0, TRUNCATE_LENGTH);
+  const text = toLinkedInText(postText);
+  const comment = firstComment ? toLinkedInText(firstComment) : null;
+  const fold = seeMoreFold(text, device);
+  const shown = expanded || !fold.folded ? text : fold.visible;
+  const resolved: PieceMedia = media ?? (imageUrl ? { shape: "image", items: [{ kind: "image", url: imageUrl, alt: "" }] } : { shape: "none", items: [] });
 
-  // Get initials for avatar fallback
-  const initials = authorName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  // Format text: convert markdown-style formatting to LinkedIn-style display
-  function formatLinkedInText(text: string): string {
-    return text
-      // Remove markdown bold markers (LinkedIn doesn't support markdown)
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/__(.*?)__/g, "$1")
-      // Remove markdown italic markers
-      .replace(/\*(.*?)\*/g, "$1")
-      .replace(/_(.*?)_/g, "$1")
-      // Remove heading markers
-      .replace(/^#{1,6}\s+/gm, "")
-      // Remove link markdown, keep text
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      // Clean up multiple blank lines
-      .replace(/\n{3,}/g, "\n\n");
-  }
-
-  const formattedText = formatLinkedInText(displayText);
-
+  const initials = authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   const authorLink = linkedinProfileUrl || "#";
 
   return (
-    <div className="mx-auto max-w-[555px]">
-      {/* Company logo (top-left, links to company) */}
-      {companyLogoUrl && (
-        <div className="mb-2 flex items-center gap-2">
-          <img
-            src={companyLogoUrl}
-            alt="Company logo"
-            className="h-6 object-contain"
-          />
-        </div>
-      )}
-
-      {/* Post card */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        {/* Author section */}
-        <div className="flex items-start gap-3 p-4 pb-0">
-          {/* Avatar — links to profile */}
-          <a href={authorLink} target="_blank" rel="noopener noreferrer" className="shrink-0">
-            <div
-              className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white transition-opacity hover:opacity-80"
-              style={{ backgroundColor: brandColor }}
-            >
-              {authorAvatarUrl ? (
-                <img
-                  src={authorAvatarUrl}
-                  alt={authorName}
-                  className="h-12 w-12 rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-          </a>
-
-          {/* Name + tagline — name links to profile */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <a
-                href={authorLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-semibold text-gray-900 hover:text-sky-700 hover:underline"
-              >
-                {authorName}
-              </a>
-              <span className="rounded-sm border border-gray-300 px-1 text-[10px] font-medium text-gray-500">
-                1st
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 line-clamp-1">{authorTagline}</p>
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
-              <span>Just now</span>
-              <span>·</span>
-              <svg className="h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z" />
-                <path d="M7.5 3a.5.5 0 0 1 .5.5V8h3a.5.5 0 0 1 0 1H7.5a.5.5 0 0 1-.5-.5V3.5a.5.5 0 0 1 .5-.5z" />
-              </svg>
-            </div>
-          </div>
-
-          {/* More icon */}
-          <button className="mt-1 text-gray-500">
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="5" cy="12" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="19" cy="12" r="2" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Post type badge (development helper) */}
-        {postType && (
-          <div className="px-4 pt-2">
-            <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">
-              {postType}
-            </span>
-          </div>
-        )}
-
-        {/* Post text */}
-        <div className="px-4 pt-3 pb-1">
-          <div className="text-sm leading-[1.42] text-gray-900 whitespace-pre-wrap">
-            {formattedText}
-            {shouldTruncate && !expanded && (
-              <button
-                onClick={() => setExpanded(true)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ...see more
-              </button>
-            )}
-          </div>
-          {expanded && shouldTruncate && (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+          {(["desktop", "mobile"] as FeedDevice[]).map((d) => (
             <button
-              onClick={() => setExpanded(false)}
-              className="mt-1 text-xs text-gray-500 hover:text-gray-700"
+              key={d}
+              onClick={() => { setDevice(d); setExpanded(false); }}
+              className={`rounded px-2.5 py-1 font-medium ${device === d ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}
             >
-              show less
-            </button>
-          )}
-        </div>
-
-        {/* Hashtags (extracted from end of text) */}
-        {postText.match(/#\w+/g) && (
-          <div className="px-4 pb-2">
-            <p className="text-sm text-blue-600">
-              {postText.match(/#\w+/g)?.join(" ")}
-            </p>
-          </div>
-        )}
-
-        {/* Image placeholder */}
-        {imageUrl ? (
-          <div className="mt-2">
-            <img
-              src={imageUrl}
-              alt="Post image"
-              className="w-full object-cover"
-              style={{ maxHeight: "400px" }}
-            />
-          </div>
-        ) : (
-          <div className="mx-4 mt-2 mb-2 flex h-48 items-center justify-center rounded-md border-2 border-dashed border-gray-200 bg-gray-50">
-            <div className="text-center">
-              <svg className="mx-auto h-8 w-8 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-              </svg>
-              <p className="mt-1 text-xs text-gray-500">Image will be generated</p>
-            </div>
-          </div>
-        )}
-
-        {/* Reaction counts */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
-          <div className="flex items-center gap-0.5">
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[8px] text-white">
-              👍
-            </span>
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-400 text-[8px] text-white">
-              ❤️
-            </span>
-            <span className="ml-1 text-xs text-gray-500">Preview</span>
-          </div>
-          <span className="text-xs text-gray-500">
-            {firstComment ? "1 comment" : "0 comments"}
-          </span>
-        </div>
-
-        {/* Action bar */}
-        <div className="flex items-center justify-around px-2 py-1">
-          {[
-            { icon: "M2 12C2 6.5 6.5 2 12 2s10 4.5 10 10-4.5 10-10 10S2 17.5 2 12zm10 6c3.3 0 6-2.7 6-6h-2c0 2.2-1.8 4-4 4s-4-1.8-4-4H6c0 3.3 2.7 6 6 6zm-2-8c.6 0 1-.4 1-1s-.4-1-1-1-1 .4-1 1 .4 1 1 1zm4 0c.6 0 1-.4 1-1s-.4-1-1-1-1 .4-1 1 .4 1 1 1z", label: "Like" },
-            { icon: "M7 9h10v1H7V9zm0 3h7v1H7v-1zm0-6h10v1H7V6zM3 5v14l4-4h12V5H3z", label: "Comment" },
-            { icon: "M18 16v2H6v-2l-4 4h20l-4-4zM12 2L8 6h3v7h2V6h3l-4-4z", label: "Repost" },
-            { icon: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z", label: "Send" },
-          ].map((action) => (
-            <button
-              key={action.label}
-              className="flex items-center gap-1.5 rounded-md px-3 py-2.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d={action.icon} />
-              </svg>
-              {action.label}
+              {d === "desktop" ? "Desktop" : "Phone"}
             </button>
           ))}
         </div>
+        <span className="text-gray-500">
+          {mediaLabel(resolved)}
+          {postType ? ` · ${postType.replace(/_/g, " ")}` : ""}
+        </span>
       </div>
 
-      {/* First Comment */}
-      {firstComment && (
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-              style={{ backgroundColor: brandColor }}
-            >
-              {authorAvatarUrl ? (
-                <img
-                  src={authorAvatarUrl}
-                  alt={authorName}
-                  className="h-8 w-8 rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
+      <div className="mx-auto" style={{ maxWidth: WIDTH[device] }}>
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-start gap-3 p-4 pb-0">
+            <a href={authorLink} target="_blank" rel="noopener noreferrer" className="shrink-0">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: brandColor }}>
+                {authorAvatarUrl ? <img src={authorAvatarUrl} alt={authorName} className="h-12 w-12 rounded-full object-cover" /> : initials}
+              </div>
+            </a>
             <div className="min-w-0 flex-1">
-              <div className="rounded-xl bg-gray-50 px-3 py-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-gray-900">{authorName}</span>
-                  <span className="text-[10px] text-gray-500">Author</span>
-                </div>
-                <p className="mt-1 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                  {firstComment}
-                </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-gray-900">{authorName}</span>
+                <span className="text-xs text-gray-500">• You</span>
               </div>
-              <div className="mt-1 flex items-center gap-3 px-1 text-[10px] text-gray-500">
-                <span>Just now</span>
-                <button className="font-semibold hover:text-gray-600">Like</button>
-                <button className="font-semibold hover:text-gray-600">Reply</button>
-              </div>
+              <p className="text-xs text-gray-500 line-clamp-1">{authorTagline}</p>
+              <p className="mt-0.5 text-xs text-gray-500">Now • 🌐</p>
             </div>
           </div>
+
+          <div className="px-4 pt-3 pb-2">
+            <div className="text-sm leading-[1.42] text-gray-900 whitespace-pre-wrap break-words">
+              {shown}
+              {fold.folded && !expanded && (
+                <>
+                  {"… "}
+                  <button onClick={() => setExpanded(true)} className="text-gray-500 hover:text-gray-700 hover:underline">more</button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <MediaBlock media={resolved} />
+
+          <div className="flex items-center justify-around border-t border-gray-100 px-2 py-1">
+            {["Like", "Comment", "Repost", "Send"].map((label) => (
+              <span key={label} className="px-3 py-2.5 text-xs font-semibold text-gray-500">{label}</span>
+            ))}
+          </div>
         </div>
-      )}
+
+        {comment && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: brandColor }}>
+              {authorAvatarUrl ? <img src={authorAvatarUrl} alt={authorName} className="h-8 w-8 rounded-full object-cover" /> : initials}
+            </div>
+            <div className="min-w-0 flex-1 rounded-xl bg-gray-50 px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-gray-900">{authorName}</span>
+                <span className="rounded bg-gray-600 px-1 text-[10px] font-medium text-white">Author</span>
+              </div>
+              <p className="mt-1 text-sm leading-relaxed text-gray-800 whitespace-pre-wrap break-words">{comment}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <p className="text-center text-[11px] text-gray-400">
+        Text and media are exactly what will post. The fold is LinkedIn&apos;s three-line cut, accurate to within a few words.
+      </p>
+    </div>
+  );
+}
+
+function mediaLabel(m: PieceMedia): string {
+  switch (m.shape) {
+    case "none": return "Text only, no image";
+    case "image": return "One image";
+    case "images": return `${m.items.length} images`;
+    case "video": return "Video";
+    case "document": return "Document (PDF)";
+  }
+}
+
+function MediaBlock({ media }: { media: PieceMedia }) {
+  if (media.shape === "none") return null;
+  if (media.shape === "video") {
+    return <video src={media.items[0].url} controls playsInline className="block w-full bg-black" />;
+  }
+  if (media.shape === "document") {
+    return (
+      <div className="border-y border-gray-100 bg-gray-50">
+        <p className="px-4 py-2 text-xs font-semibold text-gray-700">{media.items[0].alt || "Document"}</p>
+        <iframe src={`${media.items[0].url}#view=FitH&toolbar=0`} title={media.items[0].alt || "Document"} className="h-[420px] w-full bg-white" />
+      </div>
+    );
+  }
+  if (media.shape === "image") {
+    // LinkedIn shows a single image whole, at its own shape.
+    return <img src={media.items[0].url} alt={media.items[0].alt} className="block h-auto w-full" />;
+  }
+  return <ImageGrid items={media.items} />;
+}
+
+/** LinkedIn's multi-image layouts: 2 side by side; 3 and more as one large over a row, "+N" on the last tile. */
+function ImageGrid({ items }: { items: MediaItem[] }) {
+  const tile = (it: MediaItem, key: string, extra?: number) => (
+    <div key={key} className="relative aspect-square overflow-hidden bg-gray-100">
+      <img src={it.url} alt={it.alt} className="h-full w-full object-cover" />
+      {extra ? <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-2xl font-semibold text-white">+{extra}</div> : null}
+    </div>
+  );
+  if (items.length === 2) {
+    return <div className="grid grid-cols-2 gap-0.5">{items.map((it, i) => tile(it, String(i)))}</div>;
+  }
+  const rest = items.slice(1, 4);
+  const hidden = items.length - 4;
+  return (
+    <div className="space-y-0.5">
+      <img src={items[0].url} alt={items[0].alt} className="block h-auto w-full" />
+      <div className={`grid gap-0.5 ${rest.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+        {rest.map((it, i) => tile(it, String(i), i === rest.length - 1 && hidden > 0 ? hidden : undefined))}
+      </div>
     </div>
   );
 }

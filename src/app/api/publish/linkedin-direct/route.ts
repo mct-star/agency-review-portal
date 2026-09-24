@@ -6,8 +6,8 @@ import {
   createMultiImagePost,
   addComment,
   uploadImage,
-  stripMarkdownForLinkedIn,
 } from "@/lib/linkedin/client";
+import { toLinkedInText, escapeLittleText } from "@/lib/linkedin/post-text";
 
 /**
  * POST /api/publish/linkedin-direct
@@ -91,7 +91,8 @@ export async function POST(request: Request) {
   }
 
   // Prepare text
-  const postText = stripMarkdownForLinkedIn(text);
+  // Same text the preview shows, escaped for LinkedIn little text.
+  const postText = escapeLittleText(toLinkedInText(text));
   console.log("[LinkedIn Direct] Text length:", text.length, "→ stripped:", postText.length, "First comment:", firstComment ? firstComment.length + " chars" : "none");
 
   // Upload images and create the post

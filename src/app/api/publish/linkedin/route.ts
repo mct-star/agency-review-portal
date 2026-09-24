@@ -5,9 +5,10 @@ import {
   createPost,
   addComment,
   uploadImage,
-  stripMarkdownForLinkedIn,
+  createMultiImagePost,
 } from "@/lib/linkedin/client";
-import type { ContentImage } from "@/types/database";
+import { toLinkedInText, escapeLittleText } from "@/lib/linkedin/post-text";
+import { resolvePieceMedia } from "@/lib/content/piece-media";
 
 /**
  * POST /api/publish/linkedin
@@ -127,110 +128,110 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── 3. Prepare the post text ───────────────────────────────
-  const rawBody = piece.markdown_body || "";
-  const postText = stripMarkdownForLinkedIn(rawBody);
-  console.log("[LinkedIn Publish] Raw body length:", rawBody.length, "Stripped length:", postText.length);
-  console.log("[LinkedIn Publish] Last 100 chars:", JSON.stringify(postText.slice(-100)));
-  console.log("[LinkedIn Publish] First 100 chars:", JSON.stringify(postText.slice(0, 100)));
+  // ── 3. The exact text and media the preview showed ────────
+  // Same functions as LinkedInPreview, so approval means what it says.
+  const postText = toLinkedInText(piece.markdown_body || "");
+  const commentary = escapeLittleText(postText);
+  const firstComment = piece.first_comment ? toLinkedInText(piece.first_comment) : null;
 
-  // ── 4. Fetch images for the piece ──────────────────────────
-  const { data: images } = await supabase
-    .from("content_images")
-    .select("*")
-    .eq("content_piece_id", pieceId)
-    .order("sort_order", { ascending: true })
-    .limit(1);
+  const [{ data: images }, { data: mediaAssets }] = await Promise.all([
+    supabase.from("content_images").select("public_url, filename, sort_order, dimensions").eq("content_piece_id", pieceId),
+    supabase.from("content_assets").select("asset_type, file_url, text_content, asset_metadata").eq("content_piece_id", pieceId).not("file_url", "is", null),
+  ]);
+  const media = resolvePieceMedia(piece, images || [], mediaAssets || []);
 
-  const firstImage = (images && images.length > 0) ? images[0] as ContentImage : null;
-
-  // ── DRY RUN ────────────────────────────────────────────────
-  if (dryRun) {
-    return NextResponse.json({
-      dryRun: true,
-      piece: {
-        id: piece.id,
-        title: piece.title,
-        contentType: piece.content_type,
-        dayOfWeek: piece.day_of_week,
-        scheduledTime: piece.scheduled_time,
-      },
-      postText: postText.substring(0, 500) + (postText.length > 500 ? "..." : ""),
-      postTextLength: postText.length,
-      hasImage: !!firstImage,
-      imageUrl: firstImage?.public_url || null,
-      hasFirstComment: !!piece.first_comment,
-      firstComment: piece.first_comment?.substring(0, 200) || null,
-      linkedInAccount: {
-        name: account.account_name,
-        personUrn: account.account_id,
-      },
-    });
+  if (media.shape === "video" || media.shape === "document") {
+    return NextResponse.json(
+      { error: `This piece is a ${media.shape} post. Publishing ${media.shape}s to LinkedIn from the portal is not built yet, so nothing was posted.` },
+      { status: 422 },
+    );
   }
+  const imageItems = media.items.filter((m) => m.kind === "image").slice(0, 20);
 
-  // ── 5. Upload image (if any) ───────────────────────────────
-  let imageUrn: string | undefined;
-
-  if (firstImage?.public_url) {
-    try {
-      // Download the image from our storage
-      const imgRes = await fetch(firstImage.public_url);
-      if (imgRes.ok) {
-        const arrayBuffer = await imgRes.arrayBuffer();
-        const imageBuffer = Buffer.from(arrayBuffer);
-        const result = await uploadImage(
-          accessToken,
-          personUrn,
-          imageBuffer,
-          firstImage.filename
-        );
-        imageUrn = result.imageUrn;
-      }
-    } catch (imgErr) {
-      console.error("LinkedIn image upload failed (continuing without image):", imgErr);
-      // Continue without image rather than failing the whole post
+  // ── Never publish the same piece twice ─────────────────────
+  if (!body.force) {
+    const { data: already } = await supabase
+      .from("publishing_jobs")
+      .select("external_url, published_at")
+      .eq("content_piece_id", pieceId)
+      .eq("target_platform", "linkedin_personal")
+      .eq("status", "published")
+      .limit(1);
+    if (already && already.length > 0) {
+      return NextResponse.json(
+        { error: "This piece is already on LinkedIn.", url: already[0].external_url, publishedAt: already[0].published_at },
+        { status: 409 },
+      );
     }
   }
 
-  // ── 6. Create the post ─────────────────────────────────────
-  let postResult;
-  try {
-    postResult = await createPost(accessToken, personUrn, postText, imageUrn);
-  } catch (postErr) {
-    // Record failure
+  // ── DRY RUN: exactly what would be sent ────────────────────
+  if (dryRun) {
+    return NextResponse.json({
+      dryRun: true,
+      piece: { id: piece.id, title: piece.title, contentType: piece.content_type },
+      postText,
+      commentary,
+      media: { shape: media.shape, urls: imageItems.map((m) => m.url) },
+      firstComment,
+      linkedInAccount: { name: account.account_name, personUrn: account.account_id },
+    });
+  }
+
+  const recordFailure = async (message: string) => {
     await supabase.from("publishing_jobs").insert({
       company_id: companyId,
       content_piece_id: pieceId,
       target_platform: "linkedin_personal",
       social_account_id: account.id,
       status: "failed",
-      error_message: postErr instanceof Error ? postErr.message : "Unknown error",
-      publish_payload: { text: postText.substring(0, 200), hasImage: !!imageUrn },
+      error_message: message,
+      publish_payload: { text: postText.substring(0, 200), images: imageItems.length },
       response_payload: {},
       triggered_by: admin.userId,
     });
+    await supabase.from("content_pieces").update({ publish_status: "failed" }).eq("id", pieceId);
+  };
 
-    return NextResponse.json(
-      { error: postErr instanceof Error ? postErr.message : "Post creation failed" },
-      { status: 500 }
-    );
+  // ── 5. Upload every image. A failed upload stops the post: the
+  //       preview promised the image, so text-only would be wrong. ──
+  const imageUrns: string[] = [];
+  for (const [i, item] of imageItems.entries()) {
+    try {
+      const imgRes = await fetch(item.url);
+      if (!imgRes.ok) throw new Error(`could not read the image (${imgRes.status})`);
+      const type = imgRes.headers.get("content-type") || "";
+      const name = type.includes("png") ? "image.png" : type.includes("gif") ? "image.gif" : "image.jpg";
+      const result = await uploadImage(accessToken, personUrn, Buffer.from(await imgRes.arrayBuffer()), name);
+      imageUrns.push(result.imageUrn);
+    } catch (imgErr) {
+      const message = `Image ${i + 1} of ${imageItems.length} did not upload, so nothing was posted: ${imgErr instanceof Error ? imgErr.message : "unknown error"}`;
+      await recordFailure(message);
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
   }
 
-  // ── 7. Add first comment (if any) ──────────────────────────
-  let commentResult = null;
+  // ── 6. Create the post ─────────────────────────────────────
+  let postResult;
+  try {
+    postResult = imageUrns.length > 1
+      ? await createMultiImagePost(accessToken, personUrn, commentary, imageUrns)
+      : await createPost(accessToken, personUrn, commentary, imageUrns[0]);
+  } catch (postErr) {
+    const message = postErr instanceof Error ? postErr.message : "Post creation failed";
+    await recordFailure(message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
-  if (piece.first_comment) {
+  // ── 7. First comment. The post is live either way; a failed
+  //       comment is reported back, never hidden. ───────────────
+  let commentResult = null;
+  let commentError: string | null = null;
+  if (firstComment) {
     try {
-      commentResult = await addComment(
-        accessToken,
-        postResult.postUrn,
-        personUrn,
-        piece.first_comment
-      );
+      commentResult = await addComment(accessToken, postResult.postUrn, personUrn, firstComment);
     } catch (commentErr) {
-      console.error("LinkedIn first comment failed:", commentErr instanceof Error ? commentErr.message : commentErr);
-      console.error("LinkedIn first comment details - postUrn:", postResult.postUrn, "personUrn:", personUrn);
-      // Don't fail the whole publish if the comment fails
+      commentError = commentErr instanceof Error ? commentErr.message : "First comment failed";
     }
   }
 
@@ -247,10 +248,11 @@ export async function POST(request: Request) {
       external_url: postResult.postUrl,
       publish_payload: {
         textLength: postText.length,
-        hasImage: !!imageUrn,
-        imageUrn: imageUrn || null,
-        hasFirstComment: !!piece.first_comment,
+        images: imageUrns.length,
+        imageUrns,
+        hasFirstComment: !!firstComment,
         commentUrn: commentResult?.commentUrn || null,
+        commentError,
       },
       response_payload: {
         postUrn: postResult.postUrn,
@@ -262,8 +264,11 @@ export async function POST(request: Request) {
     .select()
     .single();
 
+  await supabase.from("content_pieces").update({ publish_status: "published" }).eq("id", pieceId);
+
   return NextResponse.json({
     success: true,
+    commentError,
     post: {
       urn: postResult.postUrn,
       url: postResult.postUrl,

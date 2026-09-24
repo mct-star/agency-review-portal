@@ -3,6 +3,7 @@
 import { useState } from "react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import LinkedInPreview from "./LinkedInPreview";
+import type { PieceMedia } from "@/lib/content/piece-media";
 
 interface ContentViewTabsProps {
   markdownBody: string;
@@ -14,6 +15,8 @@ interface ContentViewTabsProps {
   brandColor?: string;
   postType?: string | null;
   imageUrl?: string | null;
+  /** What will actually post, from resolvePieceMedia. */
+  media?: PieceMedia | null;
   // Required for Apply Brand Overlay button
   companyId?: string;
   contentPieceId?: string;
@@ -38,6 +41,7 @@ export default function ContentViewTabs({
   brandColor,
   postType,
   imageUrl,
+  media,
   companyId,
   contentPieceId,
 }: ContentViewTabsProps) {
@@ -67,8 +71,12 @@ export default function ContentViewTabs({
   }
 
   // Only social posts and LinkedIn articles get a Preview tab
-  const showPreviewTab =
-    contentType === "social_post" || contentType === "linkedin_article";
+  const showPreviewTab = ["social_post", "linkedin_article", "meme", "video", "video_script"].includes(contentType || "");
+  // An applied overlay replaces the image the post will carry.
+  const previewMedia: PieceMedia | null =
+    currentImageUrl && currentImageUrl !== (imageUrl ?? null)
+      ? { shape: "image", items: [{ kind: "image", url: currentImageUrl, alt: "" }] }
+      : media ?? null;
 
   const tabs: { id: ViewTab; label: string }[] = [
     { id: "content", label: "Content" },
@@ -143,6 +151,7 @@ export default function ContentViewTabs({
             firstComment={firstComment}
             postType={postType}
             imageUrl={currentImageUrl}
+            media={previewMedia}
             brandColor={brandColor}
           />
         </div>
