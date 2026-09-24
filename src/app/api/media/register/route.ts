@@ -8,6 +8,7 @@ import {
   maxBytes,
   type MediaKind,
 } from "@/lib/upload/media-constants";
+import { copyToPublishedBucket, nextImageSortOrder } from "@/lib/media/publish-copy";
 
 /**
  * POST /api/media/register
@@ -32,7 +33,7 @@ import {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA256_RE = /^[0-9a-f]{64}$/i;
 
-const PHOTO_SOURCES = ["photo_pack", "weekly_capture", "shoot"] as const;
+const PHOTO_SOURCES = ["photo_pack", "weekly_capture", "shoot", "bank_upload"] as const;
 type PhotoSource = (typeof PHOTO_SOURCES)[number];
 
 type RegisterTarget =
@@ -198,72 +199,6 @@ async function objectExists(
 }
 
 /**
- * Move a capture into the public bucket.
- *
- * `copy` takes a destinationBucket in this version of storage-js, so
- * the copy happens server-side and the bytes never travel through the
- * function. The download-and-reupload fallback exists because that
- * option is only honoured by recent storage-api builds, and a 2GB
- * round trip through a serverless function is a failure mode worth
- * naming in the response rather than hiding.
- */
-async function copyToPublishedBucket(
-  supabase: SupabaseAdmin,
-  fromPath: string,
-  toPath: string,
-  mimeType: string
-): Promise<"copy" | "download_upload"> {
-  const { error: copyErr } = await supabase.storage
-    .from(CAPTURES_BUCKET)
-    .copy(fromPath, toPath, { destinationBucket: PUBLISHED_BUCKET });
-
-  if (!copyErr) return "copy";
-
-  const { data: blob, error: downloadErr } = await supabase.storage
-    .from(CAPTURES_BUCKET)
-    .download(fromPath);
-
-  if (downloadErr || !blob) {
-    throw new Error(
-      `Could not copy capture into ${PUBLISHED_BUCKET}: ${copyErr.message}, and the download fallback failed: ${
-        downloadErr?.message ?? "no data"
-      }`
-    );
-  }
-
-  const { error: uploadErr } = await supabase.storage
-    .from(PUBLISHED_BUCKET)
-    .upload(toPath, blob, { contentType: mimeType, upsert: true });
-
-  if (uploadErr) {
-    throw new Error(`Could not upload capture into ${PUBLISHED_BUCKET}: ${uploadErr.message}`);
-  }
-
-  return "download_upload";
-}
-
-/**
- * sort_order is nullable on content_images and Postgres puts nulls
- * first on a descending sort, so nullsFirst: false is load bearing.
- * Without it a single legacy null row would hide the real maximum
- * and every uploaded photo would be inserted at 0.
- */
-async function nextImageSortOrder(
-  supabase: SupabaseAdmin,
-  contentPieceId: string
-): Promise<number> {
-  const { data } = await supabase
-    .from("content_images")
-    .select("sort_order")
-    .eq("content_piece_id", contentPieceId)
-    .order("sort_order", { ascending: false, nullsFirst: false })
-    .limit(1);
-
-  const highest = data?.[0]?.sort_order;
-  return typeof highest === "number" ? highest + 1 : 0;
-}
-
-/**
  * A photo used in a post should stop counting as unused supply. The
  * append is conditional because used_in_weeks drives the tier
  * decision and a duplicate week number would misreport it.
@@ -294,9 +229,7 @@ async function markPhotoUsedInWeek(
 
 async function registerPhotoInBank(supabase: SupabaseAdmin, body: RegisterBody) {
   if (body.target.type !== "photo_bank") throw new BadRequest("Unreachable target");
-  if (body.kind !== "photo") {
-    throw new BadRequest("target photo_bank only accepts kind photo");
-  }
+  // The bank holds photos and video footage alike.
 
   const fileRef = body.sha256 ? `sha256:${body.sha256}` : body.path;
 
@@ -314,6 +247,8 @@ async function registerPhotoInBank(supabase: SupabaseAdmin, body: RegisterBody) 
       height: body.height,
       size_bytes: body.sizeBytes,
       original_filename: body.originalFilename,
+      kind: body.kind,
+      duration_seconds: body.durationSeconds,
     })
     .select("*")
     .single();

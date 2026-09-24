@@ -8,6 +8,7 @@ import CommentThread from "@/components/comments/CommentThread";
 import CommentForm from "@/components/comments/CommentForm";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import ContentAssets from "@/components/content/ContentAssets";
+import BankPicker from "@/components/content/BankPicker";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
@@ -226,6 +227,9 @@ export default async function ContentPiecePage({ params }: PageProps) {
           </div>
         </div>
       )}
+
+      {/* Real photos and clips from the bank */}
+      {profile.role === "admin" && <BankPicker pieceId={piece.id} companyId={piece.company_id} />}
 
       {/* Content Assets */}
       <ContentAssets

@@ -79,6 +79,7 @@ function buildSections(user: User): NavSection[] {
                 { href: "/admin/clips", label: "Clips", icon: "video", adminOnly: true },
               ] as NavItem[])
             : []),
+          { href: "/admin/bank", label: "Photo & Video Bank", icon: "video", adminOnly: true },
           { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
           { href: "/create/voice", label: "Voice to Post", icon: "mic" },
           { href: "/generate", label: "Week Batch", icon: "sparkle" },
