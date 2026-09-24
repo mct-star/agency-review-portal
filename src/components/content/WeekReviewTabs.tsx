@@ -128,7 +128,7 @@ export default function WeekReviewTabs({
   const tabs: { id: ReviewTab; label: string; count: number }[] = [
     { id: "social", label: "Social Posts", count: socialPieces.length },
     ...(blogPieces.length > 0
-      ? [{ id: "blog" as ReviewTab, label: "Blog", count: blogPieces.length }]
+      ? [{ id: "blog" as ReviewTab, label: blogPieces.some((p) => p.content_type === "pdf_guide") ? "Blog and PDF" : "Blog", count: blogPieces.length }]
       : []),
     ...(articlePieces.length > 0
       ? [{ id: "article" as ReviewTab, label: "LinkedIn Article", count: articlePieces.length }]
@@ -359,7 +359,7 @@ export default function WeekReviewTabs({
                           </span>
                         )}
                         <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                          Blog
+                          {piece.content_type === "pdf_guide" ? "PDF guide" : "Blog"}
                         </span>
                         {piece.word_count && (
                           <span>{piece.word_count.toLocaleString()} words</span>
@@ -371,13 +371,16 @@ export default function WeekReviewTabs({
                         )}
                       </div>
                     </div>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending
-                      }`}
-                    >
-                      {STATUS_LABELS[piece.approval_status] || piece.approval_status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <a href={`/content/${piece.id}`} className="text-xs font-medium text-violet-700 hover:underline">Open to approve</a>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          STATUS_STYLES[piece.approval_status] || STATUS_STYLES.pending
+                        }`}
+                      >
+                        {STATUS_LABELS[piece.approval_status] || piece.approval_status}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -398,9 +401,18 @@ export default function WeekReviewTabs({
                   </div>
                 )}
 
-                {/* Blog body with inline images */}
+                {/* Blog body with inline images; a PDF guide shows the PDF itself */}
                 <div className="p-6">
-                  <MarkdownRenderer content={piece.markdown_body} />
+                  {(() => {
+                    const pdf = piece.content_type === "pdf_guide" ? piece.assets.find((a) => a.asset_type === "pdf_file" && a.file_url) : null;
+                    return pdf ? (
+                      <div className="space-y-2">
+                        <a href={pdf.file_url!} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-violet-700 hover:underline">Open or download the PDF</a>
+                        <iframe src={`${pdf.file_url}#view=FitH`} title={piece.title || "PDF guide"} className="h-[75vh] w-full rounded border border-gray-200" />
+                      </div>
+                    ) : null;
+                  })()}
+                  {piece.content_type !== "pdf_guide" && <MarkdownRenderer content={piece.markdown_body} />}
 
                   {/* Inline images grid */}
                   {inlineImages.length > 0 && (

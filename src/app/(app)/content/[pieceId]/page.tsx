@@ -84,6 +84,17 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .eq("asset_metadata->>type", "rendered_video")
     .order("created_at", { ascending: true });
 
+  // The weekly PDF guide, written back by the Mac beside the blog article.
+  const { data: pdfAssets } = await supabase
+    .from("content_assets")
+    .select("id, file_url, text_content")
+    .eq("content_piece_id", pieceId)
+    .eq("asset_type", "pdf_file")
+    .not("file_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const pdf = pdfAssets?.[0] ?? null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Breadcrumb */}
@@ -162,6 +173,18 @@ export default async function ContentPiecePage({ params }: PageProps) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {pdf?.file_url && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-gray-900">{pdf.text_content || "PDF guide"}</h3>
+            <a href={pdf.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-violet-700 hover:underline">
+              Open or download the PDF
+            </a>
+          </div>
+          <iframe src={`${pdf.file_url}#view=FitH`} title={pdf.text_content || "PDF guide"} className="h-[80vh] w-full rounded border border-gray-200" />
         </div>
       )}
 

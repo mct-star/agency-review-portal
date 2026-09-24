@@ -74,8 +74,11 @@ export default async function WeekReviewPage({ params }: PageProps) {
   }));
 
   // Group by content type
-  const socialPieces = enrichedPieces.filter((p) => p.content_type === "social_post");
-  const blogPieces = enrichedPieces.filter((p) => p.content_type === "blog_article");
+  // Memes and videos are feed posts too; the PDF guide travels with its blog.
+  const socialPieces = enrichedPieces.filter((p) => ["social_post", "meme", "video", "video_script"].includes(p.content_type));
+  const blogPieces = enrichedPieces
+    .filter((p) => p.content_type === "blog_article" || p.content_type === "pdf_guide")
+    .sort((a, b) => (a.content_type === "blog_article" ? 0 : 1) - (b.content_type === "blog_article" ? 0 : 1));
   const articlePieces = enrichedPieces.filter((p) => p.content_type === "linkedin_article");
 
   // Progress stats
