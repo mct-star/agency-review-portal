@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { awaitLinkedInPublish } from "@/lib/linkedin/await-publish";
 
 interface LinkedInPublishButtonProps {
   pieceId: string;
@@ -67,7 +68,10 @@ export default function LinkedInPublishButton({
         throw new Error(data.error || "Publishing failed");
       }
 
-      setResult({ url: data.post.url, urn: data.post.urn });
+      // The Mac posts it; wait for the live link.
+      const done = await awaitLinkedInPublish(data.jobId);
+      setResult({ url: done.url || "https://www.linkedin.com/in/me/recent-activity/all/", urn: "" });
+      if (done.commentError) setError(`Posted, but the first comment failed: ${done.commentError}`);
       setState("success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Publishing failed");
@@ -152,7 +156,7 @@ export default function LinkedInPublishButton({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
             <span className="text-sm text-gray-600">Publishing to LinkedIn...</span>
           </div>
-          <p className="text-xs text-gray-500 ml-8">This can take up to 15 seconds while we upload your image and create the post.</p>
+          <p className="text-xs text-gray-500 ml-8">Your Mac posts it and sends back the link, usually within a minute.</p>
         </div>
       )}
 

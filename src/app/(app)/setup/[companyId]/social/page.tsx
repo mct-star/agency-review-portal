@@ -56,6 +56,12 @@ const COMPANY_PLATFORMS: { value: SocialPlatform; label: string; status: "active
 ];
 
 export default function CompanySocialPage() {
+  const [linkedInError, setLinkedInError] = useState<string | null>(null);
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get("linkedin_error");
+    if (e) setLinkedInError(e);
+  }, []);
+
   const { companyId } = useParams<{ companyId: string }>();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,8 +218,11 @@ export default function CompanySocialPage() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900">LinkedIn Direct Publishing</h3>
               <p className="mt-0.5 text-xs text-gray-500">
-                Connect your LinkedIn account to post directly from Quick Generate and the Publish page.
+                Approved posts publish to your LinkedIn from your Mac, which holds the working connection and renews it every month. This connection is only used by Quick Post&apos;s direct post.
               </p>
+              {linkedInError && (
+                <p className="mt-1.5 rounded bg-red-50 px-2 py-1 text-xs text-red-700">LinkedIn did not connect: {linkedInError}</p>
+              )}
               {linkedInAccount ? (
                 <p className={`mt-1.5 text-xs ${linkedInAccount.expired || linkedInAccount.noToken ? "text-amber-700" : "text-green-700"}`}>
                   {linkedInAccount.expired || linkedInAccount.noToken ? (

@@ -11,7 +11,6 @@ import ContentAssets from "@/components/content/ContentAssets";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
-import ApproveAndPublishButton from "@/components/content/ApproveAndPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
@@ -72,15 +71,6 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .eq("id", piece.company_id)
     .single();
 
-  // Check if LinkedIn is connected for this company
-  const { count: linkedInAccountCount } = await supabase
-    .from("company_social_accounts")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", piece.company_id)
-    .eq("platform", "linkedin_personal")
-    .eq("is_active", true);
-
-  const linkedInConnected = (linkedInAccountCount ?? 0) > 0;
 
   // Find the first generated image for preview (if any)
   const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
@@ -260,18 +250,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
         isAdmin={profile.role === "admin"}
       />
 
-      {/* Approve & Publish to LinkedIn (admin only, social posts, not yet approved, LinkedIn connected) */}
-      {profile.role === "admin" &&
-        (piece.content_type === "social_post" || piece.content_type === "meme") &&
-        piece.approval_status !== "approved" &&
-        linkedInConnected && (
-          <ApproveAndPublishButton
-            pieceId={piece.id}
-            companyId={piece.company_id}
-            weekId={piece.week_id}
-          />
-        )}
-
+      {/* Publishing always goes through the confirm step below, which shows
+          the exact post; there is no one-click approve-and-publish. */}
       {/* LinkedIn Publish (admin only, social posts only, already approved) */}
       {profile.role === "admin" && (piece.content_type === "social_post" || piece.content_type === "meme") && (
         <LinkedInPublishButton
