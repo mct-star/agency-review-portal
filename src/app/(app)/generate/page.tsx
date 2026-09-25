@@ -586,7 +586,10 @@ export default function GeneratePage() {
                 before_after: { prefix: "Split composition showing transformation, clear visual contrast. ", aspectRatio: "1:1" },
                 general: { prefix: "Pixar-style 3D animated scene, warm lighting, healthcare/business setting. ", aspectRatio: "1:1" },
               };
-              const style = ARCHETYPE_STYLES[archetype] || ARCHETYPE_STYLES.general;
+              // Blog and article images are text-free editorial photography, whatever the slot's archetype.
+              const style = isBlogOrArticle
+                ? { prefix: "Photorealistic editorial photograph, natural light, healthcare or business setting, no text in the image. ", aspectRatio: "1:1" }
+                : ARCHETYPE_STYLES[archetype] || ARCHETYPE_STYLES.general;
 
               if (isBlogOrArticle && contentData.blogImagePrompts?.length > 0) {
                 // Multi-image generation for blog/article content

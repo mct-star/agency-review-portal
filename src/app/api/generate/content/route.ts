@@ -3,6 +3,7 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider } from "@/lib/providers";
 import type { ContentGenerationInput } from "@/lib/providers";
 import { getEcosystemRole } from "@/lib/generation/cta-resolver";
+import { assetRowsFor, saveAssets } from "@/lib/content/save-assets";
 import {
   buildPreGenerationContext,
   runPostGenerationGates,
@@ -332,33 +333,10 @@ export async function POST(request: Request) {
       .update({ progress: 85, content_piece_id: piece.id })
       .eq("id", jobId);
 
-    // 7. Create assets if any
-    const assetRows: { content_piece_id: string; asset_type: string; text_content: string; sort_order: number }[] = [];
-
-    if (output.assets && output.assets.length > 0) {
-      output.assets.forEach((a, i) => {
-        assetRows.push({
-          content_piece_id: piece.id,
-          asset_type: a.assetType,
-          text_content: a.textContent,
-          sort_order: i,
-        });
-      });
-    }
-
-    // Store image prompt as an asset so it is visible on the content piece page
-    if (output.imagePrompt) {
-      assetRows.push({
-        content_piece_id: piece.id,
-        asset_type: "image_prompt",
-        text_content: output.imagePrompt,
-        sort_order: assetRows.length,
-      });
-    }
-
-    if (assetRows.length > 0) {
-      await supabase.from("content_assets").insert(assetRows);
-    }
+    // 7. Create assets (src/lib/content/save-assets.ts): a failure is
+    // reported in the response, never silently dropped.
+    const assetError = await saveAssets(supabase, assetRowsFor(piece.id, output.assets, output.imagePrompt));
+    if (assetError) console.error(`[generate/content] assets not saved for ${piece.id}: ${assetError}`);
 
     // 8. Mark topic as used (only if we have a valid topic)
     if (isValidTopicId) {
@@ -412,6 +390,7 @@ export async function POST(request: Request) {
       }));
 
     return NextResponse.json({
+      assetError,
       jobId,
       status: "completed",
       pieceId: piece.id,

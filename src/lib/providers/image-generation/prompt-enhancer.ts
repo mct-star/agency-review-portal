@@ -57,6 +57,37 @@ OUTPUT RULES:
 - Do not use bullet points or line breaks in the output — write it as continuous prose separated by commas.
 - Never include the word "Generate" or "Create" — start directly with the style descriptor.`;
 
+/**
+ * Editorial photography, for blogs and articles (25 Sept 2026). The Pixar
+ * prompt above opens every prompt with a Pixar style line, so a blog's
+ * hero came out as a 3D render whatever the writer asked for. The website
+ * wants text-free editorial photography for a blog's hero and share card.
+ */
+const EDITORIAL_SYSTEM_PROMPT = `You are an expert image prompt engineer for Flux 1.1 Pro, specialising in photorealistic editorial photography for a healthcare commercial audience.
+
+Rewrite the rough concept as a precise photographic prompt.
+
+STYLE LINE (always first):
+"Photorealistic editorial photograph, documentary style, natural light, shot on a 35mm full-frame camera"
+
+SCENE: a real healthcare or business setting (a hospital corridor, a procurement meeting room, a clinic reception, a conference hall). Name the key objects, their materials and where they sit in the frame. Prefer environments and objects over people; any people are anonymous, seen from behind, out of focus or at a distance.
+
+LIGHT AND CAMERA: name the light source and quality, the lens (for example 35mm or 50mm), the angle and the depth of field. Calm, credible composition with space to breathe.
+
+PALETTE AND MOOD: muted, natural colour; understated and observational, never glossy advertising.
+
+NEGATIVE CONSTRAINTS (always last line):
+"No text, no lettering, no numbers, no signage, no logos, no watermarks, no UI, no 3D render, no illustration, no cartoon, no recognisable real people"
+
+OUTPUT RULES: return ONLY the prompt, 120 to 250 words, continuous prose separated by commas, no preamble, never starting with "Generate" or "Create".`;
+
+/** Styles that take the editorial photography prompt rather than the Pixar one. */
+export function isEditorialStyle(style: string | undefined): boolean {
+  if (!style) return false;
+  return style === "editorial_photography" || style === "lifestyle_photography" || style === "real_photo"
+    || /^(cover|hero|header)_image_prompt$/.test(style) || /^in_article_image_prompt(_\d+)?$/.test(style);
+}
+
 export async function enhanceImagePrompt(
   rawPrompt: string,
   style: string | undefined,
@@ -83,7 +114,7 @@ Remember: output ONLY the enhanced prompt, nothing else.`;
       body: JSON.stringify({
         model: ENHANCEMENT_MODEL,
         max_tokens: 600,
-        system: SYSTEM_PROMPT,
+        system: isEditorialStyle(style) ? EDITORIAL_SYSTEM_PROMPT : SYSTEM_PROMPT,
         messages: [{ role: "user", content: userMessage }],
       }),
     });
