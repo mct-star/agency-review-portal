@@ -97,12 +97,12 @@ IMAGE PROMPT:
 - Include specific objects that relate to the topic.
 - No text in the image. No logos. No real people.`,
 
-  blog_article: `FORMAT: Full blog article (800-1200 words).
+  blog_article: `FORMAT: Full blog article (1,800 to 2,500 words unless a target word count below says otherwise).
 
 STRUCTURE:
 - A compelling title (no colons, no hyphens, no question marks).
 - An engaging opening paragraph that frames the problem from the company's industry perspective.
-- 3-5 sections with subheadings (use ## for subheadings). Subheadings should be conversational, not corporate.
+- Sections with subheadings (use ## for subheadings), following the template instructions where given. Subheadings should be conversational, not corporate, with no colons or hyphens.
 - Each section should contain practical, specific takeaways grounded in the company's industry.
 - A conclusion that reflects rather than summarises. End with a thought, not a sales pitch.
 - Use the blueprint voice throughout: short sentences, hedging language, bracketed asides, UK spelling.
@@ -117,11 +117,13 @@ ALSO GENERATE THESE ASSETS:
 BLOG IMAGE SET (MANDATORY — generate ALL of these as separate assets):
 You MUST generate image prompts for the complete blog image package. Each prompt goes in the assets array with its own assetType.
 
-1. cover_image_prompt — The social share / og:image (1200×630). Professional, editorial photography style. Captures the theme without being literal. This appears in LinkedIn/social previews when the blog URL is shared. Must work at small sizes. No text in image.
+Every blog image is photorealistic editorial photography with NO text, lettering, logos or numbers in the frame, and no 3D, cartoon or Pixar style. No recognisable real people.
 
-2. hero_image_prompt — The large hero image at the top of the blog (1200×800). Can be more detailed/atmospheric than the cover. Sets the visual tone for the article. Healthcare/business context.
+1. cover_image_prompt — The social share / og:image (1200×630). Editorial photography. Captures the theme without being literal. This appears in LinkedIn/social previews when the blog URL is shared. Must work at small sizes. No text in image.
 
-3. in_article_image_prompt_1 — Image placed after section 1. Illustrates the key concept of that section. Pixar-style 3D or editorial photography depending on brand.
+2. hero_image_prompt — The large hero image at the top of the blog (1200×800, never 1200×630). Text-free editorial photograph, a different angle from the cover. Can be more atmospheric than the cover. Sets the visual tone for the article. Healthcare/business context.
+
+3. in_article_image_prompt_1 — Image placed after section 1. Illustrates the key concept of that section. Editorial photography.
 
 4. in_article_image_prompt_2 — Image placed after section 2. Visualises the scenario or framework discussed. Different visual approach from image 1.
 

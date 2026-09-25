@@ -11,6 +11,7 @@ import ContentAssets from "@/components/content/ContentAssets";
 import BankPicker from "@/components/content/BankPicker";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
+import WebsitePublishPanel from "@/components/content/WebsitePublishPanel";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
@@ -94,6 +95,13 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .order("created_at", { ascending: false })
     .limit(1);
   const pdf = pdfAssets?.[0] ?? null;
+
+  // A blog's image prompts, for its website panel.
+  const { data: blogPrompts } = piece.content_type === "blog_article"
+    ? await supabase.from("content_assets").select("asset_type, text_content")
+        .eq("content_piece_id", pieceId).in("asset_type", ["hero_image_prompt", "cover_image_prompt"])
+    : { data: null };
+  const blogPrompt = (t: string) => blogPrompts?.find(a => a.asset_type === t)?.text_content || null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -262,6 +270,19 @@ export default async function ContentPiecePage({ params }: PageProps) {
           pieceId={piece.id}
           companyId={piece.company_id}
           isApproved={piece.approval_status === "approved"}
+        />
+      )}
+
+      {/* Website (admin only, blogs only): images, preview, then a pull request */}
+      {profile.role === "admin" && piece.content_type === "blog_article" && (
+        <WebsitePublishPanel
+          pieceId={piece.id}
+          companyId={piece.company_id}
+          isApproved={piece.approval_status === "approved"}
+          heroPrompt={blogPrompt("hero_image_prompt")}
+          coverPrompt={blogPrompt("cover_image_prompt")}
+          hasHero={(images || []).some(i => i.archetype === "hero_image_prompt")}
+          hasOg={(images || []).some(i => i.archetype === "cover_image_prompt")}
         />
       )}
 

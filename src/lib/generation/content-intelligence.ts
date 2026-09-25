@@ -53,6 +53,19 @@ export interface PreGenerationOptions {
   } | null;
 }
 
+/**
+ * Blogs and LinkedIn articles are long form: paragraphs run to four or
+ * five sentences, there is no first comment, and the opening line is read
+ * on a page, not above a "see more" fold. The gates below were written for
+ * social posts and failed every article on those three counts.
+ */
+export function isLongForm(postTypeSlug: string | undefined): boolean {
+  return postTypeSlug === "blog_article" || postTypeSlug === "linkedin_article";
+}
+
+/** Longest paragraph a gate accepts: about 3 mobile lines for a post, 4 to 5 sentences for an article. */
+export const MAX_PARAGRAPH_CHARS = { social: 200, longForm: 700 } as const;
+
 // ════════════════════════════════════════════════════════════
 // A. Day-Specific Rules
 // ════════════════════════════════════════════════════════════
@@ -461,7 +474,8 @@ Respond with JSON: {"passed": true/false, "explanation": "1 sentence"}`
  */
 async function runGate3HookTension(
   hookLine: string,
-  apiKey: string
+  apiKey: string,
+  longForm = false,
 ): Promise<GateResult> {
   const gate: GateResult = {
     gate: "hook_tension",
@@ -479,7 +493,7 @@ async function runGate3HookTension(
     const response = await callClaudeHaiku(
       apiKey,
       "You are a content quality evaluator. Respond with valid JSON only.",
-      `Classify this LinkedIn post opening line into one of these types:
+      `Classify this ${longForm ? "article's opening line" : "LinkedIn post opening line"} into one of these types:
 - ACCUSATION: points at a problem the reader is complicit in
 - REVELATION: reveals something the reader did not know
 - CONFRONTATION: challenges what the reader believes
@@ -515,7 +529,7 @@ Respond with JSON: {"type": "ONE_WORD_TYPE", "explanation": "1 sentence"}`
 /**
  * Gate 4: AI Voice Detection (HIGH) — fully programmatic
  */
-function runGate4AIVoiceDetection(content: string): GateResult {
+export function runGate4AIVoiceDetection(content: string, longForm = false): GateResult {
   const issues: string[] = [];
 
   // Unicode bold text (Mathematical Alphanumeric Symbols block U+1D400-U+1D7FF)
@@ -606,9 +620,11 @@ function runGate4AIVoiceDetection(content: string): GateResult {
   const paragraphs = content.split(/\n\s*\n/);
   for (const para of paragraphs) {
     const trimmed = para.trim();
-    // Approximate: 3 mobile lines ~ 120 characters
-    if (trimmed.length > 200 && !trimmed.startsWith("#") && !trimmed.startsWith("---")) {
-      issues.push("Wall-of-text paragraph detected (paragraph exceeds 3 mobile lines)");
+    const limit = longForm ? MAX_PARAGRAPH_CHARS.longForm : MAX_PARAGRAPH_CHARS.social;
+    if (trimmed.length > limit && !trimmed.startsWith("#") && !trimmed.startsWith("---")) {
+      issues.push(longForm
+        ? "Wall-of-text paragraph detected (paragraph runs past 4 to 5 sentences)"
+        : "Wall-of-text paragraph detected (paragraph exceeds 3 mobile lines)");
       break;
     }
   }
@@ -648,7 +664,7 @@ function runGate4AIVoiceDetection(content: string): GateResult {
 /**
  * Gate 5: Structure & Formatting (MEDIUM) — fully programmatic
  */
-function runGate5StructureFormatting(
+export function runGate5StructureFormatting(
   content: string,
   title: string,
   firstComment: string | null,
@@ -677,7 +693,7 @@ function runGate5StructureFormatting(
 
   // First comment generated (for types that need it)
   const noFirstCommentTypes = new Set(["blog_teaser", "personal", "saturday"]);
-  if (!noFirstCommentTypes.has(options.postTypeSlug) && !firstComment) {
+  if (!noFirstCommentTypes.has(options.postTypeSlug) && !isLongForm(options.postTypeSlug) && !firstComment) {
     issues.push("First comment not generated (required for this post type)");
   }
 
@@ -738,7 +754,8 @@ function runGate5StructureFormatting(
  */
 async function runGate6QualityTriple(
   content: string,
-  apiKey: string
+  apiKey: string,
+  longForm = false,
 ): Promise<GateResult> {
   const gate: GateResult = {
     gate: "quality_triple",
@@ -752,9 +769,9 @@ async function runGate6QualityTriple(
     const response = await callClaudeHaiku(
       apiKey,
       "You are a content quality evaluator. Be honest and strict. Respond with valid JSON only.",
-      `Evaluate this LinkedIn post for three tests:
+      `Evaluate this ${longForm ? "article" : "LinkedIn post"} for three tests:
 
-POST:
+${longForm ? "ARTICLE" : "POST"}:
 ${content}
 
 1. ROS ATKINS TEST: Would a smart person OUTSIDE this industry understand the point? Is there unexplained jargon or assumed knowledge?
@@ -826,12 +843,12 @@ export async function runPostGenerationGates(
 
   // Gate 3: Hook Tension Type (HIGH)
   if (apiKey) {
-    const g3 = await runGate3HookTension(hookLine, apiKey);
+    const g3 = await runGate3HookTension(hookLine, apiKey, isLongForm(options.postTypeSlug));
     results.push(g3);
   }
 
   // Gate 4: AI Voice Detection (HIGH) — programmatic
-  const g4 = runGate4AIVoiceDetection(options.content);
+  const g4 = runGate4AIVoiceDetection(options.content, isLongForm(options.postTypeSlug));
   results.push(g4);
 
   // Gate 5: Structure & Formatting (MEDIUM) — programmatic
@@ -850,7 +867,7 @@ export async function runPostGenerationGates(
 
   // Gate 6: Ros Atkins / So What / Pub (MEDIUM)
   if (apiKey) {
-    const g6 = await runGate6QualityTriple(options.content, apiKey);
+    const g6 = await runGate6QualityTriple(options.content, apiKey, isLongForm(options.postTypeSlug));
     results.push(g6);
   }
 
