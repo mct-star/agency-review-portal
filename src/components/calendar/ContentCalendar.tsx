@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatWeekLabelShort } from "@/lib/utils/format-week-label";
+import PlanBoard from "./PlanBoard";
 import {
   DndContext,
   DragOverlay,
@@ -72,7 +73,7 @@ interface ContentCalendarProps {
   showCompanyPicker?: boolean;
 }
 
-type ViewMode = "month" | "week" | "search" | "recent";
+type ViewMode = "plan" | "month" | "week" | "search" | "recent";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -179,7 +180,9 @@ function stripMarkdown(md: string): string {
 // Map piece to actual date based on week's date_start + day_of_week
 function getPieceDate(piece: CalendarPiece, week: CalendarWeek): Date | null {
   if (!piece.day_of_week) return null;
-  const dayNum = DAY_MAP[piece.day_of_week];
+  // Days are stored lowercase ("sunday"); read either case.
+  const d = piece.day_of_week.trim().toLowerCase();
+  const dayNum = DAY_MAP[d.charAt(0).toUpperCase() + d.slice(1)];
   if (dayNum === undefined) return null;
 
   const weekStart = new Date(week.date_start + "T00:00:00");
@@ -450,7 +453,7 @@ export default function ContentCalendar({
 }: ContentCalendarProps) {
   const router = useRouter();
   const [selectedCompany, setSelectedCompany] = useState(companies[0]);
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("plan");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [weeks, setWeeks] = useState<CalendarWeek[]>([]);
   const [pieces, setPieces] = useState<CalendarPiece[]>([]);
@@ -463,7 +466,7 @@ export default function ContentCalendar({
   const [searchResults, setSearchResults] = useState<CalendarPiece[]>([]);
   const [searchWeeks, setSearchWeeks] = useState<CalendarWeek[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [previousViewMode, setPreviousViewMode] = useState<ViewMode>("month");
+  const [previousViewMode, setPreviousViewMode] = useState<ViewMode>("plan");
 
   // Popover state
   const [expandedPieceId, setExpandedPieceId] = useState<string | null>(null);
@@ -659,34 +662,28 @@ export default function ContentCalendar({
     if (!over) return;
 
     const piece = active.data.current?.piece as CalendarPiece | undefined;
-    const dayName = over.data.current?.dayName as string | undefined;
-    if (!piece || !dayName) return;
+    const date = over.data.current?.date as Date | undefined;
+    if (!piece || !date) return;
+    const target = formatDateKey(date);
+    const week = weeks.find((w) => w.week_number > 0 && w.date_start <= target && target <= w.date_end);
+    const dayName = GRID_TO_DAY_NAME[jsToGridDay(date.getDay())].toLowerCase();
+    if (week && piece.week_id === week.id && (piece.day_of_week || "").toLowerCase() === dayName) return;
 
-    // Don't update if same day
-    if (piece.day_of_week === dayName) return;
-
-    // Optimistic update
-    setPieces((prev) =>
-      prev.map((p) => (p.id === piece.id ? { ...p, day_of_week: dayName } : p))
-    );
-
+    // Placed by date, so a post dragged into another week lands there
+    // (the week, day and date move together).
+    if (week) {
+      setPieces((prev) => prev.map((p) => (p.id === piece.id ? { ...p, week_id: week.id, day_of_week: dayName } : p)));
+    }
     try {
       const res = await fetch("/api/calendar/reschedule", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pieceId: piece.id, newDayOfWeek: dayName }),
+        body: JSON.stringify({ pieceId: piece.id, date: target }),
       });
-      if (!res.ok) {
-        // Revert on failure
-        setPieces((prev) =>
-          prev.map((p) => (p.id === piece.id ? { ...p, day_of_week: piece.day_of_week } : p))
-        );
-      }
+      if (!res.ok) throw new Error();
+      if (!week) fetchData();
     } catch {
-      // Revert on error
-      setPieces((prev) =>
-        prev.map((p) => (p.id === piece.id ? { ...p, day_of_week: piece.day_of_week } : p))
-      );
+      setPieces((prev) => prev.map((p) => (p.id === piece.id ? piece : p)));
     }
   }
 
@@ -842,6 +839,7 @@ export default function ContentCalendar({
                 </select>
               )}
 
+              {viewMode !== "plan" && (<>
               {/* Navigation */}
               <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white">
                 <button
@@ -876,10 +874,12 @@ export default function ContentCalendar({
                   <p className="text-xs text-gray-500">{timezone}</p>
                 )}
               </div>
+              </>)}
             </div>
 
             <div className="flex items-center gap-3">
               {/* Show template toggle */}
+              {viewMode !== "plan" && (
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -889,10 +889,11 @@ export default function ContentCalendar({
                 />
                 <span className="text-xs text-gray-500">Show schedule</span>
               </label>
+              )}
 
               {/* View mode toggle */}
               <div className="flex rounded-lg border border-gray-200 bg-white p-0.5">
-                {(["week", "month"] as const).map((mode) => (
+                {(["plan", "week", "month"] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setViewMode(mode)}
@@ -902,7 +903,7 @@ export default function ContentCalendar({
                         : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
-                    {mode === "week" ? "Week" : "Month"}
+                    {mode === "plan" ? "Plan" : mode === "week" ? "Week" : "Month"}
                   </button>
                 ))}
               </div>
@@ -912,7 +913,7 @@ export default function ContentCalendar({
       </div>
 
       {/* Summary stats */}
-      {totalPieces > 0 && (
+      {totalPieces > 0 && viewMode !== "plan" && (
         <div className="flex items-center gap-6 rounded-lg border border-gray-200 bg-white px-5 py-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-900">{totalPieces}</span>
@@ -954,6 +955,8 @@ export default function ContentCalendar({
           mode={viewMode}
           query={searchQuery}
         />
+      ) : viewMode === "plan" ? (
+        <PlanBoard key={selectedCompany.id} companyId={selectedCompany.id} />
       ) : loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
@@ -986,6 +989,7 @@ export default function ContentCalendar({
       )}
 
       {/* Legend */}
+      {viewMode !== "plan" && (
       <div className="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
         <span className="text-xs font-medium text-gray-500">Post types:</span>
         {Object.entries(POST_TYPE_COLORS).slice(0, 8).map(([slug, colors]) => (
@@ -1004,6 +1008,7 @@ export default function ContentCalendar({
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

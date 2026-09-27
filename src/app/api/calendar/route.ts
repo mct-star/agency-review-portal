@@ -6,7 +6,27 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
  *
  * Returns weeks and content pieces within the date range for the calendar view.
  * Weeks are matched by their date_start/date_end overlapping the requested range.
+ * `unscheduled` is the tray: posts in the standalone week or with no day.
  */
+const PIECE_COLUMNS =
+  "id, title, content_type, day_of_week, scheduled_time, scheduled_date, post_type, approval_status, image_generation_status, week_id, markdown_body, cover_image_url, first_comment";
+
+interface CalendarPieceRow {
+  id: string;
+  title: string;
+  content_type: string;
+  day_of_week: string | null;
+  scheduled_time: string | null;
+  scheduled_date: string | null;
+  post_type: string | null;
+  approval_status: string;
+  image_generation_status: string;
+  week_id: string;
+  markdown_body: string;
+  cover_image_url: string | null;
+  first_comment: string | null;
+}
+
 export async function GET(request: Request) {
   const profile = await getUserProfile();
   if (!profile) {
@@ -44,59 +64,43 @@ export async function GET(request: Request) {
     if (weeksErr) throw weeksErr;
 
     // Fetch content pieces for those weeks (including cover image URL for thumbnails)
-    const weekIds = (weeks || []).map((w) => w.id);
-    let pieces: Array<{
-      id: string;
-      title: string;
-      content_type: string;
-      day_of_week: string | null;
-      scheduled_time: string | null;
-      post_type: string | null;
-      approval_status: string;
-      image_generation_status: string;
-      week_id: string;
-      markdown_body: string;
-      cover_image_url: string | null;
-      first_comment: string | null;
-    }> = [];
-
+    const weekIds = (weeks || []).filter((w) => w.week_number > 0).map((w) => w.id);
+    let pieces: CalendarPieceRow[] = [];
     if (weekIds.length > 0) {
       const { data: piecesData, error: piecesErr } = await supabase
-        .from("content_pieces")
-        .select(
-          "id, title, content_type, day_of_week, scheduled_time, post_type, approval_status, image_generation_status, week_id, markdown_body, cover_image_url, first_comment"
-        )
-        .in("week_id", weekIds)
+        .from("content_pieces").select(PIECE_COLUMNS)
+        .in("week_id", weekIds).not("day_of_week", "is", null)
         .order("sort_order", { ascending: true });
-
       if (piecesErr) throw piecesErr;
+      pieces = (piecesData || []) as CalendarPieceRow[];
+    }
 
-      // If cover_image_url is null, try to find the first content_image for each piece
-      const piecesWithImages = piecesData || [];
-      const piecesNeedingImages = piecesWithImages.filter(p => !p.cover_image_url);
-      if (piecesNeedingImages.length > 0) {
-        const { data: images } = await supabase
-          .from("content_images")
-          .select("content_piece_id, public_url")
-          .in("content_piece_id", piecesNeedingImages.map(p => p.id))
-          .order("sort_order", { ascending: true });
+    // The Unscheduled tray: the standalone week, and any post with no day.
+    const { data: standalone } = await supabase.from("weeks").select("id")
+      .eq("company_id", companyId).eq("week_number", 0);
+    const standaloneIds = (standalone || []).map((w) => w.id);
+    const trayFilter = standaloneIds.length
+      ? `day_of_week.is.null,week_id.in.(${standaloneIds.join(",")})`
+      : "day_of_week.is.null";
+    const { data: trayData, error: trayErr } = await supabase
+      .from("content_pieces").select(PIECE_COLUMNS)
+      .eq("company_id", companyId).or(trayFilter)
+      .order("created_at", { ascending: false }).limit(60);
+    if (trayErr) throw trayErr;
+    const unscheduled = (trayData || []) as CalendarPieceRow[];
 
-        if (images) {
-          const imageMap = new Map<string, string>();
-          for (const img of images) {
-            if (!imageMap.has(img.content_piece_id)) {
-              imageMap.set(img.content_piece_id, img.public_url);
-            }
-          }
-          for (const piece of piecesWithImages) {
-            if (!piece.cover_image_url && imageMap.has(piece.id)) {
-              piece.cover_image_url = imageMap.get(piece.id) || null;
-            }
-          }
-        }
+    // If cover_image_url is null, use the piece's first content_image.
+    const needImages = [...pieces, ...unscheduled].filter((p) => !p.cover_image_url);
+    if (needImages.length > 0) {
+      const { data: images } = await supabase
+        .from("content_images").select("content_piece_id, public_url")
+        .in("content_piece_id", needImages.map((p) => p.id))
+        .order("sort_order", { ascending: true });
+      const imageMap = new Map<string, string>();
+      for (const img of images || []) {
+        if (!imageMap.has(img.content_piece_id)) imageMap.set(img.content_piece_id, img.public_url);
       }
-
-      pieces = piecesWithImages;
+      for (const p of needImages) p.cover_image_url = imageMap.get(p.id) || null;
     }
 
     // Also fetch the posting schedule template (slots define what should exist each week)
@@ -108,7 +112,7 @@ export async function GET(request: Request) {
       .order("day_of_week")
       .order("scheduled_time");
 
-    return NextResponse.json({ weeks: weeks || [], pieces, slots: slots || [] });
+    return NextResponse.json({ weeks: weeks || [], pieces, unscheduled, slots: slots || [] });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to load calendar" },
