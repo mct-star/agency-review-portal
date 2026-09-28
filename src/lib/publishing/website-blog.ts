@@ -34,11 +34,37 @@ export function readTimeFor(words: number): string {
   return `${Math.max(1, Math.round(words / 230))} min read`;
 }
 
-/** A body ready for MDX: no repeated H1 title, and nothing MDX would read as code or a component. */
-export function mdxBody(markdown: string, title: string): string {
+/** The in-article image number an image's archetype names ("in_article_image_prompt_2" is 2), or null. */
+export function inArticleImageNumber(archetype: string | null | undefined): number | null {
+  const m = (archetype || "").match(/^in_article_image_prompt_(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * A body ready for MDX: no repeated H1 title, image slots turned into
+ * images, and nothing MDX would read as code or a component.
+ *
+ * The writer marks image slots as [[image: hero]] and [[image: 1]] on their
+ * own lines (28 Sept 2026). The hero is the frontmatter's, so its marker
+ * goes; a numbered marker becomes the image at that site path when one
+ * exists and is dropped when none does. Older drafts wrote "IMAGE
+ * PLACEMENT: HERO IMAGE" as prose, which would have published as text.
+ */
+export function mdxBody(markdown: string, title: string, images: Record<string, string> = {}): string {
   const lines = markdown.replace(/\r\n/g, "\n").trim().split("\n");
   if (lines[0]?.replace(/^#\s+/, "").trim() === title.trim() && lines[0].startsWith("# ")) lines.shift();
-  return lines.join("\n").trim()
+  const out: string[] = [];
+  for (const line of lines) {
+    const slot = line.match(/^\s*\[\[\s*image:\s*([a-z0-9]+)\s*\]\]\s*$/i);
+    if (slot) {
+      const key = slot[1].toLowerCase();
+      if (key !== "hero" && images[key]) out.push(`![](${images[key]})`);
+      continue;
+    }
+    if (/^\s*(IMAGE PLACEMENT\b|\[IMAGE\b)/i.test(line)) continue;
+    out.push(line.replace(/\[\[\s*image:[^\]]*\]\]/gi, ""));
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim()
     .replace(/([{}])/g, "\\$1")
     .replace(/<(?=[A-Za-z/!])/g, "\\<") + "\n";
 }
@@ -58,7 +84,7 @@ export interface BlogFrontmatter {
   ctaCluster: string;
 }
 
-export function buildBlogMdx(fm: BlogFrontmatter, body: string): string {
+export function buildBlogMdx(fm: BlogFrontmatter, body: string, images: Record<string, string> = {}): string {
   const lines = [
     "---",
     `slug: ${fm.slug}`,
@@ -73,7 +99,7 @@ export function buildBlogMdx(fm: BlogFrontmatter, body: string): string {
     `ctaCluster: ${fm.ctaCluster}`,
     "---",
   ];
-  return `${lines.join("\n")}\n\n${mdxBody(body, fm.title)}`;
+  return `${lines.join("\n")}\n\n${mdxBody(body, fm.title, images)}`;
 }
 
 /** The file extension of an image URL, defaulting to png. */

@@ -10,7 +10,7 @@ import { CTA_CLUSTERS } from "@/lib/publishing/website-blog";
  * pull request is what puts it live. Admin only; the page decides.
  */
 export default function WebsitePublishPanel({
-  pieceId, companyId, isApproved, heroPrompt, coverPrompt, hasHero, hasOg,
+  pieceId, companyId, isApproved, heroPrompt, coverPrompt, hasHero, hasOg, articlePrompts = [], articleDone = [],
 }: {
   pieceId: string;
   companyId: string;
@@ -19,6 +19,10 @@ export default function WebsitePublishPanel({
   coverPrompt: string | null;
   hasHero: boolean;
   hasOg: boolean;
+  /** The writer's in-article image prompts, by slot number. */
+  articlePrompts?: { n: number; prompt: string }[];
+  /** Slot numbers that already have an image. */
+  articleDone?: number[];
 }) {
   const [cluster, setCluster] = useState("");
   const [busy, setBusy] = useState<null | "images" | "preview" | "send">(null);
@@ -27,10 +31,13 @@ export default function WebsitePublishPanel({
   const [preview, setPreview] = useState<{ files: { path: string }[]; mdx: string; liveUrl: string; missing?: string } | null>(null);
   const [prUrl, setPrUrl] = useState<string | null>(null);
 
+  const missingArticle = articlePrompts.filter(a => !articleDone.includes(a.n));
+
   async function makeImages() {
     const prompts = [
       ...(!hasHero && heroPrompt ? [{ prompt: heroPrompt, style: "hero_image_prompt", aspectRatio: "4:3" }] : []),
       ...(!hasOg && coverPrompt ? [{ prompt: coverPrompt, style: "cover_image_prompt", aspectRatio: "16:9" }] : []),
+      ...missingArticle.map(a => ({ prompt: a.prompt, style: `in_article_image_prompt_${a.n}`, aspectRatio: "4:3" })),
     ];
     if (prompts.length === 0) return;
     setBusy("images"); setError(null); setMessage(null);
@@ -69,7 +76,8 @@ export default function WebsitePublishPanel({
     }
   }
 
-  const needImages = (!hasHero && !!heroPrompt) || (!hasOg && !!coverPrompt);
+  const needImages = (!hasHero && !!heroPrompt) || (!hasOg && !!coverPrompt) || missingArticle.length > 0;
+  const missingCount = (!hasHero && heroPrompt ? 1 : 0) + (!hasOg && coverPrompt ? 1 : 0) + missingArticle.length;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
@@ -81,10 +89,15 @@ export default function WebsitePublishPanel({
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className={hasHero ? "text-green-700" : "text-gray-500"}>{hasHero ? "Hero image ready" : "No hero image yet"}</span>
         <span className={hasOg ? "text-green-700" : "text-gray-500"}>{hasOg ? "Share card ready" : "No share card yet"}</span>
+        {articlePrompts.length > 0 && (
+          <span className={missingArticle.length === 0 ? "text-green-700" : "text-gray-500"}>
+            Article images {articlePrompts.length - missingArticle.length} of {articlePrompts.length}
+          </span>
+        )}
         {needImages && (
           <button onClick={makeImages} disabled={busy !== null}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-            {busy === "images" ? "Making images, about a minute" : "Make the hero and share images"}
+            {busy === "images" ? `Making ${missingCount} image${missingCount === 1 ? "" : "s"}, about a minute each` : `Make the missing images (${missingCount})`}
           </button>
         )}
       </div>
