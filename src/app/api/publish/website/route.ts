@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import {
-  WEBSITE_BLOG_BASE, buildBlogMdx, imageExt, publishProblems, readTimeFor, slugify,
+  WEBSITE_BLOG_BASE, buildBlogMdx, imageExt, inArticleImageNumber, publishProblems, readTimeFor, slugify,
 } from "@/lib/publishing/website-blog";
 
 export const maxDuration = 60;
@@ -62,6 +62,12 @@ export async function POST(request: Request) {
 
   const heroPath = `public/images/blog/${slug}.${imageExt(hero!)}`;
   const ogPath = og ? `public/images/blog/${slug}-og.${imageExt(og)}` : null;
+  // In-article images, one per [[image: n]] slot the writer left.
+  const inArticle = (images || [])
+    .map(i => ({ n: inArticleImageNumber(i.archetype), url: i.public_url }))
+    .filter((i): i is { n: number; url: string } => i.n !== null && !!i.url)
+    .map(i => ({ ...i, path: `public/images/blog/${slug}-${i.n}.${imageExt(i.url)}` }));
+  const imageMap = Object.fromEntries(inArticle.map(i => [String(i.n), "/" + i.path.replace(/^public\//, "")]));
   const mdxPath = `src/content/blog/${slug}.mdx`;
   const words = (piece.markdown_body || "").split(/\s+/).filter(Boolean).length;
   const mdx = buildBlogMdx({
@@ -74,12 +80,13 @@ export async function POST(request: Request) {
     heroImage: "/" + heroPath.replace(/^public\//, ""),
     ogImage: ogPath ? "/" + ogPath.replace(/^public\//, "") : null,
     ctaCluster,
-  }, piece.markdown_body || "");
+  }, piece.markdown_body || "", imageMap);
 
   const files = [
     { path: mdxPath, from: "the approved text" },
     { path: heroPath, from: hero! },
     ...(ogPath ? [{ path: ogPath, from: og! }] : []),
+    ...inArticle.map(i => ({ path: i.path, from: i.url })),
   ];
   const liveUrl = `${WEBSITE_BLOG_BASE}/${slug}`;
   const branch = `blog/${slug}`;
@@ -113,7 +120,8 @@ export async function POST(request: Request) {
       const r = await gh(`/contents/${path}`, { method: "PUT", body: JSON.stringify({ message: `Blog: ${title}`, content: base64, branch }) });
       if (!r.ok) throw new Error(`writing ${path}: GitHub ${r.status} ${(await r.text()).slice(0, 160)}`);
     };
-    for (const [path, url] of [[heroPath, hero!], ...(ogPath ? [[ogPath, og!]] : [])] as Array<[string, string]>) {
+    const uploads: Array<[string, string]> = [[heroPath, hero!], ...(ogPath ? [[ogPath, og!]] as Array<[string, string]> : []), ...inArticle.map(i => [i.path, i.url] as [string, string])];
+    for (const [path, url] of uploads) {
       const img = await fetch(url);
       if (!img.ok) throw new Error(`downloading ${url}: ${img.status}`);
       await put(path, Buffer.from(await img.arrayBuffer()).toString("base64"));
@@ -124,7 +132,7 @@ export async function POST(request: Request) {
       method: "POST",
       body: JSON.stringify({
         title: `Blog: ${title}`, head: branch, base: "main",
-        body: `A new blog post from the content portal, approved there.\n\n- Post: \`${mdxPath}\`\n- Hero: \`${heroPath}\`${ogPath ? `\n- Share card: \`${ogPath}\`` : ""}\n- Goes live at ${liveUrl} when merged.`,
+        body: `A new blog post from the content portal, approved there.\n\n- Post: \`${mdxPath}\`\n- Hero: \`${heroPath}\`${ogPath ? `\n- Share card: \`${ogPath}\`` : ""}${inArticle.length ? `\n- In-article images: ${inArticle.length}` : ""}\n- Goes live at ${liveUrl} when merged.`,
       }),
     });
     if (!pr.ok) throw new Error(`opening the pull request: GitHub ${pr.status} ${(await pr.text()).slice(0, 160)}`);

@@ -91,8 +91,14 @@ export function isEditorialStyle(style: string | undefined): boolean {
 export async function enhanceImagePrompt(
   rawPrompt: string,
   style: string | undefined,
-  anthropicApiKey: string
+  anthropicApiKey: string,
+  /** The company's image brand context; editorial styles follow it over the defaults. */
+  brandContext?: string
 ): Promise<string> {
+  const editorial = isEditorialStyle(style);
+  const system = editorial && brandContext?.trim()
+    ? `${EDITORIAL_SYSTEM_PROMPT}\n\nBRAND IMAGE CONTEXT (the house style; apply what concerns photographic and blog images: settings, realism, palette, dimensions, anti-patterns; ignore quote cards, carousels and 3D characters; where it conflicts with the defaults above, the house style wins):\n${brandContext.trim()}`
+    : editorial ? EDITORIAL_SYSTEM_PROMPT : SYSTEM_PROMPT;
   const styleNote = style && style !== "vivid" && style !== "natural"
     ? ` Style context: ${style}.`
     : "";
@@ -114,7 +120,7 @@ Remember: output ONLY the enhanced prompt, nothing else.`;
       body: JSON.stringify({
         model: ENHANCEMENT_MODEL,
         max_tokens: 600,
-        system: isEditorialStyle(style) ? EDITORIAL_SYSTEM_PROMPT : SYSTEM_PROMPT,
+        system,
         messages: [{ role: "user", content: userMessage }],
       }),
     });

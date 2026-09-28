@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   const [companyRes, blueprintRes, typeRes, voiceRes, storiesRes, topicRes, weekRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", req.companyId).single(),
-    supabase.from("company_blueprints").select("blueprint_content, derived_source_context")
+    supabase.from("company_blueprints").select("blueprint_content, derived_source_context, derived_brand_context")
       .eq("company_id", req.companyId).eq("is_active", true).maybeSingle(),
     supabase.from("post_types").select("slug, label, template_instructions, word_count_min").eq("slug", "blog_article").maybeSingle(),
     supabase.from("company_voice_profiles").select("*").eq("company_id", req.companyId).eq("is_active", true)
@@ -100,6 +100,8 @@ export async function POST(request: Request) {
   const input: ContentGenerationInput = {
     blueprintContent: blueprintRes.data.blueprint_content,
     sourceContext: blueprintRes.data.derived_source_context || undefined,
+    // The image brand context (Setup, Blueprint): governs the image prompts the writer returns.
+    brandContext: blueprintRes.data.derived_brand_context || undefined,
     topicTitle: topic?.title || req.topicTitle,
     topicDescription: topic?.description ?? null,
     pillar: req.pillar,
@@ -173,8 +175,9 @@ export async function POST(request: Request) {
   }).select("id").single();
   if (pieceErr || !piece) return NextResponse.json({ error: `Could not save the article: ${pieceErr?.message}` }, { status: 500 });
 
-  const assetError = await saveAssets(supabase, assetRowsFor(piece.id, output.assets, output.imagePrompt));
-  if (assetError) console.error(`[generate/blog] assets not saved for ${piece.id}: ${assetError}`);
+  const saveError = await saveAssets(supabase, assetRowsFor(piece.id, output.assets, output.imagePrompt));
+  if (saveError) console.error(`[generate/blog] assets not saved for ${piece.id}: ${saveError}`);
+  const assetError = [saveError, ...(output.warnings || [])].filter(Boolean).join(" ") || null;
   if (topic) await supabase.from("topic_bank").update({ is_used: true, used_in_week_id: weekId }).eq("id", topic.id);
 
   return NextResponse.json({

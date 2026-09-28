@@ -190,7 +190,63 @@ IMAGE PROMPT:
 
 // ── Prompt Builder ──────────────────────────────────────────
 
-function buildContentPrompt(input: ContentGenerationInput): string {
+/** Articles: the output is too long to survive as one JSON string. */
+export function isLongForm(contentType: string | undefined): boolean {
+  return contentType === "blog_article" || contentType === "linkedin_article";
+}
+
+const ARTICLE_START = "===ARTICLE===";
+const ARTICLE_END = "===END ARTICLE===";
+const META_START = "===META===";
+const META_END = "===END META===";
+
+/**
+ * A long-form result (28 Sept 2026). A 2,200-word article inside a JSON
+ * string, capped at 8,192 output tokens, was cut off or carried one
+ * unescaped quote, and either killed the run. The writer now returns the
+ * article between markers and only the small metadata as JSON. A missing
+ * end marker means the output limit was reached, and says so; broken
+ * metadata loses the assets but never the article.
+ */
+export function parseLongFormOutput(text: string): ContentGenerationOutput {
+  const start = text.indexOf(ARTICLE_START);
+  if (start < 0) throw new Error("The writer did not return an article in the expected format. Try again.");
+  const end = text.indexOf(ARTICLE_END, start);
+  if (end < 0) throw new Error("The article was cut off before it finished (the output limit was reached), so it was not saved. Try again, or choose a shorter length.");
+  const markdownBody = text.slice(start + ARTICLE_START.length, end).trim();
+
+  const warnings: string[] = [];
+  let meta: Partial<ContentGenerationOutput> = {};
+  const mStart = text.indexOf(META_START, end);
+  if (mStart >= 0) {
+    const mEnd = text.indexOf(META_END, mStart);
+    const raw = text.slice(mStart + META_START.length, mEnd >= 0 ? mEnd : undefined)
+      .replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+    try {
+      meta = JSON.parse(raw) as Partial<ContentGenerationOutput>;
+    } catch {
+      warnings.push("The writer's metadata could not be read, so the SEO assets and image prompts are missing. Regenerate to get them.");
+    }
+  } else {
+    warnings.push("The writer returned no metadata, so the SEO assets and image prompts are missing. Regenerate to get them.");
+  }
+
+  const lines = markdownBody.split("\n").map(l => l.trim());
+  const heading = lines.find(l => l.startsWith("# "));
+  return {
+    title: (typeof meta.title === "string" && meta.title.trim()) || (heading ? heading.replace(/^#\s+/, "") : lines.find(Boolean) || "Untitled"),
+    markdownBody,
+    firstComment: null,
+    wordCount: markdownBody.split(/\s+/).filter(Boolean).length,
+    postType: typeof meta.postType === "string" ? meta.postType : null,
+    imagePrompt: typeof meta.imagePrompt === "string" ? meta.imagePrompt : null,
+    assets: Array.isArray(meta.assets) ? meta.assets.filter(a => a && typeof a.assetType === "string" && typeof a.textContent === "string") : [],
+    ...(warnings.length ? { warnings } : {}),
+  };
+}
+
+export function buildContentPrompt(input: ContentGenerationInput): string {
+  const longForm = isLongForm(input.contentType);
   // When slot-specific template instructions are provided, they OVERRIDE
   // the generic content type instructions. This is how "Monday = Problem Post"
   // and "Friday = Founder Friday" produce different structures.
@@ -224,7 +280,12 @@ function buildContentPrompt(input: ContentGenerationInput): string {
       : "";
 
   // ── SIGN-OFF: Use explicit text if provided, otherwise instruct to find in blueprint ──
-  const signoffSection = input.signoffText
+  const signoffSection = longForm
+    ? `5. NO SIGN-OFF AND NO FIRST COMMENT
+   This is an article, not a LinkedIn post. Do not add the LinkedIn sign-off,
+   a repost or follow request, an engagement question, or a first comment.
+   End on a reflective thought in the voice, never a pitch.`
+    : input.signoffText
     ? `5. SIGN-OFF (MANDATORY — use this EXACT text, copy verbatim)
    Before the sign-off, add a context-relevant engagement question about the post topic.
    Then copy this EXACT sign-off text:
@@ -237,6 +298,7 @@ function buildContentPrompt(input: ContentGenerationInput): string {
 
   // ── FIRST COMMENT: CTA URL goes here, NOT in the post body ──
   const firstCommentSection = (() => {
+    if (longForm) return "";
     const parts: string[] = [];
     parts.push("FIRST COMMENT RULES (CRITICAL):");
     parts.push("- The first comment is posted IMMEDIATELY after the main post.");
@@ -296,6 +358,68 @@ function buildContentPrompt(input: ContentGenerationInput): string {
     return parts.length > 0 ? parts.join("\n\n") : "";
   })();
 
+  const jsonOutputFormat = `${"═".repeat(60)}
+OUTPUT FORMAT
+${"═".repeat(60)}
+
+Respond with a JSON object (no markdown code fences) matching this structure:
+{
+  "title": "string",
+  "markdownBody": "string (the full content in markdown, including sign-off. No hashtags in the body copy; maximum 3 at the very end if the platform uses them.)",
+  "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
+  "wordCount": number,
+  "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
+  "imagePrompt": "string — ALWAYS REQUIRED for every content type. The PRIMARY image prompt (cover/hero for articles, social image for posts). Vivid, detailed, describing scene, mood, lighting, objects, setting, visual style${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""}. Never return null or omit this field.",
+  "assets": [
+    { "assetType": "seo_title", "textContent": "..." },
+    { "assetType": "seo_meta_description", "textContent": "..." },
+    { "assetType": "url_slug", "textContent": "..." },
+    { "assetType": "excerpt", "textContent": "..." },
+    { "assetType": "cover_image_prompt", "textContent": "1200x630 social share image prompt..." },
+    { "assetType": "hero_image_prompt", "textContent": "1200x800 hero image prompt..." },
+    { "assetType": "in_article_image_prompt_1", "textContent": "Section 1 image prompt..." },
+    { "assetType": "in_article_image_prompt_2", "textContent": "Section 2 image prompt..." },
+    { "assetType": "in_article_image_prompt_3", "textContent": "Section 3 image prompt..." },
+    { "assetType": "infographic_prompt", "textContent": "Infographic description (if applicable)..." }
+  ]
+}
+
+CRITICAL: For blog_article and linkedin_article content types, you MUST include the image prompt assets listed in the BLOG/ARTICLE IMAGE SET instructions above. Each goes in the assets array. Social posts only need the top-level imagePrompt field and can return an empty assets array [].
+The imagePrompt field above is ALWAYS required regardless of content type — it serves as the primary/default image.`;
+
+  const longFormOutputFormat = `${"═".repeat(60)}
+OUTPUT FORMAT (ARTICLE)
+${"═".repeat(60)}
+
+Do NOT wrap the article in JSON. Return exactly this shape, markers on their own lines:
+
+===ARTICLE===
+# The title
+[[image: hero]]
+
+The full article in markdown. Subheadings as ##. Write [[image: 1]], [[image: 2]] and [[image: 3]] on their own lines after the sections their prompts describe. Never write "IMAGE PLACEMENT" or any description of an image in the article text; image prompts go only in the metadata below.
+===END ARTICLE===
+===META===
+{
+  "title": "string (no colons, no hyphens)",
+  "postType": "${input.postTypeSlug || "blog_article"}",
+  "imagePrompt": "string, the hero image prompt",
+  "assets": [
+    { "assetType": "seo_title", "textContent": "..." },
+    { "assetType": "seo_meta_description", "textContent": "..." },
+    { "assetType": "url_slug", "textContent": "..." },
+    { "assetType": "excerpt", "textContent": "..." },
+    { "assetType": "cover_image_prompt", "textContent": "1200x630 social share image prompt..." },
+    { "assetType": "hero_image_prompt", "textContent": "1200x800 hero image prompt..." },
+    { "assetType": "in_article_image_prompt_1", "textContent": "the image for [[image: 1]]..." },
+    { "assetType": "in_article_image_prompt_2", "textContent": "the image for [[image: 2]]..." },
+    { "assetType": "in_article_image_prompt_3", "textContent": "the image for [[image: 3]]..." }
+  ]
+}
+===END META===`;
+
+  const outputFormat = longForm ? longFormOutputFormat : jsonOutputFormat;
+
   return `You are a content ghostwriter. ${spokespersonClause} Your job is to produce content that is INDISTINGUISHABLE from the spokesperson's own writing. Not "inspired by" — identical in voice.
 
 The company's full blueprint is provided below. You MUST study and precisely follow every voice, style, and formatting rule it contains. These are not suggestions. Every rule is a hard constraint.
@@ -332,7 +456,7 @@ Read the blueprint carefully and follow these rules EXACTLY:
 
 4. FORMATTING MANDATES (Blueprint Section C5 "Formatting Rules")
    - UK spelling ALWAYS: organisation, recognise, colour, behaviour, centre, programme
-   - 1-2 sentence paragraphs for social posts. Blank line between each.
+   ${longForm ? "- Paragraphs of up to four or five sentences, varied in length. Blank line between each." : "- 1-2 sentence paragraphs for social posts. Blank line between each."}
    - NO em-dashes (—) or en-dashes (–) ANYWHERE. Use commas, full stops, or line breaks.
    - NO exclamation marks. The voice is understated, not excitable.
    - NO emoji in body copy. Ever.
@@ -363,11 +487,10 @@ ${signoffSection}
    - Never punch down. Humour is warm, never cruel.
 
 ${voiceOverride ? `\n${"═".repeat(60)}\nVOICE PROFILE OVERRIDE\n${"═".repeat(60)}\n\n${voiceOverride}\n` : ""}
+${input.brandContext ? `\n${"═".repeat(60)}\nIMAGE BRAND CONTEXT (governs every image prompt you write)\n${"═".repeat(60)}\n\nApply what concerns editorial photography, blog images, palette, realism and anti-patterns. Ignore rules for quote cards, carousels, 3D characters and social formats.\n\n${input.brandContext}\n` : ""}
 ${input.preGenerationContext ? `\n${"═".repeat(60)}\nCONTENT INTELLIGENCE (DAY-SPECIFIC RULES & QUALITY REQUIREMENTS)\n${"═".repeat(60)}\n\n${input.preGenerationContext}\n` : ""}
 
-${"═".repeat(60)}
-${firstCommentSection}
-${"═".repeat(60)}
+${firstCommentSection ? `${"═".repeat(60)}\n${firstCommentSection}\n${"═".repeat(60)}\n` : ""}
 
 ${"═".repeat(60)}
 TOPIC & CONTEXT
@@ -406,45 +529,21 @@ Every rule here has been validated across 10+ weeks of live production.
 
 ${input.sourceContext}
 ` : ""}
-${"═".repeat(60)}
-OUTPUT FORMAT
-${"═".repeat(60)}
-
-Respond with a JSON object (no markdown code fences) matching this structure:
-{
-  "title": "string",
-  "markdownBody": "string (the full content in markdown, including sign-off. No hashtags in the body copy; maximum 3 at the very end if the platform uses them.)",
-  "firstComment": "string or null (the first comment with CTA — follows blueprint Section E3)",
-  "wordCount": number,
-  "postType": "${input.postTypeSlug || "string or null (e.g. insight, story, framework, contrarian, list, question)"}",
-  "imagePrompt": "string — ALWAYS REQUIRED for every content type. The PRIMARY image prompt (cover/hero for articles, social image for posts). Vivid, detailed, describing scene, mood, lighting, objects, setting, visual style${input.imageArchetype ? ` — matching the ${input.imageArchetype.replace(/_/g, " ")} archetype` : ""}. Never return null or omit this field.",
-  "assets": [
-    { "assetType": "seo_title", "textContent": "..." },
-    { "assetType": "seo_meta_description", "textContent": "..." },
-    { "assetType": "url_slug", "textContent": "..." },
-    { "assetType": "excerpt", "textContent": "..." },
-    { "assetType": "cover_image_prompt", "textContent": "1200x630 social share image prompt..." },
-    { "assetType": "hero_image_prompt", "textContent": "1200x800 hero image prompt..." },
-    { "assetType": "in_article_image_prompt_1", "textContent": "Section 1 image prompt..." },
-    { "assetType": "in_article_image_prompt_2", "textContent": "Section 2 image prompt..." },
-    { "assetType": "in_article_image_prompt_3", "textContent": "Section 3 image prompt..." },
-    { "assetType": "infographic_prompt", "textContent": "Infographic description (if applicable)..." }
-  ]
-}
-
-CRITICAL: For blog_article and linkedin_article content types, you MUST include the image prompt assets listed in the BLOG/ARTICLE IMAGE SET instructions above. Each goes in the assets array. Social posts only need the top-level imagePrompt field and can return an empty assets array [].
-The imagePrompt field above is ALWAYS required regardless of content type — it serves as the primary/default image.
+${outputFormat}
 
 ${"═".repeat(60)}
 MASTER VALIDATION CHECKLIST (check EVERY item before outputting)
 ${"═".repeat(60)}
 
-A. POST STRUCTURE
+${longForm ? `A. ARTICLE STRUCTURE
+   [ ] No sign-off, no repost or follow request, no engagement question, no first comment, no CTA URL
+   [ ] [[image: hero]] sits under the title and [[image: 1]] to [[image: 3]] are on their own lines
+   [ ] Ends on a reflective thought, not a pitch` : `A. POST STRUCTURE
    [ ] Sign-off is the EXACT text provided (not paraphrased)
    [ ] Sign-off appears at the end of the post body (no hashtags in the body copy; max 3 at the very end)
    [ ] Engagement question appears before the sign-off
    [ ] CTA URL is in the FIRST COMMENT ONLY, not in the post body
-   [ ] First comment follows the template provided
+   [ ] First comment follows the template provided`}
 
 B. DAY-SPECIFIC RULES
    [ ] Post follows the template structure for this post type EXACTLY
@@ -491,13 +590,15 @@ export function createClaudeContentProvider(
 
       // The local callClaude now delegates to the 4-tier fallback chain in claude-util
       // (Claude → Gemini 2.5 Pro → Gemini 2.5 Flash → OpenAI GPT-4o).
+      const longForm = isLongForm(input.contentType);
       const text = await callClaude(
         apiKey,
         model,
         system,
         [{ role: "user", content: "Generate the content now." }],
-        8192
+        longForm ? 16384 : 8192
       );
+      if (longForm) return parseLongFormOutput(text);
 
       // Parse JSON response — strip any markdown fences if present
       const cleaned = text
@@ -538,7 +639,31 @@ export function createClaudeFixProvider(
       content: ContentGenerationOutput,
       fixInstructions: string
     ): Promise<ContentGenerationOutput> {
-      const system = `You are a content editor. Fix ONLY the specific issues identified below. Do NOT rewrite the content. Make minimal, targeted changes.
+      const longForm = isLongForm(content.postType || undefined) || content.markdownBody.length > 6000;
+      const system = longForm
+        ? `You are a content editor. Fix ONLY the specific issues identified below. Do NOT rewrite the article. Make minimal, targeted changes.
+
+CURRENT ARTICLE:
+Title: ${content.title}
+${content.markdownBody}
+
+QUALITY TEST FAILURES:
+${fixInstructions}
+
+Return the FIXED article as:
+===ARTICLE===
+(the full fixed article in markdown, keeping every [[image: ...]] marker where it was)
+===END ARTICLE===
+===META===
+{ "title": "string" }
+===END META===
+
+RULES:
+- Fix ONLY the listed failures
+- Preserve the voice, structure, markers and meaning
+- Never add a sign-off, a first comment or a call to action
+- If word count is wrong, trim or expand naturally (not with filler)`
+        : `You are a content editor. Fix ONLY the specific issues identified below. Do NOT rewrite the content. Make minimal, targeted changes.
 
 CURRENT CONTENT:
 Title: ${content.title}
@@ -571,8 +696,16 @@ RULES:
         model,
         system,
         [{ role: "user", content: "Fix the issues now." }],
-        8192
+        longForm ? 16384 : 8192
       );
+      if (longForm) {
+        try {
+          const fixed = parseLongFormOutput(text);
+          return { ...fixed, title: fixed.title || content.title, postType: content.postType, imagePrompt: content.imagePrompt, assets: content.assets };
+        } catch {
+          return content; // a cut-off fix is worse than the original
+        }
+      }
 
       const cleaned = text
         .replace(/^```json\s*/i, "")

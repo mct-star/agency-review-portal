@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import LinkedInPreview from "@/components/content/LinkedInPreview";
 import VoiceDictation from "@/components/ui/VoiceDictation";
 import VoiceToPost from "@/components/generate/VoiceToPost";
@@ -222,10 +222,13 @@ export default function QuickGenerate({
   const [editedText, setEditedText] = useState("");
   const [editedFirstComment, setEditedFirstComment] = useState("");
 
-  // Add to week
-  const [showWeekPicker, setShowWeekPicker] = useState(false);
-  const [addingToWeek, setAddingToWeek] = useState(false);
-  const [addedToWeek, setAddedToWeek] = useState<string | null>(null);
+  // Send to review: into Review and the planning board's Unscheduled tray
+  const [sendingToReview, setSendingToReview] = useState(false);
+  const [sentToReview, setSentToReview] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  // A post the Mac made already exists as a piece; this is its id.
+  const [macPieceId, setMacPieceId] = useState<string | null>(null);
+  const pollToken = useRef(0);
 
   // Topic picker from content strategy
   const [strategyTopics, setStrategyTopics] = useState<{ id: string; topic: string; pillar?: string; theme?: string; month?: string }[]>([]);
@@ -469,18 +472,52 @@ export default function QuickGenerate({
       setMacQueued(null);
       setState("generating");
       setProgress("Sending to the Mac...");
+      const token = ++pollToken.current;
+      const label = selectedPostType.label;
+      const slug = selectedPostType.slug;
+      const kind = selectedPostType.medium === "video" ? "script" : "card";
       try {
         const res = await fetch("/api/admin/single-post", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ postTypeSlug: selectedPostType.slug, topic: topic.trim(), companyId: selectedCompany.id }),
+          body: JSON.stringify({ postTypeSlug: slug, topic: topic.trim(), companyId: selectedCompany.id }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Could not queue it (${res.status})`);
-        setMacQueued(`${selectedPostType.label} queued on the Mac. It lands in Review, with its ${selectedPostType.medium === "video" ? "script" : "card"}, in about a minute.`);
+        const jobId: string | undefined = json.data?.job?.id;
+        if (!jobId) throw new Error("The Mac did not return a job");
+
+        // Wait for the Mac, then show the finished post here, like any other.
+        setProgress(`The Mac is making the ${label} ${kind}. About a minute.`);
+        const deadline = Date.now() + 5 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 5000));
+          if (token !== pollToken.current) return;
+          const poll = await fetch(`/api/admin/single-post?jobId=${jobId}`);
+          const pj = await poll.json().catch(() => ({}));
+          const job = pj.data as { status?: string; error?: string | null; piece?: { id: string; markdown_body: string; first_comment: string | null; cover_image_url: string | null; post_type: string | null } | null } | undefined;
+          if (job?.status === "failed") throw new Error(job.error || `The Mac could not make the ${label}`);
+          if (job?.status === "completed" && job.piece) {
+            const p = job.piece;
+            setResult({ postText: p.markdown_body, firstComment: p.first_comment, imageUrl: p.cover_image_url, postType: p.post_type || slug });
+            setEditedText(p.markdown_body);
+            setEditedFirstComment(p.first_comment || "");
+            setCurrentImageUrl(p.cover_image_url);
+            setImagePrompt(null);
+            setEditing(false);
+            setMacPieceId(p.id);
+            setSentToReview(false);
+            setSendError(null);
+            setState("complete");
+            setProgress("");
+            return;
+          }
+        }
+        setMacQueued(`The Mac is still working on the ${label}. It will land in Review with its ${kind}.`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not queue it");
-      } finally {
+      }
+      if (token === pollToken.current) {
         setState("idle");
         setProgress("");
       }
@@ -533,7 +570,9 @@ export default function QuickGenerate({
       setCurrentImageUrl(generated.imageUrl);
       setImagePrompt(data.imagePrompt || null);
       setEditing(false);
-      setAddedToWeek(null);
+      setMacPieceId(null);
+      setSentToReview(false);
+      setSendError(null);
       setState("complete");
       setLastActivity({ type: "post", label: topic.trim().slice(0, 40), href: "/generate/quick" });
     } catch (err) {
@@ -592,38 +631,54 @@ export default function QuickGenerate({
     await navigator.clipboard.writeText(liveFirstComment);
   }
 
-  // Add to week , save the post as a content piece assigned to a week
-  async function handleAddToWeek(weekNumber: number) {
+  // Send to review: the post goes into Review and waits, unscheduled, on
+  // the planning board until it is dragged onto a day.
+  async function handleSendToReview() {
     if (!result) return;
-    setAddingToWeek(true);
+    setSendingToReview(true);
+    setSendError(null);
     try {
-      const res = await fetch("/api/content/pieces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId: selectedCompany.id,
-          spokespersonId: selectedPerson?.id || null,
-          weekNumber,
-          postType: result.postType,
-          platform,
-          title: topic,
-          markdownBody: livePostText,
-          firstComment: liveFirstComment || null,
-          imageUrl: currentImageUrl || null,
-          carouselImageUrls: result.carouselImageUrls || null,
-          status: "draft",
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to save");
+      if (macPieceId) {
+        // The Mac already saved it; keep any edits, then put it in the tray.
+        if (livePostText !== result.postText || (liveFirstComment || "") !== (result.firstComment || "") || editing) {
+          const saved = await fetch("/api/content/pieces", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pieceId: macPieceId, markdownBody: livePostText, firstComment: liveFirstComment || "" }),
+          });
+          if (!saved.ok) throw new Error((await saved.json().catch(() => ({}))).error || "Could not save your edits");
+        }
+        const res = await fetch("/api/calendar/reschedule", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pieceId: macPieceId, date: null }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not send it");
+      } else {
+        const res = await fetch("/api/content/pieces", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: selectedCompany.id,
+            spokespersonId: selectedPerson?.id || null,
+            unscheduled: true,
+            postType: result.postType,
+            platform,
+            title: topic,
+            markdownBody: livePostText,
+            firstComment: liveFirstComment || null,
+            imageUrl: currentImageUrl || null,
+            carouselImageUrls: result.carouselImageUrls || null,
+            status: "draft",
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not send it");
       }
-      setAddedToWeek(`Week ${weekNumber}`);
-      setShowWeekPicker(false);
+      setSentToReview(true);
     } catch (err) {
-      console.error("Add to week failed:", err);
+      setSendError(err instanceof Error ? err.message : "Could not send it");
     } finally {
-      setAddingToWeek(false);
+      setSendingToReview(false);
     }
   }
 
@@ -699,8 +754,10 @@ export default function QuickGenerate({
     setEditing(false);
     setEditedText("");
     setEditedFirstComment("");
-    setShowWeekPicker(false);
-    setAddedToWeek(null);
+    pollToken.current++;
+    setMacPieceId(null);
+    setSentToReview(false);
+    setSendError(null);
     setCarouselIndex(0);
     setOverlayError(null);
     setLimitReached(false);
@@ -1136,7 +1193,9 @@ export default function QuickGenerate({
         <div className="flex flex-col items-center justify-center p-12">
           <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
           <p className="text-sm font-medium text-gray-900">{progress}</p>
-          <p className="mt-1 text-xs text-gray-500">This usually takes 15-30 seconds</p>
+          {selectedPostType?.production !== "mac" && (
+            <p className="mt-1 text-xs text-gray-500">This usually takes 15-30 seconds</p>
+          )}
         </div>
       ) : state === "complete" && result ? (
         <div className="p-6 space-y-6">
@@ -1340,56 +1399,34 @@ export default function QuickGenerate({
             {/* Divider */}
             <div className="mx-1 h-6 w-px bg-gray-200" />
 
-            {/* Group 4: Organise */}
+            {/* Group 4: Send to review */}
             <div className="flex items-center gap-1">
-              {!addedToWeek ? (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowWeekPicker(!showWeekPicker)}
-                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center gap-1.5"
-                  >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                      <line x1="16" y1="2" x2="16" y2="6" />
-                      <line x1="8" y1="2" x2="8" y2="6" />
-                      <line x1="3" y1="10" x2="21" y2="10" />
-                      <line x1="12" y1="14" x2="12" y2="18" />
-                      <line x1="10" y1="16" x2="14" y2="16" />
-                    </svg>
-                    Add to week
-                  </button>
-                  {showWeekPicker && (
-                    <div className="absolute right-0 top-full mt-1 z-10 rounded-lg border border-gray-200 bg-white shadow-lg p-2 min-w-[160px]">
-                      <p className="px-2 py-1 text-[10px] font-semibold uppercase text-gray-500">Select week</p>
-                      {(() => {
-                        const now = new Date();
-                        const currentWeek = Math.ceil(
-                          (now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000)
-                        );
-                        return Array.from({ length: 6 }, (_, i) => currentWeek + i).map((w) => (
-                          <button
-                            key={w}
-                            onClick={() => handleAddToWeek(w)}
-                            disabled={addingToWeek}
-                            className="block w-full rounded px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-violet-50 hover:text-violet-700 transition-colors disabled:opacity-50"
-                          >
-                            Week {w} {w === currentWeek ? "(this week)" : w === currentWeek + 1 ? "(next week)" : ""}
-                          </button>
-                        ));
-                      })()}
-                    </div>
-                  )}
-                </div>
+              {!sentToReview ? (
+                <button
+                  onClick={handleSendToReview}
+                  disabled={sendingToReview}
+                  className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" />
+                  </svg>
+                  {sendingToReview ? "Sending..." : "Send to review"}
+                </button>
               ) : (
                 <span className="rounded-lg bg-green-100 px-2.5 py-1.5 text-xs font-medium text-green-700 flex items-center gap-1.5">
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  Added to {addedToWeek}
+                  In Review.{" "}
+                  <a href="/calendar" className="underline">Plan it</a>
                 </span>
               )}
             </div>
           </div>
+
+          {sendError && (
+            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{sendError}</div>
+          )}
 
           {/* Publish error */}
           {publishError && (

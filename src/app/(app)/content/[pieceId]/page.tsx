@@ -99,9 +99,15 @@ export default async function ContentPiecePage({ params }: PageProps) {
   // A blog's image prompts, for its website panel.
   const { data: blogPrompts } = piece.content_type === "blog_article"
     ? await supabase.from("content_assets").select("asset_type, text_content")
-        .eq("content_piece_id", pieceId).in("asset_type", ["hero_image_prompt", "cover_image_prompt"])
+        .eq("content_piece_id", pieceId)
+        .in("asset_type", ["hero_image_prompt", "cover_image_prompt", "in_article_image_prompt_1", "in_article_image_prompt_2", "in_article_image_prompt_3"])
     : { data: null };
   const blogPrompt = (t: string) => blogPrompts?.find(a => a.asset_type === t)?.text_content || null;
+  const articlePrompts = [1, 2, 3].flatMap(n => {
+    const prompt = blogPrompt(`in_article_image_prompt_${n}`);
+    return prompt ? [{ n, prompt }] : [];
+  });
+  const articleDone = [1, 2, 3].filter(n => (images || []).some(i => i.archetype === `in_article_image_prompt_${n}`));
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -283,6 +289,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
           coverPrompt={blogPrompt("cover_image_prompt")}
           hasHero={(images || []).some(i => i.archetype === "hero_image_prompt")}
           hasOg={(images || []).some(i => i.archetype === "cover_image_prompt")}
+          articlePrompts={articlePrompts}
+          articleDone={articleDone}
         />
       )}
 
