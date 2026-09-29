@@ -19,6 +19,17 @@ describe("autofixDashes", () => {
     expect(result.count).toBe(1);
   });
 
+  it("turns a spaced dash between two digits into the word to, as the Mac fixer does", () => {
+    const result = autofixDashes(`1,800 ${EN_DASH} 2,500 words`);
+    expect(result.text).toBe("1,800 to 2,500 words");
+    expect(result.count).toBe(1);
+  });
+
+  it("keeps an en dash between a letter and a digit as a hyphen", () => {
+    const result = autofixDashes(`Since COVID${EN_DASH}19 it changed`);
+    expect(result.text).toBe("Since COVID-19 it changed");
+  });
+
   it("turns a spaced en dash into a comma", () => {
     const result = autofixDashes(`a fact of life ${EN_DASH} and a hard one`);
     expect(result.text).toBe("a fact of life, and a hard one");

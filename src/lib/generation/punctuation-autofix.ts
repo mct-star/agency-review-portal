@@ -15,8 +15,8 @@
  * themselves are smarter than the Mac's (which turns every dash into a
  * comma), because an en dash and an em dash are typically different mistakes:
  *
- *   1. A dash directly between two digits is a mistyped range: "1,800[en
- *      dash]2,500" becomes "1,800 to 2,500".
+ *   1. A dash between two digits, spaced or not, is a mistyped range:
+ *      "1,800[en dash]2,500" becomes "1,800 to 2,500".
  *   2. An en dash directly between two word characters (no spaces) is a
  *      mistyped hyphen: "twelve[en dash]minute" becomes "twelve-minute".
  *   3. Everything else (an em dash anywhere, or an en dash with any
@@ -37,7 +37,7 @@ const EM_DASH = String.fromCharCode(0x2014);
 const ANY_DASH_CLASS = `[${EN_DASH}${EM_DASH}]`;
 const HAS_DASH_RE = new RegExp(ANY_DASH_CLASS);
 
-const DIGIT_DASH_DIGIT_RE = new RegExp(`(\\d)${ANY_DASH_CLASS}(\\d)`, "g");
+const DIGIT_DASH_DIGIT_RE = new RegExp(`(\\d)\\s*${ANY_DASH_CLASS}\\s*(\\d)`, "g");
 const EN_DASH_BETWEEN_WORD_CHARS_RE = new RegExp(`(\\w)${EN_DASH}(\\w)`, "g");
 const REMAINING_DASH_RE = new RegExp(`\\s*${ANY_DASH_CLASS}\\s*`, "g");
 

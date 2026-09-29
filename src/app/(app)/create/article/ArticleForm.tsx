@@ -215,7 +215,7 @@ export default function ArticleForm({ companies, topics, showCompanyPicker }: {
           {generating ? "Writing and checking, about 2 to 4 minutes" : "Write the article"}
         </button>
         <p className="text-xs text-gray-500">
-          Written in the company voice against the blog template and checked up to three times. It is saved for review only if it passes every critical check; if it does not, you see why and keep the draft.
+          Written in the company voice against the blog template and checked up to three times. It is saved for review only if it passes every critical check. If it does not, you see why and keep the draft.
         </p>
       </div>
     </div>
