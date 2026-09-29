@@ -3,10 +3,11 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, resolveProvider } from "@/lib/providers";
 import type { ContentGenerationInput } from "@/lib/providers";
 import { generateWithValidation } from "@/lib/generation/validated-generator";
-import { buildPreGenerationContext, runPostGenerationGates, type GateResult } from "@/lib/generation/content-intelligence";
+import { buildPreGenerationContext, runPostGenerationGates, hasCriticalFailures, type GateResult } from "@/lib/generation/content-intelligence";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
 import { assetRowsFor, saveAssets } from "@/lib/content/save-assets";
 import { BLOG_WORD_MIN, parseBlogRequest, threeLayerBrief } from "@/lib/content/blog-request";
+import { isHealthcareIndustry } from "@/lib/utils/industry";
 
 export const maxDuration = 300;
 
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
     signatureDevices: !voiceProfile?.structured_voice ? (voiceProfile?.signature_devices || undefined) : undefined,
     companyIndustry: company.industry || undefined,
     companyDescription: company.description || undefined,
-    preGenerationContext: buildPreGenerationContext({ postTypeSlug: "blog_article", weekNumber: 0, isHealthcareCompany: true, voiceProfile: voiceProfile || null }),
+    preGenerationContext: buildPreGenerationContext({ postTypeSlug: "blog_article", weekNumber: 0, isHealthcareCompany: isHealthcareIndustry(company.industry), voiceProfile: voiceProfile || null }),
     additionalContext: context,
   };
 
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
       hookLine: (output.markdownBody || "").split("\n").map(l => l.trim()).find(l => l && !l.startsWith("#")) || "",
       companyId: req.companyId,
       weekNumber: 0,
-      isHealthcareCompany: true,
+      isHealthcareCompany: isHealthcareIndustry(company.industry),
       contentType: "blog_article",
       firstComment: output.firstComment,
       title: output.title || "",
@@ -153,6 +154,27 @@ export async function POST(request: Request) {
   } catch (err) {
     console.warn("[generate/blog] gates failed to run:", err);
   }
+
+  // Containment (29 Sept 2026). The 28 Sept article carried a withdrawn
+  // statistic, an unapproved client figure and banned vocabulary. All three
+  // were caught by these checks and saved anyway, because the results were
+  // computed and then thrown away. A critical failure, from either the
+  // quality tests or the gates, must never reach the database.
+  const criticalQualityFailures = validation.criticalFailures.map((f) => `${f.testName}: ${f.message}`);
+  const criticalGateFailures = gates.filter((g) => !g.passed && g.severity === "critical").map((g) => `${g.gate}: ${g.explanation}`);
+  if (criticalQualityFailures.length > 0 || hasCriticalFailures(gates)) {
+    return NextResponse.json({
+      error: "The article failed a critical check, so it was not saved.",
+      failures: [...criticalQualityFailures, ...criticalGateFailures],
+      gates,
+      draft: { title: output.title, markdownBody: output.markdownBody, wordCount: output.wordCount },
+    }, { status: 422 });
+  }
+
+  // High-severity items do not block the save, but Review needs to see them.
+  const highQualityWarnings = validation.highFailures.map((f) => `${f.testName}: ${f.message}`);
+  const nonCriticalGateWarnings = gates.filter((g) => !g.passed && g.severity !== "critical").map((g) => `${g.gate}: ${g.explanation}`);
+  const warnings = [...highQualityWarnings, ...nonCriticalGateWarnings];
 
   const { data: last } = await supabase.from("content_pieces").select("sort_order").eq("week_id", weekId)
     .order("sort_order", { ascending: false }).limit(1);
@@ -189,5 +211,6 @@ export async function POST(request: Request) {
     qualityFailures: validation.allPassed ? [] : (fixHistory.at(-1)?.failures ?? []),
     gates,
     assetError,
+    warnings,
   });
 }

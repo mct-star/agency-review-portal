@@ -280,27 +280,25 @@ function testCTANotInBody(text: string, ctaUrl: string | null): TestResult {
   };
 }
 
-function testAntiContraction(text: string, contentType: string): TestResult {
-  if (contentType !== "blog_article" && contentType !== "linkedin_article") {
-    return {
-      testId: "long_form_contraction",
-      testName: "Anti-Contraction",
-      passed: true,
-      message: "Not applicable to social posts",
-      severity: "low",
-    };
-  }
+/**
+ * Contractions are natural and welcome in every format (29 Sept 2026: the
+ * anti-contraction rule this test enforced is why the 28 Sept article read
+ * "is not it?". The fix loop saw "isn't" flagged as a failure and expanded
+ * it in place). What still reads badly is a question tag expanded the way
+ * nobody speaks: "is not it?", "are not they?", "do not you?".
+ */
+const STILTED_EXPANSION_PATTERN = /\b(is|are|was|were|do|does|did|has|have|had|will|would|can|could|should)\s+not\s+(it|they|you|we|he|she|there|that|I)\s*\?/i;
 
-  const contractions = ["don't", "can't", "won't", "isn't", "aren't", "doesn't", "didn't", "haven't", "hasn't", "shouldn't", "wouldn't", "couldn't", "it's"];
-  const found = contractions.filter((c) => text.toLowerCase().includes(c));
+function testStiltedExpansion(text: string): TestResult {
+  const match = text.match(STILTED_EXPANSION_PATTERN);
 
   return {
-    testId: "long_form_contraction",
-    testName: "Anti-Contraction (Long-form)",
-    passed: found.length === 0,
-    message: found.length === 0
-      ? "No contractions found"
-      : `Contractions found: ${found.join(", ")}. Long-form uses "do not" not "don't".`,
+    testId: "stilted_expansion",
+    testName: "Stilted Question Tag Expansion",
+    passed: !match,
+    message: match
+      ? `Expanded question tag found: "${match[0]}". Write it the way people say it (isn't it?).`
+      : "No expanded question tags found",
     severity: "high",
   };
 }
@@ -335,7 +333,7 @@ export function runQualityTests(
   results.push(testTitleFormat(title));
   results.push(testUKSpelling(markdownBody));
   results.push(testCTANotInBody(markdownBody, options.ctaUrl || null));
-  results.push(testAntiContraction(markdownBody, options.contentType));
+  results.push(testStiltedExpansion(markdownBody));
 
   // Also check first comment for banned words
   if (firstComment) {

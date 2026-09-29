@@ -106,7 +106,7 @@ STRUCTURE:
 - Each section should contain practical, specific takeaways grounded in the company's industry.
 - A conclusion that reflects rather than summarises. End with a thought, not a sales pitch.
 - Use the blueprint voice throughout: short sentences, hedging language, bracketed asides, UK spelling.
-- In long-form: anti-contraction style ("do not" rather than "don't").
+- Contractions are natural and welcome in every format.
 
 ALSO GENERATE THESE ASSETS:
 - SEO title (60 chars max, compelling, no colons)
@@ -142,7 +142,7 @@ STRUCTURE:
 - Professional insights grounded in the company's specific industry scenarios.
 - A conclusion that positions the author as a thoughtful practitioner, not a guru.
 - Use the blueprint voice: hedging over declaring, observations over verdicts.
-- Anti-contraction style in long-form.
+- Contractions are natural and welcome in every format.
 
 ALSO GENERATE THESE ASSETS:
 - SEO title, meta description, excerpt.
@@ -464,7 +464,7 @@ Read the blueprint carefully and follow these rules EXACTLY:
    - Digits for stats (73%, 12 minutes). Words for small counts in prose (three things).
    - Oxford comma: yes.
    - NO colons or hyphens in titles or hooks.
-   - Long-form: anti-contraction ("do not" not "don't", "cannot" not "can't").
+   - Contractions are natural and welcome in every format.
 
 ${signoffSection}
 
@@ -507,7 +507,7 @@ ${ecosystemClause ? `\n${ecosystemClause}` : ""}
 ${input.additionalContext ? `\nADDITIONAL CONTEXT:\n${input.additionalContext}` : ""}
 
 ${"═".repeat(60)}
-${hasSlotTemplate ? `POST TYPE: ${input.postTypeLabel || input.postTypeSlug || "Custom"}\nTEMPLATE INSTRUCTIONS (follow this EXACT structure)` : "CONTENT TYPE"}
+${hasSlotTemplate ? `POST TYPE: ${input.postTypeLabel || input.postTypeSlug || "Custom"}\nTEMPLATE INSTRUCTIONS (a section plan: follow its order and word budgets, but its section names are planning labels, never print them as headings; write your own headings that sound like a person talking)` : "CONTENT TYPE"}
 ${"═".repeat(60)}
 
 ${typeInstructions}
@@ -564,7 +564,6 @@ C. VOICE & QUALITY
 D. ANCHOR CONTENT (blog/article only)
    [ ] Case study included (if required by template)
    [ ] SEO assets generated (title, meta, slug, excerpt)
-   [ ] Anti-contraction style used
 
 E. ECOSYSTEM
    [ ] Blog teaser links to this week's blog (if URL provided)

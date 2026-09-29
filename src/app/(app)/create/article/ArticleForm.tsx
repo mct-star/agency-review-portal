@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AUDIENCE_PROBLEMS, BLOG_WORD_TARGETS, BRAND_PILLARS, CONTENT_PILLARS, audienceCodesOf,
 } from "@/lib/content/blog-request";
@@ -34,6 +35,11 @@ export default function ArticleForm({ companies, topics, showCompanyPicker }: {
   const [additionalContext, setAdditionalContext] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failureResult, setFailureResult] = useState<{
+    failures: string[];
+    draft: { title: string; markdownBody: string; wordCount: number };
+  } | null>(null);
+  const [savedResult, setSavedResult] = useState<{ pieceId: string; warnings: string[] } | null>(null);
 
   const companyTopics = useMemo(
     () => topics.filter(t => t.companyId === companyId && (!pillar || t.pillar === pillar)),
@@ -56,6 +62,8 @@ export default function ArticleForm({ companies, topics, showCompanyPicker }: {
     if (!ready || generating) return;
     setGenerating(true);
     setError(null);
+    setFailureResult(null);
+    setSavedResult(null);
     try {
       const res = await fetch("/api/generate/blog", {
         method: "POST",
@@ -63,7 +71,21 @@ export default function ArticleForm({ companies, topics, showCompanyPicker }: {
         body: JSON.stringify({ companyId, topicId: topicId || null, topicTitle, pillar, audienceTheme, brandPillar, wordCountMax, additionalContext }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 422 && Array.isArray(data.failures)) {
+        setFailureResult({
+          failures: data.failures,
+          draft: data.draft || { title: "", markdownBody: "", wordCount: 0 },
+        });
+        setGenerating(false);
+        return;
+      }
       if (!res.ok || !data.pieceId) throw new Error(data.error || `Generation failed (${res.status})`);
+      const warnings: string[] = Array.isArray(data.warnings) ? data.warnings : [];
+      if (warnings.length > 0) {
+        setSavedResult({ pieceId: data.pieceId, warnings });
+        setGenerating(false);
+        return;
+      }
       router.push(`/content/${data.pieceId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
@@ -149,6 +171,41 @@ export default function ArticleForm({ companies, topics, showCompanyPicker }: {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
+
+        {failureResult && (
+          <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+            <div>
+              <p className="text-sm font-medium text-red-800">Not saved. The article failed these checks:</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-700">
+                {failureResult.failures.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-700">
+                The draft, so the writing is not lost. {failureResult.draft.title} ({failureResult.draft.wordCount.toLocaleString("en-GB")} words)
+              </p>
+              <textarea
+                readOnly
+                value={failureResult.draft.markdownBody}
+                rows={10}
+                onFocus={e => e.currentTarget.select()}
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white p-2 font-mono text-xs text-gray-800"
+              />
+            </div>
+          </div>
+        )}
+
+        {savedResult && (
+          <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-medium text-amber-800">Saved as a draft, with these points to fix before you approve it:</p>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-amber-700">
+              {savedResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+            <Link href={`/content/${savedResult.pieceId}`} className="inline-block text-sm font-medium text-amber-800 underline">
+              Open the draft
+            </Link>
+          </div>
+        )}
 
         <button
           onClick={handleGenerate}
