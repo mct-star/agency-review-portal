@@ -155,11 +155,12 @@ export async function POST(request: Request) {
     console.warn("[generate/blog] gates failed to run:", err);
   }
 
-  // Containment (29 Sept 2026). The 28 Sept article carried a withdrawn
-  // statistic, an unapproved client figure and banned vocabulary. All three
-  // were caught by these checks and saved anyway, because the results were
-  // computed and then thrown away. A critical failure, from either the
-  // quality tests or the gates, must never reach the database.
+  // Containment (29 Sept 2026). The 28 Sept article failed the critical
+  // banned-vocabulary test and was saved anyway, because the results were
+  // computed and then thrown away. (Its withdrawn statistic and unapproved
+  // client figure were not caught at all: nothing here checks figures yet.)
+  // A critical failure, from either the quality tests or the gates, must
+  // never reach the database.
   const criticalQualityFailures = validation.criticalFailures.map((f) => `${f.testName}: ${f.message}`);
   const criticalGateFailures = gates.filter((g) => !g.passed && g.severity === "critical").map((g) => `${g.gate}: ${g.explanation}`);
   if (criticalQualityFailures.length > 0 || hasCriticalFailures(gates)) {
