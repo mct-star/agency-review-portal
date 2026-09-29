@@ -201,6 +201,35 @@ const META_START = "===META===";
 const META_END = "===END META===";
 
 /**
+ * The fix model sometimes copies the "Title: ..." reference line the prompt
+ * shows it (see createClaudeFixProvider's long-form system prompt) into the
+ * top of the article itself, once per fix round, so the draft ends up
+ * starting "Title: X\nTitle: X\n# X". Strip one or more leading Title: lines
+ * (case-insensitive) and the blank lines around them. A Title: line that is
+ * not at the very top is left alone: it is dialogue or a quote, not a
+ * repeated header.
+ */
+function stripLeadingTitleLines(markdownBody: string): string {
+  let body = markdownBody;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const withoutLeadingBlank = body.replace(/^[ \t]*\n/, "");
+    if (withoutLeadingBlank !== body) {
+      body = withoutLeadingBlank;
+      changed = true;
+      continue;
+    }
+    const titleLine = body.match(/^title:[^\n]*\n?/i);
+    if (titleLine) {
+      body = body.slice(titleLine[0].length);
+      changed = true;
+    }
+  }
+  return body.replace(/^[ \t\n]+/, "");
+}
+
+/**
  * A long-form result (28 Sept 2026). A 2,200-word article inside a JSON
  * string, capped at 8,192 output tokens, was cut off or carried one
  * unescaped quote, and either killed the run. The writer now returns the
@@ -213,7 +242,7 @@ export function parseLongFormOutput(text: string): ContentGenerationOutput {
   if (start < 0) throw new Error("The writer did not return an article in the expected format. Try again.");
   const end = text.indexOf(ARTICLE_END, start);
   if (end < 0) throw new Error("The article was cut off before it finished (the output limit was reached), so it was not saved. Try again, or choose a shorter length.");
-  const markdownBody = text.slice(start + ARTICLE_START.length, end).trim();
+  const markdownBody = stripLeadingTitleLines(text.slice(start + ARTICLE_START.length, end).trim());
 
   const warnings: string[] = [];
   let meta: Partial<ContentGenerationOutput> = {};
@@ -642,8 +671,9 @@ export function createClaudeFixProvider(
       const system = longForm
         ? `You are a content editor. Fix ONLY the specific issues identified below. Do NOT rewrite the article. Make minimal, targeted changes.
 
+TITLE (for reference only; never write it inside the article): ${content.title}
+
 CURRENT ARTICLE:
-Title: ${content.title}
 ${content.markdownBody}
 
 QUALITY TEST FAILURES:
