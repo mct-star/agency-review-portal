@@ -158,12 +158,22 @@ export async function POST(request: Request) {
     const postTypeOverride = imageMapping[postTypeSlug];
     const preferredStyles = (company?.preferred_image_styles as string[]) || [];
 
-    const { data: blueprint } = await supabase
+    const { data: blueprint, error: blueprintError } = await supabase
       .from("company_blueprints")
-      .select("blueprint_text")
+      .select("blueprint_content")
       .eq("company_id", companyId)
       .eq("is_active", true)
-      .single();
+      .maybeSingle();
+
+    // No blueprint row is normal (a new company) and still posts. A failed read
+    // must stop here, not write a post without the blueprint.
+    if (blueprintError) {
+      console.error(`[quick] Blueprint read failed for company id=${companyId}`, blueprintError);
+      return NextResponse.json(
+        { error: `Could not load the company blueprint, so no post was written: ${blueprintError.message}` },
+        { status: 500 }
+      );
+    }
 
     // If a specific spokesperson was selected, use their details instead of company defaults
     let activeSpokesPerson: { name: string; tagline: string | null; appearance: string | null } | null = null;
@@ -252,7 +262,7 @@ export async function POST(request: Request) {
       : "";
 
     const generateInput = {
-      blueprintContent: blueprint?.blueprint_text || "",
+      blueprintContent: blueprint?.blueprint_content || "",
       topicTitle: topic,
       topicDescription: null,
       pillar: null,
