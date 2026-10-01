@@ -221,12 +221,11 @@ async function handleMarkdownImport(
   markdownContent: string
 ) {
   // First, store the blueprint
-  await supabase.from("company_blueprints").insert({
-    company_id: companyId,
-    version: "imported",
-    blueprint_content: markdownContent,
-    is_active: true,
-  });
+  const blueprintError = await storeImportedBlueprint(supabase, companyId, markdownContent);
+  if (blueprintError) {
+    console.error(`Strategy import blueprint write failed for company ${companyId}:`, blueprintError);
+    return NextResponse.json({ error: blueprintError }, { status: 500 });
+  }
 
   // Try to extract structure using Claude
   const resolved = await resolveProvider(companyId, "content_generation");
@@ -356,6 +355,51 @@ Extract as many themes and topics as you can find. Be specific, not generic.`;
       message: `Blueprint stored but extraction failed: ${err instanceof Error ? err.message : "Unknown error"}`,
     });
   }
+}
+
+/**
+ * Store imported markdown as the company's only active blueprint. The row is
+ * written inactive first, so a failed insert (a version the company already
+ * has, for one) leaves the current active blueprint in place. Returns an error
+ * message, or null once the new row is the active one.
+ */
+async function storeImportedBlueprint(
+  supabase: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
+  companyId: string,
+  markdownContent: string
+): Promise<string | null> {
+  const { data: created, error: insertError } = await supabase
+    .from("company_blueprints")
+    .insert({
+      company_id: companyId,
+      version: "imported",
+      blueprint_content: markdownContent,
+      is_active: false,
+    })
+    .select("id")
+    .single();
+  if (insertError || !created) {
+    return `Could not store the blueprint: ${insertError?.message ?? "no row returned"}`;
+  }
+
+  const { error: deactivateError } = await supabase
+    .from("company_blueprints")
+    .update({ is_active: false })
+    .eq("company_id", companyId)
+    .eq("is_active", true);
+  if (deactivateError) {
+    return `The blueprint was stored but could not be made active: ${deactivateError.message}`;
+  }
+
+  const { error: activateError } = await supabase
+    .from("company_blueprints")
+    .update({ is_active: true })
+    .eq("id", created.id);
+  if (activateError) {
+    return `The blueprint was stored but could not be made active: ${activateError.message}`;
+  }
+
+  return null;
 }
 
 /**
