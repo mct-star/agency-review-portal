@@ -3,6 +3,7 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import {
   CAPTURES_BUCKET,
   HEIC_MIME_TYPES,
+  HEIC_UNSUPPORTED_MESSAGE,
   allowedMimeTypes,
   isMediaKind,
   maxBytes,
@@ -95,13 +96,7 @@ export async function POST(request: Request) {
   const normalisedMime = mimeType.split(";")[0].trim().toLowerCase();
 
   if (HEIC_MIME_TYPES.includes(normalisedMime)) {
-    return NextResponse.json(
-      {
-        error:
-          "HEIC and HEIF files cannot be processed. On iPhone, either share the photo as JPEG when you send it, or set Settings, Camera, Formats to Most Compatible and reshoot.",
-      },
-      { status: 415 }
-    );
+    return NextResponse.json({ error: HEIC_UNSUPPORTED_MESSAGE }, { status: 415 });
   }
 
   const allowed = allowedMimeTypes(kind);
