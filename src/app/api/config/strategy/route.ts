@@ -358,10 +358,12 @@ Extract as many themes and topics as you can find. Be specific, not generic.`;
 }
 
 /**
- * Store imported markdown as the company's only active blueprint. The row is
- * written inactive first, so a failed insert (a version the company already
- * has, for one) leaves the current active blueprint in place. Returns an error
- * message, or null once the new row is the active one.
+ * Store imported markdown as the company's only active blueprint. Each import
+ * gets its own version (the UTC time to the second), so a re-import never
+ * collides with an earlier one and the earlier import stays as history. The
+ * row is written inactive first, so a failed insert leaves the current active
+ * blueprint in place. Returns an error message, or null once the new row is
+ * the active one.
  */
 async function storeImportedBlueprint(
   supabase: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
@@ -372,7 +374,7 @@ async function storeImportedBlueprint(
     .from("company_blueprints")
     .insert({
       company_id: companyId,
-      version: "imported",
+      version: `imported ${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`,
       blueprint_content: markdownContent,
       is_active: false,
     })

@@ -8,6 +8,9 @@ import type { MockInstance } from "vitest";
  * error, so a second import (same version, so the unique (company_id, version)
  * index rejects it) failed silently and still answered "Blueprint stored".
  *
+ * Each import now gets its own version, so a re-import succeeds and the earlier
+ * import stays as history.
+ *
  * The fake client keeps company_blueprints in memory and enforces that unique
  * index the way Postgres does, so these tests check the rows a company is left
  * with, not the calls the route made.
@@ -24,6 +27,7 @@ type BlueprintRow = {
 const h = vi.hoisted(() => ({
   blueprints: [] as BlueprintRow[],
   writes: [] as { table: string; row: unknown }[],
+  insertError: null as { code: string; message: string } | null,
   nextId: 1,
 }));
 
@@ -31,6 +35,7 @@ function blueprintsTable() {
   return {
     insert: (row: Omit<BlueprintRow, "id" | "is_active"> & { is_active?: boolean }) => {
       const run = () => {
+        if (h.insertError) return { data: null, error: h.insertError };
         if (h.blueprints.some((b) => b.company_id === row.company_id && b.version === row.version)) {
           return {
             data: null,
@@ -104,6 +109,7 @@ let errorSpy: MockInstance;
 beforeEach(() => {
   h.blueprints.length = 0;
   h.writes.length = 0;
+  h.insertError = null;
   h.nextId = 1;
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -130,6 +136,22 @@ describe("POST /api/config/strategy: a markdown import becomes the one active bl
   });
 
   it("returns an error, keeps the current blueprint active and marks no setup step done when the blueprint cannot be stored", async () => {
+    h.blueprints.push({ id: "bp-current", company_id: "c1", version: "1.0", blueprint_content: "The current blueprint.", is_active: true });
+    h.insertError = { code: "08006", message: "connection failure" };
+
+    const res = await POST(req({ companyId: "c1", format: "markdown", content: "# The imported strategy" }));
+    const json = await res.json();
+    expect(res.status, JSON.stringify(json)).toBe(500);
+    expect(json.error).toMatch(/blueprint/i);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("c1"), expect.stringMatching(/connection failure/));
+
+    const active = activeFor("c1");
+    expect(active.map((b) => b.id)).toEqual(["bp-current"]);
+    expect(active[0].blueprint_content).toBe("The current blueprint.");
+    expect(h.writes.filter((w) => w.table === "setup_progress")).toHaveLength(0);
+  });
+
+  it("gives each import its own version, so a re-import succeeds and the earlier import stays as history", async () => {
     h.blueprints.push({
       id: "bp-earlier-import",
       company_id: "c1",
@@ -140,13 +162,15 @@ describe("POST /api/config/strategy: a markdown import becomes the one active bl
 
     const res = await POST(req({ companyId: "c1", format: "markdown", content: "# A second import" }));
     const json = await res.json();
-    expect(res.status, JSON.stringify(json)).toBe(500);
-    expect(json.error).toMatch(/blueprint/i);
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("c1"), expect.stringMatching(/duplicate key/));
+    expect(res.status, JSON.stringify(json)).toBe(200);
 
     const active = activeFor("c1");
-    expect(active.map((b) => b.id)).toEqual(["bp-earlier-import"]);
-    expect(active[0].blueprint_content).toBe("The earlier import.");
-    expect(h.writes.filter((w) => w.table === "setup_progress")).toHaveLength(0);
+    expect(active).toHaveLength(1);
+    expect(active[0].blueprint_content).toBe("# A second import");
+    expect(active[0].version).toMatch(/^imported \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC$/);
+    expect(h.blueprints.find((b) => b.id === "bp-earlier-import")).toMatchObject({
+      blueprint_content: "The earlier import.",
+      is_active: false,
+    });
   });
 });
