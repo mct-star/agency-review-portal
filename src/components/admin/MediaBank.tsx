@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
-import { PHOTO_MIME_TYPES, VIDEO_MIME_TYPES, type MediaKind } from "@/lib/upload/media-constants";
+import { PHOTO_PICKER_ACCEPT, isAcceptedPhoto, prepareImageForUpload } from "@/lib/upload/heic";
+import { VIDEO_MIME_TYPES, type MediaKind } from "@/lib/upload/media-constants";
 
 export interface BankItem {
   id: string;
@@ -21,7 +22,7 @@ export interface BankItem {
   last_used_at: string | null;
 }
 
-interface UploadRow { id: string; name: string; progress: number; status: "uploading" | "done" | "exists" | "error"; error?: string }
+interface UploadRow { id: string; name: string; progress: number; status: "converting" | "uploading" | "done" | "exists" | "error"; error?: string }
 
 /** Real photos and footage, uploaded once and reused across posts. */
 export default function MediaBank({ companies, initialCompanyId }: {
@@ -61,16 +62,21 @@ export default function MediaBank({ companies, initialCompanyId }: {
 
   async function handleFiles(files: FileList | null) {
     if (!files) return;
-    for (const file of Array.from(files)) {
-      const rowId = `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`;
-      const fileKind: MediaKind | null = PHOTO_MIME_TYPES.includes(file.type) ? "photo" : VIDEO_MIME_TYPES.includes(file.type) ? "video" : null;
+    for (const dropped of Array.from(files)) {
+      const rowId = `${dropped.name}-${dropped.size}-${Math.random().toString(36).slice(2)}`;
+      const fileKind: MediaKind | null = isAcceptedPhoto(dropped) ? "photo" : VIDEO_MIME_TYPES.includes(dropped.type) ? "video" : null;
       if (!fileKind) {
-        setUploads((u) => [...u, { id: rowId, name: file.name, progress: 0, status: "error", error: "Not a JPEG, PNG, WebP, MP4, MOV or WebM file" }]);
+        setUploads((u) => [...u, { id: rowId, name: dropped.name, progress: 0, status: "error", error: "Not a JPEG, PNG, WebP, HEIC, MP4, MOV or WebM file" }]);
         continue;
       }
-      setUploads((u) => [...u, { id: rowId, name: file.name, progress: 0, status: "uploading" }]);
+      setUploads((u) => [...u, { id: rowId, name: dropped.name, progress: 0, status: "uploading" }]);
       const patch = (p: Partial<UploadRow>) => setUploads((u) => u.map((r) => (r.id === rowId ? { ...r, ...p } : r)));
       try {
+        // An iPhone HEIC becomes a JPEG here. Everything below (dimensions, hash, upload, register) is about that JPEG.
+        const file = fileKind === "photo"
+          ? await prepareImageForUpload(dropped, { onConverting: () => patch({ status: "converting" }) })
+          : dropped;
+        patch({ status: "uploading", name: file.name });
         const dims = await readDimensions(file, fileKind);
         const uploaded = await uploadFile(file, { companyId, kind: fileKind, onProgress: (f) => patch({ progress: f }) });
         const res = await fetch("/api/media/register", {
@@ -137,15 +143,15 @@ export default function MediaBank({ companies, initialCompanyId }: {
       >
         <p className="text-sm text-gray-700">Drop photos or videos here, or</p>
         <button onClick={() => inputRef.current?.click()} className="mt-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">Choose files</button>
-        <p className="mt-2 text-xs text-gray-400">JPEG, PNG or WebP photos up to 25 MB. MP4, MOV or WebM video up to 2 GB. Duplicates are recognised and kept once.</p>
-        <input ref={inputRef} type="file" multiple accept={[...PHOTO_MIME_TYPES, ...VIDEO_MIME_TYPES].join(",")} className="hidden" onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
+        <p className="mt-2 text-xs text-gray-400">JPEG, PNG, WebP or iPhone HEIC photos up to 25 MB. HEIC is converted to JPEG for you. MP4, MOV or WebM video up to 2 GB. Duplicates are recognised and kept once.</p>
+        <input ref={inputRef} type="file" multiple accept={[PHOTO_PICKER_ACCEPT, ...VIDEO_MIME_TYPES].join(",")} className="hidden" onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
         {uploads.length > 0 && (
           <ul className="mx-auto mt-4 max-w-xl space-y-1 text-left text-xs">
             {uploads.slice(-8).map((u) => (
               <li key={u.id} className="flex items-center justify-between gap-3">
                 <span className="truncate text-gray-700">{u.name}</span>
-                <span className={u.status === "error" ? "text-red-600" : u.status === "uploading" ? "text-gray-500" : "text-emerald-600"}>
-                  {u.status === "uploading" ? `${Math.round(u.progress * 100)}%` : u.status === "done" ? "Added" : u.status === "exists" ? "Already in the bank" : u.error}
+                <span className={u.status === "error" ? "text-red-600" : u.status === "uploading" || u.status === "converting" ? "text-gray-500" : "text-emerald-600"}>
+                  {u.status === "converting" ? "Converting to JPEG..." : u.status === "uploading" ? `${Math.round(u.progress * 100)}%` : u.status === "done" ? "Added" : u.status === "exists" ? "Already in the bank" : u.error}
                 </span>
               </li>
             ))}

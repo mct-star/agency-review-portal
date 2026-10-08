@@ -8,7 +8,8 @@ import {
   type PlatformCapability,
 } from "@/lib/platform-registry";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
-import { PHOTO_MIME_TYPES, MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
+import { MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
+import { PHOTO_PICKER_ACCEPT, isHeicFile, prepareImageForUpload } from "@/lib/upload/heic";
 
 interface GenerateActionsProps {
   pieceId: string;
@@ -61,6 +62,7 @@ export default function GenerateActions({
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
   const [photoInputKey, setPhotoInputKey] = useState(0);
   const [registeringPhoto, setRegisteringPhoto] = useState(false);
+  const [convertingPhoto, setConvertingPhoto] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -132,7 +134,8 @@ export default function GenerateActions({
   async function handleUploadPhoto() {
     if (!selectedPhoto) return;
 
-    if (selectedPhoto.size > MAX_PHOTO_BYTES) {
+    // A HEIC is checked once it has been converted, because the limit is on the JPEG that gets stored.
+    if (!isHeicFile(selectedPhoto) && selectedPhoto.size > MAX_PHOTO_BYTES) {
       setUploadError(
         `File too large (${(selectedPhoto.size / 1024 / 1024).toFixed(1)} MB). Max: ${(
           MAX_PHOTO_BYTES / 1024 / 1024
@@ -145,7 +148,13 @@ export default function GenerateActions({
     setUploadResult(null);
 
     try {
-      const uploaded = await uploadFile(selectedPhoto, { companyId, kind: "photo" });
+      // An iPhone HEIC becomes a JPEG here. The upload, hash and register call below are all about that JPEG.
+      const photo = await prepareImageForUpload(selectedPhoto, {
+        onConverting: () => setConvertingPhoto(true),
+      });
+      setConvertingPhoto(false);
+
+      const uploaded = await uploadFile(photo, { companyId, kind: "photo" });
 
       setRegisteringPhoto(true);
       const res = await fetch("/api/media/register", {
@@ -156,9 +165,9 @@ export default function GenerateActions({
           kind: "photo",
           bucket: uploaded.bucket,
           path: uploaded.path,
-          mimeType: selectedPhoto.type,
-          sizeBytes: selectedPhoto.size,
-          originalFilename: selectedPhoto.name,
+          mimeType: photo.type,
+          sizeBytes: photo.size,
+          originalFilename: photo.name,
           sha256: uploaded.sha256,
           width: null,
           height: null,
@@ -178,6 +187,7 @@ export default function GenerateActions({
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Failed to upload photo");
     } finally {
+      setConvertingPhoto(false);
       setRegisteringPhoto(false);
     }
   }
@@ -446,12 +456,12 @@ export default function GenerateActions({
             <input
               key={photoInputKey}
               type="file"
-              accept={PHOTO_MIME_TYPES.join(",")}
+              accept={PHOTO_PICKER_ACCEPT}
               onChange={(e) => setSelectedPhoto(e.target.files?.[0] ?? null)}
               className="block w-full text-xs text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-sky-700 hover:file:bg-sky-100"
             />
             <p className="mt-1 text-[11px] text-gray-400">
-              JPEG, PNG or WEBP, up to {(MAX_PHOTO_BYTES / 1024 / 1024).toFixed(0)} MB.
+              JPEG, PNG, WEBP or iPhone HEIC (converted to JPEG), up to {(MAX_PHOTO_BYTES / 1024 / 1024).toFixed(0)} MB.
             </p>
           </div>
           {(photoUploadStatus === "uploading" || registeringPhoto) && (
@@ -468,6 +478,7 @@ export default function GenerateActions({
             onClick={handleUploadPhoto}
             disabled={
               !selectedPhoto ||
+              convertingPhoto ||
               photoUploadStatus === "hashing" ||
               photoUploadStatus === "signing" ||
               photoUploadStatus === "uploading" ||
@@ -475,13 +486,15 @@ export default function GenerateActions({
             }
             className="rounded-md bg-sky-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
           >
-            {registeringPhoto
-              ? "Attaching..."
-              : photoUploadStatus === "uploading"
-                ? `Uploading... ${Math.round(photoUploadProgress * 100)}%`
-                : photoUploadStatus === "hashing" || photoUploadStatus === "signing"
-                  ? "Preparing..."
-                  : "Upload Photo"}
+            {convertingPhoto
+              ? "Converting..."
+              : registeringPhoto
+                ? "Attaching..."
+                : photoUploadStatus === "uploading"
+                  ? `Uploading... ${Math.round(photoUploadProgress * 100)}%`
+                  : photoUploadStatus === "hashing" || photoUploadStatus === "signing"
+                    ? "Preparing..."
+                    : "Upload Photo"}
           </button>
           {uploadResult && (
             <p className="text-xs text-green-600">{uploadResult}</p>

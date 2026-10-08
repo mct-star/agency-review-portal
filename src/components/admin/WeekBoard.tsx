@@ -11,7 +11,8 @@ import {
 import type { WeekBoardRow } from "@/lib/weeks/board-data";
 import SinglePostButton from "@/components/admin/SinglePostButton";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
-import { PHOTO_MIME_TYPES, MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
+import { MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
+import { PHOTO_PICKER_ACCEPT, isAcceptedPhoto, isHeicFile, prepareImageForUpload } from "@/lib/upload/heic";
 
 interface WeekBoardProps {
   initialWeeks: WeekBoardRow[];
@@ -334,7 +335,7 @@ interface PhotoUploadItem {
   id: string;
   file: File;
   progress: number;
-  status: "uploading" | "done" | "already_exists" | "error";
+  status: "converting" | "uploading" | "done" | "already_exists" | "error";
   error?: string;
 }
 
@@ -368,7 +369,13 @@ function WeekCardPhotoDropzone({
 
   async function processFile(item: PhotoUploadItem) {
     try {
-      const uploaded = await uploadFile(item.file, {
+      // An iPhone HEIC becomes a JPEG here. The upload, hash and register call below are all about that JPEG.
+      const photo = await prepareImageForUpload(item.file, {
+        onConverting: () => updateItem(item.id, { status: "converting" }),
+      });
+      updateItem(item.id, { status: "uploading" });
+
+      const uploaded = await uploadFile(photo, {
         companyId,
         kind: "photo",
         onProgress: (fraction) => updateItem(item.id, { progress: fraction }),
@@ -382,9 +389,9 @@ function WeekCardPhotoDropzone({
           kind: "photo",
           bucket: uploaded.bucket,
           path: uploaded.path,
-          mimeType: item.file.type,
-          sizeBytes: item.file.size,
-          originalFilename: item.file.name,
+          mimeType: photo.type,
+          sizeBytes: photo.size,
+          originalFilename: photo.name,
           sha256: uploaded.sha256,
           width: null,
           height: null,
@@ -415,15 +422,16 @@ function WeekCardPhotoDropzone({
     Array.from(fileList).forEach((file) => {
       const id = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      if (!PHOTO_MIME_TYPES.includes(file.type)) {
+      if (!isAcceptedPhoto(file)) {
         setItems((prev) => [
           ...prev,
-          { id, file, progress: 0, status: "error", error: "Photos only: JPEG, PNG or WEBP." },
+          { id, file, progress: 0, status: "error", error: "Photos only: JPEG, PNG, WEBP or HEIC." },
         ]);
         return;
       }
 
-      if (file.size > MAX_PHOTO_BYTES) {
+      // A HEIC is checked once it has been converted, because the limit is on the JPEG that gets stored.
+      if (!isHeicFile(file) && file.size > MAX_PHOTO_BYTES) {
         setItems((prev) => [
           ...prev,
           {
@@ -473,7 +481,7 @@ function WeekCardPhotoDropzone({
         <input
           ref={fileInputRef}
           type="file"
-          accept={PHOTO_MIME_TYPES.join(",")}
+          accept={PHOTO_PICKER_ACCEPT}
           multiple
           onChange={(e) => {
             handleFiles(e.target.files);
@@ -489,6 +497,9 @@ function WeekCardPhotoDropzone({
           {items.map((it) => (
             <div key={it.id} className="flex items-center gap-2 text-[11px]">
               <span className="flex-1 truncate text-gray-500">{it.file.name}</span>
+              {it.status === "converting" && (
+                <span className="shrink-0 text-gray-400">Converting...</span>
+              )}
               {it.status === "uploading" && (
                 <span className="shrink-0 text-gray-400">{Math.round(it.progress * 100)}%</span>
               )}
@@ -497,7 +508,7 @@ function WeekCardPhotoDropzone({
                 <span className="shrink-0 text-amber-600">Already in the bank</span>
               )}
               {it.status === "error" && (
-                <span className="max-w-[60%] shrink-0 truncate text-red-600" title={it.error}>
+                <span className="max-w-[60%] shrink-0 break-words text-red-600" title={it.error}>
                   {it.error || "Failed"}
                 </span>
               )}

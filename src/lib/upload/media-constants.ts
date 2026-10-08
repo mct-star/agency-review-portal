@@ -16,10 +16,11 @@ export const PHOTO_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 export const VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 
 /**
- * Rejected with a specific message rather than a generic "unsupported
- * type". An iPhone shooting in High Efficiency produces these by
- * default, so this is the single most likely upload failure Michael
- * will hit, and the message has to tell him what to change.
+ * What an iPhone shoots by default. The browser converts these to JPEG
+ * before upload (see heic.ts), so only JPEG, PNG and WebP ever reach
+ * storage. The sign route still refuses them as a backstop, with
+ * HEIC_UNSUPPORTED_MESSAGE, so any client that skips the conversion is
+ * told what to change on the phone rather than shown a generic error.
  */
 export const HEIC_MIME_TYPES = [
   "image/heic",
@@ -27,6 +28,12 @@ export const HEIC_MIME_TYPES = [
   "image/heic-sequence",
   "image/heif-sequence",
 ];
+
+/** Browsers often give a HEIC file an empty or generic type, so the extension counts too. */
+export const HEIC_EXTENSIONS = [".heic", ".heif"];
+
+export const HEIC_UNSUPPORTED_MESSAGE =
+  "HEIC and HEIF files cannot be processed. On iPhone, either share the photo as JPEG when you send it, or set Settings, Camera, Formats to Most Compatible and reshoot.";
 
 export const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
 export const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
