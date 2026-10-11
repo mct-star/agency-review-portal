@@ -7,6 +7,7 @@ import { ASSET_TEMPLATE,CTA_ASSETS,FILLER_LANES,MAIN_MAGNETS } from "./catalog";
 import { checked,db,id,jobRecord,principal,sessionRecord,weekRecord } from "./store";
 import { assignMedia,fromLedger,ledger,signedMedia } from "./media";
 import { detailPiece,validateMetadata } from "./review";
+import { mandatoryFormat } from "./formats";
 import { INTERVIEW_QUESTIONS,safeJob } from "./workflow";
 import { queueWeek } from "./weekly";
 
@@ -50,7 +51,7 @@ export async function generatePost(body:Record<string,unknown>) {
  const mediaIds=body.mediaIds ?? [];if(!Array.isArray(mediaIds) || mediaIds.length>10)throw new ContentError("Choose up to ten owned media files.");
  const selected=await Promise.all(mediaIds.map(m=>ledger(id(m))));
  const allowedMetadata=Object.fromEntries(Object.entries((body.metadata||{}) as Record<string,unknown>).filter(([key])=>["feed","destination","cta_asset_id","cta_url","asset_family","template_version","required_media"].includes(key)));
- const metadata=validateMetadata({feed:"personal",destination:"linkedin_personal",...allowedMetadata,managed:"ops",operation_key:body.operationKey,post_type:type.slug});
+ const metadata=validateMetadata({feed:"personal",destination:"linkedin_personal",...allowedMetadata,...mandatoryFormat(type.slug),managed:"ops",operation_key:body.operationKey,post_type:type.slug});
  const response=await quickGenerate(new Request("https://content.internal/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({companyId:principal().companyId,topic:body.topic,postTypeSlug:type.slug,platform:"linkedin",sourceContext:selected.map(m=>({filename:m.filename,kind:m.kind,role:m.role,text:m.source_context || null})),ctaUrl:metadata.cta_url || null})}));
  if(!response.ok)throw new ContentError("Markey could not generate this draft. Check the model connection and retry with a new action.",response.status);
  const output=await response.json();if(typeof output.postText!=="string" || !output.postText.trim())throw new ContentError("No draft copy was returned.",503);

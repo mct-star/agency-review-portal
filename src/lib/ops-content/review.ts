@@ -1,4 +1,5 @@
 import { deliveryState } from "./delivery";
+import { mandatoryFormat } from "./formats";
 import { safeJob } from "./workflow";
 import { stableJSON } from "./json";
 import { createHash } from "node:crypto";
@@ -52,13 +53,14 @@ export async function savePiece(pieceId:string,body:Record<string,unknown>) {
 }
 export async function approvePiece(pieceId:string,body:Record<string,unknown>) {
  const snapshot=await makeSnapshot(pieceId);
+ const piece=await pieceRecord(pieceId),requiredMedia=mandatoryFormat(piece.post_type,snapshot.metadata.post_type).required_media || snapshot.metadata.required_media;
  if(body.revision!==snapshot.revision) throw new ContentError("This post changed. Reload it before approving.",409);
  if(!snapshot.markdown_body.trim()) throw new ContentError("The post needs copy before approval.");
  const video=snapshot.media.some(m=>m.kind==="video");
  if(["video","video_script"].includes(snapshot.content_type) && !video) throw new ContentError("A video script or raw upload is not a finished video. Wait for the final render.",409);
- if((snapshot.content_type==="pdf_guide" || snapshot.metadata.required_media==="pdf") && !snapshot.media.some(m=>m.kind==="document")) throw new ContentError("The finished PDF is required before approval.",409);
- if(snapshot.metadata.required_media==="image" && !snapshot.media.some(m=>m.kind==="image")) throw new ContentError("The finished image is required before approval.",409);
- if(snapshot.metadata.required_media==="video" && !video) throw new ContentError("The finished video is required before approval.",409);
+ if((snapshot.content_type==="pdf_guide" || requiredMedia==="pdf") && !snapshot.media.some(m=>m.kind==="document")) throw new ContentError("The finished PDF is required before approval.",409);
+ if(requiredMedia==="image" && !snapshot.media.some(m=>m.kind==="image")) throw new ContentError("The finished image is required before approval.",409);
+ if(requiredMedia==="video" && !video) throw new ContentError("The finished video is required before approval.",409);
  if(video && body.watched!==true) throw new ContentError("Watch the whole final video with sound before approving it.",409);
  const d=await db();checked(await d.rpc("ops_content_approve_piece",{p_id:pieceId,p_company:principal().companyId,p_revision:snapshot.revision,p_snapshot:snapshot,p_actor:principal().id,p_watched:video}));
  return detailPiece(pieceId);
