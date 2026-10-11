@@ -16,6 +16,7 @@
 
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { decryptJson } from "@/lib/crypto";
+import { contentPrincipal } from "@/lib/ops-content/principal";
 import type { ServiceCategory } from "@/types/database";
 
 // ── Provider interfaces ─────────────────────────────────────
@@ -241,8 +242,17 @@ export async function resolveProvider(
 export async function getContentProvider(
   companyId: string
 ): Promise<{ provider: ContentProvider; providerName: string }> {
-  const resolved = await resolveProvider(companyId, "content_generation");
+  const content = contentPrincipal();
+  if (content) {
+    const { createClaudeContentProvider } = await import("./content-generation/anthropic");
+    const { BRAND_CONTEXT_COPY,CURRENT_CONTENT_OVERRIDES } = await import("@/lib/ops-content/brand-context");
+    const resolved=await resolveProvider(companyId,"content_generation");
+    const credentials=resolved?.provider==="anthropic_claude" ? resolved.credentials : {api_key:process.env.ANTHROPIC_API_KEY};
+    const engine=createClaudeContentProvider(credentials || {},{model:content.model});
+    return {providerName:"anthropic_claude",provider:{generate:input=>engine.generate({...input,additionalContext:[input.additionalContext,BRAND_CONTEXT_COPY,CURRENT_CONTENT_OVERRIDES].filter(Boolean).join("\n\n")})}};
+  }
 
+  const resolved = await resolveProvider(companyId, "content_generation");
   if (!resolved) {
     // No company-level provider configured — use env var fallback (Gemini → Claude → OpenAI)
     const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;

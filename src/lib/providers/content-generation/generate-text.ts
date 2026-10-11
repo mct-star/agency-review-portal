@@ -10,6 +10,7 @@
  */
 
 // ── Types ─────────────────────────────────────────────────────
+import { contentPrincipal } from "@/lib/ops-content/principal";
 
 export interface GenerateTextOptions {
   systemPrompt: string;
@@ -17,6 +18,7 @@ export interface GenerateTextOptions {
   maxTokens?: number;
   temperature?: number;
   companyId?: string; // Reserved for future company-level API key lookup
+  model?: string;
 }
 
 export interface GenerateTextResult {
@@ -33,13 +35,14 @@ async function callClaude(
 ): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
+    signal: contentPrincipal() ? AbortSignal.timeout(60000) : undefined,
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: opts.model || "claude-sonnet-4-20250514",
       max_tokens: opts.maxTokens || 2000,
       temperature: opts.temperature ?? 0.7,
       system: opts.systemPrompt,
@@ -48,6 +51,7 @@ async function callClaude(
   });
 
   if (!res.ok) {
+    if(contentPrincipal()) throw new Error(`Markey's configured model was unavailable (${res.status}).`);
     throw new Error(`Claude API ${res.status}: ${await res.text()}`);
   }
 
@@ -125,6 +129,15 @@ async function callOpenAI(
 export async function generateText(
   options: GenerateTextOptions
 ): Promise<GenerateTextResult> {
+  const content = contentPrincipal();
+  if (content) {
+    const {resolveProvider}=await import("../index");
+    const configured=await resolveProvider(content.companyId,"content_generation");
+    const key = configured?.provider==="anthropic_claude" ? configured.credentials.api_key as string : process.env.ANTHROPIC_API_KEY;
+    if (!key) throw new Error("Markey's content model is not connected.");
+    const text = await callClaude(key, { ...options, model: content.model });
+    return { text, provider: "claude", model: content.model };
+  }
   // Try 1: Gemini (Google) — free, primary provider
   const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY || process.env.GEMINI;
   if (geminiKey) {
