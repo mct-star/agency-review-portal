@@ -1,5 +1,6 @@
 const API_URL = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+import { contentPrincipal } from "@/lib/ops-content/principal";
 
 interface AnthropicResponse {
   content: { type: string; text: string }[];
@@ -80,6 +81,22 @@ export async function callClaude(
   userMessage: string,
   maxTokens: number = 4096
 ): Promise<string> {
+  const content = contentPrincipal();
+  if (content) {
+    const key = process.env.Anthropic || process.env.ANTHROPIC_API_KEY || (apiKey.startsWith("no-") ? "" : apiKey);
+    if (!key) throw new Error("Markey's content model is not connected.");
+    const response = await fetch(API_URL, {
+      signal: AbortSignal.timeout(180000),
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: content.model, max_tokens: maxTokens, system, messages: [{ role: "user", content: userMessage }] }),
+    });
+    if (!response.ok) throw new Error(`Markey's configured model was unavailable (${response.status}).`);
+    const data: AnthropicResponse = await response.json();
+    const text = data.content.find(c => c.type === "text")?.text;
+    if (!text) throw new Error("Markey returned no content.");
+    return text;
+  }
   const errors: string[] = [];
   const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -179,6 +196,12 @@ export function resolveClaudeConfig(
   credentials: Record<string, unknown>,
   settings: Record<string, unknown>
 ): { apiKey: string; model: string } {
+  const content = contentPrincipal();
+  if (content) {
+    const key = process.env.Anthropic || process.env.ANTHROPIC_API_KEY || (credentials.api_key as string);
+    if (!key) throw new Error("Markey's content model is not connected.");
+    return { apiKey: key, model: content.model };
+  }
   const apiKey = (credentials.api_key as string) || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     // If no Anthropic key, use a placeholder — callClaude will fall back to Gemini

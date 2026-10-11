@@ -1,0 +1,286 @@
+{
+  "plan_markdown": "Fixture plan for the week beginning 12 October 2026. Test data only.",
+  "summary": "Contract fixture, not a real content plan",
+  "warnings": [],
+  "plan_json": {
+    "strategy": "CURRENT_FIRST",
+    "considered_magnets": [
+      "snake-oil",
+      "nhs-trust",
+      "assessment-hub"
+    ],
+    "magnet_decisions": [
+      {
+        "magnet": "snake-oil",
+        "decision": "include",
+        "why": "Contract fixture includes this active lane"
+      },
+      {
+        "magnet": "nhs-trust",
+        "decision": "include",
+        "why": "Contract fixture includes this active lane"
+      },
+      {
+        "magnet": "assessment-hub",
+        "decision": "include",
+        "why": "Contract fixture includes this active lane"
+      }
+    ],
+    "selected_lanes": [
+      "current_story",
+      "assessment",
+      "snake-oil",
+      "nhs-trust",
+      "podcast",
+      "skit",
+      "newsletter"
+    ],
+    "slots": [
+      {
+        "id": "current-1",
+        "lane": "current_story",
+        "feed": "personal",
+        "scheduled_date": "2026-10-12",
+        "scheduled_time": "10:30",
+        "post_type": "problem",
+        "source_ids": [
+          "interview-1"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "linkedin_personal",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test current interview takes priority",
+        "last_used_at": null,
+        "required_media": "none",
+        "personal_moment": true
+      },
+      {
+        "id": "assessment-1",
+        "lane": "assessment",
+        "feed": "personal",
+        "scheduled_date": "2026-10-13",
+        "scheduled_time": "10:30",
+        "post_type": "promotion",
+        "source_ids": [
+          "assessment-source"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "linkedin_personal",
+        "cta_asset_id": "assessment-patient-marketing",
+        "cta_url": "https://agencymedicalmarketing.com/assessments/patient-marketing",
+        "why": "Test relevant diagnostic promotion",
+        "last_used_at": null,
+        "required_media": "none",
+        "assessment_focus": "focused"
+      },
+      {
+        "id": "snake-1",
+        "lane": "snake-oil",
+        "feed": "personal",
+        "scheduled_date": "2026-10-14",
+        "scheduled_time": "10:30",
+        "post_type": "promotion",
+        "source_ids": [
+          "snake-source"
+        ],
+        "media_ids": [
+          "00000000-0000-4000-8000-000000000011"
+        ],
+        "asset_family": "header-only-direction-a",
+        "template_version": "2026-10-09",
+        "destination": "linkedin_personal",
+        "cta_asset_id": "snake-oil",
+        "cta_url": "https://agencymedicalmarketing.com/tools/snake-oil-and-ladders",
+        "why": "Test optional promotion",
+        "last_used_at": null,
+        "required_media": "image"
+      },
+      {
+        "id": "nhs-1",
+        "lane": "nhs-trust",
+        "feed": "company",
+        "scheduled_date": "2026-10-15",
+        "scheduled_time": "09:00",
+        "post_type": "promotion",
+        "source_ids": [
+          "nhs-source"
+        ],
+        "media_ids": [
+          "00000000-0000-4000-8000-000000000014"
+        ],
+        "asset_family": "header-only-direction-a",
+        "template_version": "2026-10-09",
+        "destination": "linkedin_company",
+        "cta_asset_id": "nhs-trust",
+        "cta_url": "https://trusts.agencymedicalmarketing.com/",
+        "why": "Test same approved composition with separate source imagery",
+        "last_used_at": null,
+        "required_media": "image"
+      },
+      {
+        "id": "podcast-1",
+        "lane": "podcast",
+        "feed": "company",
+        "scheduled_date": "2026-10-15",
+        "scheduled_time": "13:00",
+        "post_type": "podcast",
+        "source_ids": [
+          "podcast-source"
+        ],
+        "media_ids": [
+          "00000000-0000-4000-8000-000000000012"
+        ],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "linkedin_company",
+        "cta_asset_id": "podcast",
+        "cta_url": "https://agencymedicalmarketing.com/podcast",
+        "why": "Test selected single clip, no compulsory five clips",
+        "last_used_at": null,
+        "required_media": "video",
+        "clip": {
+          "source_id": "podcast-source",
+          "media_id": "00000000-0000-4000-8000-000000000012",
+          "start_seconds": 2,
+          "end_seconds": 5,
+          "caption_mode": "source",
+          "formats": [
+            "9x16"
+          ]
+        }
+      },
+      {
+        "id": "skit-1",
+        "lane": "skit",
+        "feed": "company",
+        "scheduled_date": "2026-10-16",
+        "scheduled_time": "11:00",
+        "post_type": "skit",
+        "source_ids": [
+          "skit-source"
+        ],
+        "media_ids": [
+          "00000000-0000-4000-8000-000000000013"
+        ],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "linkedin_company",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test finished skit handoff",
+        "last_used_at": null,
+        "required_media": "video"
+      },
+      {
+        "id": "newsletter-email",
+        "lane": "newsletter",
+        "feed": "company",
+        "scheduled_date": "2026-10-15",
+        "scheduled_time": "16:00",
+        "post_type": "newsletter_note",
+        "content_type": "linkedin_article",
+        "source_ids": [
+          "newsletter-source"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "newsletter",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test note and subject output, never an agent send",
+        "last_used_at": null,
+        "required_media": "none"
+      },
+      {
+        "id": "newsletter-social",
+        "lane": "newsletter",
+        "feed": "personal",
+        "scheduled_date": "2026-10-16",
+        "scheduled_time": "10:30",
+        "post_type": "newsletter_promotion",
+        "content_type": "social_post",
+        "source_ids": [
+          "newsletter-source"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "linkedin_personal",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test separate newsletter-derived social slot",
+        "last_used_at": null,
+        "required_media": "none"
+      },
+      {
+        "id": "newsletter-article",
+        "lane": "newsletter",
+        "feed": "company",
+        "scheduled_date": "2026-10-14",
+        "scheduled_time": "12:00",
+        "post_type": "newsletter_article",
+        "content_type": "linkedin_article",
+        "source_ids": [
+          "newsletter-source"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "linkedin_company",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test separate cohesive newsletter article",
+        "last_used_at": null,
+        "required_media": "none"
+      },
+      {
+        "id": "blog-1",
+        "lane": "current_story",
+        "feed": "company",
+        "scheduled_date": "2026-10-14",
+        "scheduled_time": "08:00",
+        "post_type": "blog",
+        "content_type": "blog_article",
+        "source_ids": [
+          "interview-1"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "website",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test long-form mapping without changing lane",
+        "last_used_at": null,
+        "required_media": "none"
+      },
+      {
+        "id": "pdf-1",
+        "lane": "current_story",
+        "feed": "company",
+        "scheduled_date": "2026-10-14",
+        "scheduled_time": "08:15",
+        "post_type": "pdf_guide",
+        "content_type": "pdf_guide",
+        "source_ids": [
+          "interview-1"
+        ],
+        "media_ids": [],
+        "asset_family": null,
+        "template_version": null,
+        "destination": "website",
+        "cta_asset_id": null,
+        "cta_url": null,
+        "why": "Test PDF production selected separately",
+        "last_used_at": null,
+        "required_media": "pdf"
+      }
+    ]
+  }
+}
