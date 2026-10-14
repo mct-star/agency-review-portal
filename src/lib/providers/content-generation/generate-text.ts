@@ -33,6 +33,8 @@ export interface GenerateTextOptions {
    * failed to parse about one call in eight.
    */
   jsonSchema?: Record<string, unknown>;
+  /** Claude effort. Defaults to low; the caption writer uses medium. */
+  effort?: "low" | "medium" | "high";
 }
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-pro";
@@ -69,7 +71,7 @@ async function callClaude(
       // on this model, and needs effort at high or below.
       thinking: { type: "between_tools" },
       output_config: {
-        effort: "low",
+        effort: opts.effort ?? "low",
         ...(opts.jsonSchema ? { format: { type: "json_schema", schema: opts.jsonSchema } } : {}),
       },
       system: opts.systemPrompt,

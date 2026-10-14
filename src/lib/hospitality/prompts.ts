@@ -63,6 +63,7 @@ export function buildHospitalityPrompt(input: PromptInput): { system: string; us
     SOURCE_BOUNDARY,
     "STYLE",
     "- British English spelling and UK date style.",
+    "- Prices are written as the pound sign followed by the number (£35) or as the number followed by the word pounds (35 pounds). Never any other symbol or letter before a price.",
     "- The first line is the hook. It must stand alone and make sense on its own, and it must be under 100 characters, because Instagram cuts the caption after about the first line.",
     "- Short lines and short paragraphs. No corporate or professional-network tone, no business-speak, no 'excited to announce', no 'delighted'.",
     "- No dashes used as punctuation (no long dashes). Use commas, full stops or a new line.",

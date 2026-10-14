@@ -56,7 +56,7 @@ export async function generateHospitalityPost(
   let unsupported: string[] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash", jsonSchema: HOSPITALITY_POST_SCHEMA });
+    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash", jsonSchema: HOSPITALITY_POST_SCHEMA, effort: "medium" });
     let parsed;
     try {
       parsed = parseHospitalityJson(result.text);
@@ -80,6 +80,11 @@ export async function generateHospitalityPost(
   }
   const words = wordCount(last.caption);
   if (words > max * 1.3 || words < min * 0.5) warnings.push(`The post is ${words} words, a little off the usual ${min} to ${max}.`);
+  // A letter glued to a number ("a335" for £35, live check 14 Oct 2026) is a
+  // model slip the figure check cannot see, because the digits are not a
+  // word on their own. Flag it for the person to read before approving.
+  const glued = last.caption.match(/\b[a-z]{1,2}\d{2,}\b/gi) || [];
+  if (glued.length > 0) warnings.push(`Please check ${glued.join(", ")}: it looks like a price or number written wrongly.`);
   if (firstLine(last.caption).length > 110) warnings.push("The first line is long. Instagram only shows the start of it before 'more'.");
 
   return {
