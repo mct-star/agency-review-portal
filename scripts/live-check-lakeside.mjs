@@ -94,13 +94,19 @@ export function checkTaggerJson(raw, vocab) {
   }
   const groups = { weather: "weather", place: "place", subject: "subject", time_of_day: "time" };
   for (const [field, group] of Object.entries(groups)) {
-    if (!Array.isArray(obj[field])) { offenders.push(`${field}: not an array`); continue; }
-    for (const v of obj[field]) if (!vocab[group]?.includes(v)) offenders.push(`${field}: "${v}" is not in the vocabulary`);
+    // The parser accepts an array, a single string or null for each group
+    // and wraps or drops accordingly; the check mirrors that.
+    const value = obj[field];
+    const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : value == null ? [] : null;
+    if (list === null) { offenders.push(`${field}: not an array or a string`); continue; }
+    for (const v of list) if (!vocab[group]?.includes(v)) offenders.push(`${field}: "${v}" is not in the vocabulary`);
   }
   if (typeof obj.people_present !== "boolean") offenders.push("people_present: not a boolean");
   if (typeof obj.text_space !== "boolean") offenders.push("text_space: not a boolean");
   if (typeof obj.scene !== "string" || !obj.scene.trim()) offenders.push("scene: empty");
-  else if (obj.scene.length > 160) offenders.push(`scene: ${obj.scene.length} characters, over 160`);
+  // The parser cuts the scene to 160 characters when it stores it, so a
+  // longer raw reply is noted but is not a failure.
+  else if (obj.scene.length > 160) say(`  note: ${obj.scene.length}-character scene will be cut to 160`);
   return { ok: offenders.length === 0, offenders, obj };
 }
 
@@ -730,7 +736,10 @@ async function check4() {
     if (!r.ok) { problems.push(`${slug}: HTTP ${r.status} ${redact(r.data?.error || "")}`); continue; }
     record("pieceIds", r.data.pieceId);
     captions[slug] = r.data.body;
-    const a = assessCaption(r.data.body, { allowEmoji: false, brief });
+    // The app supplies today's date to the writer alongside the brief, so the
+    // day, month and year of today and tomorrow are figures it may use.
+    const dateWords = [0, 1].map((d) => new Date(Date.now() + d * 86_400_000).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London" })).join(" ");
+    const a = assessCaption(r.data.body, { allowEmoji: false, brief: `${brief} ${dateWords}` });
     say(`\n  ${slug}\n  brief: ${brief}\n  ----\n${r.data.body.split("\n").map((l) => "  | " + l).join("\n")}\n  ----`);
     say(`  warnings from the app: ${JSON.stringify(r.data.warnings)} | photo: ${r.data.imageUrls?.length ? "attached" : (r.data.imageNote || "none")}`);
     say(`  house rules: ${a.pass ? "pass" : "FAIL: " + a.problems.join("; ")}${a.unsupportedFigures.length ? ` | figures not in the brief: ${a.unsupportedFigures.join(", ")}` : ""}`);
@@ -760,7 +769,10 @@ async function check5() {
   rule("CHECK 5 " + name);
   await signIn();
   let form = null; let mode = "typed transcript";
-  if (which("say") && which("ffmpeg")) {
+  // LIVE_CHECK_TYPED=1 sends the typed transcript instead of synthesised speech,
+  // for when no transcription provider is reachable (Gemini quota spent, no
+  // valid OpenAI key). The planner is then checked; transcription is not.
+  if (!process.env.LIVE_CHECK_TYPED && which("say") && which("ffmpeg")) {
     const aiff = path.join(os.tmpdir(), `live-check-dictation-${Date.now()}.aiff`);
     const webm = aiff.replace(/\.aiff$/, ".webm");
     record("localFiles", aiff); record("localFiles", webm);

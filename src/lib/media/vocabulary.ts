@@ -64,10 +64,14 @@ export interface ParsedTags {
 const MAX_SCENE_CHARS = 160;
 
 function pickFrom(group: TagGroup, raw: unknown, max: number): string[] {
-  if (!Array.isArray(raw)) throw new Error(`${group} must be an array`);
+  // The prompt asks for arrays; a small model at low effort sometimes
+  // answers with a single string (live check, 14 Oct 2026). One value is
+  // still a usable answer, so it is wrapped rather than rejected. Null or
+  // absent means nothing chosen. Anything else is not the agreed shape.
+  const list: unknown[] = Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : raw == null ? [] : (() => { throw new Error(`${group} must be an array`); })();
   const allowed = TAG_VOCABULARY[group] as readonly string[];
   const out: string[] = [];
-  for (const item of raw) {
+  for (const item of list) {
     // Anything outside the vocabulary is dropped, not trusted and not guessed at.
     if (typeof item === "string" && allowed.includes(item) && !out.includes(item)) out.push(item);
   }
