@@ -1,6 +1,6 @@
 -- ============================================================
 -- Hospitality post-type pack and Facebook/Instagram targeting
--- Migration 040
+-- Migration 043 (applied live as 040_hospitality_pack; renumbered because main already had a 040)
 --
 -- A company chooses one pack of post types: 'b2b' (the LinkedIn
 -- set, the default for everyone that exists today) or
@@ -15,7 +15,7 @@
 -- hospitality_settings holds the soft settings that shape the
 -- writing (what the venue is, standing hashtags, whether emoji
 -- are wanted). Settings the scheduler must query (position,
--- time zone, post time) get real columns in migration 041.
+-- time zone, post time) get real columns in migration 044.
 --
 -- content_pieces gains auto_source (which automation made a
 -- draft, null for a person) and source_meta (what it was built

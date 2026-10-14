@@ -1,6 +1,6 @@
 -- ============================================================
 -- Daily weather post
--- Migration 041
+-- Migration 044 (applied live as 041_daily_weather_post; renumbered)
 --
 -- Per-company settings for the daily weather post, and a ledger
 -- of what the job has done so it never drafts the same day twice.
@@ -13,7 +13,7 @@
 -- No default position is set. A company that has not been given a
 -- postcode or position is skipped and reported, never guessed at.
 --
--- Additive only. Run in the Supabase SQL editor after 039 and 040.
+-- Additive only. Run in the Supabase SQL editor after 042 and 043.
 -- ============================================================
 
 alter table public.companies

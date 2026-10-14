@@ -113,9 +113,9 @@ describe("hospitality pack", () => {
     }
   });
 
-  it("has template rows in migration 040, and unique slugs across both packs", async () => {
+  it("has template rows in migration 043, and unique slugs across both packs", async () => {
     const { ALL_POST_TYPES } = await import("./post-types");
-    const sql = readFileSync(path.resolve(__dirname, "../../../supabase/migrations/040_hospitality_pack.sql"), "utf8");
+    const sql = readFileSync(path.resolve(__dirname, "../../../supabase/migrations/043_hospitality_pack.sql"), "utf8");
     for (const s of SLUGS) expect(sql).toContain(`'${s}'`);
     expect(new Set(ALL_POST_TYPES.map((p) => p.slug)).size).toBe(ALL_POST_TYPES.length);
   });

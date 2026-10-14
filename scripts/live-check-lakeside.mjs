@@ -335,12 +335,12 @@ async function signIn() {
 
 async function checkMigrations() {
   const probes = [
-    ["039", () => svc.from("photo_inventory").select("status, thumb_path, poster_path, people_present, auto_tagged_at").limit(1)],
-    ["039", () => svc.from("companies").select("staff_upload_token, staff_upload_enabled").limit(1)],
-    ["040", () => svc.from("companies").select("post_pack, social_networks, hospitality_settings").limit(1)],
-    ["040", () => svc.from("content_pieces").select("auto_source, source_meta").limit(1)],
-    ["041", () => svc.from("companies").select("postcode, latitude, longitude, timezone, weather_post_enabled, weather_post_time, weather_post_for").limit(1)],
-    ["041", () => svc.from("weather_post_runs").select("id").limit(1)],
+    ["042", () => svc.from("photo_inventory").select("status, thumb_path, poster_path, people_present, auto_tagged_at").limit(1)],
+    ["042", () => svc.from("companies").select("staff_upload_token, staff_upload_enabled").limit(1)],
+    ["043", () => svc.from("companies").select("post_pack, social_networks, hospitality_settings").limit(1)],
+    ["043", () => svc.from("content_pieces").select("auto_source, source_meta").limit(1)],
+    ["044", () => svc.from("companies").select("postcode, latitude, longitude, timezone, weather_post_enabled, weather_post_time, weather_post_for").limit(1)],
+    ["044", () => svc.from("weather_post_runs").select("id").limit(1)],
   ];
   const missing = new Set();
   for (const [n, q] of probes) { const { error } = await q(); if (error) missing.add(`${n} (${redact(error.message)})`); }
@@ -918,7 +918,7 @@ async function cmdRun() {
   svc = await serviceClient();
   try {
     await checkMigrations();
-    say("Migrations 039, 040 and 041 are present.");
+    say("Migrations 042, 043 and 044 are present.");
     await createScratch();
     await startDev();
   } catch (e) {

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Media library at scale
--- Migration 039
+-- Migration 042 (applied to the live project on 14 Oct 2026 under the name 039_media_library_at_scale; renumbered because main already had a 039)
 --
 -- Adds what the library needs once a company user (not an admin)
 -- uploads hundreds of phone photos:
