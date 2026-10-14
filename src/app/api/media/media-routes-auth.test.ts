@@ -40,6 +40,7 @@ function signRequest(companyId: string) {
 }
 
 beforeEach(() => {
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
   state.profile = null;
   state.supabase = fakeSupabase(
     { photo_inventory: { data: { id: ITEM, company_id: A, bucket: "captures", storage_path: `${A}/photos/x.jpg` } } },
@@ -128,5 +129,66 @@ describe("GET /api/media/view", () => {
   it("does not serve a key with no company prefix", async () => {
     state.profile = member(A);
     expect((await viewGet(url("photos/x.jpg"))).status).toBe(404);
+  });
+});
+
+describe("POST /api/upload/sign: dedupe, quota and resume", () => {
+  const withBody = (extra: Record<string, unknown>) =>
+    new Request("http://x/api/upload/sign", {
+      method: "POST",
+      body: JSON.stringify({ companyId: A, kind: "photo", filename: "a.jpg", mimeType: "image/jpeg", sizeBytes: 2_000_000, ...extra }),
+    });
+
+  it("says already in the library, and signs nothing, when the hash is held", async () => {
+    state.profile = member(A);
+    state.supabase = fakeSupabase({ photo_inventory: { data: { id: ITEM, kind: "photo" } } });
+    const res = await signPost(withBody({ sha256: "a".repeat(64) }));
+    const body = await res.json();
+    expect(body.alreadyExists).toBe(true);
+    expect(state.supabase.storageCalls).toHaveLength(0);
+  });
+
+  it("refuses an upload that would take the company over its plan cap", async () => {
+    state.profile = member(A);
+    state.supabase = fakeSupabase(
+      {
+        photo_inventory: { data: null },
+        companies: { data: { plan: "starter", trial_plan: null, trial_expires_at: null } },
+        "rpc:company_media_bytes": { data: 5 * 1024 ** 3 - 1000 },
+      },
+      { storage: { createSignedUploadUrl: { data: { token: "t", signedUrl: "u" } } } }
+    );
+    const res = await signPost(withBody({}));
+    expect(res.status).toBe(413);
+    expect((await res.json()).code).toBe("library_full");
+    expect(state.supabase.storageCalls).toHaveLength(0);
+  });
+
+  it("lets the same upload through when there is room", async () => {
+    state.profile = member(A);
+    state.supabase = fakeSupabase(
+      {
+        photo_inventory: { data: null },
+        companies: { data: { plan: "starter", trial_plan: null, trial_expires_at: null } },
+        "rpc:company_media_bytes": { data: 1024 ** 3 },
+      },
+      { storage: { createSignedUploadUrl: { data: { token: "t", signedUrl: "u" } } } }
+    );
+    expect((await signPost(withBody({}))).status).toBe(200);
+  });
+
+  it("renews the token for an upload already in flight, on the same key", async () => {
+    state.profile = member(A);
+    const path = `${A}/videos/20261014_1_clip.mp4`;
+    const res = await signPost(withBody({ kind: "video", mimeType: "video/mp4", resumePath: path }));
+    const body = await res.json();
+    expect(body.path).toBe(path);
+    expect(body.tusEndpoint).toContain(".storage.supabase.co/storage/v1/upload/resumable/sign");
+  });
+
+  it("will not renew a token for another company's key", async () => {
+    state.profile = member(A);
+    const res = await signPost(withBody({ resumePath: `${B}/videos/x.mp4` }));
+    expect(res.status).toBe(400);
   });
 });

@@ -18,6 +18,7 @@ import type { PlanTier } from "@/types/database";
 
 export interface PlanFeatures {
   postsPerMonth: number;        // -1 = unlimited
+  storageGb: number;            // photo and video library cap, in GB. Never enforced by deleting files.
   spokespersons: number;        // -1 = unlimited
   // Visual features
   pixar3d: boolean;             // Pixar/3D character scenes (fal.ai)
@@ -41,6 +42,7 @@ export interface PlanFeatures {
 
 export const PLAN_FEATURES: Record<string, PlanFeatures> = {
   free: {
+    storageGb: 1,
     postsPerMonth: 5,
     spokespersons: 1,
     pixar3d: false,
@@ -59,6 +61,7 @@ export const PLAN_FEATURES: Record<string, PlanFeatures> = {
     voiceProfile: false,
   },
   starter: {
+    storageGb: 5,
     postsPerMonth: 20,
     spokespersons: 1,
     pixar3d: true,              // ← Pixar in Starter = the viral moment
@@ -77,6 +80,7 @@ export const PLAN_FEATURES: Record<string, PlanFeatures> = {
     voiceProfile: false,
   },
   pro: {
+    storageGb: 25,
     postsPerMonth: -1,          // Unlimited
     spokespersons: -1,          // Unlimited
     pixar3d: true,
@@ -95,6 +99,7 @@ export const PLAN_FEATURES: Record<string, PlanFeatures> = {
     voiceProfile: true,
   },
   agency: {
+    storageGb: 100,
     postsPerMonth: -1,
     spokespersons: -1,
     pixar3d: true,
@@ -187,4 +192,10 @@ export async function checkPostLimit(
     limit: features.postsPerMonth,
     remaining,
   };
+}
+
+
+/** Library storage cap in bytes for a plan (decimal-free: 1 GB = 1024^3 bytes). */
+export function storageCapBytes(plan: PlanTier | string): number {
+  return getPlanFeatures(plan).storageGb * 1024 * 1024 * 1024;
 }

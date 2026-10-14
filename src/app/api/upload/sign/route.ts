@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { authoriseCompany } from "@/lib/media/access";
+import { checkQuota } from "@/lib/media/quota";
+import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
+import { tusEndpointFor } from "@/lib/upload/tus-endpoint";
 import {
   CAPTURES_BUCKET,
   HEIC_MIME_TYPES,
@@ -24,8 +27,15 @@ import {
  * Here the function only decides whether the upload is allowed and
  * where it goes.
  *
- * Body: { companyId, kind: "photo" | "video", filename, mimeType, sizeBytes }
- * Returns: { bucket, path, token, signedUrl }
+ * Body: { companyId, kind: "photo" | "video", filename, mimeType, sizeBytes,
+ *          sha256?, resumePath? }
+ * Returns: { bucket, path, token, signedUrl, tusEndpoint }
+ *      or: { alreadyExists: true, photo } when sha256 is already in the library
+ *      (nothing is signed and nothing needs uploading).
+ *
+ * Also enforced here: the company's plan storage cap. A resumable upload
+ * that outlives its token (two hours) comes back with resumePath to get a
+ * fresh token for the same object key.
  *
  * The signed URL is valid for two hours and carries its own token in
  * the query string, so the browser needs no Supabase credentials.
@@ -39,6 +49,8 @@ interface SignRequestBody {
   filename?: unknown;
   mimeType?: unknown;
   sizeBytes?: unknown;
+  sha256?: unknown;
+  resumePath?: unknown;
 }
 
 function yyyymmdd(date: Date): string {
@@ -130,9 +142,54 @@ export async function POST(request: Request) {
     );
   }
 
-  const path = buildObjectKey(companyId, kind, filename);
-
   const supabase = await createAdminSupabaseClient();
+
+  // A token for an upload already in flight: same key, new token.
+  if (typeof body.resumePath === "string") {
+    const resumePath = body.resumePath;
+    if (!resumePath.startsWith(`${companyId}/`) || resumePath.includes("..")) {
+      return NextResponse.json({ error: "resumePath must sit under the company's own folder" }, { status: 400 });
+    }
+    const { data: fresh, error: freshErr } = await supabase.storage
+      .from(CAPTURES_BUCKET)
+      .createSignedUploadUrl(resumePath);
+    if (freshErr || !fresh) {
+      return NextResponse.json({ error: `Could not renew the upload: ${freshErr?.message ?? "unknown error"}` }, { status: 500 });
+    }
+    return NextResponse.json({
+      bucket: CAPTURES_BUCKET,
+      path: resumePath,
+      token: fresh.token,
+      signedUrl: fresh.signedUrl,
+      tusEndpoint: tusEndpointFor(process.env.NEXT_PUBLIC_SUPABASE_URL!),
+    });
+  }
+
+  // Already in the library? Then there is nothing to upload.
+  if (typeof body.sha256 === "string" && /^[0-9a-f]{64}$/i.test(body.sha256)) {
+    const { data: existing } = await supabase
+      .from("photo_inventory")
+      .select("id, kind, original_filename, scene_label, added_at")
+      .eq("company_id", companyId)
+      .eq("file_ref", `sha256:${body.sha256.toLowerCase()}`)
+      .maybeSingle();
+    if (existing) return NextResponse.json({ alreadyExists: true, photo: existing });
+  }
+
+  // Plan storage cap. This refuses the upload; it never deletes anything.
+  const [{ data: company }, usedResult] = await Promise.all([
+    supabase.from("companies").select("plan, trial_plan, trial_expires_at").eq("id", companyId).maybeSingle(),
+    supabase.rpc("company_media_bytes", { p_company: companyId }),
+  ]);
+  if (company) {
+    const used = Number(usedResult.data ?? 0);
+    const decision = checkQuota(used, sizeBytes, getEffectivePlan(company as Parameters<typeof getEffectivePlan>[0]));
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.message, code: "library_full" }, { status: 413 });
+    }
+  }
+
+  const path = buildObjectKey(companyId, kind, filename);
   const { data, error } = await supabase.storage
     .from(CAPTURES_BUCKET)
     .createSignedUploadUrl(path);
@@ -149,5 +206,6 @@ export async function POST(request: Request) {
     path,
     token: data.token,
     signedUrl: data.signedUrl,
+    tusEndpoint: tusEndpointFor(process.env.NEXT_PUBLIC_SUPABASE_URL!),
   });
 }
