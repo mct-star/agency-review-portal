@@ -11,7 +11,7 @@ export default function TrialBanner({ daysRemaining }: TrialBannerProps) {
 
   return (
     <div
-      className={`flex items-center justify-between px-6 py-2.5 text-sm ${
+      className={`flex items-center justify-between gap-3 px-4 py-2.5 text-sm md:px-6 ${
         urgency
           ? "bg-amber-50 border-b border-amber-200 text-amber-800"
           : "bg-violet-50 border-b border-violet-200 text-violet-800"

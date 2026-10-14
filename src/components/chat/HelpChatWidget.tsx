@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import ReportIssueForm from "./ReportIssueForm";
+import { DESKTOP_MIN_WIDTH_QUERY, OPEN_HELP_EVENT } from "./help-events";
 
 interface Message {
   role: "user" | "assistant";
@@ -45,8 +46,11 @@ export default function HelpChatWidget() {
   // Hydration-safe mount + restore localStorage preference
   useEffect(() => {
     setMounted(true);
+    // On a phone the panel is a sheet over most of the screen: never reopen it
+    // by itself on a new page, only when the person taps Help.
+    const onDesktop = window.matchMedia(DESKTOP_MIN_WIDTH_QUERY).matches;
     const stored = localStorage.getItem("help-chat-open");
-    if (stored === "true") {
+    if (stored === "true" && onDesktop) {
       setIsOpen(true);
     }
     // Show "Need help?" badge on first visit
@@ -57,6 +61,13 @@ export default function HelpChatWidget() {
       const timer = setTimeout(() => setShowBadge(false), 5000);
       return () => clearTimeout(timer);
     }
+  }, []);
+
+  // The phone top bar's Help button opens the panel (the floating button is hidden there).
+  useEffect(() => {
+    const open = () => setIsOpen(true);
+    window.addEventListener(OPEN_HELP_EVENT, open);
+    return () => window.removeEventListener(OPEN_HELP_EVENT, open);
   }, []);
 
   // Persist open state
@@ -135,7 +146,7 @@ export default function HelpChatWidget() {
           isOpen
             ? "scale-100 opacity-100"
             : "pointer-events-none scale-95 opacity-0"
-        } bottom-24 right-6 h-[500px] w-[380px] max-sm:bottom-0 max-sm:right-0 max-sm:h-[70vh] max-sm:w-full max-sm:rounded-b-none`}
+        } bottom-24 right-6 h-[500px] w-[380px] max-md:bottom-0 max-md:right-0 max-md:h-[70dvh] max-md:w-full max-md:rounded-b-none`}
       >
         {/* Header */}
         <div className="flex items-center gap-2 border-b border-gray-100 bg-gradient-to-r from-violet-600 to-violet-500 px-4 py-3">
@@ -235,7 +246,7 @@ export default function HelpChatWidget() {
       {/* Floating button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-violet-500 shadow-lg transition-all hover:scale-105 hover:shadow-xl ${
+        className={`fixed bottom-6 right-6 z-50 flex max-md:hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-violet-500 shadow-lg transition-all hover:scale-105 hover:shadow-xl ${
           !isOpen && mounted ? "animate-bounce-once" : ""
         }`}
         aria-label="Open help chat"
@@ -251,7 +262,7 @@ export default function HelpChatWidget() {
 
       {/* "Need help?" badge */}
       {showBadge && !isOpen && (
-        <div className="fixed bottom-[5.5rem] right-6 z-50 animate-fade-in rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-violet-700 shadow-md">
+        <div className="fixed bottom-[5.5rem] right-6 z-50 animate-fade-in max-md:hidden rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-violet-700 shadow-md">
           Need help?
         </div>
       )}

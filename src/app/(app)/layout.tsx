@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getUser, getUserProfile } from "@/lib/supabase/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import Sidebar from "@/components/layout/Sidebar";
+import ResponsiveSidebar from "@/components/layout/ResponsiveSidebar";
 import TrialBanner from "@/components/layout/TrialBanner";
 import HelpChatWidget from "@/components/chat/HelpChatWidget";
 import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
@@ -91,13 +91,13 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex h-screen">
-      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} waitingCount={waitingCount} />
+    <div className="flex h-dvh flex-col md:h-screen md:flex-row">
+      <ResponsiveSidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} waitingCount={waitingCount} />
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
           <TrialBanner daysRemaining={trialDaysRemaining} />
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-4 md:p-6">{children}</div>
       </main>
       <HelpChatWidget />
     </div>

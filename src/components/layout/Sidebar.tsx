@@ -7,7 +7,7 @@ import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import { useRouter } from "next/navigation";
 import type { User } from "@/types/database";
 
-interface SidebarProps {
+export interface SidebarProps {
   user: User;
   platformLogoUrl?: string | null;
   companyPlan?: string;
@@ -16,6 +16,8 @@ interface SidebarProps {
   postPack?: string;
   /** Drafts and photos waiting for approval, shown beside "Waiting for you". */
   waitingCount?: number;
+  /** Replaces the default desktop layout classes (the phone drawer uses its own). */
+  className?: string;
 }
 
 type PlanTier = "free" | "starter" | "pro" | "agency";
@@ -268,7 +270,7 @@ const icons: Record<string, string> = {
     "M4 6h11a1 1 0 0 1 1 1v3.5l4-2.5v8l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z",
 };
 
-export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced", postPack, waitingCount = 0 }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced", postPack, waitingCount = 0, className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
@@ -295,7 +297,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
   const sections = buildSections(user, postPack);
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
+    <aside className={className ?? "flex h-screen w-56 flex-col border-r border-gray-200 bg-white"}>
       {/* Brand */}
       <div className="border-b border-gray-200 px-4 py-3">
         {platformLogoUrl ? (
