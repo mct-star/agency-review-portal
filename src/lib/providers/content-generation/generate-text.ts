@@ -25,6 +25,14 @@ export interface GenerateTextOptions {
    * where gemini-2.5-pro has a quota of zero (live check, 14 Oct 2026).
    */
   geminiModel?: "gemini-2.5-pro" | "gemini-2.5-flash";
+  /**
+   * A JSON schema for the reply. When set, the Claude call uses the API's
+   * structured output (output_config.format) so the text block is the JSON
+   * object and nothing else. Gemini and OpenAI are unchanged and still rely
+   * on the prompt. Live check, 14 Oct 2026: free-text JSON from Claude
+   * failed to parse about one call in eight.
+   */
+  jsonSchema?: Record<string, unknown>;
 }
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-pro";
@@ -60,7 +68,10 @@ async function callClaude(
       // block and no text. between_tools is the only way to switch it off
       // on this model, and needs effort at high or below.
       thinking: { type: "between_tools" },
-      output_config: { effort: "low" },
+      output_config: {
+        effort: "low",
+        ...(opts.jsonSchema ? { format: { type: "json_schema", schema: opts.jsonSchema } } : {}),
+      },
       system: opts.systemPrompt,
       messages: [{ role: "user", content: opts.userPrompt }],
     }),

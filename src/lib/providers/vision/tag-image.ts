@@ -22,6 +22,22 @@ export interface VisionImage {
 }
 
 const GEMINI_MODEL = "gemini-2.5-flash";
+
+/** The reply shape, enforced by the API on the Claude path. Values are still checked against the vocabulary. */
+const AUTO_TAG_SCHEMA = {
+  type: "object",
+  properties: {
+    weather: { type: "array", items: { type: "string" } },
+    place: { type: "array", items: { type: "string" } },
+    subject: { type: "array", items: { type: "string" } },
+    time_of_day: { type: "array", items: { type: "string" } },
+    people_present: { type: "boolean" },
+    text_space: { type: "boolean" },
+    scene: { type: "string" },
+  },
+  required: ["weather", "place", "subject", "time_of_day", "people_present", "text_space", "scene"],
+  additionalProperties: false,
+};
 // claude-3-5-haiku-20241022 is retired; haiku 5.5 is the current small model.
 const CLAUDE_MODEL = "claude-haiku-5-5";
 
@@ -95,7 +111,9 @@ async function callClaude(key: string, images: VisionImage[], prompt: string, f:
       // on by default and counts against max_tokens, so it is switched off
       // (allowed on Haiku 5.5 at effort high or below) and the budget raised.
       thinking: { type: "disabled" },
-      output_config: { effort: "low" },
+      // Structured output: the text block is the JSON object and nothing
+      // else, so the parser never sees prose or a code fence.
+      output_config: { effort: "low", format: { type: "json_schema", schema: AUTO_TAG_SCHEMA } },
       messages: [
         {
           role: "user",

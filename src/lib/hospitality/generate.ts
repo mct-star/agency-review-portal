@@ -24,6 +24,18 @@ export interface GeneratedHospitalityPost {
 
 type TextGenerator = typeof generateText;
 
+/** The shape the writer must return, enforced by the API where the provider supports it. */
+const HOSPITALITY_POST_SCHEMA = {
+  type: "object",
+  properties: {
+    caption: { type: "string" },
+    hashtags: { type: "array", items: { type: "string" } },
+    alt_text: { type: "string" },
+  },
+  required: ["caption", "hashtags", "alt_text"],
+  additionalProperties: false,
+};
+
 /**
  * One post, written and checked. If the writer states a figure that was not
  * in the brief or the forecast, it is asked once more to remove it; if the
@@ -44,7 +56,7 @@ export async function generateHospitalityPost(
   let unsupported: string[] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash" });
+    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash", jsonSchema: HOSPITALITY_POST_SCHEMA });
     let parsed;
     try {
       parsed = parseHospitalityJson(result.text);

@@ -93,7 +93,16 @@ export function parseAutoTagJson(text: string): ParsedTags {
   try {
     raw = JSON.parse(cleaned);
   } catch {
-    throw new Error("Tagger did not return JSON");
+    // A model sometimes wraps the object in a sentence. Take the outermost
+    // braces before giving up (video frames from Haiku did this, 14 Oct 2026).
+    const first = cleaned.indexOf("{");
+    const last = cleaned.lastIndexOf("}");
+    if (first < 0 || last <= first) throw new Error("Tagger did not return JSON");
+    try {
+      raw = JSON.parse(cleaned.slice(first, last + 1));
+    } catch {
+      throw new Error("Tagger did not return JSON");
+    }
   }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("Tagger JSON must be an object");

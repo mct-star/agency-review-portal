@@ -294,7 +294,9 @@ async function startDev() {
     env: { ...process.env, RESEND_API_KEY: "", NEXT_PUBLIC_APP_URL: base, TAG_RAW_LOG_FILE: RAW_LOG, NEXT_TELEMETRY_DISABLED: "1" },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const keep = (b) => { for (const l of String(b).split("\n")) if (l.trim()) { devTail.push(l); if (devTail.length > 200) devTail.shift(); } };
+  // 2000 lines, not 200: the weekly planner and the weather job alone write
+  // more than 200 lines, which pushed the quick-post errors out of the tail.
+  const keep = (b) => { for (const l of String(b).split("\n")) if (l.trim()) { devTail.push(l); if (devTail.length > 2000) devTail.shift(); } };
   devChild.stdout.on("data", keep); devChild.stderr.on("data", keep);
   const t0 = Date.now();
   for (;;) {
