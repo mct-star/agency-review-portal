@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ContinueCard from "@/components/home/ContinueCard";
 import { isWeekBoardEnabled } from "@/lib/constants/week-board";
+import HospitalityHome from "@/components/hospitality/HospitalityHome";
+import { greetingFor, weatherLine, type WeatherSettings } from "@/lib/hospitality/home";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
@@ -22,6 +24,27 @@ export default async function HomePage() {
   const isAdmin = profile?.role === "admin";
   const companyId = profile?.company_id;
   const firstName = (profile?.full_name || "there").split(" ")[0];
+
+  // A hospitality venue gets its own home: what is waiting, three ways to
+  // start, and the weather post. The operator (admin) keeps the full home.
+  const company = profile?.company as ({ post_pack?: string | null; timezone?: string | null } & WeatherSettings) | null | undefined;
+  if (!isAdmin && companyId && company?.post_pack === "hospitality") {
+    const [posts, photos, library] = await Promise.all([
+      supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("approval_status", "pending").eq("content_type", "social_post"),
+      supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "pending"),
+      supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "approved"),
+    ]);
+    const now = new Date();
+    return (
+      <HospitalityHome
+        greeting={greetingFor(firstName, now, company.timezone)}
+        pendingPosts={posts.count ?? 0}
+        photosWaiting={photos.count ?? 0}
+        libraryCount={library.count ?? 0}
+        weatherLine={weatherLine(company, now)}
+      />
+    );
+  }
 
   // ── Fetch counts for smart nudge ──
   let approvedNotPublished = 0;
