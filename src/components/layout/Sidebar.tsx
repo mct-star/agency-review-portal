@@ -14,6 +14,8 @@ interface SidebarProps {
   complexity?: string;
   /** Which pack of post types the company writes. Hospitality gets a shorter, plainer menu. */
   postPack?: string;
+  /** Drafts and photos waiting for approval, shown beside "Waiting for you". */
+  waitingCount?: number;
 }
 
 type PlanTier = "free" | "starter" | "pro" | "agency";
@@ -265,7 +267,7 @@ const icons: Record<string, string> = {
     "M4 6h11a1 1 0 0 1 1 1v3.5l4-2.5v8l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z",
 };
 
-export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced", postPack }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced", postPack, waitingCount = 0 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
@@ -399,7 +401,10 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d={icons[item.icon]} />
                       </svg>
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {item.href === "/approvals" && waitingCount > 0 && (
+                        <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white" aria-label={`${waitingCount} waiting`}>{waitingCount}</span>
+                      )}
                     </Link>
                   );
                 })}

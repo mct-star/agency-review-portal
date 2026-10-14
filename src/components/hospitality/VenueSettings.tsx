@@ -7,6 +7,13 @@ interface Settings {
   post_pack: "b2b" | "hospitality";
   social_networks: string[];
   hospitality_settings: { venue_notes?: string; standing_hashtags?: string[]; allow_emoji?: boolean };
+  postcode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string;
+  weather_post_enabled: boolean;
+  weather_post_time: string;
+  weather_post_for: "today" | "tomorrow";
 }
 
 const NETWORK_LABELS: Array<[string, string]> = [
@@ -23,6 +30,8 @@ export default function VenueSettings({ companyId, children }: { companyId: stri
   const [s, setS] = useState<Settings | null>(null);
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [lookupNote, setLookupNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -34,6 +43,7 @@ export default function VenueSettings({ companyId, children }: { companyId: stri
     setS(d);
     setNotes(d.hospitality_settings?.venue_notes || "");
     setTags((d.hospitality_settings?.standing_hashtags || []).join(" "));
+    setPostcode(d.postcode || "");
   }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
@@ -108,6 +118,53 @@ export default function VenueSettings({ companyId, children }: { companyId: stri
           <button disabled={saving} onClick={() => save({ hospitality_settings: { venue_notes: notes, standing_hashtags: tags.split(/[\s,]+/).filter(Boolean) } })} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
             {saving ? "Saving..." : "Save"}
           </button>
+        </section>
+      )}
+
+      {hospitality && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-gray-900">Daily weather post</h2>
+          <p className="text-sm text-gray-600">Each morning we write a short weather post from the forecast for your venue, pick a matching photo from your library, and leave it for you to approve. Nothing is posted until you do.</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={s.weather_post_enabled} disabled={saving || s.latitude === null} onChange={(e) => save({ weather_post_enabled: e.target.checked }, e.target.checked ? "The daily weather post is on." : "The daily weather post is off.")} />
+            <span>Draft a weather post every day</span>
+          </label>
+          {s.latitude === null && <p className="text-xs text-amber-800">Add the venue's postcode below first, so we know where to look up the weather.</p>}
+
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block text-sm">
+              <span className="font-medium text-gray-800">Venue postcode</span>
+              <input value={postcode} onChange={(e) => setPostcode(e.target.value)} className="mt-1 w-36 rounded-md border border-gray-300 px-3 py-2 uppercase" />
+            </label>
+            <button type="button" disabled={saving || !postcode.trim()} onClick={async () => {
+              setLookupNote(null);
+              const res = await fetch(`/api/company/postcode?postcode=${encodeURIComponent(postcode)}`);
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) { setLookupNote(data.error || "Could not look that up"); return; }
+              await save({ postcode: data.postcode, latitude: data.latitude, longitude: data.longitude }, `Position set${data.area ? ` near ${data.area}` : ""}.`);
+            }} className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">Find the position</button>
+          </div>
+          {lookupNote && <p className="text-xs text-red-700">{lookupNote}</p>}
+          {s.latitude !== null && s.longitude !== null && <p className="text-xs text-gray-600">Looking up the weather at {s.latitude.toFixed(4)}, {s.longitude.toFixed(4)}{s.postcode ? ` (${s.postcode})` : ""}.</p>}
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block text-sm">
+              <span className="font-medium text-gray-800">Post time</span>
+              <input type="time" value={s.weather_post_time.slice(0, 5)} onChange={(e) => e.target.value && save({ weather_post_time: e.target.value })} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-gray-800">Draft it</span>
+              <select value={s.weather_post_for} onChange={(e) => save({ weather_post_for: e.target.value })} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2">
+                <option value="today">On the morning</option>
+                <option value="tomorrow">A day ahead</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-gray-800">Time zone</span>
+              <input defaultValue={s.timezone} onBlur={(e) => e.target.value !== s.timezone && save({ timezone: e.target.value })} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2" />
+            </label>
+          </div>
+          <p className="text-xs text-gray-500">&quot;A day ahead&quot; drafts tomorrow&apos;s forecast today, so you can approve and export it before it is due.</p>
         </section>
       )}
 

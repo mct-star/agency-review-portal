@@ -50,6 +50,7 @@ export default async function AppLayout({
   let companyComplexity: string = "advanced";
   let trialDaysRemaining: number | null = null;
   let postPack = "b2b";
+  let waitingCount = 0;
 
   if (companyId) {
     // This user is a client user tied to a specific company — show their logo
@@ -65,6 +66,14 @@ export default async function AppLayout({
     // Read on its own so a missing column can never take the plan and logo down with it.
     const { data: packRow } = await supabase.from("companies").select("post_pack").eq("id", companyId).maybeSingle();
     postPack = (packRow as { post_pack?: string } | null)?.post_pack || "b2b";
+    if (postPack === "hospitality") {
+      // What is waiting for a person: drafts to approve and photos from the team.
+      const [drafts, photos] = await Promise.all([
+        supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("approval_status", "pending").eq("content_type", "social_post"),
+        supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "pending"),
+      ]);
+      waitingCount = (drafts.count ?? 0) + (photos.count ?? 0);
+    }
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,
     // NOT a random client's logo. Also pass their company ID for sidebar "My Brand" link.
@@ -83,7 +92,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} />
+      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} waitingCount={waitingCount} />
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
           <TrialBanner daysRemaining={trialDaysRemaining} />
