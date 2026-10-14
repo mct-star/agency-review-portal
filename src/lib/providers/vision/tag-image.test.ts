@@ -50,6 +50,23 @@ describe("tagImages", () => {
     await expect(tagImages(IMG, { fetcher: vi.fn(), env: {} as never })).rejects.toThrow(/No vision provider/);
   });
 
+  it("writes the raw reply to the diagnostic file only when asked, before validating it", async () => {
+    const { mkdtempSync, readFileSync, existsSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const file = join(mkdtempSync(join(tmpdir(), "rawlog-")), "raw.jsonl");
+    const fetcher = vi.fn(async () => geminiOk());
+    await tagImages(IMG, { fetcher, env: { GOOGLE_GEMINI_API_KEY: "g", TAG_RAW_LOG_FILE: file } as never });
+    const line = JSON.parse(readFileSync(file, "utf8").trim());
+    expect(line).toMatchObject({ provider: "gemini", images: 1 });
+    expect(JSON.parse(line.text).weather).toEqual(["bright"]);
+    expect(JSON.stringify(line)).not.toMatch(/AAAA/);
+    // Off by default.
+    const other = join(mkdtempSync(join(tmpdir(), "rawlog-")), "none.jsonl");
+    await tagImages(IMG, { fetcher, env: { GOOGLE_GEMINI_API_KEY: "g" } as never });
+    expect(existsSync(other)).toBe(false);
+  });
+
   it("sends every frame of a video in one call", async () => {
     const fetcher = vi.fn(async () => geminiOk());
     await tagImages([...IMG, ...IMG, ...IMG], { fetcher, env: { GOOGLE_GEMINI_API_KEY: "g" } as never });

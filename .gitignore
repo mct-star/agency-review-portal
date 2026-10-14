@@ -39,3 +39,6 @@ sweep-results/
 # Local data dumps and env backups (not part of codebase)
 data/monday_export/
 .env.local.backup.*
+
+# live check runner: ids of scratch rows, the dev server's output, exports
+scripts/.live-check-*

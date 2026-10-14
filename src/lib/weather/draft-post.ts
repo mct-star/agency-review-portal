@@ -177,12 +177,19 @@ export function realPorts(supabase: SupabaseAdmin): WeatherPorts {
   };
 }
 
-export async function runWeatherPosts(supabase: SupabaseAdmin, now: Date = new Date()): Promise<WeatherOutcome[]> {
-  const { data } = await supabase
+export async function runWeatherPosts(
+  supabase: SupabaseAdmin,
+  now: Date = new Date(),
+  options: { companyId?: string } = {}
+): Promise<WeatherOutcome[]> {
+  let query = supabase
     .from("companies")
     .select("id, name, industry, description, hospitality_settings, latitude, longitude, timezone, weather_post_time, weather_post_for")
     .eq("weather_post_enabled", true)
     .eq("post_pack", "hospitality");
+  // A manual run can be scoped to one company; the daily cron passes nothing.
+  if (options.companyId) query = query.eq("id", options.companyId);
+  const { data } = await query;
   const ports = realPorts(supabase);
   const out: WeatherOutcome[] = [];
   // One company at a time: each makes a forecast call and a writing call.

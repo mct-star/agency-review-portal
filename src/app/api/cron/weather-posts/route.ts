@@ -26,8 +26,13 @@ export async function GET(request: Request) {
   if (request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Optional ?companyId=<uuid> limits a manual run to one company.
+  const companyId = new URL(request.url).searchParams.get("companyId") || undefined;
+  if (companyId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId)) {
+    return NextResponse.json({ error: "companyId must be a uuid" }, { status: 400 });
+  }
   const supabase = await createAdminSupabaseClient();
-  const results = await runWeatherPosts(supabase);
+  const results = await runWeatherPosts(supabase, new Date(), { companyId });
   return NextResponse.json({
     ok: true,
     drafted: results.filter((r) => r.status === "drafted").length,

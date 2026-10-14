@@ -26,6 +26,23 @@ const CLAUDE_MODEL = "claude-3-5-haiku-20241022";
 
 type Fetcher = typeof fetch;
 
+/**
+ * Opt-in diagnostic: when TAG_RAW_LOG_FILE names a file, every raw model reply
+ * is appended to it as a JSON line, before it is validated. Used by the live
+ * check script to see exactly what the model returned. Off unless the variable
+ * is set; it never records an image or a key.
+ */
+async function logRaw(provider: string, text: string, images: number, env: NodeJS.ProcessEnv): Promise<void> {
+  const file = env.TAG_RAW_LOG_FILE;
+  if (!file) return;
+  try {
+    const { appendFile } = await import("node:fs/promises");
+    await appendFile(file, JSON.stringify({ at: new Date().toISOString(), provider, images, text }) + "\n");
+  } catch {
+    // Diagnostics must never break tagging.
+  }
+}
+
 export function geminiKey(env: NodeJS.ProcessEnv = process.env): string | undefined {
   return env.GOOGLE_GEMINI_API_KEY || env.Gemini || env.GEMINI_API_KEY || env.GEMINI;
 }
@@ -108,7 +125,9 @@ export async function tagImages(
   const gKey = geminiKey(env);
   if (gKey) {
     try {
-      return { ...parseAutoTagJson(await callGemini(gKey, images, prompt, f)), provider: "gemini" };
+      const text = await callGemini(gKey, images, prompt, f);
+      await logRaw("gemini", text, images.length, env);
+      return { ...parseAutoTagJson(text), provider: "gemini" };
     } catch (err) {
       errors.push(err instanceof Error ? err.message : String(err));
     }
@@ -116,7 +135,9 @@ export async function tagImages(
   const cKey = anthropicKey(env);
   if (cKey) {
     try {
-      return { ...parseAutoTagJson(await callClaude(cKey, images, prompt, f)), provider: "claude" };
+      const text = await callClaude(cKey, images, prompt, f);
+      await logRaw("claude", text, images.length, env);
+      return { ...parseAutoTagJson(text), provider: "claude" };
     } catch (err) {
       errors.push(err instanceof Error ? err.message : String(err));
     }
