@@ -90,8 +90,12 @@ async function callClaude(key: string, images: VisionImage[], prompt: string, f:
     headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 600,
-      // No temperature: claude-haiku-5-5 rejects it with a 400.
+      max_tokens: 1000,
+      // No temperature: claude-haiku-5-5 rejects it with a 400. Thinking is
+      // on by default and counts against max_tokens, so it is switched off
+      // (allowed on Haiku 5.5 at effort high or below) and the budget raised.
+      thinking: { type: "disabled" },
+      output_config: { effort: "low" },
       messages: [
         {
           role: "user",

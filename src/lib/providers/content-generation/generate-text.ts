@@ -55,6 +55,12 @@ async function callClaude(
       max_tokens: opts.maxTokens || 2000,
       // No temperature: the Claude 5.5 models reject it ("deprecated for
       // this model", 400) and the whole Claude tier failed on it (14 Oct 2026).
+      // Thinking off: Sonnet 5.5 thinks by default and those tokens count
+      // against max_tokens, so a 700-token caption came back as a thinking
+      // block and no text. between_tools is the only way to switch it off
+      // on this model, and needs effort at high or below.
+      thinking: { type: "between_tools" },
+      output_config: { effort: "low" },
       system: opts.systemPrompt,
       messages: [{ role: "user", content: opts.userPrompt }],
     }),
@@ -65,7 +71,10 @@ async function callClaude(
   }
 
   const data = await res.json();
-  return data.content?.[0]?.text || "";
+  // The reply is a list of blocks and a thinking block may come first, so
+  // read the first text block rather than content[0].
+  const blocks: Array<{ type: string; text?: string }> = data.content || [];
+  return blocks.find((b) => b.type === "text")?.text || "";
 }
 
 async function callGemini(
