@@ -1,5 +1,7 @@
 "use client";
 
+import { getPostType } from "@/lib/constants/post-types";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -169,7 +171,7 @@ function getPostTypeLabel(slug: string | null): string {
     weekend_personal: "Personal", blog_article: "Blog",
     linkedin_article: "LI Article",
   };
-  return labels[slug] || slug.replace(/_/g, " ");
+  return labels[slug] || getPostType(slug)?.label || slug.replace(/_/g, " ");
 }
 
 function stripMarkdown(md: string): string {

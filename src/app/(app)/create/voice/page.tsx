@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import VoiceToPostPage from "@/components/create/VoiceToPost";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Voice to Post | AGENCY",
@@ -58,6 +59,13 @@ export default async function VoicePage() {
       .eq("is_active", true)
       .order("sort_order");
     spokespersons = data || [];
+  }
+
+  // A hospitality company talks through the week instead of writing one
+  // LinkedIn post from a voice note.
+  if (!isAdmin && companies[0]) {
+    const { data: packRow } = await supabase.from("companies").select("post_pack").eq("id", companies[0].id).maybeSingle();
+    if ((packRow as { post_pack?: string } | null)?.post_pack === "hospitality") redirect("/create/week-interview");
   }
 
   if (companies.length === 0) {

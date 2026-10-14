@@ -133,7 +133,7 @@ export default function VenueSettings({ companyId, children }: { companyId: stri
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="block text-sm">
-              <span className="font-medium text-gray-800">Venue postcode</span>
+              <span className="block font-medium text-gray-800">Venue postcode</span>
               <input value={postcode} onChange={(e) => setPostcode(e.target.value)} className="mt-1 w-36 rounded-md border border-gray-300 px-3 py-2 uppercase" />
             </label>
             <button type="button" disabled={saving || !postcode.trim()} onClick={async () => {

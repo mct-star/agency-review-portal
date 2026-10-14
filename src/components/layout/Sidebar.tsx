@@ -55,6 +55,7 @@ function buildHospitalitySections(user: User): NavSection[] {
       items: [
         { href: "/approvals", label: "Waiting for you", icon: "checkCircle", highlight: true },
         { href: "/generate/quick", label: "Write a post", icon: "zap" },
+        { href: "/create/week-interview", label: "Talk through the week", icon: "mic" },
       ],
     },
     {

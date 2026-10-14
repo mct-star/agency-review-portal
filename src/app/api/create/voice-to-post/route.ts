@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
 
 /**
@@ -77,6 +77,19 @@ export async function POST(request: Request) {
 
       if (!(await requireCompanyUser(companyId))) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
+    // A hospitality company writes for Facebook and Instagram, not LinkedIn:
+    // it uses the weekly chat, so this route must not hand it a LinkedIn post.
+    {
+      const admin = await createAdminSupabaseClient();
+      const { data: packRow } = await admin.from("companies").select("post_pack").eq("id", companyId).maybeSingle();
+      if ((packRow as { post_pack?: string } | null)?.post_pack === "hospitality") {
+        return NextResponse.json(
+          { error: "This company writes for Facebook and Instagram. Use Talk through the week instead." },
+          { status: 400 }
+        );
       }
     }
 

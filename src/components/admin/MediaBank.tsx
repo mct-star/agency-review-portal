@@ -139,16 +139,13 @@ export default function MediaBank({ companies, initialCompanyId }: { companies: 
     setActiveTags((t) => (t.includes(tag) ? t.filter((x) => x !== tag) : [...t, tag]));
   }
 
-  const photos = items.filter((i) => i.kind === "photo").length;
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Photo and video library</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Your real photos and clips, added once and used on posts. {total} {view === "pending" ? "waiting for you" : "in the library"}
-            {view === "approved" && items.length > 0 ? ` (${photos} of the ones shown are photos)` : ""}.
+            Your real photos and clips, added once and used on posts. {total} {view === "pending" ? "waiting for you" : "in the library"}.
           </p>
         </div>
         {companies.length > 1 && (

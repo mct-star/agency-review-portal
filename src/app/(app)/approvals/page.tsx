@@ -5,6 +5,8 @@ import { getUserProfile } from "@/lib/supabase/server";
 import { getPostType } from "@/lib/constants/post-types";
 import { longDateLabel } from "@/lib/hospitality/week";
 import ApprovalCard, { type DraftPiece } from "@/components/hospitality/ApprovalCard";
+import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
+import { addDays, longDateLabel as dateLabel, todayIn } from "@/lib/hospitality/week";
 
 export const metadata: Metadata = { title: "Waiting for you | AGENCY" };
 export const dynamic = "force-dynamic";
@@ -61,7 +63,24 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     whenLabel: r.scheduled_date ? `${longDateLabel(r.scheduled_date)}${r.scheduled_time ? ` at ${r.scheduled_time.slice(0, 5)}` : ""}` : "no date yet",
   }));
 
-  const nothing = pieces.length === 0 && !photosWaiting;
+  // Approved posts, by week, ready to export. Only weeks that are not long past.
+  const { data: tz } = await supabase.from("companies").select("timezone").eq("id", companyId).maybeSingle();
+  const since = addDays(todayIn((tz?.timezone as string | null) || "Europe/London"), -7);
+  const { data: approvedRows } = await supabase
+    .from("content_pieces")
+    .select("id, week_id, scheduled_date")
+    .eq("company_id", companyId)
+    .eq("approval_status", "approved")
+    .eq("content_type", "social_post")
+    .gte("scheduled_date", since);
+  const byWeek = new Map<string, number>();
+  for (const r of approvedRows || []) byWeek.set(r.week_id as string, (byWeek.get(r.week_id as string) || 0) + 1);
+  const weekIds = [...byWeek.keys()];
+  const { data: weekRows } = weekIds.length
+    ? await supabase.from("weeks").select("id, week_number, date_start, date_end").in("id", weekIds).order("date_start")
+    : { data: [] as Array<{ id: string; week_number: number; date_start: string; date_end: string }> };
+
+  const nothing = pieces.length === 0 && !photosWaiting && (weekRows || []).length === 0;
   return (
     <div className="max-w-4xl space-y-6">
       <div>
@@ -74,6 +93,21 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
           <span><strong>{photosWaiting}</strong> {photosWaiting === 1 ? "photo" : "photos"} from your team to look at.</span>
           <span className="font-medium">Look now</span>
         </Link>
+      )}
+
+      {(weekRows || []).length > 0 && (
+        <section className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <h2 className="text-sm font-semibold text-emerald-900">Approved and ready to export</h2>
+          <ul className="space-y-2">
+            {(weekRows || []).map((w) => (
+              <li key={w.id} className="flex flex-wrap items-center justify-between gap-3 text-sm text-emerald-900">
+                <span>{dateLabel(w.date_start)} to {dateLabel(w.date_end)}: {byWeek.get(w.id)} approved {byWeek.get(w.id) === 1 ? "post" : "posts"}</span>
+                <MetricoolExportButton weekId={w.id} draft={false} />
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-emerald-800">The file has only the posts you have approved, with their days and times.</p>
+        </section>
       )}
 
       {nothing ? (
