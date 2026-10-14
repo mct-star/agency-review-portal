@@ -44,7 +44,7 @@ export async function generateHospitalityPost(
   let unsupported: string[] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6 });
+    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash" });
     let parsed;
     try {
       parsed = parseHospitalityJson(result.text);

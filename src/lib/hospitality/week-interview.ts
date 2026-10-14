@@ -112,7 +112,7 @@ export function realInterviewDeps(
   io: Pick<WeekInterviewDeps, "candidates" | "draft">
 ): WeekInterviewDeps {
   return {
-    plan: async (system, user) => (await generateText({ systemPrompt: system, userPrompt: user, maxTokens: 1500, temperature: 0.2 })).text,
+    plan: async (system, user) => (await generateText({ systemPrompt: system, userPrompt: user, maxTokens: 1500, temperature: 0.2, geminiModel: "gemini-2.5-flash" })).text,
     write: (postType, item) =>
       generateHospitalityPost({
         company: { name: company.name, industry: company.industry, description: company.description, settings: company.settings },

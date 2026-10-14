@@ -17,7 +17,17 @@ export interface GenerateTextOptions {
   maxTokens?: number;
   temperature?: number;
   companyId?: string; // Reserved for future company-level API key lookup
+  /**
+   * Which Gemini model to use when Gemini is the provider. Defaults to
+   * gemini-2.5-pro. Short-form writers (the hospitality captions, the
+   * weekly planner) pass gemini-2.5-flash: it is enough for a caption,
+   * far cheaper, and it is the model available on a free-tier key,
+   * where gemini-2.5-pro has a quota of zero (live check, 14 Oct 2026).
+   */
+  geminiModel?: "gemini-2.5-pro" | "gemini-2.5-flash";
 }
+
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-pro";
 
 export interface GenerateTextResult {
   text: string;
@@ -59,8 +69,9 @@ async function callGemini(
   apiKey: string,
   opts: GenerateTextOptions
 ): Promise<string> {
+  const model = opts.geminiModel ?? DEFAULT_GEMINI_MODEL;
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,7 +144,7 @@ export async function generateText(
       return {
         text: result,
         provider: "gemini",
-        model: "gemini-2.5-pro",
+        model: options.geminiModel ?? DEFAULT_GEMINI_MODEL,
       };
     } catch (err) {
       console.error("[generateText] Gemini failed, trying Claude:", err);
