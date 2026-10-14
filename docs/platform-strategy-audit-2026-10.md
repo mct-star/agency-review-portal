@@ -247,3 +247,28 @@ Verification: Playwright at 390px as Sam on the Vercel preview: invite, home, ap
 - Which time zone Metricool reads CSV times in, and whether it de-duplicates a re-imported post.
 - Whether Supabase RLS lets an admin's anon-key client read every company's `content_pieces` on `/home`.
 - Everything above is a reading of the code and the database; no authenticated browser walk was run, because no test credentials exist for Sam's or a B2B client's view.
+
+## Status (14 October 2026, late evening): all six phases built, stacked as PRs
+Michael said "proceed with all phases" and took decisions 8, 9 and 10 as recommended (approval read-back, Starter fallback, Stripe hidden). Each phase is its own branch and PR, stacked so each merges into the one before it; merging in order lands them on main one at a time.
+
+| Phase | PR | Tests at the end of the phase | What to check by hand after merge |
+|---|---|---|---|
+| 0 Stop the damage | mct-star/agency-review-portal#7 | 506 | Connect LinkedIn from a company's Connections page and land back there. Open a compliance document from its list. |
+| 1 Sam's whole day and view-as | #8 | 527 | View as Lakeside, walk Sam's menu, type `/strategy` and land on the not-available page, write a post with a photo and a time, download the week. |
+| 2 One front door, one admin tree | #9 | 544 | Sign in and land on the four-panel home; approve one Lakeside draft from the Waiting panel. |
+| 3 B2B journey tells the truth | #10 | 564 | As a client (view as BCB Medical): save a voice setting, complete the strategy interview, approve a post from /review. |
+| 4 Markey and the portal agree | #11 | 567 | Download a week for AGENCY Bristol and open the file in the scheduling tool; restart the job bridge poller. |
+| 5 Hygiene | #12 | see the PR | `npm run test:smoke` against the preview. |
+
+**Done live, outside the PRs:** migration 045 applied (share token expiry and revoke, compliance document storage path); the retired model id cleared from `company_api_configs`; `VIEW_AS_SECRET` added to Vercel production and preview; the public `content-assets` bucket given a 50 MB limit. On the Mac, the job bridge poller, the write-back and the production runner carry the approval read-back and the post times, each with a `.bak_20261014` beside it, inactive until the poller is restarted.
+
+**Michael's actions, in order**
+1. Merge PR #7, then #8, then #9, #10, #11, #12, checking the Vercel preview build on each (no `npm run build` was run locally; the preview is the build check).
+2. Restart the job bridge poller to make the approval read-back live, then watch the next Phase B's job output for `portal_approvals`.
+3. Decide whether `codex/native-content-engine` is merged or its four live tables and seven Vercel variables are dropped.
+4. Add `WEBSITE_GITHUB_TOKEN` to Vercel production if the website publish button should work, and a paid Gemini key when the trial outgrows 20 Flash calls a day.
+5. Delete the "Quality Sweep Test Co" company and its admin user if they are no longer needed (data, so not done by an agent).
+
+**Known limits carried forward (each is in its PR's description):** the download cannot mark posts already downloaded (no export record); Move on the day list changes the day only; Sam cannot upload her own logo; the strategy document's audience section is empty until the interview's persona list is mapped to it; hospitality signups still get the business sample content; the Photos tab opens the library picker rather than the company.
+
+**Re-score.** With the six phases merged, the stages that scored 1 on C4 (truthful controls) and C5 (fences) in the audit are expected at 4: every route that failed on a retired model id now runs through one module, every fence is in the middleware, the admin has one home and can see what a client sees, and the client journey no longer offers a control that calls an admin-only route. Both platform checks (tenant isolation, provider truth) pass by test. The scorecard should be re-run as a read-only walk once the PRs are live; this document records the plan and the build, not a measured result.

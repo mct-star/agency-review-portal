@@ -19,6 +19,7 @@ import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/
 import type { PlanTier } from "@/types/database";
 import { getPostType, packOf } from "@/lib/constants/post-types";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
+import { lastWriterUsed } from "@/lib/providers/content-generation/anthropic";
 
 /**
  * POST /api/generate/quick
@@ -820,6 +821,9 @@ export async function POST(request: Request) {
       carouselImageUrls,
       qualityGates,
       warnings,
+      // Admins only: which model family answered, so the API smoke test can
+      // fail when Claude is down and Gemini quietly wrote the post.
+      ...(user.role === "admin" ? { provider: lastWriterUsed()?.provider } : {}),
     });
   } catch (err) {
     console.error("[quick] Generation failed:", err);

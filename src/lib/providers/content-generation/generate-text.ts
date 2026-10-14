@@ -37,7 +37,7 @@ export interface GenerateTextOptions {
 }
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-// claude-sonnet-4-20250514 was retired and returned 404 (live check, 14 Oct 2026).
+// The old Sonnet 4 dated id was retired and returned 404 (live check, 14 Oct 2026).
 const CLAUDE_MODEL = "claude-sonnet-5-5";
 
 export interface GenerateTextResult {
@@ -144,7 +144,7 @@ export async function generateText(
     }
   }
 
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
   if (geminiKey) {
     try {
       const result = await callGemini(geminiKey, options);

@@ -19,7 +19,7 @@ export async function transcribeAudio(
   mimeType: string = "audio/webm",
   companyId?: string
 ): Promise<TranscriptionResult> {
-  let geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
+  let geminiKey = process.env.GOOGLE_GEMINI_API_KEY || "";
 
   // If no env var, try this company's own stored Gemini key (where image
   // generation stores it). Never another company's: before 14 Oct 2026 the

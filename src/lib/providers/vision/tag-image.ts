@@ -38,7 +38,7 @@ const AUTO_TAG_SCHEMA = {
   required: ["weather", "place", "subject", "time_of_day", "people_present", "text_space", "scene"],
   additionalProperties: false,
 };
-// claude-3-5-haiku-20241022 is retired; haiku 5.5 is the current small model.
+// The old Haiku 3.5 dated id is retired; haiku 5.5 is the current small model.
 const CLAUDE_MODEL = "claude-haiku-5-5";
 
 type Fetcher = typeof fetch;
@@ -61,7 +61,7 @@ async function logRaw(provider: string, text: string, images: number, env: NodeJ
 }
 
 export function geminiKey(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return env.GOOGLE_GEMINI_API_KEY || env.Gemini || env.GEMINI_API_KEY || env.GEMINI;
+  return env.GOOGLE_GEMINI_API_KEY;
 }
 
 export function anthropicKey(env: NodeJS.ProcessEnv = process.env): string | undefined {
