@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       html: trialWelcomeEmailHtml({
         userName: spokespersonName?.trim() || user.email?.split("@")[0] || "there",
         companyName: companyName.trim(),
-        dashboardUrl: `${baseUrl}/dashboard`,
+        dashboardUrl: `${baseUrl}/home`,
         trialDays: 7,
       }),
     });

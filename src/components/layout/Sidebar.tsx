@@ -3,9 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import { useRouter } from "next/navigation";
 import type { User } from "@/types/database";
+import {
+  COMPLEXITY_RANK,
+  HOME_HREF,
+  PLAN_RANK,
+  sectionsFor,
+  type ComplexityLevel,
+  type PlanTier,
+} from "@/app/(app)/nav";
 
 export interface SidebarProps {
   user: User;
@@ -18,213 +25,6 @@ export interface SidebarProps {
   waitingCount?: number;
   /** Replaces the default desktop layout classes (the phone drawer uses its own). */
   className?: string;
-}
-
-type PlanTier = "free" | "starter" | "pro" | "agency";
-const PLAN_RANK: Record<PlanTier, number> = { free: 0, starter: 1, pro: 2, agency: 3 };
-
-type ComplexityLevel = "beginner" | "intermediate" | "advanced";
-const COMPLEXITY_RANK: Record<ComplexityLevel, number> = { beginner: 0, intermediate: 1, advanced: 2 };
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: string;
-  adminOnly?: boolean;
-  publisherOnly?: boolean;
-  highlight?: boolean;
-  minPlan?: PlanTier;
-  minComplexity?: ComplexityLevel;
-}
-
-interface NavSection {
-  title: string;
-  phase?: number; // 1-4 for journey phases, undefined for non-phase sections
-  items: NavItem[];
-}
-
-/**
- * The menu for a hospitality company's own people: what needs doing today,
- * writing, the photo library, the week and its export, and the venue settings.
- * No strategy interview or compliance: those are for the business-to-business pack.
- */
-function buildHospitalitySections(user: User): NavSection[] {
-  const cid = user.company_id;
-  const base = cid ? `/setup/${cid}` : "/setup";
-  return [
-    {
-      title: "Today",
-      items: [
-        { href: "/approvals", label: "Waiting for you", icon: "checkCircle", highlight: true },
-        { href: "/generate/quick", label: "Write a post", icon: "zap" },
-        { href: "/create/week-interview", label: "Talk through the week", icon: "mic" },
-        { href: "/notifications", label: "Notifications", icon: "calendar" },
-      ],
-    },
-    {
-      title: "Photos",
-      items: [{ href: "/library", label: "Photo & Video Library", icon: "video" }],
-    },
-    {
-      title: "The week",
-      items: [
-        { href: "/calendar", label: "Calendar", icon: "calendarView" },
-        { href: "/review", label: "This week", icon: "send" },
-      ],
-    },
-    {
-      title: "Settings",
-      items: [
-        { href: `${base}/hospitality`, label: "Venue and posting", icon: "building" },
-        { href: `${base}/hospitality#brand`, label: "Brand", icon: "settings" },
-      ],
-    },
-  ];
-}
-
-function buildSections(user: User, postPack?: string): NavSection[] {
-  const isAdmin = user.role === "admin";
-  const cid = user.company_id;
-  const base = cid ? `/setup/${cid}` : "/setup";
-
-  if (!isAdmin && postPack === "hospitality") return buildHospitalitySections(user);
-
-  if (isAdmin) {
-    return [
-      // Phase 1: Strategise
-      {
-        title: "Strategise",
-        phase: 1,
-        items: [
-          { href: "/strategy", label: "Strategy Interview", icon: "compass" },
-          { href: "/strategy/competitor", label: "Competitor Analysis", icon: "compass" },
-        ],
-      },
-      // Phase 2: Plan
-      {
-        title: "Plan",
-        phase: 2,
-        items: [
-          { href: "/calendar", label: "Content Calendar", icon: "calendarView" },
-          { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle" },
-          ...(isWeekBoardEnabled()
-            ? ([
-                { href: "/admin/calendar", label: "Source Calendar", icon: "calendarView", adminOnly: true },
-                { href: "/admin/plan/weekly", label: "Slot Planner", icon: "sparkle", adminOnly: true },
-              ] as NavItem[])
-            : []),
-        ],
-      },
-      // Phase 3: Create
-      {
-        title: "Create",
-        phase: 3,
-        items: [
-          ...(isWeekBoardEnabled()
-            ? ([
-                { href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true, highlight: true },
-                { href: "/admin/clips", label: "Clips", icon: "video", adminOnly: true },
-              ] as NavItem[])
-            : []),
-          { href: "/admin/bank", label: "Photo & Video Bank", icon: "video", adminOnly: true },
-          { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
-          { href: "/create/voice", label: "Voice to Post", icon: "mic" },
-          { href: "/generate", label: "Week Batch", icon: "sparkle" },
-          { href: "/create/article", label: "Blog / Article", icon: "quote" },
-          { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },
-          { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" as ComplexityLevel },
-        ],
-      },
-      // Phase 4: Review & Publish
-      {
-        title: "Review & Publish",
-        phase: 4,
-        items: [
-          { href: "/review", label: "Content Review", icon: "checkCircle" },
-          { href: "/compliance", label: "Compliance", icon: "shieldCheck" },
-          { href: "/publish", label: "Publish", icon: "send" },
-          { href: "/analytics", label: "Analytics", icon: "sparkle" },
-        ],
-      },
-      // Settings (non-phase)
-      ...(cid
-        ? [
-            {
-              title: "Settings",
-              items: [
-                { href: "/settings", label: "Brand & People", icon: "building" },
-                { href: `${base}/social`, label: "Connections", icon: "link" },
-              ] as NavItem[],
-            },
-          ]
-        : []),
-      // Admin (non-phase)
-      {
-        title: "Admin",
-        items: [
-          { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
-          { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
-          { href: "/admin/tickets", label: "Support Tickets", icon: "shield", adminOnly: true },
-          { href: "/users", label: "Users", icon: "users", adminOnly: true },
-        ],
-      },
-    ];
-  }
-
-  // Client sidebar, 4-phase journey
-  return [
-    // Phase 1: Strategise
-    {
-      title: "Strategise",
-      phase: 1,
-      items: [
-        { href: "/strategy", label: "Strategy Interview", icon: "compass" },
-        { href: "/strategy/competitor", label: "Competitor Analysis", icon: "compass" },
-      ],
-    },
-    // Phase 2: Plan
-    {
-      title: "Plan",
-      phase: 2,
-      items: [
-        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-    // Phase 3: Create
-    {
-      title: "Create",
-      phase: 3,
-      items: [
-        { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
-        { href: "/create/voice", label: "Voice to Post", icon: "mic" },
-        { href: "/library", label: "Photo & Video Library", icon: "video" },
-        { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/create/article", label: "Blog / Article", icon: "quote", minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-    // Phase 4: Review & Publish
-    {
-      title: "Review & Publish",
-      phase: 4,
-      items: [
-        { href: "/review", label: "Content Review", icon: "checkCircle" },
-        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/analytics", label: "Analytics", icon: "sparkle", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-    // Settings (non-phase)
-    {
-      title: "Settings",
-      items: [
-        { href: "/settings", label: "Brand & People", icon: "settings" },
-        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-  ];
 }
 
 // ── Phase colours ────────────────────────────────────────────
@@ -295,7 +95,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
     return false;
   }
 
-  const sections = buildSections(user, postPack);
+  const sections = sectionsFor(user, postPack);
 
   return (
     <aside className={className ?? "flex h-screen w-56 flex-col border-r border-gray-200 bg-white"}>
@@ -324,9 +124,9 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
       {/* Home */}
       <div className="px-2 pt-3 pb-1 space-y-0.5">
         <Link
-          href="/home"
+          href={HOME_HREF}
           className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-            pathname === "/home"
+            pathname === HOME_HREF
               ? "bg-violet-50 text-violet-700"
               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
           }`}

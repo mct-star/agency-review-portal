@@ -74,5 +74,14 @@ Columns the code writes must exist: `companies.trial_expires_at` (not
   (`next.config.ts`).
 - The week board pages are behind `NEXT_PUBLIC_WEEK_BOARD_ENABLED` and are
   used by Markey's Mac pipeline through `content_generation_jobs`.
-- `src/app/admin/*` is the legacy admin tree and is being folded into
-  `src/app/(app)/admin/*` (Phase 2 of the audit). Do not add pages to it.
+- There is one admin tree, `src/app/(app)/admin/*`, inside the (app) layout
+  (Decision 3 of the audit). The legacy `src/app/admin/*` tree and its layout
+  are gone; route groups keep the addresses, so `/admin/weeks` is unchanged.
+  The (app) layout only requires a sign-in, so every admin page calls
+  `requireAdmin()` itself.
+- `src/app/(app)/nav.ts` is the one navigation map: the admin, client and
+  hospitality menus, `sectionsFor(user, postPack)` and `DETAIL_PAGES`. The
+  sidebar only renders it. `nav.test.ts` fails when a menu href has no page or
+  a page under (app) is in neither a menu nor `DETAIL_PAGES`.
+- The company tabs (`setup/[companyId]/CompanyTabs.tsx`) follow the pack: a
+  hospitality company gets Overview, Venue and posting, People and Photos.

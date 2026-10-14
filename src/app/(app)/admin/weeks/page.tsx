@@ -6,7 +6,7 @@ import WeekBoard from "@/components/admin/WeekBoard";
 
 export default async function WeekBoardPage() {
   const admin = await requireAdmin();
-  if (!admin) redirect("/dashboard");
+  if (!admin) redirect("/home");
 
   if (!isWeekBoardEnabled()) {
     return (

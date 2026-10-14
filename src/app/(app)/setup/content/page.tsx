@@ -13,7 +13,7 @@ export default async function ContentSetupPage() {
 
   const companyId = profile.company_id;
   if (!companyId) {
-    redirect("/dashboard");
+    redirect("/home");
   }
 
   // Get company name from the joined company data

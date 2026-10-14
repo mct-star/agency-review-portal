@@ -44,7 +44,7 @@ function LoginForm() {
         setError(plainSignInError(error.message));
         setLoading(false);
       } else {
-        window.location.href = "/dashboard";
+        window.location.href = "/home";
       }
     } else {
       const { error } = await supabase.auth.signInWithOtp({

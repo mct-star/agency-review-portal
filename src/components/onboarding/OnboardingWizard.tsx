@@ -142,7 +142,7 @@ export default function OnboardingWizard({ userId, userName }: OnboardingWizardP
   }
 
   function handleSkipToDashboard() {
-    router.push("/dashboard");
+    router.push("/home");
     router.refresh();
   }
 

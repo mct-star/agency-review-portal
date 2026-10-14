@@ -75,7 +75,7 @@ export async function GET(request: Request) {
             companyName: company.name,
             daysLeft: 2,
             upgradeUrl: `${baseUrl}/setup/${company.id}#billing`,
-            dashboardUrl: `${baseUrl}/dashboard`,
+            dashboardUrl: `${baseUrl}/home`,
             postsGenerated: postsCount || 0,
             reviewsRun: reviewsCount || 0,
           }),

@@ -14,7 +14,7 @@ export default async function BrandContentSetupPage({ params }: PageProps) {
   // Verify access: must be admin or belong to this company
   const isAdmin = profile.role === "admin";
   if (!isAdmin && profile.company_id !== companyId) {
-    redirect("/dashboard");
+    redirect("/home");
   }
 
   const supabase = await createServerSupabaseClient();

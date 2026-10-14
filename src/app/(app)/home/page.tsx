@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import ContinueCard from "@/components/home/ContinueCard";
-import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import HospitalityHome from "@/components/hospitality/HospitalityHome";
+import AdminHome from "@/components/home/AdminHome";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { loadAdminPanels } from "@/lib/admin-home/panels";
 import { greetingFor, weatherFailedLine, weatherLine, type WeatherSettings } from "@/lib/hospitality/home";
 import { todayIn } from "@/lib/hospitality/week";
 
@@ -48,6 +50,12 @@ export default async function HomePage() {
         weatherFailedLine={weatherFailedLine(lastRun.data as { status: string; target_date: string } | null, todayIn(tz, now))}
       />
     );
+  }
+
+  // The operator's home: four panels of what is waiting across every client.
+  if (isAdmin) {
+    const panels = await loadAdminPanels(await createAdminSupabaseClient());
+    return <AdminHome greeting={greeting(firstName)} panels={panels} />;
   }
 
   // ── Fetch counts for smart nudge ──
@@ -125,20 +133,6 @@ export default async function HomePage() {
   const totalPendingUnits = pendingSingles + pendingWeekCount;
 
   // ── Determine the smart nudge ──
-  // This week's calendar week, for the admin Week Board card.
-  let thisWeek: { id: string; week_number: number; title: string | null; run_state: string | null; date_start: string } | null = null;
-  if (isAdmin && isWeekBoardEnabled()) {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    const { data } = await supabase
-      .from("weeks")
-      .select("id, week_number, title, run_state, date_start")
-      .lte("date_start", todayIso)
-      .gte("date_end", todayIso)
-      .order("date_start", { ascending: false })
-      .limit(1);
-    thisWeek = (data && data[0]) || null;
-  }
-
   let nudgeText: string;
   let nudgeHref: string;
   let nudgeLabel: string;
@@ -220,19 +214,6 @@ export default async function HomePage() {
             className="flex-shrink-0 rounded-lg bg-white px-4 py-2 text-xs font-semibold shadow-sm transition-all hover:shadow-md"
           >
             {nudgeLabel} &rarr;
-          </Link>
-        </div>
-      )}
-
-      {/* ===== This week (admin, Week Board on) ===== */}
-      {thisWeek && (
-        <div className="mx-auto max-w-xl flex items-center justify-between gap-4 rounded-xl border border-violet-200 bg-white px-5 py-3.5">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">This week · Week {thisWeek.week_number}</p>
-            <p className="truncate text-sm text-gray-700">{thisWeek.title || "Untitled week"}</p>
-          </div>
-          <Link href="/admin/weeks" className="flex-shrink-0 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-violet-700">
-            {thisWeek.run_state === "complete" ? "Open Week Board" : "Write this week"} &rarr;
           </Link>
         </div>
       )}
@@ -331,18 +312,6 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ===== Dashboard link (subtle, for users who want the detailed view) ===== */}
-      <div className="text-center">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-600"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M4 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V5ZM4 15a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4Zm10 0a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4Z" />
-          </svg>
-          View detailed dashboard &rarr;
-        </Link>
-      </div>
     </div>
   );
 }
