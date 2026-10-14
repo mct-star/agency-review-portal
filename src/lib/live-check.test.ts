@@ -113,7 +113,7 @@ describe("file choice", () => {
 
 describe("the script as a program (no network, no real env)", () => {
   const run = (args: string[], env: Record<string, string>) =>
-    spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env } as NodeJS.ProcessEnv, timeout: 60_000 });
+    spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env } as unknown as NodeJS.ProcessEnv, timeout: 60_000 });
 
   it("preflight with no env file names the missing variables and prints no values", () => {
     const r = run(["preflight"], { LIVE_CHECK_ENV_FILE: path.join(tmpdir(), "does-not-exist.env") });
