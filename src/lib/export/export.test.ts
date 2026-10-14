@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMetricoolRow, csvEscape, METRICOOL_HEADERS } from "./metricool-row";
+import { buildMetricoolRow, csvEscape, csvLine, defaultTimeFor, METRICOOL_HEADERS } from "./metricool-row";
 import { networkFlags, networksFor } from "./networks";
 import { toSocialText } from "./social-text";
 import type { PieceMedia } from "@/lib/content/piece-media";
@@ -35,10 +35,29 @@ describe("a company with no networks chosen (LinkedIn, as before)", () => {
     expect(col(cells, "Text")).not.toContain("#lunch");
     expect(col(cells, "Instagram Post Type")).toBe("");
   });
-  it("keeps the default time when a piece has none", () => {
-    const { cells } = buildMetricoolRow({ piece: { ...piece, scheduled_time: null }, weekStart: "2026-10-12", isDraft: true, companyNetworks: null, media: none, altTexts: [] });
-    expect(col(cells, "Time")).toBe("08:26:00");
+  it("defaults a social post with no time to 10:30 and says so", () => {
+    const { cells, defaultedTime } = buildMetricoolRow({ piece: { ...piece, scheduled_time: null }, weekStart: "2026-10-12", isDraft: true, companyNetworks: null, media: none, altTexts: [] });
+    expect(col(cells, "Time")).toBe("10:30:00");
+    expect(defaultedTime).toBe("10:30:00");
     expect(col(cells, "Draft")).toBe("true");
+  });
+  it("defaults a podcast or clip with no time to 13:00", () => {
+    expect(defaultTimeFor("podcast_clip")).toBe("13:00:00");
+    expect(defaultTimeFor("video_clip")).toBe("13:00:00");
+    expect(defaultTimeFor("tactical")).toBe("10:30:00");
+    expect(defaultTimeFor(null)).toBe("10:30:00");
+  });
+  it("reports no default when the piece has a time", () => {
+    const { defaultedTime } = buildMetricoolRow({ piece, weekStart: "2026-10-12", isDraft: false, companyNetworks: null, media: none, altTexts: [] });
+    expect(defaultedTime).toBeNull();
+  });
+  it("quotes every cell, empty ones included", () => {
+    const { cells } = buildMetricoolRow({ piece, weekStart: "2026-10-12", isDraft: false, companyNetworks: null, media: none, altTexts: [] });
+    const line = csvLine(cells);
+    expect(line.startsWith('"')).toBe(true);
+    expect(line.endsWith('"')).toBe(true);
+    expect(line.split('","')).toHaveLength(88);
+    expect(csvLine(["a", "", "b"])).toBe('"a","","b"');
   });
 });
 

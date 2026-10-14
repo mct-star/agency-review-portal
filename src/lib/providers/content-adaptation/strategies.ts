@@ -56,14 +56,6 @@ export async function resolveAdaptationStrategy(
       const { createThreadExpansionStrategy } = await import("./thread-expansion");
       return createThreadExpansionStrategy(credentials, settings);
     }
-    case "newsletter_format": {
-      const { createNewsletterFormatStrategy } = await import("./newsletter-format");
-      return createNewsletterFormatStrategy(credentials, settings);
-    }
-    case "article_syndicate": {
-      const { createArticleSyndicationStrategy } = await import("./article-syndication");
-      return createArticleSyndicationStrategy(credentials, settings);
-    }
     case "video_metadata": {
       const { createVideoMetadataStrategy } = await import("./video-metadata");
       return createVideoMetadataStrategy(credentials, settings);

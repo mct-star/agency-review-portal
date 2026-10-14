@@ -153,7 +153,7 @@ export default async function AnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Track engagement metrics for your published LinkedIn content
+            Engagement for posts published through this platform. Posts scheduled through your scheduling tool are not counted here.
           </p>
         </div>
         {isAdmin && <PollButton />}

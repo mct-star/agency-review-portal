@@ -111,31 +111,6 @@ export const PLATFORM_REGISTRY: PlatformCapability[] = [
     category: "social",
   },
 
-  // ── Content / Newsletter Platforms ────────────────────────
-
-  {
-    platform: "substack",
-    label: "Substack",
-    shortLabel: "SS",
-    color: "bg-orange-100 text-orange-700 border-orange-200",
-    maxChars: 0,
-    supportedContentTypes: ["blog_article", "linkedin_article", "pdf_guide"],
-    defaultAdaptationType: "newsletter_format",
-    alternativeAdaptations: [],
-    category: "content",
-  },
-  {
-    platform: "medium",
-    label: "Medium",
-    shortLabel: "M",
-    color: "bg-gray-100 text-gray-800 border-gray-300",
-    maxChars: 0,
-    supportedContentTypes: ["blog_article", "linkedin_article"],
-    defaultAdaptationType: "article_syndicate",
-    alternativeAdaptations: [],
-    category: "content",
-  },
-
   // ── Video Platforms ───────────────────────────────────────
 
   {

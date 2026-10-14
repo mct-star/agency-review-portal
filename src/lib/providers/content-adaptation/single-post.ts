@@ -53,18 +53,6 @@ const PLATFORM_RULES: Record<string, string> = {
 - Include company perspective
 - 3-5 hashtags
 - CTA to company resources`,
-
-  substack: `Substack rules:
-- Newsletter-style preview/teaser
-- Conversational, newsletter tone
-- Include a compelling reason to open
-- No hashtags needed`,
-
-  medium: `Medium rules:
-- Article preview teaser
-- Thoughtful, essay-like tone
-- Include a hook that makes readers want to click through
-- No hashtags`,
 };
 
 function buildPrompt(input: AdaptationInput): string {
