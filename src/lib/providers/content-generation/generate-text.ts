@@ -81,6 +81,12 @@ async function callGemini(
         generationConfig: {
           maxOutputTokens: opts.maxTokens || 2000,
           temperature: opts.temperature ?? 0.7,
+          // gemini-2.5-flash "thinks" before it answers and those tokens
+          // count against maxOutputTokens: a 700-token caption request
+          // spent 630 on thought and returned truncated JSON (live check,
+          // 14 Oct 2026). Short-form writers do not need it, so it is
+          // switched off for flash. gemini-2.5-pro cannot disable it.
+          ...(model === "gemini-2.5-flash" ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
         },
       }),
     }
