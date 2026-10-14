@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  // The (app) layout cannot see the address it is rendering for, so it is
+  // passed along as a request header (used to keep a hospitality venue off the
+  // business-to-business pages).
+  request.headers.set("x-pathname", request.nextUrl.pathname);
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -67,7 +72,7 @@ export async function middleware(request: NextRequest) {
   const protectedPrefixes = [
     "/home", "/dashboard", "/setup", "/generate", "/review", "/compliance",
     "/calendar", "/publish", "/admin", "/users", "/content", "/create", "/plan",
-    "/strategy", "/settings", "/analytics", "/library", "/approvals",
+    "/strategy", "/settings", "/analytics", "/library", "/approvals", "/not-available",
   ];
   const isProtectedRoute = protectedPrefixes.some((p) =>
     request.nextUrl.pathname.startsWith(p)

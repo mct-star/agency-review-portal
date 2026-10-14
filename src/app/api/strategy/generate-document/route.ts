@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { generateText } from "@/lib/providers/content-generation/generate-text";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 // ── POST /api/strategy/generate-document ───────────────────
 // Loads a completed strategy session + related data, calls Claude to generate
@@ -31,6 +32,11 @@ export async function POST(request: Request) {
   // Non-admin users can only generate for their own company
   if (profile.role !== "admin" && profile.company_id !== companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();

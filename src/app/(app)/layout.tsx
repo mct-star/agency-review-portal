@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getUser, getUserProfile } from "@/lib/supabase/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import ResponsiveSidebar from "@/components/layout/ResponsiveSidebar";
 import TrialBanner from "@/components/layout/TrialBanner";
 import HelpChatWidget from "@/components/chat/HelpChatWidget";
 import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
+import { isB2bOnlyPage } from "@/lib/hospitality/b2b-only";
 
 /**
  * Authenticated layout for the three main sections: Setup, Generate, Review.
@@ -73,6 +75,13 @@ export default async function AppLayout({
         supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "pending"),
       ]);
       waitingCount = (drafts.count ?? 0) + (photos.count ?? 0);
+    }
+    // A hospitality venue's people have a short menu with none of the
+    // business-to-business tools. If one is reached by typing its address, say
+    // so plainly rather than show tools that were never set up for the venue.
+    if (postPack === "hospitality" && profile.role !== "admin") {
+      const pathname = (await headers()).get("x-pathname") ?? "";
+      if (isB2bOnlyPage(pathname)) redirect("/not-available");
     }
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,

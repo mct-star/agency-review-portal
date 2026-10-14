@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { generateText } from "@/lib/providers/content-generation/generate-text";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 export const maxDuration = 60;
 
@@ -30,6 +31,11 @@ export async function POST(request: Request) {
   // Non-admin users can only analyse for their own company
   if (profile.role !== "admin" && profile.company_id !== companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   // Extract LinkedIn slug

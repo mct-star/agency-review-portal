@@ -18,6 +18,7 @@ import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
 import { getPostType, packOf } from "@/lib/constants/post-types";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 /**
  * POST /api/generate/quick
@@ -125,6 +126,10 @@ export async function POST(request: Request) {
   const user = await requireCompanyUser(companyId);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  {
+    const refused = await refuseHospitality(user, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();

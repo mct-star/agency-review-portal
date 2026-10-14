@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
 import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 export const maxDuration = 120;
 
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
   const user = await requireCompanyUser(companyId);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  {
+    const refused = await refuseHospitality(user, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();

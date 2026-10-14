@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 // ── GET /api/strategy/interview?companyId=uuid ─────────────
 // Returns the latest strategy session, audiences, and positioning for a company.
@@ -22,6 +23,11 @@ export async function GET(request: Request) {
   // Non-admin users can only access their own company
   if (profile.role !== "admin" && profile.company_id !== companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -102,6 +108,11 @@ export async function POST(request: Request) {
   // Non-admin users can only modify their own company
   if (profile.role !== "admin" && profile.company_id !== companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createServerSupabaseClient();
