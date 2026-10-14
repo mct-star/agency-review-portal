@@ -8,6 +8,7 @@ import { calculateVoiceMatch } from "@/lib/utils/voice-match";
 import { predictEngagement } from "@/lib/utils/engagement-predictor";
 import { setLastActivity } from "@/lib/utils/last-activity";
 import { POST_TYPES as REGISTRY_POST_TYPES } from "@/lib/constants/post-types";
+import { useIsAdmin } from "@/lib/use-is-admin";
 
 /**
  * Quick Generate , the "make me a post" experience.
@@ -183,12 +184,22 @@ export default function QuickGenerate({
   initialPostType,
   showCompanyPicker = false,
 }: QuickGenerateProps) {
+  const isAdmin = useIsAdmin();
+  // Types produced on the Mac pipeline (memes, mini infographics, video) are
+  // staff-only: a client's request would go to an admin-only route.
+  const availablePostTypes = useMemo(
+    () => POST_TYPES.filter((pt) => isAdmin === true || pt.production !== "mac"),
+    [isAdmin]
+  );
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(companies[0]);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [topic, setTopic] = useState(initialTopic || "");
   const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(
     initialPostType ? POST_TYPES.find((p) => p.slug === initialPostType) || null : null
   );
+  useEffect(() => {
+    if (isAdmin === false && selectedPostType?.production === "mac") setSelectedPostType(null);
+  }, [isAdmin, selectedPostType]);
   const [platform, setPlatform] = useState("linkedin");
   const [state, setState] = useState<GenerationState>("idle");
   const [progress, setProgress] = useState("");
@@ -1069,7 +1080,7 @@ export default function QuickGenerate({
               Post type
             </label>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {POST_TYPES.map((pt) => (
+              {availablePostTypes.map((pt) => (
                 <button
                   key={pt.slug}
                   onClick={() => setSelectedPostType(pt)}

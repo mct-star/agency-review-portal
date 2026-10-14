@@ -328,15 +328,8 @@ export default function PeoplePage() {
           {/* Enrich error / setup message */}
           {enrichError === "setup-required" && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
-              <p className="font-medium">LinkedIn import needs a Proxycurl API key</p>
-              <p>
-                Add <code className="rounded bg-amber-100 px-1 font-mono">PROXYCURL_API_KEY</code> to your{" "}
-                <code className="rounded bg-amber-100 px-1 font-mono">.env.local</code> file. Sign up at{" "}
-                <a href="https://nubela.co/proxycurl" target="_blank" rel="noopener noreferrer" className="underline">
-                  nubela.co/proxycurl
-                </a>{" "}
-                (~$0.01/lookup, 10 free credits to start).
-              </p>
+              <p className="font-medium">LinkedIn import is not switched on yet</p>
+              <p>Ask AGENCY to connect the enrichment service. You can type the name and tagline in the meantime.</p>
             </div>
           )}
           {enrichError && enrichError !== "setup-required" && (

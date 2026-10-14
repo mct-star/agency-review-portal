@@ -54,7 +54,7 @@ describe("callText", () => {
     process.env.GOOGLE_GEMINI_API_KEY = "g";
     process.env.OPENAI_API_KEY = "o";
     fetchMock.mockResolvedValue(new Response("down", { status: 500 }));
-    await expect(callText("key", CLAUDE_SONNET, "sys", "user", 100)).rejects.toThrow(/All LLM providers failed/);
+    await expect(callText("key", CLAUDE_SONNET, "sys", "user", 100)).rejects.toThrow(/could not complete this request/);
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u.includes("openai"))).toBe(false);
     expect(urls.some((u) => u.includes("gemini-2.5-pro"))).toBe(false);

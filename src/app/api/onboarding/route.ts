@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { packFieldsForIndustry } from "@/lib/hospitality/signup-pack";
 
 /**
  * POST /api/onboarding
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
       name: companyName.trim(),
       website_url: websiteUrl?.trim() || null,
       industry: industry || null,
+      ...packFieldsForIndustry(industry),
       plan: "starter",
       trial_plan: "pro",
       trial_started_at: new Date().toISOString(),
@@ -101,7 +103,7 @@ export async function POST(request: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://agency-review-portal.vercel.app";
     await sendEmail({
       to: user.email!,
-      subject: `Welcome to AGENCY — your ${7}-day Pro trial has started`,
+      subject: `Welcome to AGENCY, your 7-day Pro trial has started`,
       html: trialWelcomeEmailHtml({
         userName: spokespersonName?.trim() || user.email?.split("@")[0] || "there",
         companyName: companyName.trim(),
@@ -135,7 +137,7 @@ export async function POST(request: Request) {
         }),
       });
     } catch {
-      // Webhook is non-critical — don't block signup
+      // Webhook is non-critical, don't block signup
       console.warn("[onboarding] Webhook failed (non-critical)");
     }
   }

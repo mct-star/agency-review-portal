@@ -266,10 +266,7 @@ export async function getContentProvider(
       providerName: "none",
       provider: {
         async generate() {
-          throw new Error(
-            "No AI provider available. Configure GOOGLE_GEMINI_API_KEY or ANTHROPIC_API_KEY in Vercel environment variables, " +
-              "or set up a provider in Admin > Companies > [Company] > API Providers."
-          );
+          throw new Error("No AI provider is configured for this company. Ask AGENCY to set it up.");
         },
       },
     };

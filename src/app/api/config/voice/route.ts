@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -51,10 +51,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const {
     companyId,
     spokespersonId,
@@ -70,7 +67,22 @@ export async function POST(request: Request) {
 
   if (!companyId) return NextResponse.json({ error: "companyId required" }, { status: 400 });
 
+  const user = await requireCompanyUser(companyId);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const supabase = await createAdminSupabaseClient();
+
+  // A spokesperson named in the body must belong to this company.
+  if (spokespersonId) {
+    const { data: person } = await supabase
+      .from("company_spokespersons")
+      .select("company_id")
+      .eq("id", spokespersonId)
+      .single();
+    if (!person || person.company_id !== companyId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
 
   // Deactivate existing profiles for this scope (person or company default)
   if (spokespersonId) {
@@ -113,7 +125,8 @@ export async function POST(request: Request) {
     await supabase
       .from("company_spokespersons")
       .update({ voice_profile_id: data.id })
-      .eq("id", spokespersonId);
+      .eq("id", spokespersonId)
+      .eq("company_id", companyId);
   }
 
   return NextResponse.json({ data });

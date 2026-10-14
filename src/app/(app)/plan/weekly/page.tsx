@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import WeeklyPlanner from "@/components/plan/WeeklyPlanner";
 import type { PlanTier } from "@/types/database";
+import UpgradeGate from "@/components/billing/UpgradeGate";
+import { effectivePlanFor, FEATURE_PLANS, planAllows } from "@/lib/plan-gate";
 
 export const metadata: Metadata = {
   title: "Weekly Planner | AGENCY",
@@ -11,6 +13,20 @@ export const metadata: Metadata = {
 export default async function WeeklyPlannerPage() {
   const profile = await getUserProfile();
   if (!profile) return null;
+
+  // Plan check: the same table the menu reads (src/lib/plan-features.ts).
+  if (profile.role !== "admin" && profile.company_id) {
+    const plan = await effectivePlanFor(profile.company_id);
+    if (plan && !planAllows(plan, "weeklyPlanner")) {
+      return (
+        <div className="p-6">
+          <UpgradeGate allowed={false} featureName="Weekly Planner" requiredPlan={FEATURE_PLANS.weeklyPlanner} companyId={profile.company_id}>
+            <div />
+          </UpgradeGate>
+        </div>
+      );
+    }
+  }
 
   const supabase = await createServerSupabaseClient();
   const isAdmin = profile.role === "admin";

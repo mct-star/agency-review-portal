@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
   const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
   if (apiKey === "no-anthropic-key-will-fallback-to-gemini" && !geminiKey) {
-    return NextResponse.json({ error: "No AI provider configured (need ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY)" }, { status: 400 });
+    return NextResponse.json({ error: "No AI provider is configured for this company. Ask AGENCY to set it up." }, { status: 400 });
   }
 
   // Build the regulatory context

@@ -11,7 +11,7 @@ interface MetricoolExportButtonProps {
 }
 
 /**
- * Button that triggers a download of the Metricool CSV for a given week.
+ * Button that triggers a download of the scheduling CSV for a given week.
  * Shows loading state during download and error state if the export fails.
  */
 export default function MetricoolExportButton({
@@ -84,7 +84,7 @@ export default function MetricoolExportButton({
           <line x1="16" y1="17" x2="8" y2="17" />
           <polyline points="10 9 9 9 8 9" />
         </svg>
-        {loading ? "Exporting..." : draft ? "Export Draft CSV" : "Export Metricool CSV"}
+        {loading ? "Preparing..." : draft ? "Download draft posts (CSV)" : "Download posts (CSV)"}
       </button>
       {error && (
         <p className="mt-1 text-xs text-red-500">{error}</p>

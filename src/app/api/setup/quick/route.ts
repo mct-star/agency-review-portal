@@ -32,9 +32,9 @@ export async function POST(request: Request) {
   if (!proxycurlKey) {
     return NextResponse.json(
       {
-        error: "PROXYCURL_API_KEY not configured",
+        error: "LinkedIn import is not switched on yet. Ask AGENCY to connect the enrichment service.",
         setupRequired: true,
-        message: "Add PROXYCURL_API_KEY to your environment. Sign up at https://nubela.co/proxycurl (~$0.01/lookup).",
+        message: "Ask AGENCY to connect the enrichment service.",
       },
       { status: 503 }
     );
@@ -64,8 +64,8 @@ export async function POST(request: Request) {
       const status = res.status;
       if (status === 404) return NextResponse.json({ error: "LinkedIn profile not found" }, { status: 404 });
       if (status === 403) return NextResponse.json({ error: "LinkedIn profile is private" }, { status: 403 });
-      const text = await res.text();
-      return NextResponse.json({ error: `Proxycurl error (${status}): ${text}` }, { status: 502 });
+      console.error("[setup/quick] lookup failed:", status, (await res.text()).slice(0, 500));
+      return NextResponse.json({ error: "We could not read that LinkedIn profile just now. Please try again." }, { status: 502 });
     }
 
     const data = await res.json();
@@ -85,8 +85,9 @@ export async function POST(request: Request) {
       companyLinkedinUrl: currentExperience?.company_linkedin_profile_url || null,
     };
   } catch (err) {
+    console.error("[setup/quick] enrichment unreachable:", err);
     return NextResponse.json(
-      { error: `Failed to reach LinkedIn enrichment: ${err instanceof Error ? err.message : String(err)}` },
+      { error: "We could not reach LinkedIn just now. Please try again." },
       { status: 502 }
     );
   }

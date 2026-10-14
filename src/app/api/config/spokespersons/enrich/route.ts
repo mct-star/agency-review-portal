@@ -26,11 +26,9 @@ export async function POST(request: Request) {
   if (!apiKey) {
     return NextResponse.json(
       {
-        error: "PROXYCURL_API_KEY not configured",
+        error: "LinkedIn import is not switched on yet. Ask AGENCY to connect the enrichment service.",
         setupRequired: true,
-        message:
-          "Add PROXYCURL_API_KEY to your environment variables. " +
-          "Sign up at https://nubela.co/proxycurl — approximately $0.01 per lookup.",
+        message: "Ask AGENCY to connect the enrichment service.",
       },
       { status: 503 }
     );
@@ -65,9 +63,9 @@ export async function POST(request: Request) {
     }
 
     if (!res.ok) {
-      const text = await res.text();
+      console.error("[spokespersons/enrich] lookup failed:", res.status, (await res.text()).slice(0, 500));
       return NextResponse.json(
-        { error: `Proxycurl error (${res.status}): ${text}` },
+        { error: "We could not read that LinkedIn profile just now. Please try again." },
         { status: 502 }
       );
     }
@@ -86,8 +84,9 @@ export async function POST(request: Request) {
       profilePictureUrl: data.profile_pic_url || null,
     });
   } catch (err) {
+    console.error("[spokespersons/enrich] network error:", err);
     return NextResponse.json(
-      { error: `Network error reaching Proxycurl: ${err instanceof Error ? err.message : String(err)}` },
+      { error: "We could not reach LinkedIn just now. Please try again." },
       { status: 502 }
     );
   }

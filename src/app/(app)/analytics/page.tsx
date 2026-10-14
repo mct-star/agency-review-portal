@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import PollButton from "./PollButton";
+import UpgradeGate from "@/components/billing/UpgradeGate";
+import { effectivePlanFor, FEATURE_PLANS, planAllows } from "@/lib/plan-gate";
 
 export const metadata: Metadata = {
   title: "Analytics | AGENCY",
@@ -31,6 +33,20 @@ interface AnalyticsRow {
 export default async function AnalyticsPage() {
   const profile = await getUserProfile();
   if (!profile) redirect("/login");
+
+  // Plan check: the same table the menu reads (src/lib/plan-features.ts).
+  if (profile.role !== "admin" && profile.company_id) {
+    const plan = await effectivePlanFor(profile.company_id);
+    if (plan && !planAllows(plan, "analytics")) {
+      return (
+        <div className="p-6">
+          <UpgradeGate allowed={false} featureName="Analytics" requiredPlan={FEATURE_PLANS.analytics} companyId={profile.company_id}>
+            <div />
+          </UpgradeGate>
+        </div>
+      );
+    }
+  }
 
   const supabase = await createServerSupabaseClient();
 

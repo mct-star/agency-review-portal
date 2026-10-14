@@ -150,7 +150,9 @@ export async function callText(
     }
   }
 
-  throw new Error(`All LLM providers failed:\n${errors.join("\n")}`);
+  // The raw provider text stays in the server log; it can carry vendor names and request detail.
+  console.error("[callText] all providers failed:", errors.join(" | ").slice(0, 1000));
+  throw new Error("The writing assistant could not complete this request. Please try again, or ask AGENCY to check it.");
 }
 
 /** The text only. Kept for the many callers that do not record the provider. */
@@ -196,7 +198,7 @@ export function resolveClaudeConfig(
   const model = currentClaudeModel(settings.model as string | undefined);
   if (!apiKey) {
     if (geminiKey()) return { apiKey: NO_ANTHROPIC_KEY, model };
-    throw new Error("No AI provider available. Configure ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY.");
+    throw new Error("No AI provider is configured for this company. Ask AGENCY to set it up.");
   }
   return { apiKey, model };
 }

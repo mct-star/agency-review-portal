@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import AdminManagedGate from "@/components/setup/AdminManagedGate";
 import type { ServiceCategory } from "@/types/database";
 
 interface ApiConfig {
@@ -102,7 +103,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   instagram_graph: "Instagram Graph API",
 };
 
-export default function ApiProvidersPage() {
+function ApiProvidersEditor() {
   const { companyId } = useParams<{ companyId: string }>();
   const [configs, setConfigs] = useState<ApiConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -325,5 +326,13 @@ export default function ApiProvidersPage() {
         <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
+  );
+}
+
+export default function ApiProvidersPage() {
+  return (
+    <AdminManagedGate>
+      <ApiProvidersEditor />
+    </AdminManagedGate>
   );
 }

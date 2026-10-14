@@ -37,13 +37,22 @@ export async function GET(
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
 
+  // Which provider ran, and the raw failure text, are for staff. A client
+  // gets a plain sentence; the details stay in the job row.
+  const isAdmin = profile.role === "admin";
+  const errorMessage = job.error_message
+    ? isAdmin
+      ? job.error_message
+      : "The job failed. AGENCY has the details."
+    : job.error_message;
+
   return NextResponse.json({
     id: job.id,
     jobType: job.job_type,
-    provider: job.provider,
+    ...(isAdmin ? { provider: job.provider } : {}),
     status: job.status,
     progress: job.progress,
-    errorMessage: job.error_message,
+    errorMessage,
     inputPayload: job.input_payload,
     outputPayload: job.output_payload,
     contentPieceId: job.content_piece_id,

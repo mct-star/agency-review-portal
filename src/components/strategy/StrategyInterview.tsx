@@ -226,7 +226,8 @@ export default function StrategyInterview({
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [strategyCompleted, setStrategyCompleted] = useState(false);
 
   const stepRef = useRef<HTMLDivElement>(null);
 
@@ -256,7 +257,7 @@ export default function StrategyInterview({
 
   // ── Auto-save ──────────────────────────────────────────────
   const saveProgress = useCallback(
-    async (stepData: Record<string, unknown>, step: number) => {
+    async (stepData: Record<string, unknown>, step: number, status?: "completed"): Promise<boolean> => {
       setSaving(true);
       setError(null);
       try {
@@ -266,8 +267,9 @@ export default function StrategyInterview({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             companyId,
-            currentStep: step,
+            step,
             responses: merged,
+            ...(status ? { status } : {}),
           }),
         });
         if (!res.ok) {
@@ -275,8 +277,10 @@ export default function StrategyInterview({
           throw new Error(data.error || "Failed to save progress");
         }
         setResponses(merged);
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to save");
+        return false;
       } finally {
         setSaving(false);
       }
@@ -357,8 +361,8 @@ export default function StrategyInterview({
           responses: { ...responses, ...collectStepData() },
         }),
       });
-      if (!res.ok) throw new Error("Failed to get suggestions");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "We could not suggest pillars just now. Add your own and carry on.");
       if (data.pillars && Array.isArray(data.pillars)) {
         const newPillars = data.pillars.slice(0, 5).map((p: { name?: string; description?: string; topics?: string[] }) => ({
           name: p.name ?? "",
@@ -367,8 +371,8 @@ export default function StrategyInterview({
         }));
         setPillars(newPillars.length >= 3 ? newPillars : [...newPillars, ...Array(3 - newPillars.length).fill({ name: "", description: "", topics: "" })]);
       }
-    } catch {
-      setError("Could not generate pillar suggestions. Try again or fill in manually.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "We could not suggest pillars just now. Add your own and carry on.");
     } finally {
       setSuggestingPillars(false);
     }
@@ -391,20 +395,28 @@ export default function StrategyInterview({
     setGenerating(true);
     setError(null);
     try {
-      const allData = { ...responses, ...collectStepData() };
-      await saveProgress(collectStepData(), 8);
-      const res = await fetch("/api/strategy/generate", {
+      // The document is written from the completed interview, so the
+      // session is saved as completed first; if that save fails, stop here
+      // (saveProgress has already shown why).
+      const saved = await saveProgress(collectStepData(), 8, "completed");
+      if (!saved) return;
+      const res = await fetch("/api/strategy/generate-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, responses: allData }),
+        body: JSON.stringify({ companyId }),
       });
-      if (!res.ok) throw new Error("Failed to generate strategy document");
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        document?: { share_token?: string | null };
+        strategy_completed?: boolean;
+      };
+      if (!res.ok) throw new Error(data.error || "Failed to generate strategy document. Please try again.");
       setGenerated(true);
-      setPdfUrl(data.pdfUrl ?? null);
-      setShareLink(data.shareLink ?? null);
-    } catch {
-      setError("Failed to generate strategy document. Please try again.");
+      setStrategyCompleted(data.strategy_completed === true);
+      const token = data.document?.share_token;
+      setShareLink(token ? `${window.location.origin}/strategy/${token}` : null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate strategy document. Please try again.");
     } finally {
       setGenerating(false);
     }
@@ -1005,34 +1017,36 @@ export default function StrategyInterview({
                   </div>
                   <h3 className="text-lg font-bold text-emerald-900">Strategy document generated</h3>
                   <p className="text-sm text-emerald-700 mt-1">
-                    Your professional content strategy is ready.
+                    {strategyCompleted
+                      ? "Your content strategy is ready and Strategise is complete. Plan is next."
+                      : "Your content strategy is ready."}
                   </p>
                   <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                    {pdfUrl && (
-                      <a
-                        href={pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
-                      >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download PDF
-                      </a>
-                    )}
                     {shareLink && (
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(shareLink);
+                          navigator.clipboard.writeText(shareLink).then(
+                            () => setLinkCopied(true),
+                            () => setLinkCopied(false)
+                          );
                         }}
                         className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-5 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
-                        Copy share link
+                        {linkCopied ? "Link copied" : "Copy share link"}
                       </button>
+                    )}
+                    {shareLink && (
+                      <a
+                        href={shareLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+                      >
+                        Open the document
+                      </a>
                     )}
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * POST /api/content/approve
@@ -12,12 +12,7 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
  * }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { pieceId, status } = body;
 
   if (!pieceId || !status) {
@@ -36,6 +31,18 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
+  // Load the piece first: a member may only decide on their own company's
+  // pieces; an admin passes for any company.
+  const { data: piece } = await supabase
+    .from("content_pieces")
+    .select("company_id")
+    .eq("id", pieceId)
+    .single();
+  const user = piece ? await requireCompanyUser(piece.company_id) : null;
+  if (!piece || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { data, error } = await supabase
     .from("content_pieces")
     .update({
@@ -43,6 +50,7 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", pieceId)
+    .eq("company_id", piece.company_id)
     .select("id, approval_status")
     .single();
 
