@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import QuickGenerate from "@/components/generate/QuickGenerate";
+import HospitalityQuickPost from "@/components/hospitality/HospitalityQuickPost";
 
 export const metadata: Metadata = {
   title: "Quick Generate | AGENCY",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default async function QuickGeneratePage({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string; postType?: string }>;
+  searchParams: Promise<{ topic?: string; postType?: string; company?: string }>;
 }) {
   const params = await searchParams;
   const profile = await getUserProfile();
@@ -59,6 +60,25 @@ export default async function QuickGeneratePage({
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
           <p className="text-sm text-gray-500">No company set up yet. Complete your company setup first.</p>
         </div>
+      </div>
+    );
+  }
+
+  // A hospitality company writes from its own pack. Read on its own so an
+  // older database without the pack column still shows the usual page.
+  const { data: packRows } = await supabase.from("companies").select("id, name, post_pack").in("id", companyIds);
+  const hospitalityCompanies = ((packRows || []) as Array<{ id: string; name: string; post_pack: string | null }>).filter((c) => c.post_pack === "hospitality");
+  const hospitalityTarget = isAdmin
+    ? hospitalityCompanies.find((c) => c.id === params?.company)
+    : hospitalityCompanies[0];
+  if (hospitalityTarget) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Write a post</h1>
+          <p className="mt-1 text-sm text-gray-500">Tell us what you want to say. We write it, pick a photo from your library, and leave it for you to approve.</p>
+        </div>
+        <HospitalityQuickPost companyId={hospitalityTarget.id} />
       </div>
     );
   }

@@ -20,15 +20,22 @@ export default async function LibraryPage() {
   const supabase = await createAdminSupabaseClient();
   const isAdmin = profile.role === "admin";
 
-  let query = supabase.from("companies").select("id, name, spokesperson_name").order("name");
+  let query = supabase.from("companies").select("id, name, spokesperson_name, post_pack").order("name");
   if (!isAdmin) {
     if (!profile.company_id) {
       return <p className="text-sm text-gray-600">Your account is not linked to a company yet.</p>;
     }
     query = query.eq("id", profile.company_id);
   }
-  const { data } = await query;
-  const list = (data || []) as Array<{ id: string; name: string; spokesperson_name: string | null }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let { data, error } = (await query) as { data: any[] | null; error: unknown };
+  if (error) {
+    // The pack column may not exist yet on an older database; the library works without it.
+    let plain = supabase.from("companies").select("id, name, spokesperson_name").order("name");
+    if (!isAdmin) plain = plain.eq("id", profile.company_id as string);
+    ({ data, error } = (await plain) as { data: any[] | null; error: unknown });
+  }
+  const list = (data || []) as Array<{ id: string; name: string; spokesperson_name: string | null; post_pack?: string | null }>;
   if (list.length === 0) return <p className="text-sm text-gray-600">No companies yet.</p>;
 
   const initial =

@@ -49,6 +49,7 @@ export default async function AppLayout({
   let companyPlan: string = "free";
   let companyComplexity: string = "advanced";
   let trialDaysRemaining: number | null = null;
+  let postPack = "b2b";
 
   if (companyId) {
     // This user is a client user tied to a specific company — show their logo
@@ -61,6 +62,9 @@ export default async function AppLayout({
     companyPlan = company ? getEffectivePlan(company as { plan: "free" | "pro" | "agency"; trial_plan?: "free" | "pro" | "agency" | null; trial_expires_at?: string | null }) : "free";
     companyComplexity = (company as Record<string, unknown>)?.setup_complexity as string || "advanced";
     trialDaysRemaining = company ? getTrialDaysRemaining(company) : null;
+    // Read on its own so a missing column can never take the plan and logo down with it.
+    const { data: packRow } = await supabase.from("companies").select("post_pack").eq("id", companyId).maybeSingle();
+    postPack = (packRow as { post_pack?: string } | null)?.post_pack || "b2b";
   } else if (profile.role === "admin") {
     // Admin (agency operator) — always show the agency's own company logo,
     // NOT a random client's logo. Also pass their company ID for sidebar "My Brand" link.
@@ -79,7 +83,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} />
+      <Sidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} />
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
           <TrialBanner daysRemaining={trialDaysRemaining} />

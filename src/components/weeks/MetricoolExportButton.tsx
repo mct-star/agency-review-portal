@@ -21,10 +21,12 @@ export default function MetricoolExportButton({
 }: MetricoolExportButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notes, setNotes] = useState<string[]>([]);
 
   const handleExport = async () => {
     setLoading(true);
     setError(null);
+    setNotes([]);
 
     try {
       const url = `/api/export/metricool?weekId=${weekId}&draft=${draft}`;
@@ -39,6 +41,9 @@ export default function MetricoolExportButton({
       const disposition = res.headers.get("Content-Disposition");
       const filenameMatch = disposition?.match(/filename="?(.+?)"?$/);
       const filename = filenameMatch?.[1] || `metricool_export.csv`;
+
+      const exportNotes = res.headers.get("X-Export-Notes");
+      if (exportNotes) setNotes(decodeURIComponent(exportNotes).split(" | "));
 
       // Create blob and trigger download
       const blob = await res.blob();
@@ -84,6 +89,9 @@ export default function MetricoolExportButton({
       {error && (
         <p className="mt-1 text-xs text-red-500">{error}</p>
       )}
+      {notes.map((n) => (
+        <p key={n} className="mt-1 text-xs text-amber-700">{n}</p>
+      ))}
     </div>
   );
 }

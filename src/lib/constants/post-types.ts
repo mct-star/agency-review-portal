@@ -9,6 +9,16 @@
  * the display-name helper.
  */
 
+export type PostPack = "b2b" | "hospitality";
+
+export const POST_PACKS: Record<PostPack, { label: string; description: string }> = {
+  b2b: { label: "Business to business", description: "LinkedIn posts for a professional audience." },
+  hospitality: {
+    label: "Hospitality",
+    description: "Facebook and Instagram posts for a restaurant, bar or hotel: weather, specials, what is on, live scenes and events.",
+  },
+};
+
 export type PostTypeMedium = "image" | "carousel" | "video" | "text";
 export type PostTypeProduction = "portal" | "mac" | "manual";
 export type SlotType = "thesis" | "doc" | "carousel" | "reactive" | "video" | "meme";
@@ -38,8 +48,28 @@ export interface PostTypeVideoBrief {
   source: string;
 }
 
+/**
+ * How a hospitality post type picks its photo from the company's library.
+ * Tags are the library vocabulary (see src/lib/media/vocabulary.ts).
+ */
+export interface LibraryQuery {
+  /** Match the weather tag to today's weather (weather_of_the_day only). */
+  matchWeather?: boolean;
+  /** Places and subjects that suit this post, best first. */
+  place?: string[];
+  subject?: string[];
+  /** Skip photos where a person can be seen unless a person chose it. */
+  avoidPeople: boolean;
+}
+
 export interface PostTypeOption {
   slug: string;
+  /** Which pack the type belongs to. Absent means b2b. */
+  pack?: PostPack;
+  /** For hospitality: what to tell the writer, shown as the placeholder in the brief box. */
+  briefHint?: string;
+  /** For hospitality: how the photo is chosen from the library. */
+  libraryQuery?: LibraryQuery;
   label: string;
   description: string;
   archetype: string;
@@ -459,11 +489,159 @@ export const POST_TYPES: PostTypeOption[] = [
   },
 ];
 
-export function getPostType(slug: string): PostTypeOption | undefined {
-  return POST_TYPES.find((pt) => pt.slug === slug);
+
+/**
+ * The hospitality pack: five post types for a restaurant, bar or hotel,
+ * written for Facebook and Instagram. The photo is always a real one from
+ * the company's library, chosen by its tags; nothing here generates an
+ * image. Facts (a price, a time, an event date) come only from what the
+ * person supplies in the brief or from the forecast, never from the writer.
+ */
+export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
+  {
+    slug: "weather_of_the_day",
+    pack: "hospitality",
+    label: "Weather of the day",
+    description: "Today's weather in a line or two and why it is a good day to come in. 30-70 words.",
+    archetype: "library_photo",
+    color: "#0EA5E9",
+    visualTag: "Library photo",
+    ecosystemRole: "The daily habit. Gives people a reason to look at the page each morning and sets the mood for the day.",
+    weekdayHint: "Every day",
+    briefHint: "Optional: anything to add, for example 'terrace open until 8'. The forecast is filled in for you.",
+    libraryQuery: { matchWeather: true, place: ["deck", "lake", "garden", "exterior", "dining_room", "bar"], subject: ["empty_scene"], avoidPeople: true },
+    medium: "image",
+    production: "portal",
+    slotType: "thesis",
+    contentType: "social_post",
+    dbSlug: "weather_of_the_day",
+    generation: {
+      imageStyle: "SKIP",
+      minWords: 30,
+      maxWords: 70,
+      contentInstructions: "POST TYPE: Weather of the day. Today's weather from the forecast supplied, in plain words, then one reason it is a good day to come in. Use only the forecast figures supplied. No promises about the weather later in the day.",
+    },
+  },
+  {
+    slug: "special_of_the_day",
+    pack: "hospitality",
+    label: "Special of the day",
+    description: "One dish or drink, described with the details you give. 35-80 words.",
+    archetype: "library_photo",
+    color: "#F59E0B",
+    visualTag: "Library photo",
+    ecosystemRole: "Turns a scroll into a booking. One specific thing to order today.",
+    weekdayHint: "Weekdays",
+    briefHint: "The dish or drink, what is in it, the price and until when, for example 'Pan-fried sea bass, crushed new potatoes, £22, until it runs out'.",
+    libraryQuery: { place: ["dining_room", "kitchen", "bar", "deck"], subject: ["food", "drink"], avoidPeople: true },
+    medium: "image",
+    production: "portal",
+    slotType: "thesis",
+    contentType: "social_post",
+    dbSlug: "special_of_the_day",
+    generation: {
+      imageStyle: "SKIP",
+      minWords: 35,
+      maxWords: 80,
+      contentInstructions: "POST TYPE: Special of the day. One dish or drink. Describe it only with the details supplied: no invented ingredients, prices, portion sizes or times. Make it sound good by being specific about what was supplied.",
+    },
+  },
+  {
+    slug: "whats_on_this_week",
+    pack: "hospitality",
+    label: "What's on this week",
+    description: "The week at the venue, day by day, from your list. 60-130 words.",
+    archetype: "library_photo",
+    color: "#10B981",
+    visualTag: "Library photo",
+    ecosystemRole: "The planning post. Helps people choose a day and tells regulars what is new.",
+    weekdayHint: "Monday",
+    briefHint: "The week as a list, for example 'Wed live music from 7. Fri fish and chips deal. Sun roast, book ahead'.",
+    libraryQuery: { place: ["deck", "bar", "dining_room", "exterior"], subject: ["event", "empty_scene", "drink"], avoidPeople: true },
+    medium: "image",
+    production: "portal",
+    slotType: "thesis",
+    contentType: "social_post",
+    dbSlug: "whats_on_this_week",
+    generation: {
+      imageStyle: "SKIP",
+      minWords: 60,
+      maxWords: 130,
+      contentInstructions: "POST TYPE: What's on this week. List the week day by day using only the items supplied, in the order of the week. Short lines. Nothing that is not on the list. Close with how to book if that was supplied.",
+    },
+  },
+  {
+    slug: "live_scene",
+    pack: "hospitality",
+    label: "Live scene",
+    description: "What it is like right now: fully booked tonight, a busy garden. 20-55 words.",
+    archetype: "library_photo",
+    color: "#EF4444",
+    visualTag: "Library photo",
+    ecosystemRole: "Social proof in the moment. Shows the place is busy and worth the trip.",
+    briefHint: "What is happening, for example 'Garden is full, a few tables left inside, kitchen open until 9'.",
+    libraryQuery: { place: ["garden", "deck", "bar", "dining_room"], subject: ["people", "empty_scene", "drink"], avoidPeople: false },
+    medium: "image",
+    production: "portal",
+    slotType: "reactive",
+    contentType: "social_post",
+    dbSlug: "live_scene",
+    generation: {
+      imageStyle: "SKIP",
+      minWords: 20,
+      maxWords: 55,
+      contentInstructions: "POST TYPE: Live scene. What it is like right now, in the present tense, from the note supplied only. Short and warm. Do not state numbers of tables or times that were not supplied.",
+    },
+  },
+  {
+    slug: "event",
+    pack: "hospitality",
+    label: "Event",
+    description: "An event with its name, date, time and how to book. 60-120 words.",
+    archetype: "library_photo",
+    color: "#8B5CF6",
+    visualTag: "Library photo",
+    ecosystemRole: "Fills the diary. Everything a guest needs to decide and book in one post.",
+    briefHint: "Name, date, time, price if any and how to book, for example 'Wine tasting, Friday 14 November, 7pm, £35 a head, book on 01234 567890'.",
+    libraryQuery: { place: ["dining_room", "bar", "deck", "exterior"], subject: ["event", "drink", "food"], avoidPeople: true },
+    medium: "image",
+    production: "portal",
+    slotType: "thesis",
+    contentType: "social_post",
+    dbSlug: "event",
+    generation: {
+      imageStyle: "SKIP",
+      minWords: 60,
+      maxWords: 120,
+      contentInstructions: "POST TYPE: Event. Name, date, time, price and how to book, exactly as supplied and nothing more. If the date or the way to book was not supplied, do not make one up: leave that line out.",
+    },
+  },
+];
+
+/** Every post type across both packs. */
+export const ALL_POST_TYPES: PostTypeOption[] = [...POST_TYPES, ...HOSPITALITY_POST_TYPES];
+
+export function packOf(pt: PostTypeOption): PostPack {
+  return pt.pack ?? "b2b";
 }
 
-export const POST_TYPE_SLUGS: string[] = POST_TYPES.map((pt) => pt.slug);
+/** The post types a company can use, by the pack it has chosen. */
+export function postTypesForPack(pack: PostPack | string | null | undefined): PostTypeOption[] {
+  const wanted: PostPack = pack === "hospitality" ? "hospitality" : "b2b";
+  return ALL_POST_TYPES.filter((pt) => packOf(pt) === wanted);
+}
+
+/** True when the slug belongs to the company's pack. */
+export function isPostTypeInPack(slug: string, pack: PostPack | string | null | undefined): boolean {
+  const pt = getPostType(slug);
+  return !!pt && packOf(pt) === (pack === "hospitality" ? "hospitality" : "b2b");
+}
+
+export function getPostType(slug: string): PostTypeOption | undefined {
+  return ALL_POST_TYPES.find((pt) => pt.slug === slug);
+}
+
+export const POST_TYPE_SLUGS: string[] = ALL_POST_TYPES.map((pt) => pt.slug);
 
 export function isVideoType(slug: string): boolean {
   return getPostType(slug)?.medium === "video";

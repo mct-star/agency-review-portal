@@ -12,6 +12,8 @@ interface SidebarProps {
   platformLogoUrl?: string | null;
   companyPlan?: string;
   complexity?: string;
+  /** Which pack of post types the company writes. Hospitality gets a shorter, plainer menu. */
+  postPack?: string;
 }
 
 type PlanTier = "free" | "starter" | "pro" | "agency";
@@ -37,10 +39,49 @@ interface NavSection {
   items: NavItem[];
 }
 
-function buildSections(user: User): NavSection[] {
+/**
+ * The menu for a hospitality company's own people: what needs doing today,
+ * writing, the photo library, the week and its export, and the venue settings.
+ * No strategy interview or compliance: those are for the business-to-business pack.
+ */
+function buildHospitalitySections(user: User): NavSection[] {
+  const cid = user.company_id;
+  const base = cid ? `/setup/${cid}` : "/setup";
+  return [
+    {
+      title: "Today",
+      items: [
+        { href: "/approvals", label: "Waiting for you", icon: "checkCircle", highlight: true },
+        { href: "/generate/quick", label: "Write a post", icon: "zap" },
+      ],
+    },
+    {
+      title: "Photos",
+      items: [{ href: "/library", label: "Photo & Video Library", icon: "video" }],
+    },
+    {
+      title: "The week",
+      items: [
+        { href: "/calendar", label: "Calendar", icon: "calendarView" },
+        { href: "/review", label: "Weeks and export", icon: "send" },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        { href: `${base}/hospitality`, label: "Venue and posting", icon: "building" },
+        { href: "/settings", label: "Brand", icon: "settings" },
+      ],
+    },
+  ];
+}
+
+function buildSections(user: User, postPack?: string): NavSection[] {
   const isAdmin = user.role === "admin";
   const cid = user.company_id;
   const base = cid ? `/setup/${cid}` : "/setup";
+
+  if (!isAdmin && postPack === "hospitality") return buildHospitalitySections(user);
 
   if (isAdmin) {
     return [
@@ -224,7 +265,7 @@ const icons: Record<string, string> = {
     "M4 6h11a1 1 0 0 1 1 1v3.5l4-2.5v8l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z",
 };
 
-export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced" }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced", postPack }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
@@ -248,7 +289,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
     return false;
   }
 
-  const sections = buildSections(user);
+  const sections = buildSections(user, postPack);
 
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">

@@ -5,6 +5,7 @@ import { putToSignedUrl, UploadNetworkError } from "./put-upload";
 import { tusUpload } from "./tus-upload";
 import { RESUMABLE_THRESHOLD_BYTES } from "./tus-endpoint";
 import { extractVideoFrames } from "./video-frames";
+import { CONNECTION_DROPPED, friendlyTransportError } from "./errors";
 import type { Runner } from "./upload-queue";
 
 /**
@@ -43,7 +44,12 @@ interface SignResponse {
 const PATH_KEY = (fp: string) => `library-upload-path:${fp}`;
 
 async function postJson(url: string, body: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    throw new Error(CONNECTION_DROPPED);
+  }
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, data };
 }
@@ -147,6 +153,8 @@ export function createLibraryRunner(cfg: RunnerConfig): Runner<File> {
           if (!r.ok || !d.token) throw new Error(d.error || "Could not renew the upload");
           return d.token;
         },
+      }).catch((err) => {
+        throw new Error(friendlyTransportError(err));
       });
     } else {
       // One retry on a dropped connection, with a fresh signature.
@@ -172,7 +180,7 @@ export function createLibraryRunner(cfg: RunnerConfig): Runner<File> {
           sign.path = target.path;
         }
       }
-      if (lastError) throw lastError instanceof Error ? lastError : new Error("Upload failed");
+      if (lastError) throw new Error(friendlyTransportError(lastError));
     }
 
     update({ status: "saving", progress: 1, message: "Saving" });

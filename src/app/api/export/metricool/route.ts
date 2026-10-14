@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient, getSignedInProfile } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 import type { ContentPiece, ContentImage } from "@/types/database";
-import { postDateFor } from "@/lib/export/post-date";
-import { toLinkedInText } from "@/lib/linkedin/post-text";
 import { resolvePieceMedia, type MediaSourceAsset } from "@/lib/content/piece-media";
+import { METRICOOL_HEADERS, buildMetricoolRow, csvEscape } from "@/lib/export/metricool-row";
 
 /**
  * GET /api/export/metricool?weekId=uuid&draft=false
@@ -77,128 +77,9 @@ import { resolvePieceMedia, type MediaSourceAsset } from "@/lib/content/piece-me
  * 87 Brand name
  */
 
-const METRICOOL_HEADERS = [
-  "Text",
-  "Date",
-  "Time",
-  "Draft",
-  "Facebook",
-  "Twitter/X",
-  "LinkedIn",
-  "GBP",
-  "Instagram",
-  "Pinterest",
-  "TikTok",
-  "Youtube",
-  "Threads",
-  "Bluesky",
-  "Picture Url 1",
-  "Picture Url 2",
-  "Picture Url 3",
-  "Picture Url 4",
-  "Picture Url 5",
-  "Picture Url 6",
-  "Picture Url 7",
-  "Picture Url 8",
-  "Picture Url 9",
-  "Picture Url 10",
-  "Alt text picture 1",
-  "Alt text picture 2",
-  "Alt text picture 3",
-  "Alt text picture 4",
-  "Alt text picture 5",
-  "Alt text picture 6",
-  "Alt text picture 7",
-  "Alt text picture 8",
-  "Alt text picture 9",
-  "Alt text picture 10",
-  "Document title",
-  "Shortener",
-  "Video Thumbnail Url",
-  "Video Cover Frame",
-  "Twitter/X Can reply",
-  "Twitter/X Type",
-  "Twitter/X Poll Duration minutes",
-  "Twitter/X Poll Option 1",
-  "Twitter/X Poll Option 2",
-  "Twitter/X Poll Option 3",
-  "Twitter/X Poll Option 4",
-  "Pinterest Board",
-  "Pinterest Pin Title",
-  "Pinterest Pin Link",
-  "Pinterest Pin New Format",
-  "Instagram Post Type",
-  "Instagram Show Reel On Feed",
-  "Youtube Video Title",
-  "Youtube Video Type",
-  "Youtube Video Privacy",
-  "Youtube video for kids",
-  "Youtube Video Category",
-  "Youtube Video Tags",
-  "Youtube playlist",
-  "GBP Post Type",
-  "Facebook Post Type",
-  "Facebook Title",
-  "First Comment Text",
-  "TikTok Title",
-  "TikTok disable comments",
-  "TikTok disable duet",
-  "TikTok disable stitch",
-  "TikTok Post Privacy",
-  "TikTok Branded Content",
-  "TikTok Your Brand",
-  "TikTok Auto Add Music",
-  "TikTok Photo Cover Index",
-  "TikTok musicId",
-  "TikTok title",
-  "TikTok author",
-  "TikTok startMillis",
-  "TikTok durationMillis",
-  "TikTok startVideoMillis",
-  "LinkedIn Type",
-  "LinkedIn Poll Question",
-  "LinkedIn Poll Option 1",
-  "LinkedIn Poll Option 2",
-  "LinkedIn Poll Option 3",
-  "LinkedIn Poll Option 4",
-  "LinkedIn Poll Duration",
-  "LinkedIn Show link preview",
-  "LinkedIn Images as Carousel",
-  "Threads Reply Control",
-  "Brand name",
-];
-
-/**
- * Escape a string for CSV: wrap in double-quotes, double any internal quotes.
- * Convert \n to \r\n for Metricool compatibility.
- */
-function csvEscape(value: string): string {
-  // Ensure CRLF line breaks
-  const normalized = value.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
-  // Wrap in quotes, escape internal quotes
-  return `"${normalized.replace(/"/g, '""')}"`;
-}
-
-/**
- * Determine if a post should show a link preview (CTA posts) vs an image.
- */
-function shouldShowLinkPreview(postType: string | null): boolean {
-  // CTA posts (blog_cta, triage_cta) use link previews instead of images
-  return postType === "blog_cta" || postType === "triage_cta";
-}
-
-/**
- * Determine if images should be displayed as a carousel.
- */
-function isCarouselPost(postType: string | null, imageCount: number): boolean {
-  // Only carousel if post type explicitly calls for it and has multiple images
-  return postType === "tactical" && imageCount > 1;
-}
-
-
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -219,11 +100,10 @@ export async function GET(request: Request) {
     .eq("id", weekId)
     .single();
 
-  if (weekErr || !week) {
-    return NextResponse.json(
-      { error: weekErr?.message || "Week not found" },
-      { status: 404 }
-    );
+  // An admin exports any company's week; a member only their own. Another
+  // company's week answers the same as one that does not exist.
+  if (weekErr || !week || !canAccessCompany(profile, week.company_id)) {
+    return NextResponse.json({ error: "Week not found" }, { status: 404 });
   }
 
   // Fetch social posts only (blog articles etc. don't go into Metricool)
@@ -233,6 +113,7 @@ export async function GET(request: Request) {
     .eq("week_id", weekId)
     // Feed posts, including memes and cards; blogs and articles do not go to Metricool.
     .in("content_type", ["social_post", "meme"])
+    .order("scheduled_date", { ascending: true, nullsFirst: false })
     .order("sort_order", { ascending: true });
 
   // In non-draft mode, only export approved pieces
@@ -275,78 +156,37 @@ export async function GET(request: Request) {
     imagesByPiece.set(img.content_piece_id, existing);
   }
 
+  const company = week.company as { slug?: string; social_networks?: string[] | null };
+
   // Build CSV rows
   const csvRows: string[] = [];
+  const notes: string[] = [];
 
   // Header row
   csvRows.push(METRICOOL_HEADERS.map((h) => csvEscape(h)).join(","));
 
-  // Data rows — one per social post
-  for (const piece of pieces as ContentPiece[]) {
+  // Data rows, one per social post
+  for (const piece of pieces as Array<ContentPiece & { source_meta?: { alt_text?: string } | null; scheduled_date?: string | null }>) {
     // The same media the preview shows, from the same rule.
     const media = resolvePieceMedia(piece, imagesByPiece.get(piece.id) || [], assetsByPiece.get(piece.id) || []);
-    const pieceImages = media.items.map((m) => ({ public_url: m.url, archetype: m.alt, filename: m.alt }));
-    const row = new Array(88).fill("");
-
-    // Column 0: Text, exactly as the LinkedIn preview shows it
-    row[0] = csvEscape(toLinkedInText(piece.markdown_body));
-
-    // Column 1: Date (YYYY-MM-DD): the piece's own date first
-    row[1] = postDateFor(piece, week.date_start);
-
-    // Column 2: Time (HH:MM:SS)
-    const time = piece.scheduled_time
-      ? (piece.scheduled_time.length === 5 ? piece.scheduled_time + ":00" : piece.scheduled_time)
-      : "08:26:00";
-    row[2] = time;
-
-    // Column 3: Draft
-    row[3] = isDraft ? "true" : "false";
-
-    // Columns 4-13: Platform flags (LinkedIn only)
-    row[4] = "false";   // Facebook
-    row[5] = "false";   // Twitter/X
-    row[6] = "true";    // LinkedIn
-    row[7] = "false";   // GBP
-    row[8] = "false";   // Instagram
-    row[9] = "false";   // Pinterest
-    row[10] = "false";  // TikTok
-    row[11] = "false";  // Youtube
-    row[12] = "false";  // Threads
-    row[13] = "false";  // Bluesky
-
-    // Columns 14-23: Picture URLs (up to 10)
-    for (let i = 0; i < Math.min(pieceImages.length, 10); i++) {
-      row[14 + i] = pieceImages[i].public_url || "";
-    }
-
-    // Columns 24-33: Alt text (use filename as fallback)
-    for (let i = 0; i < Math.min(pieceImages.length, 10); i++) {
-      row[24 + i] = pieceImages[i].archetype || pieceImages[i].filename || "";
-    }
-
-    // Column 61: First Comment Text
-    if (piece.first_comment) {
-      row[61] = csvEscape(toLinkedInText(piece.first_comment));
-    }
-
-    // Column 77: LinkedIn Type
-    row[77] = "POST";
-
-    // Column 84: LinkedIn Show link preview
-    row[84] = shouldShowLinkPreview(piece.post_type) ? "true" : "false";
-
-    // Column 85: LinkedIn Images as Carousel
-    row[85] = isCarouselPost(piece.post_type, pieceImages.length) ? "true" : "false";
-
-    csvRows.push(row.join(","));
+    const altTexts = media.items.map((m, i) => (i === 0 && piece.source_meta?.alt_text) || m.alt);
+    const built = buildMetricoolRow({
+      piece,
+      weekStart: week.date_start,
+      isDraft,
+      companyNetworks: company?.social_networks,
+      media,
+      altTexts,
+    });
+    notes.push(...built.notes);
+    csvRows.push(built.cells.join(","));
   }
 
   // Join with CRLF as per Metricool spec
   const csvContent = csvRows.join("\r\n");
 
   // Build filename
-  const companySlug = (week.company as { slug?: string })?.slug || "export";
+  const companySlug = company?.slug || "export";
   const filename = `metricool_week${week.week_number}_${companySlug}${isDraft ? "_DRAFT" : ""}.csv`;
 
   return new Response(csvContent, {
@@ -354,6 +194,8 @@ export async function GET(request: Request) {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      // Plain-words notes for the person exporting (a post with no photo, for example).
+      ...(notes.length > 0 ? { "X-Export-Notes": encodeURIComponent(notes.join(" | ")) } : {}),
     },
   });
 }

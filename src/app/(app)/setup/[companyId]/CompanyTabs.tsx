@@ -14,6 +14,7 @@ const tabs = [
   { label: "Topics", href: "/topics" },
   { label: "Schedule", href: "/schedule" },
   { label: "Social", href: "/social" },
+  { label: "Venue and posting", href: "/hospitality" },
   { label: "Blueprint", href: "/blueprint" },
   { label: "API Keys", href: "/api-keys" },
 ];

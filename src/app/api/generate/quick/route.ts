@@ -17,7 +17,7 @@ import { generateSceneQuote, getScenePrompt } from "@/lib/image/scene-quote";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
-import { getPostType } from "@/lib/constants/post-types";
+import { getPostType, packOf } from "@/lib/constants/post-types";
 
 /**
  * POST /api/generate/quick
@@ -106,6 +106,12 @@ export async function POST(request: Request) {
   }
 
   const requestedType = getPostType(postTypeSlug);
+  if (requestedType && packOf(requestedType) === "hospitality") {
+    return NextResponse.json(
+      { error: `${requestedType.label} is part of the hospitality pack and is written from the hospitality Quick Post.` },
+      { status: 400 }
+    );
+  }
   if (requestedType?.medium === "video" && requestedType.production === "mac") {
     return NextResponse.json(
       {
