@@ -63,7 +63,7 @@ export default async function CalendarPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Content Calendar</h1>
         <p className="mt-1 text-sm text-gray-500">
-          View and manage scheduled content across weeks and months.
+          Plan posts by dragging them onto a day. Posts you send to review wait in Unscheduled.
         </p>
       </div>
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getImageProvider, resolveProvider } from "@/lib/providers";
+import { isEditorialStyle } from "@/lib/providers/image-generation/prompt-enhancer";
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
 
 /**
@@ -83,6 +84,13 @@ export async function POST(request: Request) {
     // Resolve Claude API key for prompt enhancement (fails gracefully if missing)
     const contentProvider = await resolveProvider(companyId, "content_generation");
     const claudeApiKey = contentProvider?.credentials?.api_key as string | undefined;
+    // Editorial (blog) images follow the company's image brand context, when one is set.
+    let brandContext: string | undefined;
+    if (prompts.some((p: { style?: string }) => isEditorialStyle(p.style))) {
+      const { data: bp } = await supabase.from("company_blueprints").select("derived_brand_context")
+        .eq("company_id", companyId).eq("is_active", true).maybeSingle();
+      brandContext = bp?.derived_brand_context || undefined;
+    }
 
     await supabase
       .from("content_generation_jobs")
@@ -118,7 +126,7 @@ export async function POST(request: Request) {
       // This is the same two-step process Manus uses internally.
       // Falls back to the raw prompt silently if enhancement fails.
       const enhancedPrompt = claudeApiKey
-        ? await enhanceImagePrompt(prompt, style, claudeApiKey)
+        ? await enhanceImagePrompt(prompt, style, claudeApiKey, brandContext)
         : prompt;
 
       const result = await provider.generate({

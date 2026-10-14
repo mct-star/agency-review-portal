@@ -4,6 +4,7 @@ import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/pro
 import { assignTopicsToSlots } from "@/lib/generation/topic-assigner";
 import { generateWithValidation } from "@/lib/generation/validated-generator";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
+import { assetRowsFor, saveAssets } from "@/lib/content/save-assets";
 import {
   buildPreGenerationContext,
   runPostGenerationGates,
@@ -356,36 +357,13 @@ export async function POST(request: Request) {
         // Build blog URL from slug asset or fallback
         const slugAsset = output.assets?.find((a) => a.assetType === "url_slug");
         blogUrl = slugAsset
-          ? `https://www.agencybristol.com/blog/${slugAsset.textContent}`
-          : `https://www.agencybristol.com/blog`;
+          ? `https://agencymedicalmarketing.com/blog/${slugAsset.textContent}`
+          : `https://agencymedicalmarketing.com/blog`;
       }
 
-      // Store assets (image prompt, etc.)
-      if (output.assets && output.assets.length > 0) {
-        await supabase.from("content_assets").insert(
-          output.assets.map((a, i) => ({
-            content_piece_id: piece.id,
-            asset_type: a.assetType,
-            text_content: a.textContent,
-            asset_metadata: {},
-            sort_order: i,
-          }))
-        );
-      }
-
-      // Store image prompt as asset if not already in output.assets
-      if (output.imagePrompt) {
-        const hasImagePrompt = output.assets?.some((a) => a.assetType === "image_prompt");
-        if (!hasImagePrompt) {
-          await supabase.from("content_assets").insert({
-            content_piece_id: piece.id,
-            asset_type: "image_prompt",
-            text_content: output.imagePrompt,
-            asset_metadata: {},
-            sort_order: 99,
-          });
-        }
-      }
+      // Store assets, image prompt included (src/lib/content/save-assets.ts).
+      const assetError = await saveAssets(supabase, assetRowsFor(piece.id, output.assets, output.imagePrompt));
+      if (assetError) console.error(`[generate/week] assets not saved for ${piece.id}: ${assetError}`);
 
       // Mark topic as used (variety mode only)
       if (assignment.topicId) {

@@ -15,6 +15,7 @@ import type {
   ContentGenerationOutput,
 } from "@/lib/providers";
 import { runQualityTests, type ValidationResult } from "./quality-tests";
+import { autofixDashes } from "./punctuation-autofix";
 
 const MAX_ITERATIONS = 3;
 
@@ -30,14 +31,42 @@ export interface ValidatedGenerationResult {
 }
 
 /**
+ * Mechanically fixes en and em dashes in the title, body, and first comment
+ * before the quality tests ever see them (29 Sept 2026). A model asked to
+ * fix an en dash cannot reliably tell one from a hyphen, so an 1,839-word
+ * article once burned all three fix rounds on a single dash that was never
+ * removed. Runs after the first generation and after every fix round.
+ */
+function applyDashAutofix(output: ContentGenerationOutput): ContentGenerationOutput {
+  const body = autofixDashes(output.markdownBody);
+  const title = autofixDashes(output.title);
+  const comment = output.firstComment ? autofixDashes(output.firstComment) : null;
+  const count = body.count + title.count + (comment ? comment.count : 0);
+
+  if (count === 0) return output;
+
+  const warnings = output.warnings ? [...output.warnings] : [];
+  warnings.push(`Automatically fixed ${count} dash character${count === 1 ? "" : "s"} before checking.`);
+
+  return {
+    ...output,
+    markdownBody: body.text,
+    title: title.text,
+    firstComment: comment ? comment.text : output.firstComment,
+    warnings,
+  };
+}
+
+/**
  * Generate content with recursive quality validation.
  *
  * Process:
  * 1. Generate initial content via the provider
- * 2. Run programmatic quality tests
- * 3. If critical/high failures: send content + fix instructions back to Claude
- * 4. Claude returns fixed version
- * 5. Re-test → loop until pass or max iterations
+ * 2. Mechanically autofix dash punctuation
+ * 3. Run programmatic quality tests
+ * 4. If critical/high failures: send content + fix instructions back to Claude
+ * 5. Claude returns fixed version, autofix runs again
+ * 6. Re-test → loop until pass or max iterations
  *
  * Returns the final output + validation results + fix history.
  */
@@ -52,6 +81,7 @@ export async function generateWithValidation(
 
   // Initial generation
   let output = await provider.generate(input);
+  output = applyDashAutofix(output);
   let iteration = 1;
 
   // Run quality tests
@@ -89,6 +119,7 @@ export async function generateWithValidation(
     try {
       // Send content back to Claude with specific fix instructions
       output = await fixProvider.fix(output, validation.fixInstructions);
+      output = applyDashAutofix(output);
 
       // Re-test
       validation = runQualityTests(

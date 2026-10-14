@@ -15,6 +15,9 @@ import { londonToday } from "@/lib/single-post/today";
  *
  * GET /api/admin/single-post?slotIds=a,b
  *   Latest single_post job per slot, for the buttons' status line.
+ * GET /api/admin/single-post?jobId=x
+ *   One job and, once the Mac has written it, its piece: Quick Generate
+ *   polls this to show the finished card or script in place.
  */
 
 const SLOT_COLUMNS =
@@ -121,6 +124,8 @@ export async function GET(request: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
+  const jobId = url.searchParams.get("jobId");
+  if (jobId) return jobWithPiece(jobId);
   const slotIds = (url.searchParams.get("slotIds") || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 100);
   const supabase = await createAdminSupabaseClient();
   let query = supabase
@@ -190,3 +195,27 @@ async function queueDirect(
   return NextResponse.json({ data: { job } });
 }
 
+
+async function jobWithPiece(jobId: string) {
+  const supabase = await createAdminSupabaseClient();
+  const { data: job, error } = await supabase
+    .from("content_generation_jobs")
+    .select("id, status, error_message, output_payload, content_piece_id")
+    .eq("id", jobId)
+    .in("job_type", ["single_post", "video_post"])
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  const out = (job.output_payload || {}) as { content_piece_id?: string; image_url?: string };
+  const pieceId = job.content_piece_id || out.content_piece_id || null;
+  let piece = null;
+  if (job.status === "completed" && pieceId) {
+    const { data } = await supabase
+      .from("content_pieces")
+      .select("id, markdown_body, first_comment, cover_image_url, post_type")
+      .eq("id", pieceId)
+      .maybeSingle();
+    piece = data ? { ...data, cover_image_url: data.cover_image_url || out.image_url || null } : null;
+  }
+  return NextResponse.json({ data: { id: job.id, status: job.status, error: job.error_message, piece } });
+}

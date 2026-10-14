@@ -61,6 +61,8 @@ export interface ContentGenerationInput {
   blogUrl?: string;
   /** Pre-generation context from the Content Intelligence Layer (day-specific rules, hook tension, etc.) */
   preGenerationContext?: string;
+  /** The company's image brand context (company_blueprints.derived_brand_context): governs the image prompts the writer returns. */
+  brandContext?: string;
 }
 
 export interface ContentGenerationOutput {
@@ -74,6 +76,8 @@ export interface ContentGenerationOutput {
     assetType: string;
     textContent: string;
   }[];
+  /** Anything the caller should tell the user (for example, metadata the writer did not return). */
+  warnings?: string[];
 }
 
 export interface ContentProvider {
