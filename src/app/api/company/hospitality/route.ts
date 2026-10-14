@@ -33,6 +33,14 @@ export async function PUT(request: Request) {
   const result = validateSettings(body);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
+  // The pack decides a company's whole menu. AGENCY sets it when the
+  // company is created; a company member cannot switch it, by accident
+  // or otherwise (Sam could have turned Lakeside into a LinkedIn account
+  // with one tap, 14 Oct 2026).
+  if (result.patch.post_pack !== undefined && access.profile.role !== "admin") {
+    return NextResponse.json({ error: "Only AGENCY can change the kind of posts. Ask us and we will switch it." }, { status: 403 });
+  }
+
   const supabase = await createAdminSupabaseClient();
   const patch: Record<string, unknown> = { ...result.patch };
   if (result.patch.hospitality_settings) {

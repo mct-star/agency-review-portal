@@ -99,7 +99,14 @@ describe("pieces: edit and decide", () => {
 describe("PUT /api/company/hospitality", () => {
   const put = (b: Record<string, unknown>) => new Request("http://x", { method: "PUT", body: JSON.stringify({ companyId: A, ...b }) });
 
-  it("lets a member change their pack and defaults the networks", async () => {
+  it("refuses a member who tries to change the pack", async () => {
+    // Only AGENCY sets the pack: a member could otherwise turn a venue into a LinkedIn account with one tap.
+    const res = await putSettings(put({ post_pack: "b2b" }));
+    expect(res.status).toBe(403);
+    expect(state.supabase.calls.find((c) => c.method === "update")).toBeUndefined();
+  });
+  it("lets an admin change the pack and defaults the networks", async () => {
+    state.profile = { id: "a1", role: "admin", company_id: null };
     state.supabase = fakeSupabase({ companies: { data: { social_networks: [], hospitality_settings: {} } } });
     const res = await putSettings(put({ post_pack: "hospitality" }));
     expect(res.status).toBe(200);
@@ -107,7 +114,7 @@ describe("PUT /api/company/hospitality", () => {
   });
   it("cannot be used to change the plan", async () => {
     expect((await putSettings(put({ plan: "agency" }))).status).toBe(400);
-    const res = await putSettings(put({ post_pack: "hospitality", plan: "agency" }));
+    const res = await putSettings(put({ hospitality_settings: { venue_notes: "A bar by the lake." }, plan: "agency" }));
     const update = state.supabase.calls.find((c) => c.method === "update")?.args[0] as Record<string, unknown> | undefined;
     expect(res.status).toBe(200);
     expect(update && "plan" in update).toBe(false);

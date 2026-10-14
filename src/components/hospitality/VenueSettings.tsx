@@ -26,7 +26,7 @@ const NETWORK_LABELS: Array<[string, string]> = [
 ];
 
 /** Venue and posting settings for a company: the pack, where posts go, how they are written, the team photo link and inviting colleagues. */
-export default function VenueSettings({ companyId, children }: { companyId: string; children?: React.ReactNode }) {
+export default function VenueSettings({ companyId, canChangePack = false, children }: { companyId: string; canChangePack?: boolean; children?: React.ReactNode }) {
   const [s, setS] = useState<Settings | null>(null);
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
@@ -68,7 +68,16 @@ export default function VenueSettings({ companyId, children }: { companyId: stri
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-gray-900">What kind of posts</h2>
-        <div className="space-y-2">
+        {!canChangePack && (
+          <p className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+            <span className="font-medium text-gray-900">{hospitality ? "Hospitality" : "Business to business"}.</span>{" "}
+            {hospitality
+              ? "Facebook and Instagram posts for a restaurant, bar or hotel: the weather, the special, what is on, live scenes and events."
+              : "LinkedIn posts for a professional audience."}{" "}
+            AGENCY sets this. Ask us if it should change.
+          </p>
+        )}
+        <div className={canChangePack ? "space-y-2" : "hidden"}>
           {([
             ["hospitality", "Hospitality", "Facebook and Instagram posts for a restaurant, bar or hotel: the weather, the special, what is on, live scenes and events."],
             ["b2b", "Business to business", "LinkedIn posts for a professional audience."],
