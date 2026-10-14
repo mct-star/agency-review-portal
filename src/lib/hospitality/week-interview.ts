@@ -64,7 +64,11 @@ export async function planWeekFromTranscript(
     let post: GeneratedHospitalityPost;
     try {
       post = await deps.write(postType, item);
-    } catch {
+    } catch (err) {
+      // The person sees the note; the cause goes to the server log, because
+      // three silent failures in the live check of 14 Oct 2026 left nothing
+      // to diagnose.
+      console.error(`[week-interview] write failed for ${postType.slug} on ${item.date}:`, err);
       notes.push(`The ${postType.label.toLowerCase()} for ${dayNameOf(item.date)} could not be written just now. Try that one on its own from Write a post.`);
       continue;
     }

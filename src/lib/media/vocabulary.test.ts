@@ -55,9 +55,15 @@ describe("parseAutoTagJson", () => {
   it("rejects replies that are not the agreed shape", () => {
     expect(() => parseAutoTagJson("sunny deck")).toThrow();
     expect(() => parseAutoTagJson(JSON.stringify({ ...good, people_present: "no" }))).toThrow();
-    expect(() => parseAutoTagJson(JSON.stringify({ ...good, weather: "sunny" }))).toThrow();
+    expect(() => parseAutoTagJson(JSON.stringify({ ...good, weather: 7 }))).toThrow();
     expect(() => parseAutoTagJson(JSON.stringify({ ...good, scene: "" }))).toThrow();
     expect(() => parseAutoTagJson("[]")).toThrow();
+  });
+
+  it("accepts a single string or null where an array was asked for", () => {
+    // A small model at low effort sometimes answers a group with one string.
+    expect(parseAutoTagJson(JSON.stringify({ ...good, weather: "grey" })).tags).toContain("weather:grey");
+    expect(parseAutoTagJson(JSON.stringify({ ...good, weather: null })).tags).not.toContain("weather:sunny");
   });
 
   it("keeps the people tag consistent with people_present", () => {

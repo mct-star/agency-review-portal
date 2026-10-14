@@ -104,7 +104,16 @@ export function parseHospitalityJson(text: string): ParsedPost {
   try {
     raw = JSON.parse(cleaned);
   } catch {
-    throw new Error("The writer did not return JSON");
+    // A model sometimes wraps the object in a sentence. The object itself is
+    // still the answer, so take the outermost braces before giving up.
+    const first = cleaned.indexOf("{");
+    const last = cleaned.lastIndexOf("}");
+    if (first < 0 || last <= first) throw new Error("The writer did not return JSON");
+    try {
+      raw = JSON.parse(cleaned.slice(first, last + 1));
+    } catch {
+      throw new Error("The writer did not return JSON");
+    }
   }
   const r = raw as Record<string, unknown>;
   if (!r || typeof r !== "object" || typeof r.caption !== "string" || !r.caption.trim()) {
