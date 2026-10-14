@@ -91,7 +91,7 @@ async function callClaude(key: string, images: VisionImage[], prompt: string, f:
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: 600,
-      temperature: 0,
+      // No temperature: claude-haiku-5-5 rejects it with a 400.
       messages: [
         {
           role: "user",
@@ -106,7 +106,7 @@ async function callClaude(key: string, images: VisionImage[], prompt: string, f:
       ],
     }),
   });
-  if (!res.ok) throw new Error(`Claude ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`Claude ${res.status}: ${(await res.text()).slice(0, 600)}`);
   const data = await res.json();
   const text = data.content?.find((c: { type: string }) => c.type === "text")?.text;
   if (!text) throw new Error("Claude returned no text");

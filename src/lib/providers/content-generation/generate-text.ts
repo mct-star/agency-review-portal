@@ -53,7 +53,8 @@ async function callClaude(
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: opts.maxTokens || 2000,
-      temperature: opts.temperature ?? 0.7,
+      // No temperature: the Claude 5.5 models reject it ("deprecated for
+      // this model", 400) and the whole Claude tier failed on it (14 Oct 2026).
       system: opts.systemPrompt,
       messages: [{ role: "user", content: opts.userPrompt }],
     }),

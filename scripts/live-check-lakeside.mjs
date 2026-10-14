@@ -927,6 +927,9 @@ async function cmdRun() {
   for (const slug of ["weather_of_the_day", "special_of_the_day", "whats_on_this_week", "live_scene", "event"]) {
     say(`\n[${slug}]`); say(captions[slug] ?? "(not produced)");
   }
+  rule("SERVER LOG (error lines, redacted)");
+  for (const l of devTail.filter((l) => /error|fail|claude|gemini|openai|provider|generateText|transcribe/i.test(l)).slice(-60)) say("  " + l.slice(0, 700));
+
   rule("SUMMARY");
   for (const r of results) say(`  check ${r.n}: ${r.status} - ${r.name}${r.error ? `\n      ${r.error}` : ""}`);
   say(`\nSpend estimate: GBP ${budget.total.toFixed(2)} of ${budget.limit} (generous per-call estimates)`, budget.lines);
