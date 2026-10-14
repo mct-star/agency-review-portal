@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
   // Check if user already has a company
   const { data: existingProfile } = await supabase
-    .from("profiles")
+    .from("users")
     .select("company_id")
     .eq("id", user.id)
     .single();
@@ -56,8 +56,9 @@ export async function POST(request: Request) {
       website_url: websiteUrl?.trim() || null,
       industry: industry || null,
       plan: "starter",
+      trial_plan: "pro",
       trial_started_at: new Date().toISOString(),
-      trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      trial_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select("id")
     .single();
@@ -70,10 +71,12 @@ export async function POST(request: Request) {
   }
 
   // Link user to company
-  await supabase
-    .from("profiles")
-    .update({ company_id: company.id, role: "client" })
-    .eq("id", user.id);
+  const { error: linkErr } = await supabase
+    .from("users")
+    .upsert({ id: user.id, email: user.email, company_id: company.id, role: "client" }, { onConflict: "id" });
+  if (linkErr) {
+    return NextResponse.json({ error: "The account could not be linked to the company" }, { status: 500 });
+  }
 
   // Create spokesperson if name provided
   let spokesperson = null;

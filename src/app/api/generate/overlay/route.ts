@@ -36,6 +36,19 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
+  // A piece can only be branded by its own company.
+  if (contentPieceId) {
+    const { data: piece } = await supabase
+      .from("content_pieces")
+      .select("id")
+      .eq("id", contentPieceId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!piece) {
+      return NextResponse.json({ error: "That post does not belong to this company" }, { status: 403 });
+    }
+  }
+
   // Fetch company branding + profile picture
   const { data: company, error: companyErr } = await supabase
     .from("companies")

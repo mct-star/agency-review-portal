@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { CLAUDE_SONNET, callClaude } from "@/lib/providers/content-adaptation/claude-util";
 import {
   buildRegulatoryContext,
   COUNTRY_PROFILES,
@@ -110,10 +110,13 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Fetch content pieces
+  // Fetch content pieces. Scoped to the company the caller was authorised
+  // for: before 14 Oct 2026 a weekId or pieceIds from another company were
+  // read and written back to.
   let query = supabase
     .from("content_pieces")
     .select("*")
+    .eq("company_id", companyId)
     .order("sort_order");
 
   if (weekId) {
@@ -275,7 +278,7 @@ If the content appears compliant, return an empty issues array with overallScore
 
     let text: string;
     try {
-      text = await callClaude(apiKey, "claude-sonnet-4-20250514", system, "Perform the regulatory compliance review now.", 4096);
+      text = await callClaude(apiKey, CLAUDE_SONNET, system, "Perform the regulatory compliance review now.", 4096);
     } catch (err) {
       console.error(`[regulatory-review] LLM error for piece ${piece.id}:`, err);
       results.push({
@@ -287,7 +290,7 @@ If the content appears compliant, return an empty issues array with overallScore
         framework: frameworkLabel,
         issues: [],
         passedChecks: [],
-        summary: `Review failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+        summary: "The review could not be completed. Try again shortly.",
       });
       continue;
     }

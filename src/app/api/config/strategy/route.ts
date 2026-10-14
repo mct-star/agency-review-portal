@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * GET /api/config/strategy?companyId=...
@@ -263,29 +264,13 @@ Return ONLY valid JSON:
 
 Extract as many themes and topics as you can find. Be specific, not generic.`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: (resolved.settings.model as string) || "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        messages: [
-          {
-            role: "user",
-            content: `${extractionPrompt}\n\n---\n\nDOCUMENT:\n\n${markdownContent.substring(0, 50000)}`,
-          },
-        ],
-      }),
-    });
-
-    if (!claudeRes.ok) throw new Error("Claude API error");
-
-    const claudeData = await claudeRes.json();
-    const responseText = claudeData.content?.[0]?.text || "";
+    const responseText = await callClaude(
+      apiKey,
+      currentClaudeModel(resolved.settings.model as string | undefined),
+      "Return only the JSON object requested. No preamble.",
+      `${extractionPrompt}\n\n---\n\nDOCUMENT:\n\n${markdownContent.substring(0, 50000)}`,
+      4000
+    );
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
 

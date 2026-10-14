@@ -1,160 +1,172 @@
-const API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
-
-interface AnthropicResponse {
-  content: { type: string; text: string }[];
-  stop_reason: string;
-  usage: { input_tokens: number; output_tokens: number };
-}
-
 /**
- * Shared LLM call utility with 4-tier fallback chain:
- *   1. Claude (Anthropic) — user's primary choice, needs credits
- *   2. Gemini 2.5 Pro — free, higher quality, but often 503-overloaded
- *   3. Gemini 2.5 Flash — free, separate quota from Pro, faster
- *   4. OpenAI GPT-4o — paid, last resort
+ * The one place a Claude model id is chosen and a text call is made.
  *
- * The chain continues to the next provider on ANY failure (401, 429, 503, 5xx, network).
- * This ensures content generation stays available even when individual providers are down.
+ * Every Claude call in the platform goes through callText (or the
+ * string-returning callClaude wrapper). It knows two things the routes must
+ * not: which model ids are current, and how the Claude 5.5 models behave
+ * (they reject `temperature`, they think by default and the thinking block
+ * comes first, so thinking is switched off and the first text block is read).
+ * Effort is low unless the caller asks for more: Sonnet for writing, Haiku
+ * for classification, medium effort only for the post and blog writer.
+ *
+ * Fallback order (decided 14 Oct 2026): Claude, then Gemini 2.5 Flash. Gemini
+ * Pro has a quota of zero on the production key and the OpenAI key is
+ * invalid, so neither is in the chain. The result says which provider and
+ * model actually answered, so a job record can tell the truth.
  */
 
-async function callGeminiModel(
-  geminiKey: string,
-  model: string,
-  system: string,
-  userMessage: string,
-  maxTokens: number
-): Promise<string> {
+const API_URL = "https://api.anthropic.com/v1/messages";
+
+export const CLAUDE_SONNET = "claude-sonnet-5-5";
+export const CLAUDE_HAIKU = "claude-haiku-5-5";
+export const GEMINI_FLASH = "gemini-2.5-flash";
+
+/** Model ids that were retired and now return 404, mapped to the current family member. */
+const RETIRED: Record<string, string> = {
+  "claude-sonnet-4-20250514": CLAUDE_SONNET,
+  "claude-opus-4-20250514": CLAUDE_SONNET,
+  "claude-3-5-haiku-20241022": CLAUDE_HAIKU,
+  "claude-haiku-4-20250514": CLAUDE_HAIKU,
+  "claude-3-5-sonnet-20241022": CLAUDE_SONNET,
+  "claude-3-7-sonnet-20250219": CLAUDE_SONNET,
+};
+
+/**
+ * The model to send for a requested id. A stored setting may still name a
+ * retired id (the seed script wrote one into company_api_configs), so anything
+ * unknown is mapped to the current Sonnet, and anything in the haiku family
+ * to the current Haiku.
+ */
+export function currentClaudeModel(requested?: string | null): string {
+  if (!requested) return CLAUDE_SONNET;
+  if (requested === CLAUDE_SONNET || requested === CLAUDE_HAIKU || requested === "claude-opus-5-5") return requested;
+  if (RETIRED[requested]) return RETIRED[requested];
+  return /haiku/i.test(requested) ? CLAUDE_HAIKU : CLAUDE_SONNET;
+}
+
+export interface TextCallResult {
+  text: string;
+  provider: "claude" | "gemini";
+  model: string;
+}
+
+export function geminiKey(): string {
+  return process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
+}
+
+interface AnthropicResponse {
+  content: { type: string; text?: string }[];
+}
+
+export type ClaudeEffort = "low" | "medium" | "high";
+
+async function callAnthropic(apiKey: string, model: string, system: string, userMessage: string, maxTokens: number, effort: ClaudeEffort): Promise<string> {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      // No temperature: the 5.5 models reject it (400).
+      // Thinking off: it is on by default and its tokens count against max_tokens.
+      thinking: { type: "between_tools" },
+      output_config: { effort },
+      ...(system ? { system } : {}),
+      messages: [{ role: "user", content: userMessage }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic (${res.status}): ${await res.text()}`);
+  const data: AnthropicResponse = await res.json();
+  const textBlock = data.content?.find((c) => c.type === "text");
+  if (!textBlock?.text) throw new Error("No text content in Anthropic response");
+  return textBlock.text;
+}
+
+async function callGeminiFlash(key: string, system: string, userMessage: string, maxTokens: number): Promise<string> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_FLASH}:generateContent?key=${key}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
+        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
         contents: [{ parts: [{ text: userMessage }] }],
-        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+        // Flash thinks before it answers and those tokens count against
+        // maxOutputTokens, so thinking is switched off.
+        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } },
       }),
     }
   );
-  if (!res.ok) throw new Error(`Gemini ${model} (${res.status}): ${await res.text()}`);
+  if (!res.ok) throw new Error(`Gemini ${GEMINI_FLASH} (${res.status}): ${await res.text()}`);
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  if (!text) throw new Error(`Gemini ${model} returned empty response`);
+  if (!text) throw new Error(`Gemini ${GEMINI_FLASH} returned empty response`);
   return text;
 }
 
-async function callOpenAIModel(
-  openaiKey: string,
-  system: string,
-  userMessage: string,
-  maxTokens: number
-): Promise<string> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${openaiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      max_tokens: maxTokens,
-      temperature: 0.7,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userMessage },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`OpenAI (${res.status}): ${await res.text()}`);
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content || "";
-  if (!text) throw new Error("OpenAI returned empty response");
-  return text;
-}
+/** The sentinel resolveClaudeConfig returns when there is no Anthropic key at all. */
+export const NO_ANTHROPIC_KEY = "no-anthropic-key-will-fallback-to-gemini";
 
-export async function callClaude(
+/**
+ * Claude first, Gemini Flash second. Throws when both fail or neither key is
+ * set. The error names the providers that were tried; callers must not pass
+ * that text to a client.
+ */
+export async function callText(
   apiKey: string,
   model: string,
   system: string,
   userMessage: string,
-  maxTokens: number = 4096
-): Promise<string> {
+  maxTokens: number = 4096,
+  opts: { effort?: ClaudeEffort } = {}
+): Promise<TextCallResult> {
   const errors: string[] = [];
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const claudeModel = currentClaudeModel(model);
 
-  // Tier 1: Claude (skip if apiKey is the sentinel placeholder)
-  if (apiKey && apiKey !== "no-anthropic-key-will-fallback-to-gemini") {
+  if (apiKey && apiKey !== NO_ANTHROPIC_KEY) {
     try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          system,
-          messages: [{ role: "user", content: userMessage }],
-        }),
-      });
-      if (!res.ok) throw new Error(`Anthropic (${res.status}): ${await res.text()}`);
-      const data: AnthropicResponse = await res.json();
-      const textBlock = data.content.find((c) => c.type === "text");
-      if (!textBlock) throw new Error("No text content in Anthropic response");
-      return textBlock.text;
+      const text = await callAnthropic(apiKey, claudeModel, system, userMessage, maxTokens, opts.effort ?? "low");
+      return { text, provider: "claude", model: claudeModel };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       errors.push(`Claude: ${msg}`);
-      console.warn("[callClaude] Tier 1 (Claude) failed:", msg.slice(0, 200));
+      console.warn("[callText] Claude failed:", msg.slice(0, 200));
     }
   }
 
-  // Tier 2: Gemini 2.5 Pro
-  if (geminiKey) {
+  const gKey = geminiKey();
+  if (gKey) {
     try {
-      const text = await callGeminiModel(geminiKey, "gemini-2.5-pro", system, userMessage, maxTokens);
-      console.log("[callClaude] Tier 2 (Gemini 2.5 Pro) succeeded");
-      return text;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`Gemini Pro: ${msg}`);
-      console.warn("[callClaude] Tier 2 (Gemini 2.5 Pro) failed:", msg.slice(0, 200));
-    }
-
-    // Tier 3: Gemini 2.5 Flash (separate quota from Pro, very fast)
-    try {
-      const text = await callGeminiModel(geminiKey, "gemini-2.5-flash", system, userMessage, maxTokens);
-      console.log("[callClaude] Tier 3 (Gemini 2.5 Flash) succeeded");
-      return text;
+      const text = await callGeminiFlash(gKey, system, userMessage, maxTokens);
+      return { text, provider: "gemini", model: GEMINI_FLASH };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       errors.push(`Gemini Flash: ${msg}`);
-      console.warn("[callClaude] Tier 3 (Gemini 2.5 Flash) failed:", msg.slice(0, 200));
-    }
-  }
-
-  // Tier 4: OpenAI GPT-4o
-  if (openaiKey) {
-    try {
-      const text = await callOpenAIModel(openaiKey, system, userMessage, maxTokens);
-      console.log("[callClaude] Tier 4 (OpenAI) succeeded");
-      return text;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`OpenAI: ${msg}`);
-      console.warn("[callClaude] Tier 4 (OpenAI) failed:", msg.slice(0, 200));
+      console.warn("[callText] Gemini Flash failed:", msg.slice(0, 200));
     }
   }
 
   throw new Error(`All LLM providers failed:\n${errors.join("\n")}`);
 }
 
+/** The text only. Kept for the many callers that do not record the provider. */
+export async function callClaude(
+  apiKey: string,
+  model: string,
+  system: string,
+  userMessage: string,
+  maxTokens: number = 4096,
+  opts: { effort?: ClaudeEffort } = {}
+): Promise<string> {
+  return (await callText(apiKey, model, system, userMessage, maxTokens, opts)).text;
+}
+
 /**
- * Parse JSON from Claude's response, stripping code fences if present.
+ * Parse JSON from a model's response, stripping code fences if present.
  */
 export function parseClaudeJson<T>(text: string): T {
   const cleaned = text
@@ -173,23 +185,18 @@ export function parseClaudeJson<T>(text: string): T {
 }
 
 /**
- * Resolve effective API key and model from credentials/settings.
+ * Resolve the effective API key and model from a company's credentials and
+ * settings. A stored retired id is mapped to the current model.
  */
 export function resolveClaudeConfig(
   credentials: Record<string, unknown>,
   settings: Record<string, unknown>
 ): { apiKey: string; model: string } {
   const apiKey = (credentials.api_key as string) || process.env.ANTHROPIC_API_KEY;
+  const model = currentClaudeModel(settings.model as string | undefined);
   if (!apiKey) {
-    // If no Anthropic key, use a placeholder — callClaude will fall back to Gemini
-    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-    if (geminiKey) {
-      return { apiKey: "no-anthropic-key-will-fallback-to-gemini", model: DEFAULT_MODEL };
-    }
-    throw new Error(
-      "No AI provider available. Configure ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY."
-    );
+    if (geminiKey()) return { apiKey: NO_ANTHROPIC_KEY, model };
+    throw new Error("No AI provider available. Configure ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY.");
   }
-  const model = (settings.model as string) || DEFAULT_MODEL;
   return { apiKey, model };
 }

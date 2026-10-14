@@ -14,6 +14,7 @@
  */
 
 import { resolveProvider } from "@/lib/providers";
+import { callClaude, CLAUDE_HAIKU } from "@/lib/providers/content-adaptation/claude-util";
 
 // ════════════════════════════════════════════════════════════
 // Types
@@ -206,38 +207,12 @@ Your output must be INDISTINGUISHABLE from these samples.`);
 // Claude Haiku Evaluator (for gates 1, 2, 3, 6)
 // ════════════════════════════════════════════════════════════
 
-const HAIKU_MODEL = "claude-haiku-4-20250514";
-const API_URL = "https://api.anthropic.com/v1/messages";
-
 async function callClaudeHaiku(
   apiKey: string,
   systemPrompt: string,
   userMessage: string
 ): Promise<string> {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: HAIKU_MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Haiku API error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
-  const textBlock = data.content?.find((c: { type: string }) => c.type === "text");
-  if (!textBlock) throw new Error("No text in Haiku response");
-  return textBlock.text;
+  return callClaude(apiKey, CLAUDE_HAIKU, systemPrompt, userMessage, 1024);
 }
 
 async function getApiKey(companyId: string): Promise<string | null> {
@@ -386,7 +361,8 @@ Respond with JSON: {"passed": true/false, "explanation": "1 sentence"}`;
   } catch (err) {
     // If Haiku call fails, pass the gate rather than blocking generation
     gate.passed = true;
-    gate.explanation = `Gate evaluation error: ${err instanceof Error ? err.message : "unknown"}. Passed by default.`;
+    console.error("[content-intelligence] gate evaluation failed:", err instanceof Error ? err.message : err);
+    gate.explanation = "Gate could not be evaluated, so it was not applied.";
   }
 
   return gate;
@@ -520,7 +496,7 @@ Respond with JSON: {"type": "ONE_WORD_TYPE", "explanation": "1 sentence"}`
     }
   } catch {
     gate.passed = true;
-    gate.explanation = "Hook evaluation skipped due to API error.";
+    gate.explanation = "Gate could not be evaluated, so it was not applied.";
   }
 
   return gate;
@@ -803,7 +779,7 @@ Respond with JSON:
     }
   } catch {
     gate.passed = true;
-    gate.explanation = "Quality triple evaluation skipped due to API error.";
+    gate.explanation = "Gate could not be evaluated, so it was not applied.";
   }
 
   return gate;

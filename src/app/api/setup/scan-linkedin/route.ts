@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude, CLAUDE_SONNET } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * POST /api/setup/scan-linkedin
@@ -10,8 +11,7 @@ import { resolveProvider } from "@/lib/providers";
  * Two input modes:
  * 1. Pasted posts: Body: { companyId, posts: string }
  * 2. LinkedIn URL: Body: { companyId, linkedinUrl: string }
- *    - Uses Claude to fetch and analyse the profile's recent posts
- *    - Falls back to asking user to paste if scraping fails
+ *    - Posts cannot be fetched from a URL, so this asks the user to paste them
  *
  * Returns: { profile: { voice_description, writing_samples, banned_vocabulary, signature_devices, emotional_register } }
  */
@@ -87,92 +87,29 @@ export async function POST(request: Request) {
     );
   }
 
-  // If LinkedIn URL provided, use Claude to fetch and extract recent posts
+  // A LinkedIn URL cannot be read from here, and asking a model to guess posts
+  // from a URL would invent samples and present them as the person's voice.
   if (linkedinUrl && !postsToAnalyse) {
-    try {
-      const scrapeRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", // Sonnet for reliable structured output
-          max_tokens: 4000,
-          messages: [
-            {
-              role: "user",
-              content: `I need to analyse the writing style of this LinkedIn profile: ${linkedinUrl}
-
-I cannot directly access LinkedIn. Instead, please:
-1. Based on the LinkedIn URL, identify who this person is
-2. If you have any knowledge of their public writing or LinkedIn activity, provide examples
-3. If not, generate a set of realistic sample posts that match what someone in their role/industry would write
-
-The goal is to create a voice profile. Provide at least 5 sample posts (or real posts if you know them), each separated by "---". Include the kind of content they would typically post based on their professional role.
-
-Return ONLY the posts text, separated by --- between each post. No commentary.`,
-            },
-          ],
-        }),
-      });
-
-      if (scrapeRes.ok) {
-        const scrapeData = await scrapeRes.json();
-        const scrapedText = scrapeData.content?.[0]?.text || "";
-        if (scrapedText.length > 100) {
-          postsToAnalyse = scrapedText;
-        }
-      }
-    } catch {
-      // Scraping failed — will fall through to error if no posts
-    }
-
-    if (!postsToAnalyse) {
-      return NextResponse.json(
-        {
-          error: "Could not retrieve posts from that LinkedIn URL. Please paste 5-10 recent posts manually instead.",
-          needsManualPaste: true,
-        },
-        { status: 400 }
-      );
-    }
+    return NextResponse.json(
+      {
+        error: "Could not retrieve posts from that LinkedIn URL. Please paste 5-10 recent posts manually instead.",
+        needsManualPaste: true,
+      },
+      { status: 400 }
+    );
   }
 
   try {
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514", // Sonnet for reliable JSON output
-        max_tokens: 2000,
-        system: "You are a writing style analyst. You MUST return ONLY valid JSON with no preamble, explanation, markdown code fences, or any other text. Start your response with { and end with }.",
-        messages: [
-          {
-            role: "user",
-            content: `${VOICE_ANALYSIS_PROMPT}\n\n---\n\nLINKEDIN POSTS TO ANALYSE:\n\n${postsToAnalyse}`,
-          },
-        ],
-      }),
-    });
-
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text();
-      throw new Error(`Claude API error (${claudeRes.status}): ${err}`);
-    }
-
-    const claudeData = await claudeRes.json();
-    // Extract text from the first text content block (skip thinking blocks)
-    const textBlocks = (claudeData.content || []).filter((b: { type: string }) => b.type === "text");
-    const responseText = textBlocks[0]?.text || "";
+    const responseText = await callClaude(
+      apiKey,
+      CLAUDE_SONNET,
+      "You are a writing style analyst. You MUST return ONLY valid JSON with no preamble, explanation, markdown code fences, or any other text. Start your response with { and end with }.",
+      `${VOICE_ANALYSIS_PROMPT}\n\n---\n\nLINKEDIN POSTS TO ANALYSE:\n\n${postsToAnalyse}`,
+      2000
+    );
 
     if (!responseText) {
-      throw new Error("Claude returned an empty response. Check that a valid API key is configured.");
+      throw new Error("The analysis returned an empty response.");
     }
 
     // Strip markdown code fences if Claude wrapped the JSON (e.g. ```json ... ```)

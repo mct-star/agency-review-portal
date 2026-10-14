@@ -289,14 +289,14 @@ async function main() {
           service_category: "content_generation",
           provider: "anthropic_claude",
           credentials_encrypted: credentialsEncrypted,
-          provider_settings: { model: "claude-sonnet-4-20250514" },
+          provider_settings: {},
           is_active: true,
         });
 
       if (insertErr) {
         console.error(`   API config insert failed: ${insertErr.message}`);
       } else {
-        console.log("   Anthropic API key configured (claude-sonnet-4-20250514).");
+        console.log("   Anthropic API key configured.");
       }
     }
   } else {

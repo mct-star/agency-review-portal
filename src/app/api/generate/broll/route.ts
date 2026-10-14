@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * POST /api/generate/broll
@@ -158,38 +159,28 @@ export async function POST(request: Request) {
     : `## TRANSCRIPT (no timestamps — estimate based on word count, ~150 words/minute)\n\n${transcript}`;
 
   try {
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: (resolved.settings.model as string) || "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages: [
-          {
-            role: "user",
-            content: `${BROLL_ANALYSIS_PROMPT}\n\n---\n\n${analysisInput}`,
-          },
-        ],
-      }),
+    const responseText = await callClaude(
+      apiKey,
+      currentClaudeModel(resolved.settings.model as string | undefined),
+      "",
+      `${BROLL_ANALYSIS_PROMPT}\n\n---\n\n${analysisInput}`,
+      2000
+    ).catch((err) => {
+      console.error("[broll] analysis call failed:", err instanceof Error ? err.message : err);
+      return null;
     });
 
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text();
-      throw new Error(`Claude API error (${claudeRes.status}): ${err}`);
+    if (responseText === null) {
+      return NextResponse.json(
+        { error: "The analysis could not be completed. Try again shortly." },
+        { status: 502 }
+      );
     }
-
-    const claudeData = await claudeRes.json();
-    const responseText =
-      claudeData.content?.[0]?.text || "";
 
     // Parse JSON from response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error("Claude did not return valid JSON");
+      throw new Error("The analysis did not return valid JSON");
     }
 
     const parsed = JSON.parse(jsonMatch[0]);

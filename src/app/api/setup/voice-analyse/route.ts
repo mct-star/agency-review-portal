@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude, CLAUDE_SONNET } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * POST /api/setup/voice-analyse
@@ -78,20 +79,21 @@ export async function POST(request: Request) {
       aiResponse = await callOpenAI(apiKey, transcript);
     } else if (process.env.ANTHROPIC_API_KEY) {
       aiResponse = await callAnthropic(process.env.ANTHROPIC_API_KEY, transcript);
-    } else if (process.env.OPENAI_API_KEY) {
-      aiResponse = await callOpenAI(process.env.OPENAI_API_KEY, transcript);
     } else {
-      // Fall back to Gemini via generateText
-      const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-      if (geminiKey) {
+      // Fall back to the shared text module (Claude, then Gemini)
+      try {
         const { generateText } = await import("@/lib/providers/content-generation/generate-text");
-        const result = await generateText({ systemPrompt: "", userPrompt: transcript, maxTokens: 4096 });
+        const result = await generateText({ systemPrompt: ANALYSIS_PROMPT, userPrompt: transcript, maxTokens: 4096 });
         aiResponse = result.text;
-      } else {
-        return NextResponse.json(
-          { error: "No AI provider configured. Set GOOGLE_GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY." },
-          { status: 500 }
-        );
+      } catch {
+        if (process.env.OPENAI_API_KEY) {
+          aiResponse = await callOpenAI(process.env.OPENAI_API_KEY, transcript);
+        } else {
+          return NextResponse.json(
+            { error: "No AI provider is configured for this company." },
+            { status: 500 }
+          );
+        }
       }
     }
 
@@ -112,32 +114,7 @@ export async function POST(request: Request) {
 }
 
 async function callAnthropic(apiKey: string, transcript: string): Promise<string> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `${ANALYSIS_PROMPT}\n\nTRANSCRIPT:\n${transcript}`,
-        },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Anthropic API error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
+  return callClaude(apiKey, CLAUDE_SONNET, "", `${ANALYSIS_PROMPT}\n\nTRANSCRIPT:\n${transcript}`, 2000);
 }
 
 async function callOpenAI(apiKey: string, transcript: string): Promise<string> {

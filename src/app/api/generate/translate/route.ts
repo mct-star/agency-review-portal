@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { callClaude, CLAUDE_SONNET } from "@/lib/providers/content-adaptation/claude-util";
 import { SUPPORTED_LANGUAGES } from "@/lib/generation/regulatory-knowledge";
 
 export const maxDuration = 120;
@@ -112,7 +112,7 @@ Respond with JSON (no code fences):
       try {
         text = await callClaude(
           apiKey,
-          "claude-sonnet-4-20250514",
+          CLAUDE_SONNET,
           system,
           `Translate this content into ${langConfig.nativeName}:\n\nTITLE: ${piece.title}\n\nBODY:\n${piece.markdown_body}\n\n${piece.first_comment ? `FIRST COMMENT:\n${piece.first_comment}` : "No first comment."}`,
           8192

@@ -33,7 +33,8 @@ export async function checkAndRecordAttempt(
   companyId: string,
   forwardedFor: string | null
 ): Promise<{ allowed: true } | { allowed: false; message: string }> {
-  const salt = process.env.CRON_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "staff-upload";
+  // Its own salt. Never the service-role key: a leaked hash salt must not be a database key.
+  const salt = process.env.STAFF_UPLOAD_SALT || process.env.CRON_SECRET || "staff-upload";
   const ipHash = hashIp(forwardedFor, salt);
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
