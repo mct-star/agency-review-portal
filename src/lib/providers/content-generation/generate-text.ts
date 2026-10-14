@@ -28,6 +28,8 @@ export interface GenerateTextOptions {
 }
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-pro";
+// claude-sonnet-4-20250514 was retired and returned 404 (live check, 14 Oct 2026).
+const CLAUDE_MODEL = "claude-sonnet-5-5";
 
 export interface GenerateTextResult {
   text: string;
@@ -49,7 +51,7 @@ async function callClaude(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: CLAUDE_MODEL,
       max_tokens: opts.maxTokens || 2000,
       temperature: opts.temperature ?? 0.7,
       system: opts.systemPrompt,
@@ -165,7 +167,7 @@ export async function generateText(
       return {
         text: result,
         provider: "claude",
-        model: "claude-sonnet-4-20250514",
+        model: CLAUDE_MODEL,
       };
     } catch (err) {
       console.error("[generateText] Claude failed, trying OpenAI:", err);

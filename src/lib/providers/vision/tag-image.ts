@@ -22,7 +22,8 @@ export interface VisionImage {
 }
 
 const GEMINI_MODEL = "gemini-2.5-flash";
-const CLAUDE_MODEL = "claude-3-5-haiku-20241022";
+// claude-3-5-haiku-20241022 is retired; haiku 5.5 is the current small model.
+const CLAUDE_MODEL = "claude-haiku-5-5";
 
 type Fetcher = typeof fetch;
 
