@@ -11,6 +11,8 @@ export interface HospitalityHomeProps {
   libraryCount: number;
   /** One line about the next weather post, or null when it is switched off. */
   weatherLine: string | null;
+  /** Set when the most recent weather post did not draft. */
+  weatherFailedLine?: string | null;
 }
 
 /**
@@ -18,8 +20,9 @@ export interface HospitalityHomeProps {
  * ways to start. No strategy, no studio, no dashboard: those are for the
  * business-to-business pack.
  */
-export default function HospitalityHome({ greeting, pendingPosts, photosWaiting, libraryCount, weatherLine }: HospitalityHomeProps) {
+export default function HospitalityHome({ greeting, pendingPosts, photosWaiting, libraryCount, weatherLine, weatherFailedLine }: HospitalityHomeProps) {
   const somethingWaiting = pendingPosts > 0 || photosWaiting > 0;
+  const waitingTotal = pendingPosts + photosWaiting;
   const libraryLine =
     libraryCount === 0
       ? "Nothing in your library yet. Add photos from your phone and we will use them on your posts."
@@ -42,7 +45,7 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
               }`}
               aria-hidden="true"
             >
-              {pendingPosts > 99 ? "99+" : pendingPosts}
+              {waitingTotal > 99 ? "99+" : waitingTotal}
             </div>
             <div>
               <h2 id="waiting-heading" className="text-lg font-semibold text-gray-900">
@@ -79,6 +82,12 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
         <ActionCard href="/library" title="Add photos" body={libraryLine} action="Open the library" />
       </section>
 
+      {weatherFailedLine && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+          {weatherFailedLine}{" "}
+          <Link href="/generate/quick" className="font-semibold underline">Write a post</Link>
+        </p>
+      )}
       {weatherLine && <p className="text-sm text-gray-600">{weatherLine}</p>}
     </div>
   );

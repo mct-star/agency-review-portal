@@ -66,6 +66,17 @@ export function weatherLine(settings: WeatherSettings, now: Date = new Date()): 
   return `Next weather post: drafted around ${next.runTime} on ${next.runDay}, for ${next.postTime} ${when}. It will wait for you to approve it.`;
 }
 
+/**
+ * What home says when the most recent weather run failed and nothing has
+ * been drafted since. `targetDate` is the day the post was for.
+ */
+export function weatherFailedLine(run: { status: string; target_date: string } | null | undefined, todayYmd: string): string | null {
+  if (!run || run.status !== "failed") return null;
+  if (run.target_date < todayYmd) return null;
+  const day = run.target_date === todayYmd ? "Today's" : `${longDateLabel(run.target_date)}'s`;
+  return `${day} weather post did not draft. We have been told. You can write one yourself in a minute.`;
+}
+
 /** "Good morning, Sam." by the venue's own clock. */
 export function greetingFor(firstName: string, now: Date, timeZone: string | null | undefined): string {
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: zoneOf(timeZone), hour: "2-digit", hourCycle: "h23" }).format(now));

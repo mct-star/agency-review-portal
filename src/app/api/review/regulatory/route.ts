@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
 import { CLAUDE_SONNET, callClaude } from "@/lib/providers/content-adaptation/claude-util";
@@ -102,6 +103,10 @@ export async function POST(request: Request) {
     if (!admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+  }
+  if (profile) {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   if (!weekId && (!pieceIds || pieceIds.length === 0)) {

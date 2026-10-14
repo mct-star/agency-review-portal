@@ -224,6 +224,8 @@ export interface User {
   company_id: string | null;
   can_publish: boolean;
   created_at: string;
+  /** Set while an admin is viewing the platform as this company (src/lib/view-as.ts). */
+  viewing_as?: { companyId: string; companyName: string } | null;
 }
 
 export interface Week {

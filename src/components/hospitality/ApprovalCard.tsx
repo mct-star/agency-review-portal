@@ -18,6 +18,9 @@ export interface DraftPiece {
   whenLabel: string;
 }
 
+/** Marks the photo list as still loading, so an empty library reads differently. */
+const LOADING = "loading" as const;
+
 const SOURCE_TEXT: Record<string, string> = {
   weather_job: "Drafted for you from today's forecast",
   weekly_interview: "From your weekly chat",
@@ -31,7 +34,7 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
   const [image, setImage] = useState(piece.imageUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [picker, setPicker] = useState<BankItem[] | null>(null);
+  const [picker, setPicker] = useState<BankItem[] | typeof LOADING | null>(null);
   const [gone, setGone] = useState<string | null>(null);
 
   async function approve() {
@@ -59,7 +62,7 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
   }
 
   async function openPicker() {
-    setPicker([]);
+    setPicker(LOADING);
     const res = await fetch(`/api/bank?companyId=${companyId}&kind=photo`);
     const data = await res.json().catch(() => ({}));
     setPicker(res.ok ? data.data || [] : []);
@@ -91,7 +94,7 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
           ) : (
             <div className="flex aspect-square w-full items-center justify-center rounded-md bg-amber-50 px-2 text-center text-xs text-amber-900">No photo yet. Instagram needs one.</div>
           )}
-          <button onClick={openPicker} className="mt-2 w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50">{image ? "Change the photo" : "Choose a photo"}</button>
+          <button onClick={openPicker} className="mt-2 min-h-[44px] w-full rounded-md border border-gray-300 px-2 py-3 text-base text-gray-700 hover:bg-gray-50">{image ? "Change the photo" : "Choose a photo"}</button>
         </div>
         <div className="space-y-2">
           {piece.warnings.map((w) => <p key={w} className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">{w}</p>)}
@@ -100,8 +103,8 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
           </label>
           {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
           <div className="flex flex-wrap gap-2">
-            <button disabled={busy} onClick={approve} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">Approve</button>
-            <button disabled={busy} onClick={discard} className="rounded-md border border-red-200 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50">Throw it away</button>
+            <button disabled={busy} onClick={approve} className="min-h-[44px] rounded-md bg-emerald-600 px-4 py-3 text-base font-medium text-white hover:bg-emerald-700 disabled:opacity-50">Approve</button>
+            <button disabled={busy} onClick={discard} className="min-h-[44px] rounded-md border border-red-200 px-4 py-3 text-base text-red-700 hover:bg-red-50 disabled:opacity-50">Throw it away</button>
           </div>
         </div>
       </div>
@@ -111,11 +114,11 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
           <div className="max-h-[85vh] w-full max-w-4xl overflow-auto rounded-lg bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">Choose a photo from your library</h3>
-              <button onClick={() => setPicker(null)} className="text-sm text-gray-500 hover:text-gray-800">Close</button>
+              <button onClick={() => setPicker(null)} className="min-h-[44px] px-3 text-base text-gray-600 hover:text-gray-800">Close</button>
             </div>
-            {picker.length === 0 ? <p className="p-8 text-center text-sm text-gray-500">Loading, or nothing in the library yet.</p> : (
+            {picker === LOADING ? <p className="p-8 text-center text-sm text-gray-600">Loading photos</p> : picker.length === 0 ? <p className="p-8 text-center text-sm text-gray-600">No photos in the library yet. Add some from the Photo and Video Library.</p> : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {picker.map((it) => <BankTile key={it.id} item={it} onClick={() => !busy && choose(it)} />)}
+                {(picker as BankItem[]).map((it) => <BankTile key={it.id} item={it} onClick={() => !busy && choose(it)} />)}
               </div>
             )}
           </div>

@@ -4,7 +4,8 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import ContinueCard from "@/components/home/ContinueCard";
 import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import HospitalityHome from "@/components/hospitality/HospitalityHome";
-import { greetingFor, weatherLine, type WeatherSettings } from "@/lib/hospitality/home";
+import { greetingFor, weatherFailedLine, weatherLine, type WeatherSettings } from "@/lib/hospitality/home";
+import { todayIn } from "@/lib/hospitality/week";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
@@ -29,12 +30,14 @@ export default async function HomePage() {
   // start, and the weather post. The operator (admin) keeps the full home.
   const company = profile?.company as ({ post_pack?: string | null; timezone?: string | null } & WeatherSettings) | null | undefined;
   if (!isAdmin && companyId && company?.post_pack === "hospitality") {
-    const [posts, photos, library] = await Promise.all([
+    const [posts, photos, library, lastRun] = await Promise.all([
       supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("approval_status", "pending").eq("content_type", "social_post"),
       supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "pending"),
       supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "approved"),
+      supabase.from("weather_post_runs").select("status, target_date").eq("company_id", companyId).order("target_date", { ascending: false }).limit(1).maybeSingle(),
     ]);
     const now = new Date();
+    const tz = company.timezone || "Europe/London";
     return (
       <HospitalityHome
         greeting={greetingFor(firstName, now, company.timezone)}
@@ -42,6 +45,7 @@ export default async function HomePage() {
         photosWaiting={photos.count ?? 0}
         libraryCount={library.count ?? 0}
         weatherLine={weatherLine(company, now)}
+        weatherFailedLine={weatherFailedLine(lastRun.data as { status: string; target_date: string } | null, todayIn(tz, now))}
       />
     );
   }

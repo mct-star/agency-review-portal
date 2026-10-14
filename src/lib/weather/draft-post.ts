@@ -2,7 +2,7 @@ import type { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getPostType } from "@/lib/constants/post-types";
 import { generateHospitalityPost, type GeneratedHospitalityPost } from "@/lib/hospitality/generate";
 import { createHospitalityDraft, type DraftInput, type DraftResult } from "@/lib/hospitality/drafts";
-import { notifyDraftReady } from "@/lib/hospitality/notify";
+import { notifyDraftFailed, notifyDraftReady } from "@/lib/hospitality/notify";
 import { readSettings } from "@/lib/hospitality/prompts";
 import { addDays, longDateLabel, todayIn } from "@/lib/hospitality/week";
 import { selectImages, type LibraryCandidate } from "@/lib/media/select-images";
@@ -51,6 +51,8 @@ export interface WeatherPorts {
   write(company: WeatherCompany, summary: WeatherSummary, date: string): Promise<GeneratedHospitalityPost>;
   draft(input: DraftInput): Promise<DraftResult>;
   notify(args: { companyId: string; pieceId: string; headline: string; preview: string }): Promise<unknown>;
+  /** Tell the venue and AGENCY that the draft failed. Optional so test ports need not supply it. */
+  notifyFailure?(args: { companyId: string; companyName: string; date: string; reason: string }): Promise<unknown>;
 }
 
 export type WeatherOutcome =
@@ -116,6 +118,13 @@ export async function runWeatherPostForCompany(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     await ports.record(company.id, date, { status: "failed", error: message.slice(0, 500) });
+    // A silent failure left the home page promising a post that never came
+    // (audit, 14 Oct 2026). Say so to the venue, and send the reason to AGENCY.
+    try {
+      await ports.notifyFailure?.({ companyId: company.id, companyName: company.name, date, reason: message });
+    } catch (notifyErr) {
+      console.error("[weather] failure notice did not send:", notifyErr instanceof Error ? notifyErr.message : notifyErr);
+    }
     return { company: company.name, status: "failed", date, reason: message };
   }
 }
@@ -174,6 +183,7 @@ export function realPorts(supabase: SupabaseAdmin): WeatherPorts {
       }),
     draft: (input) => createHospitalityDraft(supabase, input),
     notify: (args) => notifyDraftReady(supabase, args),
+    notifyFailure: (args) => notifyDraftFailed(supabase, { ...args, what: "The weather post" }),
   };
 }
 

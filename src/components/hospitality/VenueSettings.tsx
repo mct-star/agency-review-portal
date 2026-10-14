@@ -105,7 +105,7 @@ export default function VenueSettings({ companyId, canChangePack = false, childr
             );
           })}
         </div>
-        {s.social_networks.length === 0 && <p className="text-xs text-gray-500">None chosen, so posts are marked for LinkedIn only.</p>}
+        {s.social_networks.length === 0 && <p className="text-xs text-gray-500">None chosen. Pick at least one so the download marks the right networks.</p>}
       </section>
 
       {hospitality && (
@@ -185,7 +185,84 @@ export default function VenueSettings({ companyId, canChangePack = false, childr
       </section>
 
       <InviteColleague companyId={companyId} />
+
+      <BrandCard companyId={companyId} canUploadLogo={canChangePack} />
     </div>
+  );
+}
+
+/** The venue's brand colour, and its logo (AGENCY uploads the logo; the upload route is AGENCY-only). */
+function BrandCard({ companyId, canUploadLogo }: { companyId: string; canUploadLogo: boolean }) {
+  const [colour, setColour] = useState("#7c3aed");
+  const [saved, setSaved] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/config/company/details?companyId=${companyId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.brand_color && /^#[0-9a-f]{6}$/i.test(d.brand_color)) { setColour(d.brand_color); setSaved(d.brand_color); } })
+      .catch(() => {});
+  }, [companyId]);
+
+  async function saveColour() {
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch("/api/config/company/details", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, brand_color: colour }) });
+    setBusy(false);
+    if (!res.ok) { setMsg({ text: "The colour did not save. Try again in a moment.", ok: false }); return; }
+    setSaved(colour);
+    setMsg({ text: "Brand colour saved.", ok: true });
+  }
+
+  async function uploadLogo(file: File) {
+    setBusy(true);
+    setMsg(null);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("companyId", companyId);
+    form.append("type", "logo");
+    const res = await fetch("/api/upload/logo", { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setMsg({ text: data.error || "The logo did not upload.", ok: false }); return; }
+    setLogoUrl(data.url || null);
+    setMsg({ text: "Logo uploaded.", ok: true });
+  }
+
+  return (
+    <section id="brand" className="scroll-mt-4 space-y-3">
+      <h2 className="text-lg font-semibold text-gray-900">Brand</h2>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-sm">
+          <span className="block font-medium text-gray-800">Brand colour</span>
+          <input type="color" value={colour} onChange={(e) => setColour(e.target.value)} aria-label="Brand colour" className="mt-1 h-11 w-20 cursor-pointer rounded-md border border-gray-300 bg-white p-1" />
+        </label>
+        <button type="button" disabled={busy || colour === saved} onClick={saveColour} className="min-h-[44px] rounded-md bg-gray-900 px-4 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+          {busy ? "Saving..." : "Save colour"}
+        </button>
+      </div>
+      <div className="space-y-2 text-sm">
+        <span className="block font-medium text-gray-800">Logo</span>
+        {canUploadLogo ? (
+          <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-gray-300 bg-white px-4 font-medium text-gray-700 hover:bg-gray-50">
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ""; }} />
+            Upload a logo
+          </label>
+        ) : (
+          <p className="text-gray-600">
+            Send us your logo and we will add it:{" "}
+            <a href="mailto:mct@agencybristol.com?subject=Logo%20for%20our%20posts" className="inline-flex min-h-[44px] items-center font-medium text-violet-700 underline">email it to AGENCY</a>.
+          </p>
+        )}
+        {logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="Your logo" className="h-16 w-auto rounded border border-gray-200 bg-white p-1" />
+        )}
+      </div>
+      {msg && <p className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-700"}`} role="status">{msg.text}</p>}
+    </section>
   );
 }
 

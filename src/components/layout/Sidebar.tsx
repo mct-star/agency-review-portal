@@ -58,6 +58,7 @@ function buildHospitalitySections(user: User): NavSection[] {
         { href: "/approvals", label: "Waiting for you", icon: "checkCircle", highlight: true },
         { href: "/generate/quick", label: "Write a post", icon: "zap" },
         { href: "/create/week-interview", label: "Talk through the week", icon: "mic" },
+        { href: "/notifications", label: "Notifications", icon: "calendar" },
       ],
     },
     {
@@ -68,14 +69,14 @@ function buildHospitalitySections(user: User): NavSection[] {
       title: "The week",
       items: [
         { href: "/calendar", label: "Calendar", icon: "calendarView" },
-        { href: "/review", label: "Weeks and export", icon: "send" },
+        { href: "/review", label: "This week", icon: "send" },
       ],
     },
     {
       title: "Settings",
       items: [
         { href: `${base}/hospitality`, label: "Venue and posting", icon: "building" },
-        { href: "/settings", label: "Brand", icon: "settings" },
+        { href: `${base}/hospitality#brand`, label: "Brand", icon: "settings" },
       ],
     },
   ];
@@ -324,7 +325,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
       <div className="px-2 pt-3 pb-1 space-y-0.5">
         <Link
           href="/home"
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+          className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
             pathname === "/home"
               ? "bg-violet-50 text-violet-700"
               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -372,7 +373,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                       <Link
                         key={item.href}
                         href={`/upgrade?feature=${encodeURIComponent(item.label)}&plan=${item.minPlan || "pro"}`}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-pointer hover:bg-gray-50 hover:text-gray-500 transition-colors"
+                        className="flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-pointer hover:bg-gray-50 hover:text-gray-500 transition-colors"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={icons[item.icon]} />
@@ -393,7 +394,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                         active
                           ? activeClass
                           : item.highlight
@@ -423,7 +424,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
           <p className="truncate text-sm font-medium text-gray-900">
             {user.full_name || user.email}
           </p>
-          <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
             companyPlan === "agency" ? "bg-purple-100 text-purple-700" :
             companyPlan === "pro" ? "bg-violet-100 text-violet-700" :
             companyPlan === "starter" ? "bg-blue-100 text-blue-700" :
@@ -435,7 +436,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
         <p className="truncate text-xs text-gray-500">{user.email}</p>
         <button
           onClick={handleSignOut}
-          className="mt-2 text-xs text-gray-500 hover:text-gray-600"
+          className="mt-1 min-h-11 text-xs text-gray-500 hover:text-gray-600"
         >
           Sign out
         </button>

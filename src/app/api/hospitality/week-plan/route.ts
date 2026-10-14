@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       transcript = (await transcribeAudio(Buffer.from(await audio.arrayBuffer()), audio.type || "audio/webm", cid)).text;
     } catch (err) {
       console.error("[week-plan] transcription failed:", err);
-      return NextResponse.json({ error: "We could not make out the recording. Try again, or type it instead." }, { status: 502 });
+      return NextResponse.json({ error: "We could not transcribe that just now. You can type what you want to say instead." }, { status: 502 });
     }
   }
   transcript = transcript.trim().slice(0, 8000);

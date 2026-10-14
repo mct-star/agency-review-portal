@@ -25,6 +25,13 @@ import { POST as quick } from "./generate/quick/route";
 import { GET as interviewGet, POST as interviewPost } from "./strategy/interview/route";
 import { POST as strategyDocument } from "./strategy/generate-document/route";
 import { POST as competitor } from "./strategy/competitor/route";
+import { POST as quickStrategy } from "./setup/quick-strategy/route";
+import { POST as voiceScore } from "./generate/voice-score/route";
+import { POST as carousel } from "./generate/carousel/route";
+import { POST as quickImage } from "./generate/quick-image/route";
+import { POST as linkedinDirect } from "./publish/linkedin-direct/route";
+import { POST as bluesky } from "./publish/bluesky/route";
+import { POST as regulatory } from "./review/regulatory/route";
 
 const post = (body: Record<string, unknown>) =>
   new Request("http://x/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -38,6 +45,13 @@ const calls: Array<[string, () => Promise<Response>]> = [
   ["POST /api/strategy/interview", () => interviewPost(post({ companyId: C, step: 1, responses: {} }))],
   ["POST /api/strategy/generate-document", () => strategyDocument(post({ companyId: C }))],
   ["POST /api/strategy/competitor", () => competitor(post({ companyId: C, linkedInUrl: "https://www.linkedin.com/in/someone" }))],
+  ["POST /api/setup/quick-strategy", () => quickStrategy(post({ companyId: C, linkedinUrl: "https://www.linkedin.com/in/someone" }))],
+  ["POST /api/generate/voice-score", () => voiceScore(post({ companyId: C, postText: "A post" }))],
+  ["POST /api/generate/carousel", () => carousel(post({ companyId: C, title: "T", slides: [{ heading: "h", body: "b" }] }))],
+  ["POST /api/generate/quick-image", () => quickImage(post({ companyId: C, imagePrompt: "A plate of food" }))],
+  ["POST /api/publish/linkedin-direct", () => linkedinDirect(post({ companyId: C, text: "Hello" }))],
+  ["POST /api/publish/bluesky", () => bluesky(post({ companyId: C, text: "Hello" }))],
+  ["POST /api/review/regulatory", () => regulatory(post({ companyId: C, weekId: "w" }))],
 ];
 
 beforeEach(() => {

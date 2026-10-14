@@ -5,10 +5,81 @@ import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import ReviewFilters from "@/components/review/ReviewFilters";
 import InlineApproveButtons from "@/components/review/InlineApproveButtons";
 import type { Week, Company } from "@/types/database";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import WeekExport, { type WeekViewPost } from "@/components/hospitality/WeekExport";
+import { longDateLabel, mondayOf, todayIn } from "@/lib/hospitality/week";
+import { cleanDate, groupByDay, timeLabel, weekRangeLabel, weekWindow } from "@/lib/hospitality/week-view";
 
-export default async function WeeksPage() {
+export const dynamic = "force-dynamic";
+
+/**
+ * A venue's week: approved and waiting posts day by day, and the download.
+ * Only for a company user on the hospitality pack; everyone else gets the
+ * business to business review page below.
+ */
+async function HospitalityWeek({ companyId, timezone, week }: { companyId: string; timezone: string; week: string | undefined }) {
+  const today = todayIn(timezone);
+  const w = weekWindow(cleanDate(week) || today);
+  const supabase = await createAdminSupabaseClient();
+  const { data: rows } = await supabase
+    .from("content_pieces")
+    .select("id, title, markdown_body, scheduled_date, scheduled_time, approval_status, week_id, updated_at")
+    .eq("company_id", companyId)
+    .eq("content_type", "social_post")
+    .in("approval_status", ["approved", "pending"])
+    .gte("scheduled_date", w.start)
+    .lte("scheduled_date", w.end)
+    .order("scheduled_date", { ascending: true })
+    .order("scheduled_time", { ascending: true });
+  const list = (rows || []) as Array<{ id: string; title: string; markdown_body: string | null; scheduled_date: string | null; scheduled_time: string | null; approval_status: string; week_id: string | null; updated_at: string | null }>;
+
+  const approved = list.filter((r) => r.approval_status === "approved");
+  const ids = approved.map((r) => r.id);
+  const { data: images } = ids.length
+    ? await supabase.from("content_images").select("content_piece_id, public_url, sort_order").in("content_piece_id", ids).order("sort_order")
+    : { data: [] as Array<{ content_piece_id: string; public_url: string }> };
+  const firstImage = new Map<string, string>();
+  for (const i of images || []) if (!firstImage.has(i.content_piece_id)) firstImage.set(i.content_piece_id, i.public_url);
+
+  const posts = list.map((r) => ({
+    id: r.id,
+    scheduled_date: r.scheduled_date,
+    scheduled_time: r.scheduled_time,
+    status: (r.approval_status === "approved" ? "approved" : "pending") as WeekViewPost["status"],
+    title: r.title,
+    caption: (r.markdown_body || "").trim(),
+    time: timeLabel(r.scheduled_time),
+    imageUrl: firstImage.get(r.id) || null,
+    approvedOn: r.approval_status === "approved" && r.updated_at ? longDateLabel(todayIn(timezone, new Date(r.updated_at))) : null,
+  }));
+  const days = groupByDay(posts, w.dates, today);
+  const weekIds = [...new Set(approved.map((r) => r.week_id).filter((id): id is string => !!id))];
+  const isThisWeek = w.start === mondayOf(today);
+
+  return (
+    <WeekExport
+      weekLabel={weekRangeLabel(w.start)}
+      weekStart={w.start}
+      previousHref={`/review?week=${w.previous}`}
+      nextHref={`/review?week=${w.next}`}
+      thisWeekHref={isThisWeek ? null : "/review"}
+      days={days}
+      weekIds={weekIds}
+      approvedCount={approved.length}
+      pendingCount={list.length - approved.length}
+    />
+  );
+}
+
+export default async function WeeksPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const profile = await getUserProfile();
   if (!profile) return null;
+
+  const company = profile.company as { post_pack?: string | null; timezone?: string | null } | null | undefined;
+  if (profile.role !== "admin" && profile.company_id && company?.post_pack === "hospitality") {
+    const { week } = await searchParams;
+    return <HospitalityWeek companyId={profile.company_id} timezone={company.timezone || "Europe/London"} week={week} />;
+  }
 
   const supabase = await createServerSupabaseClient();
   const isAdmin = profile.role === "admin";

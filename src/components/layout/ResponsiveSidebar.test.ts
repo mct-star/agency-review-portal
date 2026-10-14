@@ -86,8 +86,9 @@ describe("hospitality menu", () => {
         "/library",
         "/calendar",
         "/review",
+        "/notifications",
         "/setup/c1/hospitality",
-        "/settings",
+        "/setup/c1/hospitality#brand",
       ])
     );
     const b2bOnly = [

@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import ResponsiveSidebar from "@/components/layout/ResponsiveSidebar";
 import TrialBanner from "@/components/layout/TrialBanner";
 import HelpChatWidget from "@/components/chat/HelpChatWidget";
+import ViewAsBanner from "@/components/layout/ViewAsBanner";
 import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
 import { isB2bOnlyPage } from "@/lib/hospitality/b2b-only";
 
@@ -103,6 +104,7 @@ export default async function AppLayout({
     <div className="flex h-dvh flex-col md:h-screen md:flex-row">
       <ResponsiveSidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} waitingCount={waitingCount} />
       <main className="flex-1 overflow-y-auto bg-gray-50">
+        {profile.viewing_as && <ViewAsBanner companyName={profile.viewing_as.companyName} />}
         {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
           <TrialBanner daysRemaining={trialDaysRemaining} />
         )}

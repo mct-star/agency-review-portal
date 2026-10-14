@@ -7,6 +7,7 @@ import { readSettings } from "@/lib/hospitality/prompts";
 import { createHospitalityDraft } from "@/lib/hospitality/drafts";
 import { selectImages, type LibraryCandidate } from "@/lib/media/select-images";
 import { longDateLabel, todayIn } from "@/lib/hospitality/week";
+import { defaultPostSlot } from "@/lib/hospitality/slot";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { checkPostLimit } from "@/lib/utils/plan-limits";
 
@@ -52,8 +53,10 @@ export async function POST(request: Request) {
 
   const tz = (company.timezone as string | null) || "Europe/London";
   const today = todayIn(tz);
-  const date = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : today;
-  const time = typeof body.time === "string" && /^\d{2}:\d{2}$/.test(body.time) ? body.time : "12:00";
+  // The next sensible slot, not 12:00 today when it is already afternoon.
+  const slot = defaultPostSlot(tz);
+  const date = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : slot.date;
+  const time = typeof body.time === "string" && /^\d{2}:\d{2}$/.test(body.time) ? body.time : slot.time;
 
   let post;
   try {
@@ -84,21 +87,29 @@ export async function POST(request: Request) {
     imageIds = selectImages((rows || []) as LibraryCandidate[], { place: q.place, subject: q.subject, avoidPeople: q.avoidPeople }, { count: 1 }).map((c) => c.id);
   }
 
-  const draft = await createHospitalityDraft(supabase, {
-    companyId: company.id as string,
-    postTypeSlug: slug,
-    title: postType.label,
-    body: post.body,
-    scheduledDate: date,
-    scheduledTime: time,
-    autoSource: "quick_post",
-    sourceMeta: { brief, alt_text: post.altText, provider: post.provider, warnings: post.warnings },
-    imageIds,
-  });
+  let draft;
+  try {
+    draft = await createHospitalityDraft(supabase, {
+      companyId: company.id as string,
+      postTypeSlug: slug,
+      title: postType.label,
+      body: post.body,
+      scheduledDate: date,
+      scheduledTime: time,
+      autoSource: "quick_post",
+      sourceMeta: { brief, alt_text: post.altText, provider: post.provider, warnings: post.warnings },
+      imageIds,
+    });
+  } catch (err) {
+    console.error("[hospitality/quick] draft save failed:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "The post was written but could not be saved. Please try again." }, { status: 502 });
+  }
 
   const { data: images } = await supabase.from("content_images").select("public_url").eq("content_piece_id", draft.pieceId).order("sort_order");
   return NextResponse.json({
     pieceId: draft.pieceId,
+    date,
+    time,
     body: post.body,
     warnings: post.warnings,
     imageUrls: (images || []).map((i) => i.public_url),

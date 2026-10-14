@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import Link from "next/link";
 import AddCompanyButton from "./AddCompanyButton";
+import ViewAsButton from "./ViewAsButton";
 import type { Company } from "@/types/database";
 
 export default async function CompaniesPage() {
@@ -37,10 +38,10 @@ export default async function CompaniesPage() {
             .slice(0, 2);
 
           return (
+            <div key={company.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
             <Link
-              key={company.id}
               href={`/setup/${company.id}`}
-              className="group rounded-xl border border-gray-200 bg-white overflow-hidden transition-all hover:shadow-lg hover:border-gray-300"
+              className="group block transition-all hover:bg-gray-50"
             >
               {/* Brand bar */}
               <div className="h-1.5" style={{ backgroundColor: company.brand_color || "#e5e7eb" }} />
@@ -110,6 +111,8 @@ export default async function CompaniesPage() {
                 </div>
               </div>
             </Link>
+            <ViewAsButton companyId={company.id} companyName={company.name} />
+            </div>
           );
         })}
       </div>
