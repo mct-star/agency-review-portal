@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseCompany } from "@/lib/media/access";
 import {
   CAPTURES_BUCKET,
   PUBLISHED_BUCKET,
@@ -459,11 +460,6 @@ async function createClipPiece(supabase: SupabaseAdmin, body: RegisterBody, week
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   let body: RegisterBody;
   try {
     body = parseBody(await request.json());
@@ -472,6 +468,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     return NextResponse.json({ error: "Body must be JSON" }, { status: 400 });
+  }
+
+  // An admin, or a member of this company. Not anyone signed in.
+  const access = await authoriseCompany(body.companyId);
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  // The object key must sit under the company's own prefix, so a member
+  // cannot register (and so read back) another company's upload.
+  if (!body.path.startsWith(`${body.companyId}/`)) {
+    return NextResponse.json(
+      { error: "path must sit under the company's own folder" },
+      { status: 400 }
+    );
   }
 
   const supabase = await createAdminSupabaseClient();

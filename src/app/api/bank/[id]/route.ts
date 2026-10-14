@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseBankItem } from "@/lib/media/access";
 import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
 
 /**
@@ -8,9 +9,9 @@ import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
  * Copies already attached to posts are separate files and stay.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+  const access = await authoriseBankItem(id);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const body = await request.json().catch(() => ({}));
   const patch: Record<string, unknown> = {};
   if (Array.isArray(body.tags)) {
@@ -32,9 +33,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+  const access = await authoriseBankItem(id);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const supabase = await createAdminSupabaseClient();
   const { data: row } = await supabase.from("photo_inventory").select("bucket, storage_path").eq("id", id).maybeSingle();
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });

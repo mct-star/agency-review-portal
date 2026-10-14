@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseCompany } from "@/lib/media/access";
+import { companyIdFromCapturePath } from "@/lib/auth/permissions";
 import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
 
 /**
@@ -20,11 +22,6 @@ import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
 const SIGNED_URL_TTL_SECONDS = 3600;
 
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const bucket = searchParams.get("bucket");
   const path = searchParams.get("path");
@@ -41,6 +38,13 @@ export async function GET(request: Request) {
       { error: "path is required and must be a plain object key" },
       { status: 400 }
     );
+  }
+
+  // Every capture key starts with its company id; check the caller
+  // belongs to that company before minting anything.
+  const access = await authoriseCompany(companyIdFromCapturePath(path));
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status === 400 ? 404 : access.status });
   }
 
   const supabase = await createAdminSupabaseClient();

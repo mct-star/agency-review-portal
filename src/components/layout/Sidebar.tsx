@@ -151,6 +151,7 @@ function buildSections(user: User): NavSection[] {
       items: [
         { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
         { href: "/create/voice", label: "Voice to Post", icon: "mic" },
+        { href: "/library", label: "Photo & Video Library", icon: "video" },
         { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
         { href: "/create/article", label: "Blog / Article", icon: "quote", minComplexity: "intermediate" as ComplexityLevel },
         { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },

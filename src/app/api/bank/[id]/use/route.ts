@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseBankItem } from "@/lib/media/access";
 import { CAPTURES_BUCKET, PUBLISHED_BUCKET } from "@/lib/upload/media-constants";
 import { copyToPublishedBucket, nextImageSortOrder } from "@/lib/media/publish-copy";
 
@@ -13,9 +14,9 @@ import { copyToPublishedBucket, nextImageSortOrder } from "@/lib/media/publish-c
  * what posts.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+  const access = await authoriseBankItem(id);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const body = await request.json().catch(() => ({}));
   const contentPieceId = typeof body.contentPieceId === "string" ? body.contentPieceId : null;
   if (!contentPieceId) return NextResponse.json({ error: "contentPieceId is required" }, { status: 400 });

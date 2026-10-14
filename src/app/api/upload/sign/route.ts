@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseCompany } from "@/lib/media/access";
 import {
   CAPTURES_BUCKET,
   HEIC_MIME_TYPES,
@@ -49,11 +50,6 @@ function buildObjectKey(companyId: string, kind: MediaKind, filename: string): s
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   let body: SignRequestBody;
   try {
     body = (await request.json()) as SignRequestBody;
@@ -68,6 +64,12 @@ export async function POST(request: Request) {
       { error: "companyId is required and must be a uuid" },
       { status: 400 }
     );
+  }
+
+  // An admin, or a member of this company. Not anyone signed in.
+  const access = await authoriseCompany(companyId);
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
   if (!isMediaKind(kind)) {

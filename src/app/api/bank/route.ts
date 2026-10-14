@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseCompany } from "@/lib/media/access";
 import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
 
 /**
@@ -10,11 +11,11 @@ import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
  * originals stay in the private captures bucket).
  */
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const url = new URL(request.url);
   const companyId = url.searchParams.get("companyId");
   if (!companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
+  const access = await authoriseCompany(companyId);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const kind = url.searchParams.get("kind");
   const tag = url.searchParams.get("tag");
   const q = (url.searchParams.get("q") || "").trim();

@@ -39,54 +39,45 @@ export default function UsersPage() {
     e.preventDefault();
     if (!inviteEmail) return;
 
+    if (inviteRole === "admin") {
+      setMessage({ text: "Administrators are added in the Supabase dashboard, not from here.", type: "error" });
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
     try {
-      // Pre-register the user in our users table
-      const supabase = createClient();
-      await supabase.from("users").upsert(
-        {
-          email: inviteEmail,
-          full_name: inviteName || null,
-          company_id: inviteCompanyId || null,
-          role: inviteRole,
-        },
-        { onConflict: "email" }
-      );
-
-      // Find the company name for the email
-      const company = companies.find((c) => c.id === inviteCompanyId);
-
-      // Send welcome email
-      const emailRes = await fetch("/api/email/send", {
+      // The server creates the account, links it to the company and sends
+      // the sign-in email. See /api/company/invite.
+      const res = await fetch("/api/company/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "welcome",
-          to: inviteEmail,
-          userName: inviteName || inviteEmail.split("@")[0],
-          companyName: company?.name || "AGENCY Bristol",
+          email: inviteEmail,
+          fullName: inviteName || undefined,
+          companyId: inviteCompanyId || undefined,
         }),
       });
+      const result = await res.json().catch(() => ({}));
 
-      const emailResult = await emailRes.json();
-
-      if (emailResult.success) {
+      if (!res.ok) {
+        setMessage({ text: result.error || "Failed to create invitation.", type: "error" });
+      } else if (result.emailSent) {
         setMessage({
-          text: `Welcome email sent to ${inviteEmail}. They can sign in via magic link.`,
+          text: `Invitation sent to ${inviteEmail}. The sign-in link in the email works once.`,
           type: "success",
         });
+        setInviteEmail("");
+        setInviteName("");
+        await loadData();
       } else {
         setMessage({
-          text: `User pre-registered. Email could not be sent: ${emailResult.error || "Check Resend API key in .env.local"}`,
+          text: `The person is set up but the email could not be sent (${result.emailError || "no mail provider configured"}).${result.signInUrl ? ` Send them this one-time link yourself: ${result.signInUrl}` : ""}`,
           type: "error",
         });
+        await loadData();
       }
-
-      setInviteEmail("");
-      setInviteName("");
-      await loadData();
     } catch {
       setMessage({ text: "Failed to create invitation.", type: "error" });
     }

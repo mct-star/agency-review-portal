@@ -50,9 +50,15 @@ export async function GET(request: Request) {
 
   // Token hash flow: verify OTP directly
   if (!code && token_hash && type) {
+    // Only the sign-in link types we send. "invite" is the link in a
+    // colleague's invitation email (see /api/company/invite).
+    const allowed = ["magiclink", "email", "invite"] as const;
+    if (!(allowed as readonly string[]).includes(type)) {
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent("That sign in link is not valid")}`);
+    }
     const { error } = await supabase.auth.verifyOtp({
       token_hash,
-      type: type as "magiclink" | "email",
+      type: type as (typeof allowed)[number],
     });
     if (!error) {
       redirectUrl = `${origin}/home`;

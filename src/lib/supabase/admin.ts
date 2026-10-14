@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr"; // used in requireAdmin for cookie-based auth check
 import { cookies } from "next/headers";
+import { canAccessCompany } from "@/lib/auth/permissions";
 
 /**
  * Create a Supabase client using the SERVICE_ROLE key.
@@ -103,8 +104,43 @@ export async function requireCompanyUser(companyId: string) {
   if (!profile) return null;
 
   // Admin can access any company; company users can only access their own
-  if (profile.role === "admin") return profile;
-  if (profile.company_id === companyId) return profile;
+  if (canAccessCompany(profile, companyId)) return profile;
 
   return null;
+}
+
+/**
+ * The signed-in user's profile row, whatever their role, or null.
+ * For routes that need the caller's identity and then decide for
+ * themselves (for example inviting a colleague into your own company).
+ */
+export async function getSignedInProfile() {
+  const cookieStore = await cookies();
+
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {},
+      },
+    }
+  );
+
+  const {
+    data: { user: authUser },
+  } = await authClient.auth.getUser();
+  if (!authUser) return null;
+
+  const admin = await createAdminSupabaseClient();
+  const { data: profile } = await admin
+    .from("users")
+    .select("*")
+    .eq("id", authUser.id)
+    .single();
+
+  return profile ?? null;
 }

@@ -66,7 +66,7 @@ export default function BankPicker({ pieceId, companyId }: { pieceId: string; co
                 ))}
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <a href="/admin/bank" className="text-violet-700 hover:underline">Open the bank</a>
+                <a href="/library" className="text-violet-700 hover:underline">Open the library</a>
                 <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-gray-800">Close</button>
               </div>
             </div>
