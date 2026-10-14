@@ -54,7 +54,7 @@ describe("headers against Metricool's published field list", () => {
       "Threads Post Type",
     ]);
     // Older names this export still carries that the published list no longer has.
-    expect(extra).toEqual(["TikTok title", "TikTok author", "TikTok durationMillis", "TikTok startVideoMillis"]);
+    expect(extra).toEqual(["TikTok author", "TikTok startMillis", "TikTok durationMillis", "TikTok startVideoMillis"]);
   });
 });
 
