@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BankTile, type BankItem } from "@/components/admin/MediaBank";
+import PhotoSuggestions, { type Suggestion } from "./PhotoSuggestions";
 
 export interface DraftPiece {
   id: string;
@@ -36,6 +37,26 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
   const [error, setError] = useState<string | null>(null);
   const [picker, setPicker] = useState<BankItem[] | typeof LOADING | null>(null);
   const [gone, setGone] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState(piece.warnings);
+  const [chosenId, setChosenId] = useState<string | null>(null);
+
+  async function rewrite() {
+    if (text !== piece.body && !window.confirm("Write it again? Your edits to the words will be replaced.")) return;
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/hospitality/pieces/${piece.id}/rewrite`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setError(data.error || "We could not write it again. Please try again."); return; }
+    setText(data.body);
+    setWarnings(data.warnings || []);
+    router.refresh();
+  }
+
+  async function useSuggestion(s: Suggestion) {
+    setChosenId(s.id);
+    await choose({ id: s.id } as BankItem);
+  }
 
   async function approve() {
     setBusy(true);
@@ -94,16 +115,20 @@ export default function ApprovalCard({ piece, companyId }: { piece: DraftPiece; 
           ) : (
             <div className="flex aspect-square w-full items-center justify-center rounded-md bg-amber-50 px-2 text-center text-xs text-amber-900">No photo yet. Instagram needs one.</div>
           )}
-          <button onClick={openPicker} className="mt-2 min-h-[44px] w-full rounded-md border border-gray-300 px-2 py-3 text-base text-gray-700 hover:bg-gray-50">{image ? "Change the photo" : "Choose a photo"}</button>
+          <div className="mt-2">
+            <PhotoSuggestions companyId={companyId} postType={piece.post_type || ""} pieceId={piece.id} selectedId={chosenId} onPick={useSuggestion} disabled={busy} />
+          </div>
+          <button onClick={openPicker} className="mt-2 min-h-[44px] w-full rounded-md border border-gray-300 px-2 py-3 text-sm text-gray-700 hover:bg-gray-50">Choose from the whole library</button>
         </div>
         <div className="space-y-2">
-          {piece.warnings.map((w) => <p key={w} className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">{w}</p>)}
+          {warnings.map((w) => <p key={w} className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">{w}</p>)}
           <label className="block"><span className="sr-only">The post</span>
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
           </label>
           {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
           <div className="flex flex-wrap gap-2">
             <button disabled={busy} onClick={approve} className="min-h-[44px] rounded-md bg-emerald-600 px-4 py-3 text-base font-medium text-white hover:bg-emerald-700 disabled:opacity-50">Approve</button>
+            <button disabled={busy} onClick={rewrite} className="min-h-[44px] rounded-md border border-violet-300 px-4 py-3 text-base text-violet-800 hover:bg-violet-50 disabled:opacity-50">{busy ? "Working..." : "Write it again"}</button>
             <button disabled={busy} onClick={discard} className="min-h-[44px] rounded-md border border-red-200 px-4 py-3 text-base text-red-700 hover:bg-red-50 disabled:opacity-50">Throw it away</button>
           </div>
         </div>

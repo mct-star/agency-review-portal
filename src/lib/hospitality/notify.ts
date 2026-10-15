@@ -18,7 +18,9 @@ export async function notifyDraftReady(
   if (!people || people.length === 0) return { notified: 0, emailed: 0 };
 
   const base = (process.env.NEXT_PUBLIC_APP_URL || "https://agency-review-portal.vercel.app").replace(/\/+$/, "");
-  const link = `${base}/approvals`;
+  // The company is in the link, so someone who opens it while signed in as
+  // an AGENCY admin still lands on this venue's drafts, not a blank page.
+  const link = `${base}/approvals?company=${args.companyId}`;
   let emailed = 0;
   for (const p of people) {
     await supabase.from("notifications").insert({

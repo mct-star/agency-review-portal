@@ -24,9 +24,12 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const params = await searchParams;
   const isAdmin = profile.role === "admin";
   const companyId = isAdmin ? params.company || profile.company_id : profile.company_id;
-  if (!companyId) return <p className="text-sm text-gray-600">Choose a company first.</p>;
-
   const supabase = await createAdminSupabaseClient();
+  if (!companyId) {
+    if (!isAdmin) return <p className="text-sm text-gray-600">Your login is not linked to a venue yet. Ask AGENCY to add you.</p>;
+    return <AdminPicker supabase={supabase} />;
+  }
+
   const [{ data: company }, { count: photosWaiting }, { data: rows }] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", companyId).maybeSingle(),
     supabase.from("photo_inventory").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "pending"),
@@ -125,6 +128,46 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       )}
 
       <ApprovedPosts pieces={approvedPieces} />
+    </div>
+  );
+}
+
+/**
+ * An AGENCY admin who opens Waiting for you without a company (for example
+ * from a venue's email while signed in as themselves): every venue with
+ * something waiting, one tap each.
+ */
+async function AdminPicker({ supabase }: { supabase: Awaited<ReturnType<typeof createAdminSupabaseClient>> }) {
+  const [{ data: companies }, { data: drafts }, { data: photos }] = await Promise.all([
+    supabase.from("companies").select("id, name, post_pack").order("name"),
+    supabase.from("content_pieces").select("company_id").eq("approval_status", "pending").eq("content_type", "social_post").limit(1000),
+    supabase.from("photo_inventory").select("company_id").eq("status", "pending").limit(1000),
+  ]);
+  const count = (rows: Array<{ company_id: string }> | null, id: string) => (rows || []).filter((r) => r.company_id === id).length;
+  const list = (companies || [])
+    .map((c) => ({ id: c.id as string, name: c.name as string, hospitality: c.post_pack === "hospitality", drafts: count(drafts as Array<{ company_id: string }>, c.id as string), photos: count(photos as Array<{ company_id: string }>, c.id as string) }))
+    .filter((c) => c.hospitality || c.drafts > 0 || c.photos > 0)
+    .sort((a, b) => b.drafts + b.photos - (a.drafts + a.photos));
+  return (
+    <div className="max-w-2xl space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Waiting for you</h1>
+        <p className="mt-1 text-sm text-gray-500">You are signed in as AGENCY. Choose whose drafts to look at.</p>
+      </div>
+      {list.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">Nothing is waiting for any company.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+          {list.map((c) => (
+            <li key={c.id}>
+              <Link href={`/approvals?company=${c.id}`} className="flex min-h-11 items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50">
+                <span className="font-medium text-gray-900">{c.name}</span>
+                <span className="text-sm text-gray-600">{c.drafts} {c.drafts === 1 ? "draft" : "drafts"}, {c.photos} {c.photos === 1 ? "photo" : "photos"}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
