@@ -4,6 +4,7 @@ import { authoriseCompany } from "@/lib/media/access";
 import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
 import { createHospitalityDraft } from "@/lib/hospitality/drafts";
 import { planWeekFromTranscript, realInterviewDeps } from "@/lib/hospitality/week-interview";
+import { saveCandidates } from "@/lib/hospitality/coming-up-store";
 import { readSettings } from "@/lib/hospitality/prompts";
 import { addDays, mondayOf, todayIn } from "@/lib/hospitality/week";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
@@ -19,6 +20,8 @@ export const maxDuration = 120;
  * Accepts either multipart (audio, companyId, week) or JSON
  * ({ transcript, companyId, week }). `week` is "this" or "next" (default next).
  * Every draft is pending: nothing is approved, exported or published.
+ * Dated events and launches the speaker mentions, this week or up to 120
+ * days ahead, are also saved to the Coming up list.
  *
  * Returns { transcript, created: [...], notes: [...] }.
  */
@@ -81,7 +84,7 @@ export async function POST(request: Request) {
   const settings = readSettings(company.hospitality_settings);
   try {
     const result = await planWeekFromTranscript(
-      { companyId: cid, venueName: company.name as string, settings, weekAnyDate, transcript },
+      { companyId: cid, venueName: company.name as string, settings, weekAnyDate, transcript, today },
       realInterviewDeps(
         { name: company.name as string, industry: company.industry as string | null, description: company.description as string | null, settings },
         {
@@ -96,6 +99,7 @@ export async function POST(request: Request) {
             return (data || []) as LibraryCandidate[];
           },
           draft: (input) => createHospitalityDraft(supabase, input),
+          saveUpcoming: (items) => saveCandidates(supabase, cid, items, "dictation", (access.profile.id as string) ?? null),
         }
       )
     );

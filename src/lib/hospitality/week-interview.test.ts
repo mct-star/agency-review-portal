@@ -133,3 +133,38 @@ describe("planWeekFromTranscript", () => {
     expect(r.created[0].warnings[0]).toMatch(/check 8pm/);
   });
 });
+
+describe("planWeekFromTranscript and Coming up", () => {
+  const withUpcoming = (posts: unknown[], upcoming: unknown[], undated: string[] = []) => JSON.stringify({ posts, upcoming, undated });
+
+  it("saves dated things to Coming up, including ones beyond the week, and says so", async () => {
+    const saveUpcoming = vi.fn(async (items: { title: string }[]) => ({ added: items.map((i) => ({ title: i.title })), already: [] }));
+    const { d, drafts } = deps(
+      withUpcoming(
+        [item("2026-10-21", "event", "Wine tasting Wednesday at 7")],
+        [
+          { kind: "event", title: "Wine tasting", startsOn: "2026-10-21", time: "19:00" },
+          { kind: "event", title: "Christmas bookings open", startsOn: "2026-11-01" },
+        ],
+        ["Bonfire party"]
+      ),
+      { saveUpcoming }
+    );
+    const r = await planWeekFromTranscript({ ...args, today: "2026-10-15" }, d, fixed);
+    expect(drafts).toHaveLength(1);
+    expect(saveUpcoming).toHaveBeenCalledOnce();
+    expect((saveUpcoming.mock.calls[0] as unknown as [{ title: string }[]])[0].map((i) => i.title)).toEqual(["Wine tasting", "Christmas bookings open"]);
+    expect(r.upcomingAdded).toEqual(["Wine tasting", "Christmas bookings open"]);
+    expect(r.notes.join(" ")).toMatch(/Added to Coming up: Wine tasting, Christmas bookings open/);
+    expect(r.notes.join(" ")).toMatch(/Bonfire party was not added to Coming up because no date was given/);
+  });
+
+  it("keeps the drafts when Coming up cannot be saved, and says so", async () => {
+    const { d, drafts } = deps(withUpcoming([item("2026-10-21", "event", "Wine tasting")], [{ kind: "event", title: "Wine tasting", startsOn: "2026-10-21" }]), {
+      saveUpcoming: vi.fn(async () => { throw new Error("db down"); }),
+    });
+    const r = await planWeekFromTranscript({ ...args, today: "2026-10-15" }, d, fixed);
+    expect(drafts).toHaveLength(1);
+    expect(r.notes.join(" ")).toMatch(/could not be added to Coming up/);
+  });
+});

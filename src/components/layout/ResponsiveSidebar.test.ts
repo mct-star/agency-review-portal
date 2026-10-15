@@ -84,6 +84,7 @@ describe("hospitality menu", () => {
         "/generate/quick",
         "/create/week-interview",
         "/library",
+        "/coming-up",
         "/calendar",
         "/review",
         "/notifications",

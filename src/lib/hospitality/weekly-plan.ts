@@ -1,5 +1,6 @@
 import { dayNameOf } from "./week";
 import type { VenueSettings } from "./prompts";
+import { upcomingRules, validateUpcoming, type UpcomingCandidate } from "./coming-up";
 
 /**
  * The weekly chat: one dictation about the week becomes five to seven posts,
@@ -12,6 +13,10 @@ import type { VenueSettings } from "./prompts";
  * and a reminder on the day), which repeats a fact without inventing one.
  * Stage two writes each post with the same writer and the same figure check
  * as every other hospitality post.
+ *
+ * The same reply also lists every dated event or launch the speaker
+ * mentioned, up to 120 days ahead, for the Coming up list. A thing with no
+ * clear date is named back to the person, never given a guessed one.
  */
 
 /** The weather post is made by the daily job, so the chat plans the other four. */
@@ -44,6 +49,8 @@ export function buildPlanPrompt(args: {
   settings: VenueSettings;
   weekDates: string[];
   transcript: string;
+  /** The venue's today, for working out dates on the Coming up list. Defaults to the week's Monday. */
+  today?: string;
 }): { system: string; user: string } {
   const days = args.weekDates.map((d) => `${dayNameOf(d)} ${d}`).join(", ");
   const system = [
@@ -56,8 +63,10 @@ export function buildPlanPrompt(args: {
     "- postType is one of: special_of_the_day (one dish or drink), whats_on_this_week (an overview of the week, at most one, on Monday unless the speaker says otherwise), live_scene (what it is like right now, only if the speaker described a moment), event (a dated happening).",
     "- brief: the facts for that post copied from the notes, in the speaker's own words, as short as possible. No new facts.",
     "- place and subject are optional hints for choosing a photo, only if the speaker named a place or a thing. place values: deck, lake, garden, bar, dining_room, kitchen, rooms, exterior. subject values: food, drink, people, staff, event, empty_scene.",
+    upcomingRules(args.today ?? args.weekDates[0]),
+    "- The posts list is for this week only. The upcoming list is separate: put a dated event or launch there whether or not it also has a post this week.",
     "OUTPUT",
-    'Return JSON only: {"posts": [{"date": "YYYY-MM-DD", "postType": string, "brief": string, "place": string[], "subject": string[]}]}',
+    'Return JSON only: {"posts": [{"date": "YYYY-MM-DD", "postType": string, "brief": string, "place": string[], "subject": string[]}], "upcoming": [{"kind": "event" | "launch", "title": string, "details": string, "startsOn": "YYYY-MM-DD", "endsOn": "YYYY-MM-DD" (optional), "time": "HH:MM" (optional)}], "undated": [string]}',
   ].join("\n");
   const user = [
     args.settings.venue_notes ? `VENUE NOTES: ${args.settings.venue_notes}` : "",
@@ -77,6 +86,10 @@ export interface ParsedPlan {
   items: PlanItem[];
   /** Items dropped as invalid, in plain words, for the person to see. */
   dropped: string[];
+  /** Dated events and launches for the Coming up list, checked. */
+  upcoming: UpcomingCandidate[];
+  /** Coming up items left out and why, and things mentioned with no date. */
+  upcomingNotes: string[];
 }
 
 /**
@@ -85,7 +98,7 @@ export interface ParsedPlan {
  * by guessing. The rest are ordered by date, exact repeats removed, and
  * capped at seven.
  */
-export function parsePlan(text: string, weekDates: string[]): ParsedPlan {
+export function parsePlan(text: string, weekDates: string[], today: string = weekDates[0]): ParsedPlan {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   let raw: unknown;
   try {
@@ -136,11 +149,14 @@ export function parsePlan(text: string, weekDates: string[]): ParsedPlan {
     dropped.push(`${items.length - MAX_POSTS} more were left out to keep the week to ${MAX_POSTS} posts.`);
     items.length = MAX_POSTS;
   }
-  return { items, dropped };
+  const r = raw as { upcoming?: unknown; undated?: unknown };
+  const upcoming = validateUpcoming(r.upcoming, today, r.undated);
+  return { items, dropped, upcoming: upcoming.items, upcomingNotes: upcoming.notes };
 }
 
 /** A note for the person when the dictation did not support a full week. */
-export function shortfallNote(count: number): string | null {
+export function shortfallNote(count: number, upcomingCount = 0): string | null {
+  if (count === 0 && upcomingCount > 0) return null;
   if (count === 0) return "We could not find anything to post about in that. Try again and say what is happening, day by day.";
   if (count < MIN_POSTS) return `We found ${count} ${count === 1 ? "thing" : "things"} to post about. Say a little more if you want ${MIN_POSTS} to ${MAX_POSTS} for the week.`;
   return null;

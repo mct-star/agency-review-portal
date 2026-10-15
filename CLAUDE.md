@@ -50,6 +50,15 @@ Run `npx tsc --noEmit` and `npm test` after any non-trivial change.
   pages; `refuseHospitality` in `pack-guard.ts` goes in every client-callable
   generating or publishing route. `b2b-only.test.ts` fails when a page is in
   neither camp.
+- **Coming up, and one automatic post a day.** A venue's dated events and
+  launches live in `venue_calendar_items` (migration 046), filled from the
+  weekly dictation, an upload (PDF, photo, .ics; shown for review before
+  saving) or the quick add form on `/coming-up`. The pure rules (slots,
+  tie-break, dedupe, .ics, date checks) are in
+  `src/lib/hospitality/coming-up.ts`. The 07:00 job writes ONE post a day:
+  an item's build-up, reveal or still-on post when one is due (the nearer
+  event wins; `source_meta.calendar_item_id` and `slot` stop a repeat),
+  otherwise the weather post. Every draft is still pending.
 - **Buckets.** `captures` and `content-drafts` are private (signed URLs);
   `content-assets`, `media` and `renders` are public. Anything a client would
   not publish (compliance documents, raw uploads) goes in a private bucket.

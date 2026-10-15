@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { chooseWeatherImages, runWeatherPostForCompany, type WeatherCompany, type WeatherPorts } from "./draft-post";
 import { summariseForecast, type DailyForecast } from "./map";
 import type { LibraryCandidate } from "@/lib/media/select-images";
+import type { CalendarItem } from "@/lib/hospitality/coming-up";
 
 const company: WeatherCompany = {
   id: "co1", name: "Lakeside", industry: null, description: null, hospitality_settings: {},
@@ -148,5 +149,102 @@ describe("runWeatherPostForCompany", () => {
   it("records a failure when the writer fails", async () => {
     const { p } = ports({ write: vi.fn(async () => { throw new Error("The writer returned nothing usable"); }) });
     expect(await runWeatherPostForCompany(company, p, NOW, fixed)).toMatchObject({ status: "failed" });
+  });
+});
+
+describe("runWeatherPostForCompany with Coming up", () => {
+  const quiz: CalendarItem = {
+    id: "quiz", company_id: "co1", kind: "event", title: "Quiz night", details: "Teams of six, £2 a head", starts_on: "2026-10-14",
+    ends_on: null, start_time: "19:30", build_up: { week: true, two_days: true, day_of: true }, status: "active",
+  };
+  const itemPost = { body: "Quiz tonight.\n\n#quiz", caption: "Quiz tonight.", hashtags: ["#quiz"], altText: "A bar", warnings: [], provider: "claude" };
+  const withItems = (items: CalendarItem[], over: Partial<WeatherPorts> = {}) =>
+    ports({
+      dueItems: vi.fn(async () => items),
+      slotDrafted: vi.fn(async () => false),
+      writeItem: vi.fn(async () => itemPost),
+      ...over,
+    });
+
+  it("writes the event's post instead of the weather when one is due today", async () => {
+    const { p, log } = withItems([quiz]);
+    const r = await runWeatherPostForCompany(company, p, NOW, fixed);
+    expect(r).toMatchObject({ status: "drafted", calendarItemId: "quiz", slot: "day_of" });
+    expect(p.write).not.toHaveBeenCalled();
+    expect(log.drafts).toHaveLength(1);
+    expect(log.drafts[0]).toMatchObject({
+      postTypeSlug: "event", autoSource: "weather_job", scheduledDate: "2026-10-14",
+      sourceMeta: { calendar_item_id: "quiz", slot: "day_of" },
+    });
+    expect(log.records[0]).toMatchObject({ status: "drafted", pieceId: "piece1" });
+    expect(log.notified[0]).toMatchObject({ headline: "Wednesday's Quiz night post is ready to approve" });
+    const args = (p.writeItem as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(args.brief).toContain("£2 a head");
+    expect(args.forecastFacts).toContain("high 19C");
+  });
+
+  it("writes the weather post exactly as before when nothing is due", async () => {
+    const { p, log } = withItems([{ ...quiz, starts_on: "2026-10-30" }]);
+    const r = await runWeatherPostForCompany(company, p, NOW, fixed);
+    expect(r).toMatchObject({ status: "drafted" });
+    expect(r).not.toHaveProperty("calendarItemId");
+    expect(p.writeItem).not.toHaveBeenCalled();
+    expect(log.drafts[0]).toMatchObject({ postTypeSlug: "weather_of_the_day" });
+  });
+
+  it("never drafts the same item and slot twice: it falls back to the weather", async () => {
+    const { p, log } = withItems([quiz], { slotDrafted: vi.fn(async () => true) });
+    await runWeatherPostForCompany(company, p, NOW, fixed);
+    expect(p.writeItem).not.toHaveBeenCalled();
+    expect(log.drafts[0]).toMatchObject({ postTypeSlug: "weather_of_the_day" });
+  });
+
+  it("lets the nearer event win and names the other in the warnings", async () => {
+    const tasting = { ...quiz, id: "tasting", title: "Wine tasting", starts_on: "2026-10-21" }; // seven days out
+    const { p, log } = withItems([tasting, quiz]);
+    const r = await runWeatherPostForCompany(company, p, NOW, fixed);
+    expect(r).toMatchObject({ calendarItemId: "quiz" });
+    const warnings = (log.drafts[0] as { sourceMeta: { warnings: string[] } }).sourceMeta.warnings.join(" ");
+    expect(warnings).toMatch(/Wine tasting also had a post due today/);
+  });
+
+  it("does not let a cancelled item take the day", async () => {
+    const { p, log } = withItems([{ ...quiz, status: "cancelled" }]);
+    await runWeatherPostForCompany(company, p, NOW, fixed);
+    expect(log.drafts[0]).toMatchObject({ postTypeSlug: "weather_of_the_day" });
+  });
+
+  it("still writes the item's post when the forecast is down", async () => {
+    const { p, log } = withItems([quiz], { forecast: vi.fn(async () => { throw new Error("503"); }) });
+    const r = await runWeatherPostForCompany(company, p, NOW, fixed);
+    expect(r).toMatchObject({ status: "drafted", calendarItemId: "quiz" });
+    expect((p.writeItem as ReturnType<typeof vi.fn>).mock.calls[0][1].forecastFacts).toBeNull();
+    expect(log.drafts).toHaveLength(1);
+  });
+
+  it("writes an item's post for a venue with no position, and skips one with nothing due", async () => {
+    const noPos = { ...company, latitude: null, longitude: null };
+    const a = withItems([quiz]);
+    expect(await runWeatherPostForCompany(noPos, a.p, NOW, fixed)).toMatchObject({ status: "drafted", calendarItemId: "quiz" });
+    expect(a.p.forecast).not.toHaveBeenCalled();
+    const b = withItems([]);
+    expect(await runWeatherPostForCompany(noPos, b.p, NOW, fixed)).toMatchObject({ status: "skipped" });
+    expect(b.p.claim).not.toHaveBeenCalled();
+  });
+
+  it("keeps one run per company per date: an item post does not follow a drafted weather post", async () => {
+    const { p } = withItems([quiz], { existingRun: vi.fn(async () => ({ status: "drafted" as const })) });
+    expect(await runWeatherPostForCompany(company, p, NOW, fixed)).toMatchObject({ status: "exists" });
+    expect(p.writeItem).not.toHaveBeenCalled();
+  });
+
+  it("writes a launch that names a dish as a special", async () => {
+    const pie = { ...quiz, id: "pie", kind: "launch" as const, title: "New steak pie", details: "With mash, £16", start_time: null };
+    const { log } = await (async () => {
+      const w = withItems([pie]);
+      await runWeatherPostForCompany(company, w.p, NOW, fixed);
+      return w;
+    })();
+    expect(log.drafts[0]).toMatchObject({ postTypeSlug: "special_of_the_day", sourceMeta: { slot: "reveal" } });
   });
 });

@@ -23,6 +23,7 @@ export interface DraftPiece {
 const LOADING = "loading" as const;
 
 const SOURCE_TEXT: Record<string, string> = {
+  coming_up: "Drafted for you from your Coming up list",
   weather_job: "Drafted for you from today's forecast",
   weekly_interview: "From your weekly chat",
   quick_post: "Written from your note",
