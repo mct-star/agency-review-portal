@@ -228,12 +228,13 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
             {user.full_name || user.email}
           </p>
           <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+            isAdmin ? "bg-gray-900 text-white" :
             companyPlan === "agency" ? "bg-purple-100 text-purple-700" :
             companyPlan === "pro" ? "bg-violet-100 text-violet-700" :
             companyPlan === "starter" ? "bg-blue-100 text-blue-700" :
             "bg-gray-100 text-gray-500"
           }`}>
-            {(companyPlan || "free").charAt(0).toUpperCase() + (companyPlan || "free").slice(1)}
+            {isAdmin ? "Admin" : (companyPlan || "free").charAt(0).toUpperCase() + (companyPlan || "free").slice(1)}
           </span>
         </div>
         <p className="truncate text-xs text-gray-500">{user.email}</p>

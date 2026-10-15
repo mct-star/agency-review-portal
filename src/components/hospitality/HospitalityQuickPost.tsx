@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { HOSPITALITY_POST_TYPES } from "@/lib/constants/post-types";
 import type { BankItem } from "@/components/admin/MediaBank";
+import PhotoSuggestions, { type Suggestion } from "./PhotoSuggestions";
 
 const TYPES = HOSPITALITY_POST_TYPES.filter((t) => t.slug !== "weather_of_the_day");
 
@@ -135,9 +136,14 @@ export default function HospitalityQuickPost({ companyId }: { companyId: string 
               </div>
             </div>
           ) : (
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <p className="text-sm text-gray-600">We will pick the best match from your library.</p>
-              <button type="button" onClick={() => setLibraryOpen(true)} className="min-h-11 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50">Choose a photo</button>
+            <div className="mt-2 space-y-2">
+              <PhotoSuggestions
+                companyId={companyId}
+                postType={slug}
+                onPick={(s: Suggestion) => setChosen({ id: s.id, thumb_url: s.thumbUrl, scene_label: s.label, original_filename: null } as BankItem)}
+              />
+              <button type="button" onClick={() => setLibraryOpen(true)} className="min-h-11 rounded-md border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50">Choose from the whole library</button>
+              <p className="text-xs text-gray-500">If you do not choose, we use the best match.</p>
             </div>
           )}
           {libraryOpen && (

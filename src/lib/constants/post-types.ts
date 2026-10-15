@@ -519,7 +519,7 @@ export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
       imageStyle: "SKIP",
       minWords: 30,
       maxWords: 70,
-      contentInstructions: "POST TYPE: Weather of the day. Today's weather from the forecast supplied, in plain words, then one reason it is a good day to come in. Use only the forecast figures supplied. No promises about the weather later in the day.",
+      contentInstructions: "POST TYPE: Weather of the day. Open with a playful take on today's weather (an observation, a light joke, a bit of character), then the forecast in one short, natural line with at most two figures a guest cares about (usually the high and the chance of rain; never sunrise, sunset or millimetres), then one reason today is a good day to come in. Do not claim how busy the venue is. Use only the forecast figures supplied. No promises about the weather later in the day.",
     },
   },
   {
