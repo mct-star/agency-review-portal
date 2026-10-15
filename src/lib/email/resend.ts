@@ -1,5 +1,5 @@
 /**
- * Email Service — powered by Resend
+ * Email Service, powered by Resend
  *
  * Sends transactional emails from the platform:
  * - Welcome / invitation emails for new users
@@ -51,7 +51,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<EmailResult>
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey || apiKey === "re_placeholder") {
-    console.warn("[Email] RESEND_API_KEY not configured — email not sent");
+    console.warn("[Email] RESEND_API_KEY not configured, email not sent");
     return { success: false, error: "Resend API key not configured" };
   }
 
@@ -353,7 +353,7 @@ export function trialExpiryWarningEmailHtml(params: {
 <p style="margin:0;color:#1e40af;font-size:28px;font-weight:700;">${params.reviewsRun}</p>
 <p style="margin:4px 0 0;color:#3b82f6;font-size:12px;font-weight:600;text-transform:uppercase;">Compliance Reviews</p>
 </td></tr></table>
-<p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">When your trial ends, you'll move to the Starter plan (free, limited to 5 posts/month). Upgrade to Pro to keep unlimited generation, compliance review, and all the features you've been using.</p>
+<p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">When your trial ends, you'll move to the Starter plan (20 posts a month). Upgrade to Pro to keep unlimited generation, compliance review, and all the features you've been using.</p>
 <table cellpadding="0" cellspacing="0" style="margin:0 0 16px;"><tr>
 <td style="background-color:#7c3aed;border-radius:8px;padding:14px 28px;">
 <a href="${params.upgradeUrl}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;">Upgrade to Pro ($99/month)</a>
@@ -384,7 +384,7 @@ export function trialExpiredEmailHtml(params: {
 </td></tr>
 <tr><td style="padding:40px;">
 <h2 style="margin:0 0 16px;color:#111827;font-size:20px;font-weight:600;">${params.userName}, your trial is over</h2>
-<p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.6;">During your trial, you generated <strong>${params.postsGenerated} posts</strong> for ${params.companyName}. Your workspace is still active on the Starter plan (5 posts/month), but Pro features like unlimited generation and compliance review are now locked.</p>
+<p style="margin:0 0 20px;color:#4b5563;font-size:15px;line-height:1.6;">During your trial, you generated <strong>${params.postsGenerated} posts</strong> for ${params.companyName}. Your workspace is still active on the Starter plan (20 posts a month), but Pro features like unlimited generation and compliance review are now locked.</p>
 <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
 <td style="background:#faf5ff;border-radius:8px;border:1px solid #e9d5ff;padding:20px;">
 <p style="margin:0 0 8px;color:#7c3aed;font-size:14px;font-weight:700;">What you lose on Starter:</p>

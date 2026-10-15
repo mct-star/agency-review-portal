@@ -10,8 +10,8 @@ import {
  * GET /api/cron/trial-emails
  *
  * Cron job that runs daily to send trial-related emails:
- * 1. Warning email — 2 days before trial ends
- * 2. Expired email — on the day the trial expires
+ * 1. Warning email, 2 days before trial ends
+ * 2. Expired email, on the day the trial expires
  *
  * Secured by CRON_SECRET header (set in Vercel Cron config).
  * Can also be triggered manually for testing.
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
       try {
         await sendEmail({
           to: user.email,
-          subject: `Your AGENCY Pro trial ends in 2 days — ${company.name}`,
+          subject: `Your AGENCY Pro trial ends in 2 days for ${company.name}`,
           html: trialExpiryWarningEmailHtml({
             userName: user.full_name || "there",
             companyName: company.name,
@@ -118,7 +118,7 @@ export async function GET(request: Request) {
       try {
         await sendEmail({
           to: user.email,
-          subject: `Your AGENCY Pro trial has ended — ${company.name}`,
+          subject: `Your AGENCY Pro trial has ended for ${company.name}`,
           html: trialExpiredEmailHtml({
             userName: user.full_name || "there",
             companyName: company.name,

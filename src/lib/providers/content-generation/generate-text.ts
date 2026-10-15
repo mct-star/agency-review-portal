@@ -156,7 +156,8 @@ export async function generateText(
   }
 
   if (!anthropicKey && !geminiKey) {
-    throw new Error("No AI provider available. Configure ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY.");
+    throw new Error("No AI provider is configured for this company. Ask AGENCY to set it up.");
   }
-  throw new Error(`All LLM providers failed:\n${errors.join("\n")}`);
+  console.error("[generateText] all providers failed:", errors.join(" | ").slice(0, 1000));
+  throw new Error("The writing assistant could not complete this request. Please try again, or ask AGENCY to check it.");
 }

@@ -232,7 +232,7 @@ export default function StrategyPage() {
           {importMode === "markdown" && (
             <div className="space-y-2">
               <p className="text-xs text-gray-500">
-                Paste your Company Blueprint or strategy document — Claude will extract themes and topics automatically.
+                Paste your Company Blueprint or strategy document. We will extract themes and topics automatically.
               </p>
               <textarea
                 value={markdownContent}

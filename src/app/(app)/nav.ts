@@ -5,6 +5,7 @@
  * DETAIL_PAGES. Add a page here, not in the Sidebar component.
  */
 import { isWeekBoardEnabled } from "@/lib/constants/week-board";
+import { FEATURE_PLANS } from "@/lib/plan-features";
 import type { User } from "@/types/database";
 
 export type PlanTier = "free" | "starter" | "pro" | "agency";
@@ -184,8 +185,8 @@ export function clientSections(user: User): NavSection[] {
       title: "Plan",
       phase: 2,
       items: [
-        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: "pro", minComplexity: "intermediate" },
-        { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle", minPlan: "pro", minComplexity: "intermediate" },
+        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: FEATURE_PLANS.calendar, minComplexity: "intermediate" },
+        { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle", minPlan: FEATURE_PLANS.weeklyPlanner, minComplexity: "intermediate" },
       ],
     },
     // Phase 3: Create
@@ -196,10 +197,8 @@ export function clientSections(user: User): NavSection[] {
         { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
         { href: "/create/voice", label: "Voice to Post", icon: "mic" },
         { href: "/library", label: "Photo & Video Library", icon: "video" },
-        { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter", minComplexity: "intermediate" },
-        { href: "/create/article", label: "Blog / Article", icon: "quote", minComplexity: "intermediate" },
-        { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" },
-        { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" },
+        // Week Batch, Blog / Article, Repurpose and Fill Month stay off the
+        // client menu until their routes are safe for a client to call.
       ],
     },
     // Phase 4: Review & Publish
@@ -208,9 +207,10 @@ export function clientSections(user: User): NavSection[] {
       phase: 4,
       items: [
         { href: "/review", label: "Content Review", icon: "checkCircle" },
-        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro", minComplexity: "intermediate" },
-        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro", minComplexity: "intermediate" },
-        { href: "/analytics", label: "Analytics", icon: "sparkle", minPlan: "pro", minComplexity: "intermediate" },
+        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: FEATURE_PLANS.compliance, minComplexity: "intermediate" },
+        // Shown only to someone with the publish right whose plan includes it.
+        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: FEATURE_PLANS.publish, minComplexity: "intermediate" },
+        { href: "/analytics", label: "Analytics", icon: "sparkle", minPlan: FEATURE_PLANS.analytics, minComplexity: "intermediate" },
       ],
     },
     // Settings (non-phase)
@@ -218,7 +218,7 @@ export function clientSections(user: User): NavSection[] {
       title: "Settings",
       items: [
         { href: "/settings", label: "Brand & People", icon: "settings" },
-        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: "pro", minComplexity: "intermediate" },
+        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: FEATURE_PLANS.connections, minComplexity: "intermediate" },
       ],
     },
   ];

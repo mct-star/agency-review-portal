@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/config/topic-bank?companyId=uuid
@@ -40,12 +40,7 @@ export async function GET(request: Request) {
  * Body: { companyId, topics: [{ topicNumber, title, pillar?, audienceTheme?, description?, sourceReference? }] }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { companyId, topics } = body;
 
   if (!companyId || !topics || !Array.isArray(topics) || topics.length === 0) {
@@ -53,6 +48,11 @@ export async function POST(request: Request) {
       { error: "companyId and a non-empty topics array are required" },
       { status: 400 }
     );
+  }
+
+  const user = await requireCompanyUser(companyId);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -94,12 +94,7 @@ export async function POST(request: Request) {
  * Body: { id, title?, pillar?, audienceTheme?, description?, sourceReference?, isUsed? }
  */
 export async function PUT(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { id, ...updates } = body;
 
   if (!id) {
@@ -107,6 +102,17 @@ export async function PUT(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
+
+  // Load the row first: the caller must belong to the topic's company.
+  const { data: existing } = await supabase
+    .from("topic_bank")
+    .select("company_id")
+    .eq("id", id)
+    .single();
+  const user = existing ? await requireCompanyUser(existing.company_id) : null;
+  if (!existing || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const row: Record<string, unknown> = {};
   if (updates.title !== undefined) row.title = updates.title;
@@ -122,6 +128,7 @@ export async function PUT(request: Request) {
     .from("topic_bank")
     .update(row)
     .eq("id", id)
+    .eq("company_id", existing.company_id)
     .select()
     .single();
 
@@ -138,12 +145,7 @@ export async function PUT(request: Request) {
  * Body: { id }
  */
 export async function DELETE(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { id } = body;
 
   if (!id) {
@@ -151,7 +153,23 @@ export async function DELETE(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
-  const { error } = await supabase.from("topic_bank").delete().eq("id", id);
+
+  // Load the row first: the caller must belong to the topic's company.
+  const { data: existing } = await supabase
+    .from("topic_bank")
+    .select("company_id")
+    .eq("id", id)
+    .single();
+  const user = existing ? await requireCompanyUser(existing.company_id) : null;
+  if (!existing || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { error } = await supabase
+    .from("topic_bank")
+    .delete()
+    .eq("id", id)
+    .eq("company_id", existing.company_id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

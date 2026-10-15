@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
   if (!resolved) {
     return NextResponse.json(
-      { error: "No AI provider configured. Add an Anthropic API key in any company's Setup > API Keys." },
+      { error: "No AI provider is configured for this company. Ask AGENCY to set it up." },
       { status: 400 }
     );
   }
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   const apiKey = resolved.credentials.api_key as string;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Content generation provider missing API key" },
+      { error: "No AI provider is configured for this company. Ask AGENCY to set it up." },
       { status: 400 }
     );
   }
@@ -140,8 +140,9 @@ export async function POST(request: Request) {
       ai_voice_notes: parsed.ai_voice_notes || null,
     });
   } catch (err) {
+    console.error("[scan-linkedin] voice analysis failed:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Voice analysis failed" },
+      { error: "We could not analyse that voice just now. Please try again, or ask AGENCY to check it." },
       { status: 500 }
     );
   }

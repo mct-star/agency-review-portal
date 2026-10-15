@@ -134,8 +134,16 @@ export async function POST(request: Request) {
 
     if (insertErr) throw insertErr;
 
+    // A saved strategy document is what completes Strategise: /home stops
+    // asking for the strategy once this is true.
+    const { error: companyErr } = await supabase
+      .from("companies")
+      .update({ strategy_completed: true })
+      .eq("id", companyId);
+
     return NextResponse.json({
       document,
+      strategy_completed: !companyErr,
       provider: aiResult.provider,
       model: aiResult.model,
     });

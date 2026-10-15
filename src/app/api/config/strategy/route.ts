@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
 import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
 
@@ -62,12 +62,7 @@ export async function GET(request: Request) {
  * }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { companyId, format, content, strategyMode } = body;
 
   if (!companyId || !format || !content) {
@@ -75,6 +70,11 @@ export async function POST(request: Request) {
       { error: "companyId, format, and content are required" },
       { status: 400 }
     );
+  }
+
+  const user = await requireCompanyUser(companyId);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();

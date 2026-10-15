@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import AdminManagedGate from "@/components/setup/AdminManagedGate";
 import Link from "next/link";
 import type { SocialPlatform } from "@/types/database";
 
@@ -55,7 +56,7 @@ const COMPANY_PLATFORMS: { value: SocialPlatform; label: string; status: "active
   { value: "threads", label: "Threads", status: "coming_soon" },
 ];
 
-export default function CompanySocialPage() {
+function CompanySocialEditor() {
   const [linkedInError, setLinkedInError] = useState<string | null>(null);
   useEffect(() => {
     const e = new URLSearchParams(window.location.search).get("linkedin_error");
@@ -477,5 +478,13 @@ export default function CompanySocialPage() {
         <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
+  );
+}
+
+export default function CompanySocialPage() {
+  return (
+    <AdminManagedGate>
+      <CompanySocialEditor />
+    </AdminManagedGate>
   );
 }

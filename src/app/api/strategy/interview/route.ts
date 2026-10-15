@@ -83,6 +83,8 @@ export async function POST(request: Request) {
   let body: {
     companyId?: string;
     step?: number;
+    /** What the interview component sends; `step` wins when both are present. */
+    currentStep?: number;
     responses?: Record<string, unknown>;
     status?: "in_progress" | "completed";
   };
@@ -93,7 +95,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { companyId, step, responses, status } = body;
+  const { companyId, responses, status } = body;
+  const step = body.step ?? body.currentStep;
 
   if (!companyId) {
     return NextResponse.json({ error: "companyId required" }, { status: 400 });

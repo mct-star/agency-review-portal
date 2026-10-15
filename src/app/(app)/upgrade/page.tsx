@@ -14,8 +14,8 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   "Weekly Planner": "Organise each week's content with topic assignments, pillar tagging, and scheduling.",
   "Week Batch": "Generate a full week of social posts in one go, with consistent messaging across your content pillars.",
   "Compliance": "Review posts against healthcare regulatory requirements before publishing.",
-  "Publish": "Publish content directly to LinkedIn and other social platforms from the dashboard.",
-  "Connections": "Connect your LinkedIn, Bluesky, and other social accounts for one-click publishing.",
+  "Publish": "Download your approved posts, ready for your scheduling tool.",
+  "Connections": "Connect your LinkedIn, Bluesky, and other social accounts so AGENCY can switch on direct publishing.",
 };
 
 function UpgradeContent() {

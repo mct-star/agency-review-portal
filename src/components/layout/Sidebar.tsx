@@ -144,7 +144,10 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
           const visibleItems = section.items.filter(
             (item) =>
               (!item.adminOnly || isAdmin) &&
-              (!item.publisherOnly || canPublish || item.minPlan) &&
+              // A publisher-only item needs the publish right and a plan that
+              // includes it: it is hidden, not shown locked, otherwise.
+              (!item.publisherOnly ||
+                (canPublish && (isAdmin || !item.minPlan || planRank >= (PLAN_RANK[item.minPlan] ?? 0)))) &&
               (isAdmin || !item.minComplexity || complexityRank >= COMPLEXITY_RANK[item.minComplexity])
           );
           if (visibleItems.length === 0) return null;
