@@ -127,6 +127,7 @@ describe("the navigation map", () => {
   it("keeps the hospitality menu's own entries", () => {
     const hrefs = hospitalitySections(client).flatMap((s) => s.items);
     expect(hrefs.map((i) => i.href)).toContain("/notifications");
+    expect(hrefs.map((i) => i.href)).toContain("/coming-up");
     expect(hrefs.map((i) => i.label)).toContain("This week");
     expect(hrefs.map((i) => i.href)).toContain(`/setup/${UUID}/hospitality#brand`);
   });

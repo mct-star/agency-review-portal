@@ -5,6 +5,9 @@ import { getPostType } from "@/lib/constants/post-types";
 import { generateHospitalityPost } from "@/lib/hospitality/generate";
 import { readSettings, wordCount } from "@/lib/hospitality/prompts";
 import { longDateLabel } from "@/lib/hospitality/week";
+import { buildSlotBrief, ITEM_COLUMNS, toItem, type SlotKind } from "@/lib/hospitality/coming-up";
+
+const SLOTS: SlotKind[] = ["week", "two_days", "day_of", "reveal", "still_on"];
 
 export const maxDuration = 60;
 
@@ -14,7 +17,9 @@ export const maxDuration = 60;
  * Write a waiting draft again, from what it was written from: the forecast
  * for the weather post, the person's note for the others. When the original
  * note was not kept, the current text is the note, so its facts carry over
- * and nothing new is invented. The photo stays as it is.
+ * and nothing new is invented. A Coming up post (source_meta.calendar_item_id)
+ * is written from its item as it stands now, so an edit to the item carries
+ * into the post. The photo stays as it is.
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,9 +44,21 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const meta = (piece.source_meta || {}) as Record<string, unknown>;
   const facts = typeof meta.facts === "string" ? meta.facts : null;
   const keptBrief = typeof meta.brief === "string" && meta.brief.trim() ? meta.brief : null;
+  let itemBrief: string | null = null;
+  // A Coming up post: rewrite from the item, read within the piece's own company.
+  if (typeof meta.calendar_item_id === "string" && SLOTS.includes(meta.slot as SlotKind)) {
+    const { data: row } = await supabase
+      .from("venue_calendar_items")
+      .select(ITEM_COLUMNS)
+      .eq("id", meta.calendar_item_id)
+      .eq("company_id", access.piece.company_id)
+      .maybeSingle();
+    // If the item has gone, the brief kept with the draft still holds its facts.
+    if (row) itemBrief = buildSlotBrief(toItem(row as Record<string, unknown>), meta.slot as SlotKind, Boolean(facts));
+  }
   // The weather post is written from the forecast; anything else from the note,
   // or from the current caption (without its hashtags) when the note was not kept.
-  const brief = keptBrief ?? (facts ? "" : String(piece.markdown_body || "").split("\n\n#")[0]);
+  const brief = itemBrief ?? keptBrief ?? (facts ? "" : String(piece.markdown_body || "").split("\n\n#")[0]);
 
   let post;
   try {
@@ -62,7 +79,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     .update({
       markdown_body: post.body,
       word_count: wordCount(post.caption),
-      source_meta: { ...meta, warnings: post.warnings, alt_text: post.altText, provider: post.provider, rewritten_at: new Date().toISOString() },
+      source_meta: { ...meta, ...(itemBrief ? { brief: itemBrief } : {}), warnings: post.warnings, alt_text: post.altText, provider: post.provider, rewritten_at: new Date().toISOString() },
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

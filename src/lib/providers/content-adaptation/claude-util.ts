@@ -155,6 +155,87 @@ export async function callText(
   throw new Error("The writing assistant could not complete this request. Please try again, or ask AGENCY to check it.");
 }
 
+export type ImageMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+
+/**
+ * Text from a picture plus a prompt (reading a chalkboard or a flyer). Same
+ * rules as callText: no temperature, thinking off, the first text block,
+ * Claude first and Gemini Flash (with the image inline) second.
+ */
+export async function callTextWithImage(
+  apiKey: string,
+  model: string,
+  system: string,
+  userText: string,
+  imageBase64: string,
+  mediaType: ImageMediaType,
+  maxTokens: number = 2000
+): Promise<TextCallResult> {
+  const errors: string[] = [];
+  const claudeModel = currentClaudeModel(model);
+
+  if (apiKey && apiKey !== NO_ANTHROPIC_KEY) {
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: claudeModel,
+          max_tokens: maxTokens,
+          thinking: { type: "between_tools" },
+          output_config: { effort: "low" },
+          ...(system ? { system } : {}),
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
+                { type: "text", text: userText },
+              ],
+            },
+          ],
+        }),
+      });
+      if (!res.ok) throw new Error(`Anthropic (${res.status}): ${await res.text()}`);
+      const data: AnthropicResponse = await res.json();
+      const textBlock = data.content?.find((c) => c.type === "text");
+      if (!textBlock?.text) throw new Error("No text content in Anthropic response");
+      return { text: textBlock.text, provider: "claude", model: claudeModel };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Claude: ${msg}`);
+      console.warn("[callTextWithImage] Claude failed:", msg.slice(0, 200));
+    }
+  }
+
+  const gKey = geminiKey();
+  if (gKey) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_FLASH}:generateContent?key=${gKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+          contents: [{ parts: [{ inline_data: { mime_type: mediaType, data: imageBase64 } }, { text: userText }] }],
+          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } },
+        }),
+      });
+      if (!res.ok) throw new Error(`Gemini ${GEMINI_FLASH} (${res.status}): ${await res.text()}`);
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if (!text) throw new Error(`Gemini ${GEMINI_FLASH} returned empty response`);
+      return { text, provider: "gemini", model: GEMINI_FLASH };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Gemini Flash: ${msg}`);
+      console.warn("[callTextWithImage] Gemini Flash failed:", msg.slice(0, 200));
+    }
+  }
+
+  console.error("[callTextWithImage] all providers failed:", errors.join(" | ").slice(0, 1000));
+  throw new Error("The reading assistant could not read that picture just now. Please try again.");
+}
+
 /** The text only. Kept for the many callers that do not record the provider. */
 export async function callClaude(
   apiKey: string,

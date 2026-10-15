@@ -67,6 +67,7 @@ export function hospitalitySections(user: User): NavSection[] {
     {
       title: "The week",
       items: [
+        { href: "/coming-up", label: "Coming up", icon: "calendarView" },
         { href: "/calendar", label: "Calendar", icon: "calendarView" },
         { href: "/review", label: "This week", icon: "send" },
       ],

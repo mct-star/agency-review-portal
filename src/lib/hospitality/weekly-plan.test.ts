@@ -89,3 +89,37 @@ describe("shortfallNote and times", () => {
     expect(Object.keys(DEFAULT_TIMES).sort()).toEqual(["event", "live_scene", "special_of_the_day", "whats_on_this_week"]);
   });
 });
+
+describe("the Coming up list in the plan", () => {
+  it("asks for dated events and launches beyond the week, and never a guessed date", () => {
+    const { system } = buildPlanPrompt({ venueName: "Lakeside", settings: {}, weekDates: WEEK, transcript: "x", today: "2026-10-15" });
+    expect(system).toContain("upcoming");
+    expect(system).toContain("120 days");
+    expect(system).toMatch(/Never invent a date/);
+    expect(system).toContain("2026-10-15");
+  });
+  it("reads the upcoming list alongside the posts, checks it and names the undated", () => {
+    const text = JSON.stringify({
+      posts: [post()],
+      upcoming: [
+        { kind: "event", title: "Christmas bookings open", startsOn: "2026-11-01" },
+        { kind: "event", title: "Bonfire night", startsOn: "2026-02-30" },
+        { kind: "launch", title: "Autumn menu", startsOn: "2026-10-20", endsOn: "2026-11-30" },
+      ],
+      undated: ["New Year's party"],
+    });
+    const r = parsePlan(text, WEEK, "2026-10-15");
+    expect(r.items).toHaveLength(1);
+    expect(r.upcoming.map((u) => u.title)).toEqual(["Autumn menu", "Christmas bookings open"]);
+    expect(r.upcomingNotes.join(" ")).toMatch(/Bonfire night was left out because it has no clear date/);
+    expect(r.upcomingNotes.join(" ")).toMatch(/New Year's party was not added/);
+  });
+  it("is unchanged for a plan with no upcoming list", () => {
+    const r = parsePlan(plan([post()]), WEEK);
+    expect(r.upcoming).toEqual([]);
+    expect(r.upcomingNotes).toEqual([]);
+  });
+  it("does not call a dictation empty when it only had dates for later", () => {
+    expect(shortfallNote(0, 2)).toBeNull();
+  });
+});

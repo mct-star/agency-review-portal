@@ -5,6 +5,7 @@ import { createHospitalityDraft, type DraftInput, type DraftResult } from "@/lib
 import { notifyDraftFailed, notifyDraftReady } from "@/lib/hospitality/notify";
 import { readSettings } from "@/lib/hospitality/prompts";
 import { addDays, longDateLabel, todayIn } from "@/lib/hospitality/week";
+import { buildSlotBrief, dueSlots, ITEM_COLUMNS, postTypeForItem, readyHeadline, SLOT_LABEL, toItem, type CalendarItem, type DueSlot, type SlotKind } from "@/lib/hospitality/coming-up";
 import { selectImages, type LibraryCandidate } from "@/lib/media/select-images";
 import { fetchDailyForecast } from "./open-meteo";
 import { summariseForecast, type DailyForecast, type WeatherSummary } from "./map";
@@ -53,10 +54,19 @@ export interface WeatherPorts {
   notify(args: { companyId: string; pieceId: string; headline: string; preview: string }): Promise<unknown>;
   /** Tell the venue and AGENCY that the draft failed. Optional so test ports need not supply it. */
   notifyFailure?(args: { companyId: string; companyName: string; date: string; reason: string }): Promise<unknown>;
+  /**
+   * The Coming up items that may have a post due on a date (active ones near
+   * it). Optional: without it the job writes the weather post as it always did.
+   */
+  dueItems?(companyId: string, date: string): Promise<CalendarItem[]>;
+  /** Whether a draft already exists for this item and slot, so none is written twice. */
+  slotDrafted?(companyId: string, itemId: string, slot: SlotKind): Promise<boolean>;
+  /** Write an item's post. Required when dueItems is supplied. */
+  writeItem?(company: WeatherCompany, args: { item: CalendarItem; slot: SlotKind; date: string; postTypeSlug: string; brief: string; forecastFacts: string | null }): Promise<GeneratedHospitalityPost>;
 }
 
 export type WeatherOutcome =
-  | { company: string; status: "drafted"; date: string; pieceId: string; photos: number }
+  | { company: string; status: "drafted"; date: string; pieceId: string; photos: number; calendarItemId?: string; slot?: SlotKind }
   | { company: string; status: "exists" | "skipped" | "failed"; date?: string; reason: string };
 
 export async function runWeatherPostForCompany(
@@ -65,13 +75,26 @@ export async function runWeatherPostForCompany(
   now: Date = new Date(),
   rng: () => number = Math.random
 ): Promise<WeatherOutcome> {
-  // A company with no position is never guessed at. It is skipped and reported.
-  if (company.latitude === null || company.longitude === null) {
-    return { company: company.name, status: "skipped", reason: "No position set. Add a postcode in the venue settings." };
-  }
   const tz = company.timezone || "Europe/London";
   const localToday = todayIn(tz, now);
   const date = company.weather_post_for === "tomorrow" ? addDays(localToday, 1) : localToday;
+  const hasPosition = company.latitude !== null && company.longitude !== null;
+
+  // One automatic post a day: a Coming up item due that date takes the slot.
+  // The weather post is the default when nothing is due.
+  // Never the same item and slot twice: a rerun or a retry skips one already drafted.
+  const open: DueSlot[] = [];
+  if (ports.dueItems && ports.writeItem) {
+    for (const d of dueSlots(await ports.dueItems(company.id, date), date)) {
+      if (!(ports.slotDrafted && (await ports.slotDrafted(company.id, d.item.id, d.slot)))) open.push(d);
+    }
+  }
+
+  // A company with no position is never guessed at. Without an item due it
+  // is skipped and reported; an item's post does not need the forecast.
+  if (!hasPosition && open.length === 0) {
+    return { company: company.name, status: "skipped", reason: "No position set. Add a postcode in the venue settings." };
+  }
 
   const run = await ports.existingRun(company.id, date);
   if (run?.status === "drafted") return { company: company.name, status: "exists", date, reason: "Already drafted for this date" };
@@ -80,7 +103,10 @@ export async function runWeatherPostForCompany(
   }
 
   try {
-    const forecast = await ports.forecast({ latitude: company.latitude, longitude: company.longitude, timeZone: tz, date });
+    if (open.length > 0) return await draftItemPost(company, ports, date, open, hasPosition, tz, rng);
+
+    // hasPosition was checked above: with nothing due, a venue without one never gets here.
+    const forecast = await ports.forecast({ latitude: company.latitude as number, longitude: company.longitude as number, timeZone: tz, date });
     const summary = summariseForecast(forecast);
     const post = await ports.write(company, summary, date);
     const imageIds = chooseWeatherImages(await ports.candidates(company.id), summary, rng);
@@ -127,6 +153,70 @@ export async function runWeatherPostForCompany(
     }
     return { company: company.name, status: "failed", date, reason: message };
   }
+}
+
+/**
+ * The day's post is a Coming up item's: the first in the tie-break order
+ * (the nearer event wins). Any other item due the same day is named in the
+ * draft's warnings. The forecast is a nice-to-have here: if it cannot be had,
+ * the post is written without it.
+ */
+async function draftItemPost(
+  company: WeatherCompany,
+  ports: WeatherPorts,
+  date: string,
+  open: DueSlot[],
+  hasPosition: boolean,
+  timeZone: string,
+  rng: () => number
+): Promise<WeatherOutcome> {
+  const [chosen, ...others] = open;
+  const { item, slot } = chosen;
+  let forecast: DailyForecast | undefined;
+  let facts: string | null = null;
+  if (hasPosition) {
+    try {
+      forecast = await ports.forecast({ latitude: company.latitude as number, longitude: company.longitude as number, timeZone, date });
+      facts = summariseForecast(forecast).facts;
+    } catch (err) {
+      console.warn("[weather] forecast unavailable for an item post:", err instanceof Error ? err.message : err);
+    }
+  }
+  const postTypeSlug = postTypeForItem(item);
+  const brief = buildSlotBrief(item, slot, Boolean(facts));
+  const post = await ports.writeItem!(company, { item, slot, date, postTypeSlug, brief, forecastFacts: facts });
+
+  const q = getPostType(postTypeSlug)?.libraryQuery;
+  const picked = selectImages(await ports.candidates(company.id), { place: q?.place, subject: q?.subject, avoidPeople: q?.avoidPeople ?? true }, { count: 1, rng });
+  const imageIds = picked.map((c) => c.id);
+
+  const draft = await ports.draft({
+    companyId: company.id,
+    postTypeSlug,
+    title: `${item.title}, ${longDateLabel(date)}`,
+    body: post.body,
+    scheduledDate: date,
+    scheduledTime: company.weather_post_time || "07:00",
+    autoSource: "weather_job",
+    sourceMeta: {
+      calendar_item_id: item.id,
+      slot,
+      brief,
+      ...(forecast ? { forecast, facts } : {}),
+      alt_text: post.altText,
+      warnings: [
+        ...post.warnings,
+        ...others.map((o) => `${o.item.title} also had a post due today (${SLOT_LABEL[o.slot].toLowerCase()}). Only one automatic post goes out a day, so it was left out.`),
+        ...(imageIds.length === 0 ? ["No photo in the library suited this post. Choose one."] : []),
+      ],
+      image_ids: imageIds,
+      provider: post.provider,
+    },
+    imageIds,
+  });
+  await ports.record(company.id, date, { status: "drafted", pieceId: draft.pieceId, forecast });
+  await ports.notify({ companyId: company.id, pieceId: draft.pieceId, headline: readyHeadline(item), preview: post.caption });
+  return { company: company.name, status: "drafted", date, pieceId: draft.pieceId, photos: draft.imagesAttached, calendarItemId: item.id, slot };
 }
 
 /** The real ports: Supabase for storage, the forecast service, the writer, email. */
@@ -184,6 +274,39 @@ export function realPorts(supabase: SupabaseAdmin): WeatherPorts {
     draft: (input) => createHospitalityDraft(supabase, input),
     notify: (args) => notifyDraftReady(supabase, args),
     notifyFailure: (args) => notifyDraftFailed(supabase, { ...args, what: "The weather post" }),
+    async dueItems(companyId, date) {
+      // An event's posts fall up to seven days before it; a launch's while it runs.
+      const { data, error } = await supabase
+        .from("venue_calendar_items")
+        .select(ITEM_COLUMNS)
+        .eq("company_id", companyId)
+        .eq("status", "active")
+        .lte("starts_on", addDays(date, 7))
+        .or(`starts_on.gte.${date},ends_on.gte.${date}`);
+      // A missing table (before migration 046) must not stop the weather post.
+      if (error) {
+        console.warn("[weather] could not read Coming up:", error.message);
+        return [];
+      }
+      return ((data || []) as Record<string, unknown>[]).map(toItem);
+    },
+    async slotDrafted(companyId, itemId, slot) {
+      const { data } = await supabase
+        .from("content_pieces")
+        .select("id")
+        .eq("company_id", companyId)
+        .contains("source_meta", { calendar_item_id: itemId, slot })
+        .limit(1);
+      return Array.isArray(data) && data.length > 0;
+    },
+    writeItem: (company, args) =>
+      generateHospitalityPost({
+        company: { name: company.name, industry: company.industry, description: company.description, settings: readSettings(company.hospitality_settings) },
+        postType: getPostType(args.postTypeSlug)!,
+        brief: args.brief,
+        forecastFacts: args.forecastFacts,
+        dateLabel: longDateLabel(args.date),
+      }),
   };
 }
 

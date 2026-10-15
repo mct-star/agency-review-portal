@@ -46,7 +46,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   if (!company) return <p className="text-sm text-gray-600">Company not found.</p>;
   if (!isAdmin && profile.company_id !== companyId) return null;
 
-  const list = (rows || []) as Array<{ id: string; title: string; post_type: string | null; markdown_body: string; scheduled_date: string | null; scheduled_time: string | null; auto_source: string | null; source_meta: { warnings?: string[] } | null }>;
+  const list = (rows || []) as Array<{ id: string; title: string; post_type: string | null; markdown_body: string; scheduled_date: string | null; scheduled_time: string | null; auto_source: string | null; source_meta: { warnings?: string[]; calendar_item_id?: string } | null }>;
   const ids = list.map((r) => r.id);
   const { data: images } = ids.length
     ? await supabase.from("content_images").select("content_piece_id, public_url, sort_order").in("content_piece_id", ids).order("sort_order")
@@ -62,7 +62,9 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     body: r.markdown_body,
     scheduled_date: r.scheduled_date,
     scheduled_time: r.scheduled_time,
-    auto_source: r.auto_source,
+    // A post drafted from the Coming up list is stored as a weather-job post
+    // (the database allows only three sources), so label it by its item.
+    auto_source: r.source_meta?.calendar_item_id ? "coming_up" : r.auto_source,
     imageUrl: firstImage.get(r.id) || null,
     warnings: r.source_meta?.warnings ?? [],
     whenLabel: r.scheduled_date ? `${longDateLabel(r.scheduled_date)}${r.scheduled_time ? ` at ${r.scheduled_time.slice(0, 5)}` : ""}` : "no date yet",

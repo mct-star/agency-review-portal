@@ -46,6 +46,7 @@ describe("isB2bOnlyPage", () => {
       "/create/voice",
       "/library",
       "/calendar",
+      "/coming-up",
       "/review",
       "/review?week=1",
       "/notifications",
@@ -73,6 +74,7 @@ describe("isB2bOnlyPage", () => {
 const OPEN_TO_HOSPITALITY = [
   "/approvals",
   "/calendar",
+  "/coming-up",
   "/create/voice",
   "/create/week-interview",
   "/generate/quick",
