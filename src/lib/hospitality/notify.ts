@@ -36,3 +36,35 @@ export async function notifyDraftReady(
   }
   return { notified: people.length, emailed };
 }
+
+/**
+ * The weather post (or another automatic draft) did not draft. The venue's
+ * people get an in-app notice that says so plainly; AGENCY's admins get the
+ * reason by email so someone can look. Nothing here names a vendor to the
+ * venue.
+ */
+export async function notifyDraftFailed(
+  supabase: SupabaseAdmin,
+  args: { companyId: string; companyName: string; what: string; date: string; reason: string }
+): Promise<{ notified: number; emailed: number }> {
+  const { data: people } = await supabase.from("users").select("id").eq("company_id", args.companyId).eq("role", "client");
+  for (const p of people || []) {
+    await supabase.from("notifications").insert({
+      recipient_user_id: p.id,
+      type: "draft_failed",
+      message: `${args.what} for ${args.date} did not draft. You can write one yourself from Write a post.`,
+    });
+  }
+  const { data: admins } = await supabase.from("users").select("email").eq("role", "admin");
+  let emailed = 0;
+  for (const a of admins || []) {
+    if (!a.email) continue;
+    const sent = await sendEmail({
+      to: a.email,
+      subject: `${args.companyName}: ${args.what} did not draft (${args.date})`,
+      html: `<p>${escapeHtml(args.what)} for ${escapeHtml(args.companyName)} on ${escapeHtml(args.date)} failed.</p><pre style="white-space:pre-wrap;color:#374151">${escapeHtml(args.reason)}</pre><p>The job retries once an hour later. If it fails again the venue has been told to write the post themselves.</p>`,
+    });
+    if (sent.success) emailed += 1;
+  }
+  return { notified: (people || []).length, emailed };
+}

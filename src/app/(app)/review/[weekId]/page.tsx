@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import WeekReviewTabs from "@/components/content/WeekReviewTabs";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
@@ -15,6 +15,10 @@ export default async function WeekReviewPage({ params }: PageProps) {
   const { weekId } = await params;
   const profile = await getUserProfile();
   if (!profile) return null;
+
+  // A venue has one week page of its own, with the download on it.
+  const venue = profile.company as { post_pack?: string | null } | null | undefined;
+  if (profile.role !== "admin" && venue?.post_pack === "hospitality") redirect("/review");
 
   const supabase = await createServerSupabaseClient();
 

@@ -3,10 +3,14 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import QuickGenerate from "@/components/generate/QuickGenerate";
 import HospitalityQuickPost from "@/components/hospitality/HospitalityQuickPost";
 
-export const metadata: Metadata = {
-  title: "Quick Generate | AGENCY",
-  description: "Create a single post instantly",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const profile = await getUserProfile();
+  const company = profile?.company as { post_pack?: string | null } | null | undefined;
+  const venue = profile?.role !== "admin" && company?.post_pack === "hospitality";
+  return venue
+    ? { title: "Write a post | AGENCY", description: "Write one post for your venue" }
+    : { title: "Quick Generate | AGENCY", description: "Create a single post instantly" };
+}
 
 export default async function QuickGeneratePage({
   searchParams,

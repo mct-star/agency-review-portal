@@ -5,6 +5,8 @@ import { getUserProfile } from "@/lib/supabase/server";
 import { getPostType } from "@/lib/constants/post-types";
 import { longDateLabel } from "@/lib/hospitality/week";
 import ApprovalCard, { type DraftPiece } from "@/components/hospitality/ApprovalCard";
+import PendingPhotos from "@/components/hospitality/PendingPhotos";
+import ApprovedPosts, { type ApprovedPiece } from "@/components/hospitality/ApprovedPosts";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
 import { addDays, longDateLabel as dateLabel, todayIn } from "@/lib/hospitality/week";
 
@@ -68,7 +70,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const since = addDays(todayIn((tz?.timezone as string | null) || "Europe/London"), -7);
   const { data: approvedRows } = await supabase
     .from("content_pieces")
-    .select("id, week_id, scheduled_date")
+    .select("id, week_id, scheduled_date, scheduled_time, title, post_type, markdown_body")
     .eq("company_id", companyId)
     .eq("approval_status", "approved")
     .eq("content_type", "social_post")
@@ -80,7 +82,14 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     ? await supabase.from("weeks").select("id, week_number, date_start, date_end").in("id", weekIds).order("date_start")
     : { data: [] as Array<{ id: string; week_number: number; date_start: string; date_end: string }> };
 
-  const nothing = pieces.length === 0 && !photosWaiting && (weekRows || []).length === 0;
+  const approvedPieces: ApprovedPiece[] = (approvedRows || []).map((r) => ({
+    id: r.id as string,
+    label: (r.post_type && getPostType(r.post_type as string)?.label) || (r.title as string),
+    whenLabel: r.scheduled_date ? `${longDateLabel(r.scheduled_date as string)}${r.scheduled_time ? ` at ${(r.scheduled_time as string).slice(0, 5)}` : ""}` : "no date yet",
+    snippet: ((r.markdown_body as string) || "").replace(/\s+/g, " ").slice(0, 90),
+  }));
+
+  const nothing = pieces.length === 0 && !photosWaiting && approvedPieces.length === 0;
   return (
     <div className="max-w-4xl space-y-6">
       <div>
@@ -88,12 +97,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         <p className="mt-1 text-sm text-gray-500">{company.name}. Nothing here goes out until you approve it.</p>
       </div>
 
-      {!!photosWaiting && (
-        <Link href="/library" className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100">
-          <span><strong>{photosWaiting}</strong> {photosWaiting === 1 ? "photo" : "photos"} from your team to look at.</span>
-          <span className="font-medium">Look now</span>
-        </Link>
-      )}
+      {!!photosWaiting && <PendingPhotos companyId={companyId} />}
 
       {(weekRows || []).length > 0 && (
         <section className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
@@ -119,6 +123,8 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
           {pieces.map((p) => <ApprovalCard key={p.id} piece={p} companyId={companyId} />)}
         </ul>
       )}
+
+      <ApprovedPosts pieces={approvedPieces} />
     </div>
   );
 }

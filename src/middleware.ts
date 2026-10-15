@@ -1,10 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isB2bOnlyPage } from "@/lib/hospitality/b2b-only";
+import { VIEW_AS_COOKIE, verifyViewAs, viewAsSecret } from "@/lib/view-as";
 
 export async function middleware(request: NextRequest) {
   // The (app) layout cannot see the address it is rendering for, so it is
-  // passed along as a request header (used to keep a hospitality venue off the
-  // business-to-business pages).
+  // passed along as a request header.
   request.headers.set("x-pathname", request.nextUrl.pathname);
 
   let supabaseResponse = NextResponse.next({
@@ -35,65 +36,71 @@ export async function middleware(request: NextRequest) {
   );
 
   // getUser() can fail if Supabase env vars are misconfigured or tokens are corrupt.
-  // Treat failures as "no user" — public pages should still be accessible.
+  // Treat failures as "no user" so public pages are still reachable.
   let user = null;
   try {
     const { data } = await supabase.auth.getUser();
     user = data?.user ?? null;
   } catch {
-    // Supabase auth failed — treat as unauthenticated
     user = null;
   }
 
-  // Helper: create a redirect that preserves Supabase session cookies
+  // A redirect that preserves Supabase session cookies. getUser() may have
+  // refreshed the tokens onto supabaseResponse; without copying them the next
+  // request arrives with stale tokens and loops.
   function redirectWithCookies(pathname: string) {
     const url = request.nextUrl.clone();
     url.pathname = pathname;
+    url.search = "";
     const redirectResponse = NextResponse.redirect(url);
-
-    // Copy all cookies from the Supabase response to the redirect response.
-    // This is critical — getUser() may have refreshed the session tokens,
-    // and those refreshed cookies live on supabaseResponse. Without copying
-    // them, the next request arrives with stale/consumed tokens → redirect loop.
-    // We pass the full cookie object to preserve httpOnly, secure, path, etc.
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie);
     });
-
     return redirectResponse;
   }
 
-  // Allow public strategy share pages (must be checked BEFORE protected route logic)
-  if (request.nextUrl.pathname.match(/^\/strategy\/[a-zA-Z0-9-]+$/)) {
+  const pathname = request.nextUrl.pathname;
+
+  // Public strategy share pages (a long token; the interview and competitor
+  // pages are protected below).
+  if (/^\/strategy\/[A-Za-z0-9_-]{12,}$/.test(pathname) && !/^\/strategy\/(interview|competitor)$/.test(pathname)) {
     return supabaseResponse;
   }
 
-  // Protected route prefixes — everything else is public (marketing pages, signup, etc.)
   const protectedPrefixes = [
     "/home", "/dashboard", "/setup", "/generate", "/review", "/compliance",
     "/calendar", "/publish", "/admin", "/users", "/content", "/create", "/plan",
     "/strategy", "/settings", "/analytics", "/library", "/approvals", "/not-available",
+    "/notifications",
   ];
-  const isProtectedRoute = protectedPrefixes.some((p) =>
-    request.nextUrl.pathname.startsWith(p)
-  );
+  const isProtectedRoute = protectedPrefixes.some((p) => pathname.startsWith(p));
 
-  // If not logged in and trying to access protected routes, redirect to login
   if (!user && isProtectedRoute) {
     return redirectWithCookies("/login");
   }
 
-  // Root path: redirect to home (logged in) or show marketing page (not logged in)
-  if (request.nextUrl.pathname === "/") {
-    if (user) {
-      return redirectWithCookies("/home");
-    }
-    // Not logged in — fall through to marketing landing page at (marketing)/page.tsx
+  // Home is /home for everyone.
+  if (user && (pathname === "/" || pathname === "/login" || pathname === "/dashboard")) {
+    return redirectWithCookies("/home");
   }
 
-  // If logged in and on login page, redirect to dashboard
-  if (user && request.nextUrl.pathname === "/login") {
-    return redirectWithCookies("/dashboard");
+  // The hospitality fence, at the edge: a venue's people never reach a
+  // business-to-business page, whether they typed the address or tapped a
+  // link. A layout cannot do this on its own, because a shared layout does
+  // not re-run on in-app navigation. Admins pass, unless they are viewing as
+  // a venue, in which case they see the fence too.
+  if (user && isProtectedRoute && isB2bOnlyPage(pathname)) {
+    const { data: me } = await supabase.from("users").select("role, company_id").eq("id", user.id).maybeSingle();
+    let companyId: string | null = (me?.company_id as string | null) ?? null;
+    if (me?.role === "admin") {
+      companyId = await verifyViewAs(request.cookies.get(VIEW_AS_COOKIE)?.value, viewAsSecret());
+    }
+    if (companyId) {
+      const { data: company } = await supabase.from("companies").select("post_pack").eq("id", companyId).maybeSingle();
+      if ((company as { post_pack?: string } | null)?.post_pack === "hospitality") {
+        return redirectWithCookies("/not-available");
+      }
+    }
   }
 
   return supabaseResponse;

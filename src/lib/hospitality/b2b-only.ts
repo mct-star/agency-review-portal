@@ -21,7 +21,19 @@ export const B2B_ONLY_PAGE_PREFIXES = [
   "/compliance",
   "/publish",
   "/analytics", // LinkedIn post analytics
+  "/setup", // the operator's setup tree (the venue's own page is allowed below)
+  "/content", // the business-to-business piece detail
+  "/review", // the business-to-business review pages (the review home is an exact page below)
+  "/upgrade",
+  "/users",
+  "/admin",
 ] as const;
+
+/** Pages a hospitality venue uses that sit under a blocked prefix, matched by equality only. */
+export const HOSPITALITY_EXACT_PAGES = ["/review"] as const;
+
+/** A venue's own setup page: the company id in the path varies. */
+const HOSPITALITY_SETUP_PAGE = /^\/setup\/[0-9a-f-]{36}\/hospitality(\/|$)/i;
 
 /** Inside those prefixes, the pages a hospitality venue does use. */
 export const HOSPITALITY_PAGES_INSIDE_B2B_PREFIXES = [
@@ -35,6 +47,8 @@ const under = (path: string, prefix: string) => path === prefix || path.startsWi
 
 export function isB2bOnlyPage(pathname: string): boolean {
   const path = (pathname.split("?")[0] || "/").replace(/\/+$/, "") || "/";
+  if ((HOSPITALITY_EXACT_PAGES as readonly string[]).includes(path)) return false;
+  if (HOSPITALITY_SETUP_PAGE.test(path)) return false;
   if (HOSPITALITY_PAGES_INSIDE_B2B_PREFIXES.some((p) => under(path, p))) return false;
   return B2B_ONLY_PAGE_PREFIXES.some((p) => under(path, p));
 }

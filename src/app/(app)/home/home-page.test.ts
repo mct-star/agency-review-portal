@@ -24,6 +24,8 @@ function builder(table: string) {
     order: () => b,
     limit: () => b,
     single: async () => ({ data: { strategy_completed: false }, error: null }),
+    // The latest weather run: none in these tests.
+    maybeSingle: async () => ({ data: null, error: null }),
     then: (resolve: (v: unknown) => unknown) => Promise.resolve(answer()).then(resolve),
   };
   return b;

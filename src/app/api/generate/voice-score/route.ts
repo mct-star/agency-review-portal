@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { callClaude, CLAUDE_HAIKU } from "@/lib/providers/content-adaptation/claude-util";
 
@@ -30,6 +31,10 @@ export async function POST(request: Request) {
     const user = await requireCompanyUser(companyId);
     if (!user) {
       return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    }
+    {
+      const refused = await refuseHospitality(user, companyId);
+      if (refused) return refused;
     }
 
     // Fetch voice profile

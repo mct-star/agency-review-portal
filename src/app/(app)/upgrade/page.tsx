@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -54,16 +53,16 @@ function UpgradeContent() {
 
           {/* CTA */}
           <div className="mt-8 space-y-3">
-            <Link
-              href="/setup"
+            <a
+              href="mailto:mct@agencybristol.com?subject=Content%20platform%20plan"
               className={`block w-full rounded-lg px-4 py-3 text-center text-sm font-semibold text-white transition-colors ${
                 plan === "agency"
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-violet-600 hover:bg-violet-700"
               }`}
             >
-              Upgrade to {planMeta.label}
-            </Link>
+              Talk to us about your plan
+            </a>
             <button
               onClick={() => window.history.back()}
               className="block w-full rounded-lg px-4 py-2 text-center text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"

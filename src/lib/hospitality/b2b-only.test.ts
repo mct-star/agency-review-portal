@@ -24,6 +24,13 @@ describe("isB2bOnlyPage", () => {
       "/analytics",
       "/strategy/",
       "/generate?week=1",
+      "/setup",
+      "/setup/11111111-1111-4111-8111-111111111111/strategy",
+      "/content/abc",
+      "/review/abc",
+      "/upgrade",
+      "/users",
+      "/admin",
     ]) {
       expect(isB2bOnlyPage(p), p).toBe(true);
     }
@@ -40,11 +47,10 @@ describe("isB2bOnlyPage", () => {
       "/library",
       "/calendar",
       "/review",
-      "/review/abc",
-      "/content/abc",
+      "/review?week=1",
+      "/notifications",
       "/settings",
-      "/setup/abc/hospitality",
-      "/upgrade",
+      "/setup/11111111-1111-4111-8111-111111111111/hospitality",
       "/not-available",
       "",
     ]) {
@@ -65,10 +71,8 @@ describe("isB2bOnlyPage", () => {
  * cannot quietly appear in front of a hospitality venue.
  */
 const OPEN_TO_HOSPITALITY = [
-  "/admin", // operator pages check the role themselves
   "/approvals",
   "/calendar",
-  "/content",
   "/create/voice",
   "/create/week-interview",
   "/generate/quick",
@@ -76,12 +80,16 @@ const OPEN_TO_HOSPITALITY = [
   "/home",
   "/library",
   "/not-available",
-  "/review",
+  "/notifications",
   "/settings",
-  "/setup",
-  "/upgrade",
-  "/users",
 ];
+
+/** Open by equality or pattern only, so the pages beneath them stay blocked. */
+const OPEN_EXACT = [
+  "/review", // the venue's review home
+  "/setup/11111111-1111-4111-8111-111111111111/hospitality", // the venue's own settings
+];
+const isOpen = (r: string) => OPEN_EXACT.includes(r) || OPEN_TO_HOSPITALITY.some((p) => r === p || r.startsWith(`${p}/`));
 
 function pages(dir: string, prefix = ""): string[] {
   const out: string[] = [];
@@ -94,7 +102,10 @@ function pages(dir: string, prefix = ""): string[] {
 }
 
 describe("the pages under (app)", () => {
-  const routes = pages(path.join(__dirname, "../../app/(app)"));
+  // A dynamic segment such as [companyId] stands for a real id when a page is checked.
+  const routes = pages(path.join(__dirname, "../../app/(app)")).map((r) =>
+    r.replace(/\[[^\]]+\]/g, "11111111-1111-4111-8111-111111111111")
+  );
 
   it("finds the pages", () => {
     expect(routes.length).toBeGreaterThan(30);
@@ -103,13 +114,13 @@ describe("the pages under (app)", () => {
 
   it("are each either blocked for a hospitality venue or deliberately open to it", () => {
     const unclassified = routes.filter(
-      (r) => !isB2bOnlyPage(r) && !OPEN_TO_HOSPITALITY.some((p) => r === p || r.startsWith(`${p}/`))
+      (r) => !isB2bOnlyPage(r) && !isOpen(r)
     );
     expect(unclassified, "classify these pages in b2b-only.ts or in OPEN_TO_HOSPITALITY").toEqual([]);
   });
 
   it("never put a page on both lists", () => {
-    const both = routes.filter((r) => isB2bOnlyPage(r) && OPEN_TO_HOSPITALITY.some((p) => r === p || r.startsWith(`${p}/`)));
+    const both = routes.filter((r) => isB2bOnlyPage(r) && isOpen(r));
     expect(both).toEqual([]);
   });
 

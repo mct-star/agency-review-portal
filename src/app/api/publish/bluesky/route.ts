@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/crypto";
 import { isOurStorageUrl } from "@/lib/media/our-storage-url";
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
 
   const profile = await requireCompanyUser(companyId);
   if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
+  }
   if (profile.role !== "admin" && !profile.can_publish) {
     return NextResponse.json({ error: "Your account cannot publish. Ask AGENCY to switch publishing on." }, { status: 403 });
   }

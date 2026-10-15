@@ -9,6 +9,14 @@ interface Result { created: Created[]; notes: string[]; transcript: string; week
 const MAX_SECONDS = 300;
 
 /** Say what is on this week. We plan the posts, day by day, and leave them for approval. */
+const RECORDING_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac"];
+
+function extensionFor(type: string): string {
+  if (type.includes("mp4")) return "m4a";
+  if (type.includes("aac")) return "aac";
+  return "webm";
+}
+
 export default function WeeklyInterview({ companyId }: { companyId: string }) {
   const [week, setWeek] = useState<"next" | "this">("next");
   const [text, setText] = useState("");
@@ -20,6 +28,7 @@ export default function WeeklyInterview({ companyId }: { companyId: string }) {
   const [result, setResult] = useState<Result | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const mimeRef = useRef("audio/webm");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
@@ -29,14 +38,16 @@ export default function WeeklyInterview({ companyId }: { companyId: string }) {
     setBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+      // Older iPhone Safari cannot record webm, so take the first type this phone can.
+      const mime = RECORDING_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+      mimeRef.current = mime ? mime.split(";")[0] : "audio/webm";
       // Speech needs little: 32 kbps keeps five minutes well under the upload limit.
-      const rec = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 32000 });
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 });
       chunks.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunks.current.push(e.data);
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        setBlob(new Blob(chunks.current, { type: "audio/webm" }));
+        setBlob(new Blob(chunks.current, { type: rec.mimeType ? rec.mimeType.split(";")[0] : mimeRef.current }));
       };
       rec.start(1000);
       recorder.current = rec;
@@ -66,7 +77,7 @@ export default function WeeklyInterview({ companyId }: { companyId: string }) {
       const form = new FormData();
       form.set("companyId", companyId);
       form.set("week", week);
-      form.set("audio", blob, "week.webm");
+      form.set("audio", blob, `week.${extensionFor(blob.type)}`);
       res = await fetch("/api/hospitality/week-plan", { method: "POST", body: form });
     } else {
       res = await fetch("/api/hospitality/week-plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, week, transcript: text }) });
