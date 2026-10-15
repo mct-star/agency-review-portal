@@ -6,11 +6,8 @@
  * prompt — specifying lighting rigs, camera angles, material descriptions,
  * render quality flags, and negative constraints.
  *
- * This is the same two-step process Manus uses internally, which is why
- * Manus images look better than a direct prompt-to-model call.
- *
  * Uses claude-haiku-5-5 through the shared module (prompt engineering doesn't need Sonnet).
- * Adds ~1–2 seconds to image generation, saves minutes vs Manus.
+ * Adds ~1–2 seconds to image generation, saves minutes against an agent-based provider.
  */
 
 import { callClaude, CLAUDE_HAIKU } from "@/lib/providers/content-adaptation/claude-util";

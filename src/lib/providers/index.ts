@@ -376,18 +376,16 @@ export async function getImageProvider(
       };
     }
 
-    case "manus": {
-      const { createManusImageProvider } = await import(
-        "./image-generation/manus"
-      );
+    case "manus":
+      // Retired. A company config may still name it.
       return {
         providerName: resolved.provider,
-        provider: createManusImageProvider(
-          resolved.credentials,
-          resolved.settings
-        ),
+        provider: {
+          async generate() {
+            throw new Error("This image provider is retired. Ask AGENCY to switch it.");
+          },
+        },
       };
-    }
 
     case "gemini_imagen": {
       const { createGeminiImageProvider } = await import(
@@ -450,12 +448,6 @@ export const IMAGE_PROVIDER_OPTIONS = [
     label: "Google Gemini (Imagen 3)",
     description: "Photorealistic, editorial, healthcare scenes. Free with Google Workspace. Best for photography styles.",
     costTier: "free" as const,
-  },
-  {
-    value: "manus",
-    label: "Manus Agent",
-    description: "Autonomous agent generates images via its internal tools. Async, 1–4 min per image. Uses Manus credits (~150 credits/task).",
-    costTier: "high" as const,
   },
 ];
 

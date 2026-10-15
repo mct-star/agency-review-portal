@@ -8,7 +8,7 @@ import { networkFlags, networksFor } from "./networks";
  * One row of the 88-column scheduler CSV (see the column list in
  * src/app/api/export/metricool/route.ts). Pure, so the rules can be tested:
  * which networks a post is flagged for, which text it carries, and the post
- * type the network needs.
+ * type the network needs. Cells come back raw; csvLine quotes every one.
  */
 
 export const METRICOOL_HEADERS = [
@@ -111,6 +111,20 @@ export function csvEscape(value: string): string {
   return `"${normalized.replace(/"/g, '""')}"`;
 }
 
+/** One CSV line with every cell quoted, as the Mac pipeline writes it (QUOTE_ALL). */
+export function csvLine(cells: string[]): string {
+  return cells.map((c) => csvEscape(c)).join(",");
+}
+
+/**
+ * The time a post gets when none is set. These are the Mac pipeline's own
+ * defaults by kind of post: 10:30 for a social post, 13:00 for a podcast or clip.
+ */
+export function defaultTimeFor(postType: string | null | undefined): string {
+  const t = (postType || "").toLowerCase();
+  return t.includes("podcast") || t.includes("clip") ? "13:00:00" : "10:30:00";
+}
+
 /** CTA posts use link previews instead of images. */
 function shouldShowLinkPreview(postType: string | null): boolean {
   return postType === "blog_cta" || postType === "triage_cta";
@@ -136,6 +150,8 @@ export interface RowResult {
   cells: string[];
   /** Plain-words notes for the person exporting, for example a post with no photo. */
   notes: string[];
+  /** Set when the post had no time and this default (HH:MM:SS) was used. */
+  defaultedTime: string | null;
 }
 
 export function buildMetricoolRow(args: {
@@ -163,11 +179,15 @@ export function buildMetricoolRow(args: {
   // network gets the plain text with the hashtag block kept.
   const linkedinOnly = networks.length === 1 && networks[0] === "linkedin";
   const toText = linkedinOnly ? toLinkedInText : toSocialText;
-  row[0] = csvEscape(toText(piece.markdown_body));
+  row[0] = toText(piece.markdown_body);
   row[1] = postDateFor(piece, args.weekStart);
-  row[2] = piece.scheduled_time
-    ? piece.scheduled_time.length === 5 ? piece.scheduled_time + ":00" : piece.scheduled_time
-    : "08:26:00";
+  let defaultedTime: string | null = null;
+  if (piece.scheduled_time) {
+    row[2] = piece.scheduled_time.length === 5 ? piece.scheduled_time + ":00" : piece.scheduled_time;
+  } else {
+    defaultedTime = defaultTimeFor(piece.post_type);
+    row[2] = defaultedTime;
+  }
   row[3] = args.isDraft ? "true" : "false";
 
   row[4] = String(flags.facebook);
@@ -186,7 +206,7 @@ export function buildMetricoolRow(args: {
     row[24 + i] = args.altTexts[i] || "";
   }
 
-  if (piece.first_comment) row[61] = csvEscape(toText(piece.first_comment));
+  if (piece.first_comment) row[61] = toText(piece.first_comment);
 
   // Post types the networks need: Instagram and Facebook take POST, REEL or STORY.
   const isVideo = media.shape === "video";
@@ -202,5 +222,5 @@ export function buildMetricoolRow(args: {
     row[85] = "false";
   }
 
-  return { cells: row, notes };
+  return { cells: row, notes, defaultedTime };
 }

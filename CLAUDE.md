@@ -70,6 +70,7 @@ Columns the code writes must exist: `companies.trial_expires_at` (not
 
 ## Things that look odd but are deliberate
 
+- The scheduler export is the personal-feed brand only for the platform company (the company page posts never reach the portal), so its file is `posts_MCT_week<N>.csv`. Medium, Substack and Manus are retired: do not rebuild them.
 - `/generate/single` and `/generate/studio` are permanent redirects
   (`next.config.ts`).
 - The week board pages are behind `NEXT_PUBLIC_WEEK_BOARD_ENABLED` and are

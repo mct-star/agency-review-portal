@@ -60,18 +60,6 @@ const SERVICE_CATEGORIES: {
     providers: ["openai_whisper", "deepgram", "assemblyai"],
   },
   {
-    value: "newsletter_publishing",
-    label: "Newsletter Publishing",
-    description: "Publish articles as newsletters (e.g. Substack)",
-    providers: ["substack"],
-  },
-  {
-    value: "content_syndication",
-    label: "Content Syndication",
-    description: "Cross-post articles to content platforms (e.g. Medium)",
-    providers: ["medium"],
-  },
-  {
     value: "video_hosting",
     label: "Video Hosting",
     description: "Upload and host videos on platforms (YouTube, TikTok, Instagram)",
@@ -96,8 +84,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai_whisper: "OpenAI Whisper",
   deepgram: "Deepgram",
   assemblyai: "AssemblyAI",
-  substack: "Substack",
-  medium: "Medium",
   youtube: "YouTube",
   tiktok: "TikTok",
   instagram_graph: "Instagram Graph API",

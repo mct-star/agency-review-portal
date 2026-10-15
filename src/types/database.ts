@@ -48,6 +48,7 @@ export type ServiceCategory =
   | "social_scheduling"
   | "video_rendering"
   | "transcription"
+  // DEPRECATED: syndication is retired; kept so old config rows still type-check.
   | "newsletter_publishing"
   | "content_syndication"
   | "video_hosting";
@@ -63,7 +64,8 @@ export type DistributionPlatform =
   | "facebook"
   | "instagram"
   | "tiktok"
-  // Content/newsletter platforms
+  // Content/newsletter platforms. DEPRECATED: syndication is retired and
+  // nothing offers these any more. Kept only so old rows still type-check.
   | "substack"
   | "medium"
   // Video platforms

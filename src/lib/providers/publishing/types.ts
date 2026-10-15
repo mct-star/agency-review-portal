@@ -1,5 +1,5 @@
 /**
- * Shared interface for all publishing providers (Substack, Medium, YouTube, etc.)
+ * Shared interface for all publishing providers (YouTube, etc.)
  */
 export interface PublishingProvider {
   publish(input: PublishInput): Promise<PublishOutput>;
@@ -10,11 +10,11 @@ export interface PublishInput {
   title: string;
   content: string;           // HTML or markdown body
   canonicalUrl?: string;      // rel=canonical for SEO
-  subtitle?: string;          // Medium kicker, Substack subtitle
+  subtitle?: string;          // Kicker or subtitle
   tags?: string[];
   mediaUrls?: string[];       // Cover image, video file, etc.
   scheduledFor?: string;      // ISO datetime for scheduled publishing
-  sendNewsletter?: boolean;   // Substack: send as email newsletter
+  sendNewsletter?: boolean;   // Send as an email newsletter
   metadata?: Record<string, unknown>;
 }
 

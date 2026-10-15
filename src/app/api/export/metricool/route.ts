@@ -3,14 +3,14 @@ import { createAdminSupabaseClient, getSignedInProfile } from "@/lib/supabase/ad
 import { canAccessCompany } from "@/lib/auth/permissions";
 import type { ContentPiece, ContentImage } from "@/types/database";
 import { resolvePieceMedia, type MediaSourceAsset } from "@/lib/content/piece-media";
-import { METRICOOL_HEADERS, buildMetricoolRow, csvEscape } from "@/lib/export/metricool-row";
+import { METRICOOL_HEADERS, buildMetricoolRow, csvLine } from "@/lib/export/metricool-row";
 
 /**
  * GET /api/export/metricool?weekId=uuid&draft=false
  *
  * Exports an approved week as an 88-column Metricool CSV.
  *
- * Metricool CSV columns (88 total — see atom 12_METRICOOL_CSV.md):
+ * Metricool CSV columns (88 total, see atom 12_METRICOOL_CSV.md):
  * 0  Text
  * 1  Date                    (YYYY-MM-DD)
  * 2  Time                    (HH:MM:SS)
@@ -161,9 +161,10 @@ export async function GET(request: Request) {
   // Build CSV rows
   const csvRows: string[] = [];
   const notes: string[] = [];
+  const defaultedTimes: string[] = [];
 
   // Header row
-  csvRows.push(METRICOOL_HEADERS.map((h) => csvEscape(h)).join(","));
+  csvRows.push(csvLine(METRICOOL_HEADERS));
 
   // Data rows, one per social post
   for (const piece of pieces as Array<ContentPiece & { source_meta?: { alt_text?: string } | null; scheduled_date?: string | null }>) {
@@ -179,15 +180,30 @@ export async function GET(request: Request) {
       altTexts,
     });
     notes.push(...built.notes);
-    csvRows.push(built.cells.join(","));
+    if (built.defaultedTime) defaultedTimes.push(built.defaultedTime);
+    csvRows.push(csvLine(built.cells));
   }
 
-  // Join with CRLF as per Metricool spec
-  const csvContent = csvRows.join("\r\n");
+  // Posts with no time set take the pipeline default for their kind.
+  if (defaultedTimes.length > 0) {
+    const kinds = Array.from(new Set(defaultedTimes)).map((t) => t.slice(0, 5)).join(" and ");
+    notes.push(`${defaultedTimes.length} ${defaultedTimes.length === 1 ? "post" : "posts"} had no time set, defaulted to ${kinds}`);
+  }
 
-  // Build filename
+  // CRLF between rows, and a byte-order mark first: the Mac pipeline reads UTF-8 with a BOM.
+  const csvContent = "\uFEFF" + csvRows.join("\r\n");
+
+  // The portal holds only the personal-feed posts for the platform company
+  // (the company page posts never reach it), so its file is named for that brand.
   const companySlug = company?.slug || "export";
-  const filename = `metricool_week${week.week_number}_${companySlug}${isDraft ? "_DRAFT" : ""}.csv`;
+  const platformSlug = process.env.PLATFORM_COMPANY_SLUG || "agency-bristol";
+  const isPlatformCompany = companySlug === platformSlug;
+  if (isPlatformCompany) {
+    notes.push("This file is the personal-feed brand only. The company page file comes from the weekly run.");
+  }
+  const filename = isPlatformCompany
+    ? `posts_MCT_week${week.week_number}${isDraft ? "_DRAFT" : ""}.csv`
+    : `posts_${companySlug}_week${week.week_number}${isDraft ? "_DRAFT" : ""}.csv`;
 
   return new Response(csvContent, {
     status: 200,

@@ -123,7 +123,6 @@ export async function POST(request: Request) {
 
       // Enhance the prompt: Claude rewrites the descriptive concept into a
       // technically precise Flux prompt with lighting, camera, and render specs.
-      // This is the same two-step process Manus uses internally.
       // Falls back to the raw prompt silently if enhancement fails.
       const enhancedPrompt = claudeApiKey
         ? await enhanceImagePrompt(prompt, style, claudeApiKey, brandContext)
