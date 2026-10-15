@@ -19,17 +19,11 @@ export async function transcribeAudio(
   mimeType: string = "audio/webm",
   companyId?: string
 ): Promise<TranscriptionResult> {
-  // Try to get Gemini key from multiple sources
-  let geminiKey =
-    process.env.GOOGLE_GEMINI_API_KEY ||
-    process.env.Gemini ||
-    process.env.GEMINI_API_KEY ||
-    process.env.GEMINI ||
-    "";
+  let geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
 
-  console.log(`[transcribe v2] geminiKey found: ${!!geminiKey}, length: ${geminiKey.length}, openai: ${!!process.env.OPENAI_API_KEY}`);
-
-  // If no env var, try to get from company API configs (where image generation stores it)
+  // If no env var, try this company's own stored Gemini key (where image
+  // generation stores it). Never another company's: before 14 Oct 2026 the
+  // lookup below fell back to any company's active key.
   if (!geminiKey && companyId) {
     try {
       const { createAdminSupabaseClient } = await import("@/lib/supabase/admin");
@@ -49,28 +43,6 @@ export async function transcribeAudio(
       }
     } catch {
       // No company config, continue
-    }
-  }
-
-  // Also try platform-level Gemini config (not company-specific)
-  if (!geminiKey) {
-    try {
-      const { createAdminSupabaseClient } = await import("@/lib/supabase/admin");
-      const supabase = await createAdminSupabaseClient();
-      const { data: configs } = await supabase
-        .from("company_api_configs")
-        .select("credentials_encrypted")
-        .eq("provider", "gemini_imagen")
-        .eq("is_active", true)
-        .limit(1)
-        .single();
-      if (configs?.credentials_encrypted) {
-        const { decrypt } = await import("@/lib/crypto");
-        const decrypted = JSON.parse(decrypt(configs.credentials_encrypted));
-        geminiKey = decrypted.api_key || "";
-      }
-    } catch {
-      // No platform config either
     }
   }
 

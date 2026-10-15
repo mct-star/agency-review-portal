@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
+import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * GET /api/generate/report?weekId=xxx&companyId=xxx
@@ -127,26 +128,18 @@ SECTION 1 - "This Week's Story": Write 2-3 paragraphs explaining what story this
 SECTION 2 - "Key Messages": Write 3-5 bullet points (each starting with "- ") summarising what the audience should take away from this week's content. Write from the audience's perspective, not the content creator's. Each bullet should be a clear, actionable insight.`;
 
     if (isAnthropic) {
-      const model = (resolved.settings.model as string) || "claude-sonnet-4-20250514";
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1500,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      const text = data.content?.[0]?.text || "";
-      return parseAIResponse(text);
+      try {
+        const text = await callClaude(
+          apiKey,
+          currentClaudeModel(resolved.settings.model as string | undefined),
+          "",
+          prompt,
+          1500
+        );
+        return parseAIResponse(text);
+      } catch {
+        return null;
+      }
     } else {
       // OpenAI-compatible fallback
       const model = (resolved.settings.model as string) || "gpt-4o";

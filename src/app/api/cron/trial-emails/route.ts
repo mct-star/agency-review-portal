@@ -20,13 +20,13 @@ import {
  * { "crons": [{ "path": "/api/cron/trial-emails", "schedule": "0 9 * * *" }] }
  */
 export async function GET(request: Request) {
-  // Verify cron secret (skip in dev)
+  // Fails closed: without the secret the job does not run at all.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET is not set, so this job will not run" }, { status: 503 });
+  }
+  if (request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -41,9 +41,9 @@ export async function GET(request: Request) {
 
   const { data: warningCompanies } = await supabase
     .from("companies")
-    .select("id, name, trial_ends_at, trial_warning_sent")
-    .gte("trial_ends_at", `${warningDateStr}T00:00:00`)
-    .lte("trial_ends_at", `${warningDateStr}T23:59:59`)
+    .select("id, name, trial_expires_at, trial_warning_sent")
+    .gte("trial_expires_at", `${warningDateStr}T00:00:00`)
+    .lte("trial_expires_at", `${warningDateStr}T23:59:59`)
     .is("trial_warning_sent", null);
 
   for (const company of warningCompanies || []) {
@@ -98,9 +98,9 @@ export async function GET(request: Request) {
 
   const { data: expiredCompanies } = await supabase
     .from("companies")
-    .select("id, name, trial_ends_at, trial_expired_sent")
-    .gte("trial_ends_at", `${todayStr}T00:00:00`)
-    .lte("trial_ends_at", `${todayStr}T23:59:59`)
+    .select("id, name, trial_expires_at, trial_expired_sent")
+    .gte("trial_expires_at", `${todayStr}T00:00:00`)
+    .lte("trial_expires_at", `${todayStr}T23:59:59`)
     .is("trial_expired_sent", null);
 
   for (const company of expiredCompanies || []) {

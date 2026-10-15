@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { callClaude, CLAUDE_SONNET } from "@/lib/providers/content-adaptation/claude-util";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 export const maxDuration = 120;
@@ -129,7 +129,7 @@ SOURCE CONTENT:
 ${sourceText.substring(0, 12000)}`;
 
   try {
-    const raw = await callClaude(apiKey, "claude-sonnet-4-20250514", systemPrompt, userPrompt, 8192);
+    const raw = await callClaude(apiKey, CLAUDE_SONNET, systemPrompt, userPrompt, 8192);
 
     // Parse JSON -- handle potential markdown fences
     let cleaned = raw.trim();

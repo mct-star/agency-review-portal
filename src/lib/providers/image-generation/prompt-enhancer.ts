@@ -9,12 +9,11 @@
  * This is the same two-step process Manus uses internally, which is why
  * Manus images look better than a direct prompt-to-model call.
  *
- * Uses claude-3-5-haiku for speed (prompt engineering doesn't need Sonnet).
+ * Uses claude-haiku-5-5 through the shared module (prompt engineering doesn't need Sonnet).
  * Adds ~1–2 seconds to image generation, saves minutes vs Manus.
  */
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const ENHANCEMENT_MODEL = "claude-3-5-haiku-20241022";
+import { callClaude, CLAUDE_HAIKU } from "@/lib/providers/content-adaptation/claude-util";
 
 const SYSTEM_PROMPT = `You are an expert image generation prompt engineer specialising in Flux 1.1 Pro and Pixar-style 3D illustration.
 
@@ -110,29 +109,7 @@ export async function enhanceImagePrompt(
 Remember: output ONLY the enhanced prompt, nothing else.`;
 
   try {
-    const res = await fetch(ANTHROPIC_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: ENHANCEMENT_MODEL,
-        max_tokens: 600,
-        system,
-        messages: [{ role: "user", content: userMessage }],
-      }),
-    });
-
-    if (!res.ok) {
-      // Enhancement failed — return raw prompt so generation still proceeds
-      console.warn(`Prompt enhancement failed (${res.status}) — using raw prompt`);
-      return rawPrompt;
-    }
-
-    const data = await res.json();
-    const enhanced = data.content?.[0]?.text?.trim();
+    const enhanced = (await callClaude(anthropicApiKey, CLAUDE_HAIKU, system, userMessage, 600)).trim();
 
     if (!enhanced || enhanced.length < 50) {
       return rawPrompt;

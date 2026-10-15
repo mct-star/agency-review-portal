@@ -3,9 +3,21 @@ import { describe, it, expect, vi } from "vitest";
 // The fix provider delegates every model call to the shared fallback chain.
 // Mocking it here lets the prompt-shape test inspect exactly what the model
 // is shown, with no network call.
-vi.mock("../content-adaptation/claude-util", () => ({
-  callClaude: vi.fn(async () => `===ARTICLE===\n# Mocked Title\nMocked body.\n===END ARTICLE===\n===META===\n{}\n===END META===`),
-}));
+vi.mock("../content-adaptation/claude-util", () => {
+  const callClaude = vi.fn(async () => `===ARTICLE===\n# Mocked Title\nMocked body.\n===END ARTICLE===\n===META===\n{}\n===END META===`);
+  return {
+    CLAUDE_SONNET: "claude-sonnet-5-5",
+    CLAUDE_HAIKU: "claude-haiku-5-5",
+    currentClaudeModel: (m?: string | null) => m || "claude-sonnet-5-5",
+    callClaude,
+    // The adapter calls callText; the test asserts on callClaude, so callText forwards to it.
+    callText: vi.fn(async (...args: unknown[]) => ({
+      text: await (callClaude as unknown as (...a: unknown[]) => Promise<string>)(...args),
+      provider: "claude",
+      model: "claude-sonnet-5-5",
+    })),
+  };
+});
 
 import { callClaude } from "../content-adaptation/claude-util";
 import { buildContentPrompt, createClaudeFixProvider, parseLongFormOutput } from "./anthropic";

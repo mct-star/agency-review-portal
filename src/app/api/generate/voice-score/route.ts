@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { callClaude, CLAUDE_HAIKU } from "@/lib/providers/content-adaptation/claude-util";
 
 /**
  * POST /api/generate/voice-score
@@ -13,8 +13,6 @@ import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
  * Returns: { score: number, feedback: string[] }
  */
 
-const MODEL_HAIKU = "claude-3-5-haiku-20241022";
-const API_URL = "https://api.anthropic.com/v1/messages";
 
 export async function POST(request: Request) {
   try {
@@ -95,7 +93,7 @@ Return ONLY valid JSON with no other text: { "score": 85, "feedback": ["First fe
 
     let rawText: string;
     try {
-      rawText = await callClaude(apiKey, MODEL_HAIKU, "", prompt, 256);
+      rawText = await callClaude(apiKey, CLAUDE_HAIKU, "", prompt, 256);
     } catch (err) {
       console.error("[voice-score] LLM error:", err);
       return NextResponse.json(

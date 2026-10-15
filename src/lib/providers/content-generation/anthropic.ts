@@ -30,12 +30,13 @@ import type {
  * - SONNET: creative writing (posts, blogs, compliance review) — per-generation
  * - HAIKU: simple classification (quality gates, hook extraction, prompt enhancement) — high volume
  */
-const MODEL_OPUS = "claude-opus-4-20250514";
-const MODEL_SONNET = "claude-sonnet-4-20250514";
-const MODEL_HAIKU = "claude-3-5-haiku-20241022";
+import { CLAUDE_HAIKU, CLAUDE_SONNET, callText, currentClaudeModel } from "../content-adaptation/claude-util";
+
+const MODEL_OPUS = CLAUDE_SONNET;
+const MODEL_SONNET = CLAUDE_SONNET;
+const MODEL_HAIKU = CLAUDE_HAIKU;
 
 const DEFAULT_MODEL = MODEL_SONNET;
-const API_URL = "https://api.anthropic.com/v1/messages";
 
 interface AnthropicMessage {
   role: "user" | "assistant";
@@ -49,21 +50,30 @@ interface AnthropicResponse {
 }
 
 /**
- * Delegates to the shared 4-tier fallback callClaude in claude-util.
- * Signature-compatible wrapper: takes messages array (first message's content is the user prompt).
- * All content generation now flows through the fallback chain.
+ * Delegates to the shared callText in claude-util (Claude, then Gemini Flash).
+ * Signature-compatible wrapper: takes a messages array (the first user
+ * message is the prompt). Records who answered in `lastWriter` so the
+ * provider can tell the job record the truth.
  */
-import { callClaude as callWithFallback } from "../content-adaptation/claude-util";
+let lastWriter: { provider: "claude" | "gemini"; model: string } | null = null;
+
+/** The provider and model that answered the most recent call in this process. */
+export function lastWriterUsed() {
+  return lastWriter;
+}
 
 async function callClaude(
   apiKey: string,
   model: string,
   system: string,
   messages: AnthropicMessage[],
-  maxTokens: number = 4096
+  maxTokens: number = 4096,
+  effort: "low" | "medium" = "low"
 ): Promise<string> {
   const userMessage = messages.find((m) => m.role === "user")?.content || "Generate now.";
-  return callWithFallback(apiKey, model, system, userMessage, maxTokens);
+  const result = await callText(apiKey, model, system, userMessage, maxTokens, { effort });
+  lastWriter = { provider: result.provider, model: result.model };
+  return result.text;
 }
 
 // ── Content Type Instructions ───────────────────────────────
@@ -610,21 +620,22 @@ export function createClaudeContentProvider(
       "Anthropic provider requires an api_key in credentials"
     );
   }
-  const model = (settings.model as string) || DEFAULT_MODEL;
+  const model = currentClaudeModel(settings.model as string | undefined) || DEFAULT_MODEL;
 
   return {
     async generate(input: ContentGenerationInput): Promise<ContentGenerationOutput> {
       const system = buildContentPrompt(input);
 
-      // The local callClaude now delegates to the 4-tier fallback chain in claude-util
-      // (Claude → Gemini 2.5 Pro → Gemini 2.5 Flash → OpenAI GPT-4o).
+      // Claude, then Gemini Flash, through claude-util. The writer asks for
+      // medium effort; everything else in the platform runs at low.
       const longForm = isLongForm(input.contentType);
       const text = await callClaude(
         apiKey,
         model,
         system,
         [{ role: "user", content: "Generate the content now." }],
-        longForm ? 16384 : 8192
+        longForm ? 16384 : 8192,
+        "medium"
       );
       if (longForm) return parseLongFormOutput(text);
 
@@ -660,7 +671,7 @@ export function createClaudeFixProvider(
 ) {
   const apiKey = credentials.api_key as string;
   if (!apiKey) throw new Error("Fix provider requires API key");
-  const model = (settings.model as string) || DEFAULT_MODEL;
+  const model = currentClaudeModel(settings.model as string | undefined) || DEFAULT_MODEL;
 
   return {
     async fix(
@@ -817,7 +828,7 @@ export function createClaudePlatformAdaptationProvider(
       "Platform adaptation requires an Anthropic API key (either in provider config or ANTHROPIC_API_KEY env var)"
     );
   }
-  const model = (settings.model as string) || DEFAULT_MODEL;
+  const model = currentClaudeModel(settings.model as string | undefined) || DEFAULT_MODEL;
 
   return {
     async adapt(input: PlatformAdaptationInput): Promise<PlatformAdaptationOutput> {

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
+/** Private bucket. Claims matrices and brand guidelines are not public documents. */
+const COMPLIANCE_BUCKET = "content-drafts";
+
 /**
  * GET /api/compliance/documents?companyId=xxx
  *
@@ -27,10 +30,21 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "The documents could not be loaded" }, { status: 500 });
   }
 
-  return NextResponse.json({ documents: documents || [] });
+  // Documents live in the private bucket and are served through a one-hour
+  // signed link. Older rows hold a public URL from before 14 Oct 2026 and are
+  // left as they are.
+  const signed = await Promise.all(
+    (documents || []).map(async (doc) => {
+      if (!doc.storage_path) return doc;
+      const { data } = await supabase.storage.from(COMPLIANCE_BUCKET).createSignedUrl(doc.storage_path, 3600);
+      return { ...doc, file_url: data?.signedUrl ?? doc.file_url };
+    })
+  );
+
+  return NextResponse.json({ documents: signed });
 }
 
 /**
@@ -100,7 +114,7 @@ export async function POST(request: Request) {
   const buffer = Buffer.from(arrayBuffer);
 
   const { error: uploadError } = await supabase.storage
-    .from("content-assets")
+    .from(COMPLIANCE_BUCKET)
     .upload(storagePath, buffer, {
       contentType: file.type,
       upsert: true,
@@ -114,9 +128,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: urlData } = supabase.storage
-    .from("content-assets")
-    .getPublicUrl(storagePath);
 
   // Extract text from the document (basic extraction for TXT/CSV)
   let extractedText: string | null = null;
@@ -168,7 +179,8 @@ export async function POST(request: Request) {
       name,
       description: description || null,
       category,
-      file_url: urlData.publicUrl,
+      file_url: "",
+      storage_path: storagePath,
       file_name: file.name,
       file_size_bytes: file.size,
       mime_type: file.type,

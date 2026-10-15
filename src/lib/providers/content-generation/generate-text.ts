@@ -1,8 +1,9 @@
 /**
- * Unified Text Generation with Three-Tier LLM Fallback
+ * Unified text generation: Claude first, Gemini 2.5 Flash second.
  *
- * Tries providers in order: Claude (primary) → Gemini (fallback 1) → OpenAI (fallback 2).
- * Each provider is called via its native REST API — no SDK dependencies.
+ * Decided 14 Oct 2026. Gemini Pro has a quota of zero on the production key
+ * and the OpenAI key is invalid, so neither is in the chain. Each provider is
+ * called via its native REST API with no SDK dependencies.
  *
  * Usage:
  *   import { generateText } from "@/lib/providers/content-generation/generate-text";
@@ -18,11 +19,9 @@ export interface GenerateTextOptions {
   temperature?: number;
   companyId?: string; // Reserved for future company-level API key lookup
   /**
-   * Which Gemini model to use when Gemini is the provider. Defaults to
-   * gemini-2.5-pro. Short-form writers (the hospitality captions, the
-   * weekly planner) pass gemini-2.5-flash: it is enough for a caption,
-   * far cheaper, and it is the model available on a free-tier key,
-   * where gemini-2.5-pro has a quota of zero (live check, 14 Oct 2026).
+   * Kept for callers that still pass it. Every Gemini call now uses
+   * gemini-2.5-flash: gemini-2.5-pro has a quota of zero on the production
+   * key (live check, 14 Oct 2026) and is no longer in the chain.
    */
   geminiModel?: "gemini-2.5-pro" | "gemini-2.5-flash";
   /**
@@ -37,13 +36,13 @@ export interface GenerateTextOptions {
   effort?: "low" | "medium" | "high";
 }
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-pro";
+const GEMINI_MODEL = "gemini-2.5-flash";
 // claude-sonnet-4-20250514 was retired and returned 404 (live check, 14 Oct 2026).
 const CLAUDE_MODEL = "claude-sonnet-5-5";
 
 export interface GenerateTextResult {
   text: string;
-  provider: "claude" | "gemini" | "openai";
+  provider: "claude" | "gemini";
   model: string;
 }
 
@@ -94,7 +93,7 @@ async function callGemini(
   apiKey: string,
   opts: GenerateTextOptions
 ): Promise<string> {
-  const model = opts.geminiModel ?? DEFAULT_GEMINI_MODEL;
+  const model = GEMINI_MODEL;
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -106,12 +105,10 @@ async function callGemini(
         generationConfig: {
           maxOutputTokens: opts.maxTokens || 2000,
           temperature: opts.temperature ?? 0.7,
-          // gemini-2.5-flash "thinks" before it answers and those tokens
-          // count against maxOutputTokens: a 700-token caption request
-          // spent 630 on thought and returned truncated JSON (live check,
-          // 14 Oct 2026). Short-form writers do not need it, so it is
-          // switched off for flash. gemini-2.5-pro cannot disable it.
-          ...(model === "gemini-2.5-flash" ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          // Flash "thinks" before it answers and those tokens count against
+          // maxOutputTokens: a 700-token caption request spent 630 on thought
+          // and returned truncated JSON (live check, 14 Oct 2026). Off.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     }
@@ -125,94 +122,41 @@ async function callGemini(
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-async function callOpenAI(
-  apiKey: string,
-  opts: GenerateTextOptions
-): Promise<string> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      max_tokens: opts.maxTokens || 2000,
-      temperature: opts.temperature ?? 0.7,
-      messages: [
-        { role: "system", content: opts.systemPrompt },
-        { role: "user", content: opts.userPrompt },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`OpenAI API ${res.status}: ${await res.text()}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
-}
-
 // ── Main entry point ──────────────────────────────────────────
 
 /**
- * Generate text using the three-tier fallback chain:
- *   1. Claude (Anthropic) — primary
- *   2. Gemini (Google) — fallback 1 (free tier available)
- *   3. OpenAI — fallback 2
- *
- * Throws if all providers fail or none are configured.
+ * Generate text: Claude first, Gemini Flash second. Throws if both fail or
+ * neither key is set. The result names the provider and model that answered.
  */
 export async function generateText(
   options: GenerateTextOptions
 ): Promise<GenerateTextResult> {
-  // Try 1: Gemini (Google) — free, primary provider
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY || process.env.GEMINI;
-  if (geminiKey) {
-    try {
-      const result = await callGemini(geminiKey, options);
-      return {
-        text: result,
-        provider: "gemini",
-        model: options.geminiModel ?? DEFAULT_GEMINI_MODEL,
-      };
-    } catch (err) {
-      console.error("[generateText] Gemini failed, trying Claude:", err);
-    }
-  }
+  const errors: string[] = [];
 
-  // Try 2: Claude (Anthropic) — fallback
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (anthropicKey) {
     try {
       const result = await callClaude(anthropicKey, options);
-      return {
-        text: result,
-        provider: "claude",
-        model: CLAUDE_MODEL,
-      };
+      return { text: result, provider: "claude", model: CLAUDE_MODEL };
     } catch (err) {
-      console.error("[generateText] Claude failed, trying OpenAI:", err);
+      errors.push(err instanceof Error ? err.message : String(err));
+      console.error("[generateText] Claude failed, trying Gemini Flash:", err);
     }
   }
 
-  // Try 3: OpenAI — last resort
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  if (geminiKey) {
     try {
-      const result = await callOpenAI(openaiKey, options);
-      return {
-        text: result,
-        provider: "openai",
-        model: "gpt-4o",
-      };
+      const result = await callGemini(geminiKey, options);
+      return { text: result, provider: "gemini", model: GEMINI_MODEL };
     } catch (err) {
-      console.error("[generateText] OpenAI failed:", err);
+      errors.push(err instanceof Error ? err.message : String(err));
+      console.error("[generateText] Gemini Flash failed:", err);
     }
   }
 
-  throw new Error(
-    "No AI provider available. Configure GOOGLE_GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY."
-  );
+  if (!anthropicKey && !geminiKey) {
+    throw new Error("No AI provider available. Configure ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY.");
+  }
+  throw new Error(`All LLM providers failed:\n${errors.join("\n")}`);
 }

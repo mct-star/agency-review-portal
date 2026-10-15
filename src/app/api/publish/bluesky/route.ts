@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/crypto";
+import { isOurStorageUrl } from "@/lib/media/our-storage-url";
 
 /**
  * POST /api/publish/bluesky
@@ -20,9 +21,15 @@ export async function POST(request: Request) {
 
   const profile = await requireCompanyUser(companyId);
   if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (profile.role !== "admin" && !profile.can_publish) {
+    return NextResponse.json({ error: "Your account cannot publish. Ask AGENCY to switch publishing on." }, { status: 403 });
+  }
 
   if (!companyId || !text) {
     return NextResponse.json({ error: "companyId and text are required" }, { status: 400 });
+  }
+  if (imageUrl && !isOurStorageUrl(imageUrl)) {
+    return NextResponse.json({ error: "Images must come from the platform's own library" }, { status: 400 });
   }
 
   const supabase = await createAdminSupabaseClient();

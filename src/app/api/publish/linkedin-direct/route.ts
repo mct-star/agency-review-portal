@@ -8,6 +8,7 @@ import {
   uploadImage,
 } from "@/lib/linkedin/client";
 import { toLinkedInText, escapeLittleText } from "@/lib/linkedin/post-text";
+import { isOurStorageUrl } from "@/lib/media/our-storage-url";
 
 /**
  * POST /api/publish/linkedin-direct
@@ -35,10 +36,19 @@ export async function POST(request: Request) {
     );
   }
 
-  // Auth: admin or company member
+  // Auth: admin, or a company member with the publish right
   const profile = await requireCompanyUser(companyId);
   if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (profile.role !== "admin" && !profile.can_publish) {
+    return NextResponse.json({ error: "Your account cannot publish. Ask AGENCY to switch publishing on." }, { status: 403 });
+  }
+
+  // Only our own storage is fetched server-side.
+  const urls = [imageUrl, ...(Array.isArray(carouselImageUrls) ? carouselImageUrls : [])].filter(Boolean);
+  if (urls.some((u) => !isOurStorageUrl(u))) {
+    return NextResponse.json({ error: "Images must come from the platform's own library" }, { status: 400 });
   }
 
   const supabase = await createAdminSupabaseClient();

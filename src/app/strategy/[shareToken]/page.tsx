@@ -28,13 +28,17 @@ function createAdminClient() {
 async function getSharedDocument(shareToken: string) {
   const supabase = createAdminClient();
 
+  if (!shareToken || shareToken.length < 12) return null;
   const { data: doc } = await supabase
     .from("strategy_documents")
-    .select("id, company_id, content, version, generated_at, share_token")
+    .select("id, company_id, content, version, generated_at, share_token, share_expires_at, share_revoked_at")
     .eq("share_token", shareToken)
     .maybeSingle();
 
   if (!doc) return null;
+  // A revoked or expired link is a dead link.
+  if (doc.share_revoked_at) return null;
+  if (doc.share_expires_at && new Date(doc.share_expires_at).getTime() < Date.now()) return null;
 
   const { data: company } = await supabase
     .from("companies")

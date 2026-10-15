@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminSupabaseClient, getSignedInProfile } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 
 /**
  * GET /api/generate/status/[jobId]
  * Poll the status of a generation job.
- * Accessible by both admin and client (for their company's jobs).
+ * Admins see any job; a company user sees only their own company's jobs.
  */
 export async function GET(
   _request: Request,
@@ -14,26 +13,8 @@ export async function GET(
 ) {
   const { jobId } = await params;
 
-  // Auth check (allow both admin and client)
-  const cookieStore = await cookies();
-  const authClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-
-  const {
-    data: { user: authUser },
-  } = await authClient.auth.getUser();
-
-  if (!authUser) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -50,6 +31,10 @@ export async function GET(
       { error: "Job not found" },
       { status: 404 }
     );
+  }
+
+  if (profile.role !== "admin" && !canAccessCompany(profile, job.company_id)) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
 
   return NextResponse.json({

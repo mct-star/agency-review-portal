@@ -33,16 +33,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Verify user belongs to company
+  // Verify the user belongs to the company (users.company_id; there is no company_members table)
   const adminSupabase = await createAdminSupabaseClient();
   const { data: membership } = await adminSupabase
-    .from("company_members")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("company_id", companyId)
-    .single();
+    .from("users")
+    .select("role, company_id")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  if (!membership) {
+  if (!membership || (membership.role !== "admin" && membership.company_id !== companyId)) {
     return NextResponse.json({ error: "Not a member of this company" }, { status: 403 });
   }
 
