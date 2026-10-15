@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isWeekBoardEnabled, WEEK_BOARD_FEATURE_FLAG } from "@/lib/constants/week-board";
-import { getCalendarBoardData } from "@/lib/calendar-slots/data";
-import CalendarQuarterView from "@/components/admin/CalendarQuarterView";
+import { getClipsBoardData } from "@/lib/clips/board-data";
+import ClipsBoard from "@/components/admin/ClipsBoard";
 
-export default async function AdminCalendarPage() {
+export default async function ClipsPage() {
   const admin = await requireAdmin();
-  if (!admin) redirect("/dashboard");
+  if (!admin) redirect("/home");
 
   if (!isWeekBoardEnabled()) {
     return (
       <div className="max-w-lg space-y-3">
-        <h1 className="text-2xl font-bold text-gray-900">Source Calendar</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Clips</h1>
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
           <p className="font-medium text-gray-900">
             Not enabled in this environment.
@@ -29,7 +29,7 @@ export default async function AdminCalendarPage() {
   }
 
   const supabase = await createAdminSupabaseClient();
-  const weeks = await getCalendarBoardData(supabase);
+  const { clips, weeks } = await getClipsBoardData(supabase);
 
-  return <CalendarQuarterView weeks={weeks} />;
+  return <ClipsBoard initialClips={clips} initialWeeks={weeks} />;
 }

@@ -3,8 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Ordered by tier: free → starter → pro → agency
-const tabs = [
+interface Tab {
+  label: string;
+  /** Relative to /setup/[companyId], unless `absolute` is set. */
+  href: string;
+  absolute?: boolean;
+}
+
+// Business-to-business tabs, ordered by tier: free, starter, pro, agency.
+const B2B_TABS: Tab[] = [
   { label: "Overview", href: "" },
   { label: "People", href: "/people" },
   { label: "Sign-offs", href: "/signoffs" },
@@ -14,24 +21,40 @@ const tabs = [
   { label: "Topics", href: "/topics" },
   { label: "Schedule", href: "/schedule" },
   { label: "Social", href: "/social" },
-  { label: "Venue and posting", href: "/hospitality" },
+  { label: "Brand style", href: "/brand-style" },
+  { label: "Image mapping", href: "/image-mapping" },
   { label: "Blueprint", href: "/blueprint" },
   { label: "API Keys", href: "/api-keys" },
 ];
 
-interface CompanyTabsProps {
-  companyId: string;
+// A hospitality venue has no strategy, compliance or LinkedIn set-up: the
+// venue page, its people and its photos are the whole of it.
+const HOSPITALITY_TABS: Tab[] = [
+  { label: "Overview", href: "" },
+  { label: "Venue and posting", href: "/hospitality" },
+  { label: "People", href: "/people" },
+  { label: "Photos", href: "/library", absolute: true },
+];
+
+export function tabsFor(postPack?: string | null): Tab[] {
+  return postPack === "hospitality" ? HOSPITALITY_TABS : B2B_TABS;
 }
 
-export default function CompanyTabs({ companyId }: CompanyTabsProps) {
+interface CompanyTabsProps {
+  companyId: string;
+  /** The company's pack: `hospitality` gets the short venue tabs, anything else the B2B tabs. */
+  postPack?: string | null;
+}
+
+export default function CompanyTabs({ companyId, postPack }: CompanyTabsProps) {
   const pathname = usePathname();
   const basePath = `/setup/${companyId}`;
 
   return (
     <div className="border-b border-gray-200">
       <nav className="-mb-px flex gap-4 overflow-x-auto">
-        {tabs.map((tab) => {
-          const fullHref = basePath + tab.href;
+        {tabsFor(postPack).map((tab) => {
+          const fullHref = tab.absolute ? tab.href : basePath + tab.href;
           const isActive =
             tab.href === ""
               ? pathname === basePath

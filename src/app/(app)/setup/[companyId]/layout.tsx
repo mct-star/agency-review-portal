@@ -22,7 +22,7 @@ export default async function CompanyDetailLayout({
 
   // Access control: clients can only view their own company
   if (!isAdmin && profile.company_id !== companyId) {
-    redirect(profile.company_id ? `/setup/${profile.company_id}` : "/dashboard");
+    redirect(profile.company_id ? `/setup/${profile.company_id}` : "/home");
   }
 
   const { data: company } = await supabase
@@ -67,7 +67,12 @@ export default async function CompanyDetailLayout({
       </div>
 
       {/* Tabs — only show for admin (clients use sidebar navigation) */}
-      {isAdmin && <CompanyTabs companyId={companyId} />}
+      {isAdmin && (
+        <CompanyTabs
+          companyId={companyId}
+          postPack={(company as Company & { post_pack?: string | null }).post_pack}
+        />
+      )}
 
       {/* Page content */}
       {children}

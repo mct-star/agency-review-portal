@@ -13,7 +13,7 @@ export async function GET() {
 
   let query = supabase
     .from("support_tickets")
-    .select("*")
+    .select("*, company:companies(name)")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -24,7 +24,13 @@ export async function GET() {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ tickets: data || [] });
+  const tickets = (data || []).map((row) => {
+    const { company, ...rest } = row as Record<string, unknown> & { company?: { name?: string } | { name?: string }[] | null };
+    const name = Array.isArray(company) ? company[0]?.name : company?.name;
+    return { ...rest, company_name: name ?? null };
+  });
+
+  return NextResponse.json({ tickets });
 }
 
 export async function POST(request: Request) {

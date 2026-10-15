@@ -11,7 +11,7 @@ export default async function CompaniesPage() {
 
   // Non-admin users should never see the companies grid
   if (profile.role !== "admin") {
-    redirect(profile.company_id ? `/setup/${profile.company_id}` : "/dashboard");
+    redirect(profile.company_id ? `/setup/${profile.company_id}` : "/home");
   }
 
   const supabase = await createServerSupabaseClient();

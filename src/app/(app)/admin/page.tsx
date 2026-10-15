@@ -31,6 +31,18 @@ const PLAN_OPTIONS: { value: PlanTier; label: string; description: string; color
     ],
   },
   {
+    value: "starter",
+    label: "Starter",
+    description: "Single posts, the library and the download, for one venue or one person",
+    color: "bg-blue-100 text-blue-700",
+    features: [
+      "Everything in Free, plus:",
+      "Photo and Video Library",
+      "This week and the download",
+      "Up to 30 posts a month",
+    ],
+  },
+  {
     value: "pro",
     label: "Pro",
     description: "Week generation, topic bank, posting schedule, multiple spokespersons",
@@ -65,16 +77,24 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedPlanView, setSelectedPlanView] = useState<PlanTier | null>(null);
 
   useEffect(() => {
     fetch("/api/companies")
-      .then((r) => r.json())
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || `The company list did not load (${r.status}).`);
+        return d;
+      })
       .then((d) => {
         setCompanies(d.data || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        setLoadError(e instanceof Error ? e.message : "The company list did not load.");
+        setLoading(false);
+      });
   }, []);
 
   async function handlePlanChange(companyId: string, newPlan: PlanTier) {
@@ -93,7 +113,8 @@ export default function AdminPage() {
         const company = companies.find((c) => c.id === companyId);
         setMessage({ type: "success", text: `${company?.name} updated to ${newPlan}` });
       } else {
-        setMessage({ type: "error", text: "Failed to update plan" });
+        const d = await res.json().catch(() => ({}));
+        setMessage({ type: "error", text: d.error || "Failed to update plan" });
       }
     } catch {
       setMessage({ type: "error", text: "Network error" });
@@ -126,7 +147,7 @@ export default function AdminPage() {
       )}
 
       {/* Plan overview */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {PLAN_OPTIONS.map((plan) => (
           <button
             key={plan.value}
@@ -180,6 +201,8 @@ export default function AdminPage() {
           <div className="flex justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-sky-600" />
           </div>
+        ) : loadError ? (
+          <p className="text-sm text-red-600">{loadError}</p>
         ) : (
           <div className="space-y-2">
             {companies.map((company) => (
@@ -220,7 +243,8 @@ export default function AdminPage() {
                         (company.plan || "free") === plan.value
                           ? plan.color + " ring-1 ring-offset-1 " + (
                               plan.value === "agency" ? "ring-purple-300" :
-                              plan.value === "pro" ? "ring-sky-300" : "ring-gray-300"
+                              plan.value === "pro" ? "ring-sky-300" :
+                              plan.value === "starter" ? "ring-blue-300" : "ring-gray-300"
                             )
                           : "bg-gray-50 text-gray-300 hover:bg-gray-100 hover:text-gray-500"
                       } ${saving === company.id ? "opacity-50" : ""}`}

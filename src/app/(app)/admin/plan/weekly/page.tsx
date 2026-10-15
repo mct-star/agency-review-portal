@@ -11,7 +11,7 @@ import WeeklyPlanningView from "@/components/admin/WeeklyPlanningView";
 
 export default async function AdminWeeklyPlanningPage() {
   const admin = await requireAdmin();
-  if (!admin) redirect("/dashboard");
+  if (!admin) redirect("/home");
 
   if (!isWeekBoardEnabled()) {
     return (

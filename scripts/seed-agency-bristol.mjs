@@ -302,14 +302,14 @@ async function main() {
   } else {
     console.log("\n5. Skipping Anthropic API key (no --anthropic-key provided).");
     console.log("   You can add it later via the UI at:");
-    console.log(`   /admin/companies/${company.id}/api-providers`);
+    console.log(`   /setup/${company.id}/api-keys`);
   }
 
   // Summary
   console.log("\n=== Done ===\n");
   console.log("Next steps:");
   console.log("  1. Run migration 003 in Supabase SQL Editor (if not done yet)");
-  console.log("  2. Go to /admin/generate/batch to generate a full week");
+  console.log("  2. Go to /generate to generate a full week");
   if (!anthropicKey) {
     console.log("  3. Configure your Anthropic API key in API Providers");
   }

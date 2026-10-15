@@ -31,6 +31,11 @@ function builder(table: string) {
   return b;
 }
 
+// The admin home reads with the service-role client; the same fake answers it.
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminSupabaseClient: async () => ({ from: (t: string) => builder(t) }),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   getUserProfile: async () => profile,
   createServerSupabaseClient: async () => ({ from: (t: string) => builder(t) }),
@@ -139,7 +144,7 @@ describe("the home page for a hospitality venue", () => {
 });
 
 describe("the home page for a business-to-business company", () => {
-  it("keeps the strategy banner, the three tiles and the dashboard link", async () => {
+  it("keeps the strategy banner and the three tiles, with no dashboard link", async () => {
     counts = { "content_pieces:pending": 0 };
     profile = {
       id: "u2",
@@ -157,7 +162,7 @@ describe("the home page for a business-to-business company", () => {
     expect(html).toContain("Quick Generate");
     expect(html).toContain("Content Studio");
     expect(html).toContain("Review Content");
-    expect(html).toContain("View detailed dashboard");
+    expect(html).not.toContain("View detailed dashboard");
     expect(html).not.toContain("Talk through the week");
   });
 
@@ -166,8 +171,11 @@ describe("the home page for a business-to-business company", () => {
     expect(await render()).toContain("Content Studio");
   });
 
-  it("is what the operator sees, even on a hospitality company", async () => {
+  it("gives the operator the four panels, even on a hospitality company", async () => {
     profile = { id: "u4", email: "admin@example.test", full_name: "Ann Admin", role: "admin", company_id: COMPANY_ID, can_publish: true, company: { id: COMPANY_ID, post_pack: "hospitality" } };
-    expect(await render()).toContain("Content Studio");
+    const html = await render();
+    for (const panel of ["Waiting", "Clients", "Jobs", "Tickets"]) expect(html).toContain(panel);
+    expect(html).not.toContain("Talk through the week");
+    expect(html).not.toContain("New here? Build a strategy");
   });
 });
