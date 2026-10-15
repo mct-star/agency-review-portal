@@ -51,7 +51,7 @@ export interface TextCallResult {
 }
 
 export function geminiKey(): string {
-  return process.env.GOOGLE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
+  return process.env.GOOGLE_GEMINI_API_KEY || "";
 }
 
 interface AnthropicResponse {

@@ -21,6 +21,17 @@ const PRIORITY_PAGES = [
   { path: "/analytics", sentinel: "main, h1" },
   { path: "/settings", sentinel: "main, h1" },
   { path: "/strategy", sentinel: "main, h1" },
+  // Admin pages (the smoke user is an admin; each calls requireAdmin itself)
+  { path: "/setup", sentinel: "main, h1" },
+  { path: "/admin", sentinel: "main, h1" },
+  { path: "/admin/tickets", sentinel: "main, h1" },
+  { path: "/users", sentinel: "main, h1" },
+  { path: "/admin/weeks", sentinel: "main, h1" },
+  { path: "/admin/bank", sentinel: "main, h1" },
+  // Hospitality pages (the admin sees the admin version, which is fine)
+  { path: "/approvals", sentinel: "main, h1" },
+  { path: "/library", sentinel: "main, h1" },
+  { path: "/notifications", sentinel: "main, h1" },
 ];
 
 function collectErrors(page: Page) {

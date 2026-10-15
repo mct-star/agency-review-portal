@@ -150,7 +150,7 @@ export async function POST(request: Request) {
   // Resolve Claude API key
   const provider = await resolveProvider(companyId, "content_generation");
   const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
   if (apiKey === "no-anthropic-key-will-fallback-to-gemini" && !geminiKey) {
     return NextResponse.json({ error: "No AI provider is configured for this company. Ask AGENCY to set it up." }, { status: 400 });
   }

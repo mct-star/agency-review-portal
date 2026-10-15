@@ -59,6 +59,7 @@ check_endpoint() {
   local EXPECT_MIN_STATUS="${4:-200}"
   local EXPECT_MAX_STATUS="${5:-299}"
   local CHECK_BODY="${6:-}"
+  local EXPECT_PROVIDER="${7:-}"
 
   local URL="${BASE_URL}${ENDPOINT}"
   log "--- ${METHOD} ${ENDPOINT}"
@@ -95,6 +96,17 @@ check_endpoint() {
         FAILS=$((FAILS + 1))
       fi
     fi
+    if [ -n "${EXPECT_PROVIDER}" ]; then
+      # A Claude 404 that falls back to Gemini still returns a long body, so
+      # read the provider field the route reports to admins.
+      local PROVIDER
+      PROVIDER=$(node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const p=JSON.parse(d).provider;console.log(p===undefined||p===null?'':p)}catch{console.log('')}})" < "${TMP_BODY}")
+      log "  Provider: ${PROVIDER:-<not reported>}"
+      if [ -n "${PROVIDER}" ] && [ "${PROVIDER}" != "${EXPECT_PROVIDER}" ]; then
+        log "  FAIL: expected provider ${EXPECT_PROVIDER}, got ${PROVIDER} (Claude fell back)"
+        FAILS=$((FAILS + 1))
+      fi
+    fi
   fi
 
   rm -f "${TMP_BODY}"
@@ -123,7 +135,7 @@ if [ -n "${COOKIE_HEADER}" ]; then
     # The big one: Gemini fallback regression catch
     # Correct field names per src/app/api/generate/quick/route.ts
     GEN_PAYLOAD="{\"companyId\":\"${COMPANY_ID}\",\"topic\":\"smoke test topic\",\"postTypeSlug\":\"insight\",\"platform\":\"linkedin\"}"
-    check_endpoint "POST" "/api/generate/quick" "${GEN_PAYLOAD}" 200 299 "check_length"
+    check_endpoint "POST" "/api/generate/quick" "${GEN_PAYLOAD}" 200 299 "check_length" "claude"
   else
     log "SKIP: could not resolve company ID; skipping /api/generate/quick test"
   fi

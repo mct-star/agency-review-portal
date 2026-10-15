@@ -16,7 +16,15 @@ npm run dev        # port 3000
 npm test           # vitest, ~500 tests, 25 seconds
 npx tsc --noEmit
 npm run build
+npm run test:smoke # Playwright: every priority page, admin and hospitality pages included
+npm run test:api   # scripts/api-smoke.sh: key endpoints, and fails if Claude fell back to Gemini
 ```
+
+`test:smoke` needs `TEST_EMAIL` and `TEST_PASSWORD` (an admin) in `.env.local`
+and a running app (`TEST_BASE_URL`, default the Vercel URL); `tests/auth.setup.ts`
+signs in and saves `tests/.auth/admin.json`. `test:api` reads `.env.local` and
+that saved session, so run `test:smoke` first; `VERCEL_BYPASS_TOKEN` is
+optional for protected previews.
 
 Run `npx tsc --noEmit` and `npm test` after any non-trivial change.
 
@@ -58,10 +66,15 @@ tagging). The 5.5 models reject `temperature` and think by default, so the
 module sends no temperature, switches thinking off and reads the first text
 block. Fallback is Gemini 2.5 Flash only. The result names the provider that
 answered; record that, not the one you asked for.
+`src/app/api/provider-truth.test.ts` enforces this: it fails if any other file
+under `src/app/api` or `src/lib` contains `api.anthropic.com` or a retired
+model id. Read the Gemini key as `process.env.GOOGLE_GEMINI_API_KEY` only.
 
 ## Database
 
-Migrations live in `supabase/migrations/` and are applied by hand (the
+Read `supabase/migrations/README.md` first: it has the numbering notes (024
+and 024b, 030b, the live names of 042 to 044) and the open `ops_content_*`
+item. Migrations live in `supabase/migrations/` and are applied by hand (the
 Supabase MCP `apply_migration`, or the dashboard) before the code that reads
 them is pushed. Every statement is `IF NOT EXISTS` so it is safe to re-run.
 Columns the code writes must exist: `companies.trial_expires_at` (not

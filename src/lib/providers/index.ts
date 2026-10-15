@@ -245,7 +245,7 @@ export async function getContentProvider(
 
   if (!resolved) {
     // No company-level provider configured — use env var fallback (Gemini → Claude → OpenAI)
-    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
+    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
     if (geminiKey || anthropicKey) {
