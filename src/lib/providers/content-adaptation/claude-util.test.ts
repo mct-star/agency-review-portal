@@ -50,6 +50,21 @@ describe("callText", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps API-key authentication and falls back when the primary API quota is exhausted", async () => {
+    process.env.GOOGLE_GEMINI_API_KEY = "independent-fallback-key";
+    fetchMock
+      .mockResolvedValueOnce(new Response("API quota exhausted", { status: 429 }))
+      .mockResolvedValueOnce(Response.json({ candidates: [{ content: { parts: [{ text: "still available" }] } }] }));
+
+    const out = await callText("platform-api-key", CLAUDE_SONNET, "sys", "user", 100);
+
+    expect(out).toMatchObject({ text: "still available", provider: "gemini" });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(new Headers(request.headers).get("x-api-key")).toBe("platform-api-key");
+    expect(new Headers(request.headers).has("authorization")).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("never calls OpenAI or Gemini Pro", async () => {
     process.env.GOOGLE_GEMINI_API_KEY = "g";
     process.env.OPENAI_API_KEY = "o";
