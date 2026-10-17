@@ -17,7 +17,8 @@
 .page :is(a, button, [tabindex]):focus-visible { outline: 3px solid #7350c5; outline-offset: 5px; }
 .header { max-width: 1408px; min-height: 104px; margin: 0 auto; padding: 25px 56px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid #deded5; }
 .brand { display: flex; align-items: center; gap: 23px; color: var(--ink); }
-.logo { display: block; width: 154px; height: auto; }
+.wordmark { display: inline-block; white-space: nowrap; font-size: 32px; line-height: 1.1; font-weight: 500; letter-spacing: -.035em; }
+.wordmarkPoint { display: inline-block; width: 6px; height: 6px; margin-left: 3px; margin-bottom: 1px; border-radius: 50%; background: var(--purple); }
 .brandLabel { font-size: 14px; line-height: 1.4; padding-left: 23px; border-left: 1px solid #cecec5; }
 .navigation { display: flex; align-items: center; gap: 32px; font-size: 15px; }
 .navigation a { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink); }
@@ -42,8 +43,7 @@
 .liveDot { width: 6px; height: 6px; border: 1px solid #77776b; border-radius: 50%; }
 .workspace { border: 1px solid #deded4; border-radius: 12px; background: #fffefa; box-shadow: 0 23px 55px -30px #37372255; overflow: hidden; }
 .workspaceTop { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 19px; border-bottom: 1px solid #e4e3dc; font-size: 13px; color: #666762; }
-.workspaceMark { font-size: 29px; font-weight: 600; line-height: 1; color: var(--ink); letter-spacing: -.08em; }
-.workspaceMark > span { color: #7950c8; }
+.workspaceMark { display: inline-flex; flex-shrink: 0; }
 .workspaceTopDot { margin-left: auto; height: 8px; width: 8px; border-radius: 50%; border: 1px solid #c7c9be; background: #f2f3ed; }
 .workspaceBody { display: grid; grid-template-columns: 88px minmax(0, 1fr); min-height: 421px; }
 .workspaceRail { border-right: 1px solid #e8e7df; padding: 22px 10px 20px; display: flex; flex-direction: column; gap: 11px; background: #f3f3ed; }
@@ -101,6 +101,8 @@
 .reviewPrompt { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #dbdcd1; font-size: 16px; color: #665085; }
 .demoInstruction { font-size: 12px; color: #bbbeb3; margin: 12px 0 0; }
 .previewFooter { max-width: 1408px; padding: 25px 56px; margin: 0 auto; color: #686b60; display: flex; justify-content: space-between; gap: 20px; align-items: center; font-size: 13px; }
+.conceptMeta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px 24px; }
+.conceptOrigin { font-size: 12px; }
 .previewFooter a { min-height: 44px; display: inline-flex; align-items: center; gap: 9px; color: var(--ink); }
 
 @media (min-width: 1500px) {
@@ -132,7 +134,7 @@
 
 @media (max-width: 780px) {
   .header { min-height: 84px; padding: 19px 24px; }
-  .logo { width: 132px; }
+  .wordmark { font-size: 28px; }
   .navigation { gap: 14px; font-size: 14px; }
   .howNav { display: none !important; }
   .headerCta { padding: 10px 13px; gap: 12px; }
@@ -175,7 +177,7 @@
 
 @media (max-width: 440px) {
   .header { padding: 17px 20px; min-height: 76px; gap: 12px; }
-  .logo { width: 111px; }
+  .wordmark { font-size: 27px; }
   .navigation { gap: 11px; }
   .headerCta { gap: 9px; font-size: 13px; padding: 9px 11px; }
   .login { font-size: 13px; }
@@ -216,6 +218,10 @@
   .draftExample h3, .reviewExample h3 { font-size: 22px; }
   .draftExample p, .reviewExample p { font-size: 16px; }
   .previewFooter { padding: 17px 20px; }
+}
+
+@media (max-width: 360px) {
+  .headerCta svg { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

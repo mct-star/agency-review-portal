@@ -3,7 +3,6 @@
  * hero and first section without replacing the current marketing pages.
  */
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import localFont from "next/font/local";
 import ContentFlow from "./ContentFlow";
@@ -27,19 +26,33 @@ const baskerville = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Content platform design preview",
-  description: "A design preview of the AGENCY content platform landing page.",
+  title: { absolute: "Pointwoven | Brand concept" },
+  description: "A working brand concept for a content platform that helps businesses plan, write and review in their own voice.",
   robots: { index: false, follow: false },
+  icons: {
+    icon: { url: "/landing-preview/pointwoven-mark.svg", type: "image/svg+xml" },
+    shortcut: "/landing-preview/pointwoven-mark.svg",
+  },
   openGraph: {
-    title: "AGENCY | Content platform design preview",
-    description: "Plan, write and review content in your own voice.",
+    title: "Pointwoven | Brand concept",
+    siteName: "Pointwoven",
+    description: "A working brand concept for a content platform that helps businesses plan, write and review in their own voice.",
     url: "/landing-preview",
   },
   twitter: {
-    title: "AGENCY | Content platform design preview",
-    description: "Plan, write and review content in your own voice.",
+    title: "Pointwoven | Brand concept",
+    description: "A working brand concept for a content platform that helps businesses plan, write and review in their own voice.",
   },
 };
+
+function PointwovenMark() {
+  return (
+    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="7" fill="#A27BF9" />
+      <path d="M9 8h6.6c4.2 0 7 2.6 7 6.1S19.8 20 15.6 20h-3.4v5H9V8Zm3.2 3v6h3.1c2.4 0 3.9-1.1 3.9-3s-1.5-3-3.9-3h-3.1Z" fill="#1D2021" fillRule="evenodd" />
+    </svg>
+  );
+}
 
 function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
@@ -64,7 +77,7 @@ function WorkspacePreview() {
       <figcaption className={styles.workspaceCaption}><span className={styles.liveDot} />Illustrative workspace</figcaption>
       <div className={styles.workspace}>
         <div className={styles.workspaceTop}>
-          <span className={styles.workspaceMark}>a<span>.</span></span>
+          <span className={styles.workspaceMark}><PointwovenMark /></span>
           <span>Your content workspace</span>
           <span className={styles.workspaceTopDot} aria-hidden="true" />
         </div>
@@ -84,7 +97,7 @@ function WorkspacePreview() {
               <div className={styles.quotePreview}>
                 <span>ONE THOUGHT, WORTH SHARING</span>
                 <p>Your expertise.<br /><em>Their next step.</em></p>
-                <span className={styles.quoteBrand}>AGENCY</span>
+                <span className={styles.quoteBrand}>Your business</span>
               </div>
               <div className={styles.draftNote}>
                 <span className={styles.noteIcon}><WorkspaceIcon kind="review" /></span>
@@ -108,8 +121,8 @@ export default function LandingPreviewPage() {
   return (
     <div className={`${styles.page} ${jost.variable} ${baskerville.variable}`}>
       <header className={styles.header}>
-        <a href="#top" className={styles.brand} aria-label="AGENCY content platform, back to top">
-          <Image src="/landing-preview/agency-logo.png" alt="AGENCY | Creative, Content, Lead Gen" width={4093} height={1018} priority className={styles.logo} />
+        <a href="#top" className={styles.brand} aria-label="Pointwoven content platform, back to top">
+          <span className={styles.wordmark}>pointwoven<span className={styles.wordmarkPoint} aria-hidden="true" /></span>
           <span className={styles.brandLabel}>Content platform</span>
         </a>
         <nav className={styles.navigation} aria-label="Main navigation">
@@ -122,7 +135,7 @@ export default function LandingPreviewPage() {
       <main id="top">
         <section className={styles.hero} aria-labelledby="hero-heading">
           <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}><span />THE AGENCY CONTENT PLATFORM</p>
+            <p className={styles.eyebrow}><span />YOUR BUSINESS. YOUR VOICE.</p>
             <h1 id="hero-heading">Your expertise.<br />Unmistakably<br /> <em>you.</em></h1>
             <p className={styles.heroDescription}>Plan, write and review content in your own voice, with you in control of what gets published.</p>
             <div className={styles.heroActions}>
@@ -147,7 +160,10 @@ export default function LandingPreviewPage() {
       </main>
 
       <footer className={styles.previewFooter}>
-        <span>Design preview | Hero and first section</span>
+        <div className={styles.conceptMeta}>
+          <span>Pointwoven | Brand concept</span>
+          <span className={styles.conceptOrigin}>A product concept by AGENCY Bristol</span>
+        </div>
         <Link href={platformUrl}>View current site<Arrow /></Link>
       </footer>
     </div>
