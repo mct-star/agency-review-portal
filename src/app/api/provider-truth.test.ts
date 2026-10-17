@@ -7,11 +7,12 @@ import { currentClaudeModel } from "@/lib/providers/content-adaptation/claude-ut
 const SRC = path.join(__dirname, "..", "..");
 const SELF = path.join(__dirname, "provider-truth.test.ts");
 
-/** The only files allowed to call the Anthropic API directly. */
+/** The provider modules and the test that verifies their outgoing API authentication. */
 const MAY_CALL_ANTHROPIC = [
   "src/lib/providers/content-adaptation/claude-util.ts",
   "src/lib/providers/content-generation/generate-text.ts",
   "src/lib/providers/vision/tag-image.ts",
+  "src/lib/providers/content-generation/generate-text.test.ts",
 ];
 /** The only files allowed to name a retired model id (the RETIRED map and its test). */
 const MAY_NAME_RETIRED = [

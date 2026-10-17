@@ -5,6 +5,8 @@
  * Used by voice-to-post, voice dictation, and other transcription endpoints.
  */
 
+import { audioExtension } from "./audio-format";
+
 export interface TranscriptionResult {
   text: string;
   provider: "gemini" | "openai";
@@ -59,7 +61,7 @@ export async function transcribeAudio(
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     try {
-      const result = await transcribeWithWhisper(openaiKey, audioBuffer);
+      const result = await transcribeWithWhisper(openaiKey, audioBuffer, mimeType);
       return { text: result.text.trim(), provider: "openai", duration: result.duration };
     } catch (err) {
       console.error("[transcribe] OpenAI Whisper failed:", err);
@@ -88,6 +90,7 @@ async function transcribeWithGemini(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         contents: [
           {
@@ -121,13 +124,14 @@ async function transcribeWithGemini(
  */
 async function transcribeWithWhisper(
   apiKey: string,
-  audioBuffer: Buffer
+  audioBuffer: Buffer,
+  mimeType: string
 ): Promise<{ text: string; duration: number }> {
   const formData = new FormData();
   formData.append(
     "file",
-    new Blob([new Uint8Array(audioBuffer)], { type: "audio/webm" }),
-    "audio.webm"
+    new Blob([new Uint8Array(audioBuffer)], { type: mimeType }),
+    `audio.${audioExtension(mimeType)}`
   );
   formData.append("model", "whisper-1");
   formData.append("response_format", "verbose_json");
@@ -136,6 +140,7 @@ async function transcribeWithWhisper(
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {
