@@ -9,6 +9,8 @@ import localFont from "next/font/local";
 import ContentFlow from "./ContentFlow";
 import styles from "./preview.module.css";
 
+const platformUrl = "https://agency-review-portal.vercel.app";
+
 const jost = localFont({
   src: "../../../public/landing-preview/Jost-variable-latin.woff2",
   variable: "--preview-font-sans",
@@ -112,8 +114,8 @@ export default function LandingPreviewPage() {
         </a>
         <nav className={styles.navigation} aria-label="Main navigation">
           <a href="#how-it-works" className={styles.howNav}>How it works</a>
-          <Link href="/login" className={styles.login}>Log in</Link>
-          <Link href="/signup" className={styles.headerCta}>Get started<Arrow diagonal /></Link>
+          <Link href={`${platformUrl}/login`} className={styles.login}>Log in</Link>
+          <Link href={`${platformUrl}/signup`} className={styles.headerCta}>Get started<Arrow diagonal /></Link>
         </nav>
       </header>
 
@@ -124,7 +126,7 @@ export default function LandingPreviewPage() {
             <h1 id="hero-heading">Your expertise.<br />Unmistakably<br /> <em>you.</em></h1>
             <p className={styles.heroDescription}>Plan, write and review content in your own voice, with you in control of what gets published.</p>
             <div className={styles.heroActions}>
-              <Link href="/signup" className={styles.primaryCta}>Get started<Arrow diagonal /></Link>
+              <Link href={`${platformUrl}/signup`} className={styles.primaryCta}>Get started<Arrow diagonal /></Link>
               <a href="#how-it-works" className={styles.secondaryCta}>See how it works<Arrow /></a>
             </div>
             <p className={styles.heroFootnote}>Your thinking, given a place to go.</p>
@@ -146,7 +148,7 @@ export default function LandingPreviewPage() {
 
       <footer className={styles.previewFooter}>
         <span>Design preview | Hero and first section</span>
-        <Link href="/">View current site<Arrow /></Link>
+        <Link href={platformUrl}>View current site<Arrow /></Link>
       </footer>
     </div>
   );
