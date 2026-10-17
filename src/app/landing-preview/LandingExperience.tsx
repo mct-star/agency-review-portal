@@ -33,7 +33,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
 
   return <>
     <header className={styles.header}>
-      <a href="#top" className={styles.brand} aria-label="Content platform design preview, back to top"><ContentMark /><span className={styles.wordmark}>Content platform</span></a>
+      <a href="#top" className={styles.brand} aria-label="SocialTempo, back to top"><ContentMark /><span className={styles.wordmark}>SocialTempo</span></a>
       <nav className={styles.navigation} aria-label="Main navigation">
         <a href="#how-it-works" className={styles.howNav}>How it works</a>
         <Link href={`${platformUrl}/login`} className={styles.login}>Log in</Link>
@@ -57,7 +57,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
         <div className={styles.heroGrid}>
           <div className={styles.heroCopy}>
             <h1 id="hero-heading">Keep posting.<br />Get on with<br /><em>your business.</em></h1>
-            <p className={styles.pocketLine}>Social posts in your pocket.</p>
+            <p className={styles.pocketLine}>Keeping up with social posting for your business is hard. SocialTempo makes it easy.</p>
             <p className={styles.heroDescription}>{audience.description}</p>
             <div className={styles.heroActions}>
               <Link href={signupUrl} className={styles.primaryCta}>Get started<Arrow diagonal /></Link>
@@ -96,7 +96,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
       </section>
     </main>
     <footer className={styles.previewFooter}>
-      <div className={styles.conceptMeta}><span>Design preview | Product name to be agreed</span><span className={styles.conceptOrigin}>A product concept by AGENCY Bristol</span></div>
+      <div className={styles.conceptMeta}><span>SocialTempo | Design preview</span><span className={styles.conceptOrigin}>A product concept by AGENCY Bristol</span></div>
       <Link href={platformUrl}>View current site<Arrow /></Link>
     </footer>
   </>;
