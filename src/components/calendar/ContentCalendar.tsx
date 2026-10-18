@@ -347,10 +347,10 @@ function PiecePopover({
             {piece.title || "Untitled post"}
           </p>
           <div className="mt-1 flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${statusColor}`}>
+            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${statusColor}`}>
               {statusLabel}
             </span>
-            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
+            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
               {getPostTypeLabel(piece.post_type)}
             </span>
           </div>
@@ -423,7 +423,7 @@ function MorePiecesPopover({
             <DraggablePill piece={piece}>
               <button
                 onClick={() => setExpandedPieceId(expandedPieceId === piece.id ? null : piece.id)}
-                className={`w-full text-left rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate text-gray-900 ${statusBg}`}
+                className={`w-full text-left rounded px-1.5 py-0.5 text-xs font-medium leading-tight truncate text-gray-900 ${statusBg}`}
                 style={{ borderLeft: `3px solid ${colors.accent}` }}
                 title={piece.title}
               >
@@ -1007,7 +1007,7 @@ export default function ContentCalendar({
         {Object.entries(POST_TYPE_COLORS).slice(0, 8).map(([slug, colors]) => (
           <div key={slug} className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded" style={{ backgroundColor: colors.accent, border: `1px solid ${colors.accent}` }} />
-            <span className="text-[10px] text-gray-500">{getPostTypeLabel(slug)}</span>
+            <span className="text-xs text-gray-500">{getPostTypeLabel(slug)}</span>
           </div>
         ))}
         {showTemplate && (
@@ -1015,7 +1015,7 @@ export default function ContentCalendar({
             <div className="h-3 w-px bg-gray-200" />
             <div className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 rounded border-2 border-dashed border-gray-300" />
-              <span className="text-[10px] text-gray-500">Scheduled (empty)</span>
+              <span className="text-xs text-gray-500">Scheduled (empty)</span>
             </div>
           </>
         )}
@@ -1058,7 +1058,7 @@ function DragOverlayPill({ piece }: { piece: CalendarPiece }) {
 
   return (
     <div
-      className={`rounded px-2 py-1 text-[11px] font-medium shadow-lg text-gray-900 ${statusBg}`}
+      className={`rounded px-2 py-1 text-xs font-medium shadow-lg text-gray-900 ${statusBg}`}
       style={{ borderLeft: `3px solid ${colors.accent}`, width: 160 }}
     >
       <div className="flex items-center gap-1">
@@ -1204,7 +1204,7 @@ function MonthDayCellView({
                 <DraggablePill piece={piece}>
                   <button
                     onClick={() => setExpandedPieceId(expandedPieceId === piece.id ? null : piece.id)}
-                    className={`w-full text-left block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${statusBg} hover:opacity-80 transition-opacity`}
+                    className={`w-full text-left block rounded px-1.5 py-0.5 text-xs font-medium leading-tight truncate ${statusBg} hover:opacity-80 transition-opacity`}
                     style={{ borderLeft: `3px solid ${colors.accent}` }}
                     title={piece.title}
                   >
@@ -1260,7 +1260,7 @@ function MonthDayCellView({
                 const slug = slot.post_types?.slug || "";
                 router.push(`/generate/quick?postType=${slug}&day=${dayName}`);
               }}
-              className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
+              className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-xs text-gray-500 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
             >
               <div className="flex items-center gap-1">
                 <div className="h-1.5 w-1.5 rounded-full border border-gray-300 flex-shrink-0 group-hover:border-violet-400" />
@@ -1318,7 +1318,7 @@ function WeekDayCellView({
             {week && (
               <Link
                 href={`/review/${week.id}`}
-                className="text-[10px] text-gray-500 hover:text-violet-600"
+                className="text-xs text-gray-500 hover:text-violet-600"
               >
                 {formatWeekLabelShort(week.date_start, week.week_number)}
               </Link>
@@ -1364,11 +1364,11 @@ function WeekDayCellView({
                       <LinkedInIcon className="h-3 w-3 text-[#0A66C2] flex-shrink-0 mt-0.5" />
                     </div>
                     {piece.scheduled_time && (
-                      <p className="mt-0.5 text-[10px] text-gray-500">
+                      <p className="mt-0.5 text-xs text-gray-500">
                         {formatTime(piece.scheduled_time)}
                       </p>
                     )}
-                    <p className="mt-1 text-[11px] text-gray-600 line-clamp-2 leading-tight">
+                    <p className="mt-1 text-xs text-gray-600 line-clamp-2 leading-tight">
                       {piece.title}
                     </p>
                   </button>
@@ -1398,11 +1398,11 @@ function WeekDayCellView({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </div>
-              <p className="mt-0.5 text-[10px] text-gray-500">
+              <p className="mt-0.5 text-xs text-gray-500">
                 {formatTime(slot.scheduled_time)}
                 {slot.image_archetype ? ` · ${slot.image_archetype.replace(/_/g, " ")}` : ""}
               </p>
-              <p className="mt-1 text-[10px] text-gray-500 italic">Not yet generated</p>
+              <p className="mt-1 text-xs text-gray-500 italic">Not yet generated</p>
             </button>
           ))}
         </div>
@@ -1499,7 +1499,7 @@ function SearchResultsView({
               )}
 
               {/* Post type badge */}
-              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border ${colors.bg} ${colors.text} ${colors.border} flex-shrink-0`}>
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border} flex-shrink-0`}>
                 {getPostTypeLabel(piece.post_type)}
               </span>
 
@@ -1515,13 +1515,13 @@ function SearchResultsView({
 
               {/* Week info */}
               {week && (
-                <span className="text-[11px] text-gray-500 flex-shrink-0">
+                <span className="text-xs text-gray-500 flex-shrink-0">
                   {formatWeekLabelShort(week.date_start, week.week_number)}
                 </span>
               )}
 
               {/* Status label */}
-              <span className={`text-[11px] font-medium flex-shrink-0 ${
+              <span className={`text-xs font-medium flex-shrink-0 ${
                 piece.approval_status === "approved" ? "text-green-600" :
                 piece.approval_status === "changes_requested" ? "text-amber-600" :
                 "text-gray-500"
