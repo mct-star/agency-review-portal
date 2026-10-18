@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type { Company, ContentType } from "@/types/database";
 import { getPlatformsForContentType } from "@/lib/platform-registry";
+import MetaPublishingPanel from "./MetaPublishingPanel";
 
 interface ApprovedPieceWeek {
   id?: string;
@@ -135,6 +136,11 @@ export default function PublishClient() {
         }
       });
   }, []);
+
+  useEffect(() => {
+    const companyId = searchParams.get("companyId");
+    if (companyId && companies.some((company) => company.id === companyId)) setSelectedCompanyId(companyId);
+  }, [companies, searchParams]);
 
   // Fetch LinkedIn connection status when company changes
   useEffect(() => {
@@ -373,6 +379,8 @@ export default function PublishClient() {
           </div>
         </div>
       )}
+
+      {selectedCompanyId && <MetaPublishingPanel companyId={selectedCompanyId} canPublish pieces={pieces.filter((piece) => piece.content_type === "social_post")} onQueued={fetchData} />}
 
       {selectedCompanyId && (
         <>

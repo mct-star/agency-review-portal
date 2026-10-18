@@ -9,7 +9,7 @@ const APP_GROUP = path.join(__dirname);
 const APP_ROOT = path.join(__dirname, "..");
 
 const admin = { id: "a", role: "admin", company_id: UUID } as unknown as User;
-const client = { id: "c", role: "client", company_id: UUID } as unknown as User;
+const client = { id: "c", role: "client", company_id: UUID, can_publish: true } as unknown as User;
 
 /** Every href the three menus can show, with the Week Board pages switched on. */
 function menuHrefs(): string[] {

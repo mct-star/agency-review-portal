@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
+import MetaPublishingPanel from "./MetaPublishingPanel";
 
 type Account = { id: string; accountName: string; accountId: string | null; usable: boolean; expiresAt: string | null };
 type Piece = { id: string; title: string | null; content_type: string; week_id: string | null };
@@ -17,7 +18,7 @@ type Week = { id: string; date_start: string; date_end: string };
 const statusLabel: Record<string, string> = { queued: "Waiting", scheduled: "Scheduled", running: "Publishing", published: "Published", failed: "Failed", uncertain: "Needs checking" };
 
 /** Client publishing controls remain company scoped and show only safe account metadata. */
-export default function ClientPublishView({ companyId, canPublish, weeks, pieces }: { companyId: string; canPublish: boolean; weeks: Week[]; pieces: Piece[] }) {
+export default function ClientPublishView({ companyId, canPublish, weeks, pieces, isHospitality = false }: { companyId: string; canPublish: boolean; weeks: Week[]; pieces: Piece[]; isHospitality?: boolean }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [accountId, setAccountId] = useState("");
@@ -27,7 +28,7 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
   const [notice, setNotice] = useState("");
 
   const refresh = useCallback(async () => {
-    if (!canPublish) { setAccounts([]); setJobs([]); return; }
+    if (!canPublish || isHospitality) { setAccounts([]); setJobs([]); return; }
     try {
       const [accountRes, jobsRes] = await Promise.all([
         fetch(`/api/publish/linkedin-direct?companyId=${encodeURIComponent(companyId)}`),
@@ -42,7 +43,7 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not refresh publishing status.");
     }
-  }, [canPublish, companyId]);
+  }, [canPublish, companyId, isHospitality]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -80,7 +81,7 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
     <div className="max-w-3xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Publish</h1>
 
-      <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
+      {!isHospitality && <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-gray-900">Publish approved posts to LinkedIn</h2>
         {!canPublish ? <p className="text-sm text-gray-600">Publishing is not enabled for your account. You can still download approved posts below.</p> : <>
           {usableAccounts.length === 0 && <p className="text-sm text-amber-800">A LinkedIn account needs to be connected by AGENCY before you can queue a post. Ask AGENCY to reconnect the account.</p>}
@@ -104,9 +105,11 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
           </label>
           <button onClick={() => void queue()} disabled={saving || !pieceId || !selectedAccount?.usable} className="min-h-11 rounded-md bg-[#0077B5] px-4 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Adding to queue…" : "Add to LinkedIn queue"}</button>
         </>}
-      </section>
+      </section>}
 
-      <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
+      <MetaPublishingPanel companyId={companyId} canPublish={canPublish} pieces={approvedPosts} />
+
+      {!isHospitality && <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-gray-900">LinkedIn queue</h2>
         {jobs.length === 0 ? <p className="text-sm text-gray-600">No LinkedIn posts in the queue.</p> : <ul className="space-y-3">
           {jobs.filter((job) => job.target_platform === "linkedin_personal").map((job) => <li key={job.id} className="rounded border border-gray-100 p-3 text-sm">
@@ -117,7 +120,7 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
             {job.external_url && <a href={job.external_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-sky-700 underline">View on LinkedIn</a>}
           </li>)}
         </ul>}
-      </section>
+      </section>}
 
       <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-gray-900">Download approved posts</h2>

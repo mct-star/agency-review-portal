@@ -20,7 +20,6 @@ describe("isB2bOnlyPage", () => {
       "/plan/weekly",
       "/compliance",
       "/compliance/00000000-0000-4000-8000-000000000001",
-      "/publish",
       "/analytics",
       "/strategy/",
       "/generate?week=1",
@@ -45,6 +44,7 @@ describe("isB2bOnlyPage", () => {
       "/create/week-interview",
       "/create/voice",
       "/library",
+      "/publish",
       "/calendar",
       "/coming-up",
       "/review",
@@ -83,6 +83,7 @@ const OPEN_TO_HOSPITALITY = [
   "/library",
   "/not-available",
   "/notifications",
+  "/publish",
   "/settings",
 ];
 
