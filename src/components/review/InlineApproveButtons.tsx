@@ -34,28 +34,30 @@ export default function InlineApproveButtons({ pieceId, companyId }: Props) {
 
   if (status === "done") {
     return (
-      <span className={`text-xs font-medium ${result === "Approved" ? "text-green-600" : "text-amber-600"}`}>
-        {result} ✓
+      <span role="status" className={`text-sm font-medium ${result === "Approved" ? "text-green-700" : "text-amber-800"}`}>
+        {result}
       </span>
     );
   }
 
   return (
-    <div className="flex items-center gap-1.5" onClick={(e) => e.preventDefault()}>
-      {result && status === "idle" && <span className="text-[11px] text-red-600">{result}</span>}
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      {result && status === "idle" && <span role="alert" className="w-full text-xs text-red-700">{result}</span>}
       <button
-        onClick={(e) => { e.preventDefault(); handleAction("approved"); }}
+        type="button"
+        onClick={() => handleAction("approved")}
         disabled={status !== "idle"}
-        className="rounded-lg bg-green-50 border border-green-200 px-2.5 py-1 text-[11px] font-semibold text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+        className="workspace-button"
       >
-        {status === "approving" ? "..." : "Approve"}
+        {status === "approving" ? "Approving..." : "Approve"}
       </button>
       <button
-        onClick={(e) => { e.preventDefault(); handleAction("changes_requested"); }}
+        type="button"
+        onClick={() => handleAction("changes_requested")}
         disabled={status !== "idle"}
-        className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+        className="workspace-button workspace-button-secondary"
       >
-        {status === "rejecting" ? "..." : "Changes"}
+        {status === "rejecting" ? "Saving..." : "Changes"}
       </button>
     </div>
   );

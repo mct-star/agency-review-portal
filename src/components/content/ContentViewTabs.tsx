@@ -90,10 +90,12 @@ export default function ContentViewTabs({
     <div>
       {/* Tab bar — only rendered if there are multiple tabs */}
       {showPreviewTab && (
-        <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
+        <div role="group" aria-label="Content view" className="workspace-tabs mb-4">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 activeTab === tab.id
@@ -109,15 +111,15 @@ export default function ContentViewTabs({
 
       {/* Content view */}
       {activeTab === "content" && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="workspace-panel p-5 sm:p-7">
           <MarkdownRenderer content={markdownBody} />
         </div>
       )}
 
       {/* LinkedIn Preview view */}
       {activeTab === "preview" && showPreviewTab && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-6">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="workspace-panel p-3 sm:p-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-400" />
               <span className="text-xs font-medium text-gray-500">
@@ -128,7 +130,7 @@ export default function ContentViewTabs({
               <button
                 onClick={handleApplyOverlay}
                 disabled={applyingOverlay}
-                className="flex items-center gap-1.5 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                className="workspace-button workspace-button-secondary"
               >
                 {applyingOverlay ? (
                   <>
@@ -139,7 +141,7 @@ export default function ContentViewTabs({
                     Applying…
                   </>
                 ) : (
-                  <>✦ Apply Brand Overlay</>
+                  <>Apply brand overlay</>
                 )}
               </button>
             )}

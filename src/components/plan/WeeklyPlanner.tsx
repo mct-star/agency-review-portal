@@ -169,8 +169,8 @@ export default function WeeklyPlanner({
   return (
     <div className="space-y-6">
       {/* Summary bar */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-3">
-        <div className="flex items-center gap-6">
+      <div className="workspace-panel flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div>
             <p className="text-xs font-medium text-gray-500">Company</p>
             <p className="text-sm font-semibold text-gray-900">{companyName}</p>
@@ -203,18 +203,18 @@ export default function WeeklyPlanner({
 
       {/* Status messages */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
       {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+        <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
           <p className="text-sm text-green-700">{successMsg}</p>
         </div>
       )}
 
       {/* 7-day grid */}
-      <div className="grid grid-cols-7 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {DISPLAY_ORDER.map((dayIndex) => {
           const daySlots = slotsByDay[dayIndex] || [];
           const isWeekend = dayIndex === 0 || dayIndex === 6;
@@ -233,7 +233,7 @@ export default function WeeklyPlanner({
                     {DAY_NAMES[dayIndex]}
                   </span>
                   {daySlots.length > 0 && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-[10px] font-medium text-gray-500">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-500">
                       {daySlots.length}
                     </span>
                   )}
@@ -255,7 +255,8 @@ export default function WeeklyPlanner({
                       <button
                         onClick={() => removeSlot(slot.id)}
                         disabled={saving}
-                        className="absolute top-1.5 right-1.5 hidden rounded p-0.5 text-gray-300 hover:bg-red-50 hover:text-red-500 group-hover:block disabled:opacity-50"
+                        aria-label={`Remove ${info?.label || dbType?.label || "post"} from ${DAY_NAMES[dayIndex]}`}
+                        className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                         title="Remove slot"
                       >
                         <svg
@@ -270,7 +271,7 @@ export default function WeeklyPlanner({
                       </button>
 
                       {/* Colour dot + label */}
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-start gap-2 pr-7">
                         <div
                           className={`mt-0.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${getSlugColor(
                             dbType?.slug || ""
@@ -280,7 +281,7 @@ export default function WeeklyPlanner({
                           <p className="text-xs font-medium leading-tight text-gray-900">
                             {info?.label || dbType?.label || "Unknown"}
                           </p>
-                          <p className="mt-0.5 text-[10px] text-gray-500">
+                          <p className="mt-0.5 text-xs text-gray-500">
                             {formatTime(slot.scheduled_time)}
                           </p>
                         </div>
@@ -288,7 +289,7 @@ export default function WeeklyPlanner({
 
                       {/* Ecosystem role */}
                       {info?.ecosystemRole && (
-                        <p className="mt-1.5 text-[10px] leading-snug text-gray-500">
+                        <p className="mt-1.5 text-xs leading-snug text-gray-500">
                           {info.ecosystemRole}
                         </p>
                       )}
@@ -302,7 +303,8 @@ export default function WeeklyPlanner({
                     setAddingToDay(addingToDay === dayIndex ? null : dayIndex)
                   }
                   disabled={saving}
-                  className={`w-full rounded-lg border border-dashed p-2.5 text-center text-xs font-medium transition-colors ${
+                  aria-expanded={addingToDay === dayIndex}
+                  className={`min-h-11 w-full rounded-lg border border-dashed p-2.5 text-center text-xs font-medium transition-colors ${
                     addingToDay === dayIndex
                       ? "border-blue-400 bg-blue-50 text-blue-600"
                       : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-500"
@@ -325,7 +327,7 @@ export default function WeeklyPlanner({
             </h3>
             <button
               onClick={() => setAddingToDay(null)}
-              className="text-xs text-gray-500 hover:text-gray-600"
+              className="workspace-button workspace-button-quiet"
             >
               Cancel
             </button>
@@ -355,11 +357,11 @@ export default function WeeklyPlanner({
                     <p className="text-xs font-medium text-gray-900">
                       {pt.label}
                     </p>
-                    <p className="mt-0.5 text-[10px] leading-snug text-gray-500">
+                    <p className="mt-0.5 text-xs leading-snug text-gray-500">
                       {pt.ecosystemRole}
                     </p>
                     {pt.weekdayHint && (
-                      <p className="mt-1 text-[10px] text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500">
                         Suggested: {pt.weekdayHint}
                       </p>
                     )}
@@ -394,7 +396,7 @@ export default function WeeklyPlanner({
               />
               <div>
                 <p className="text-xs font-medium text-gray-800">{pt.label}</p>
-                <p className="text-[10px] text-gray-500">
+                <p className="text-xs text-gray-500">
                   {pt.weekdayHint ? `${pt.weekdayHint} ` : ""}
                   {pt.description}
                 </p>

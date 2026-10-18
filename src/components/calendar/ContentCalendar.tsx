@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import PlanBoard from "./PlanBoard";
+import Badge from "@/components/ui/Badge";
+import type { ApprovalStatus } from "@/types/database";
 import {
   DndContext,
   DragOverlay,
@@ -759,15 +761,16 @@ export default function ContentCalendar({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="space-y-3">
+      <div className="workspace-panel workspace-calendar-toolbar space-y-4">
         {/* Row 1: Search bar + Recent button */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-md">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
+              aria-label="Search posts by title or content"
               placeholder="Search posts by title or content..."
               value={searchQuery}
               onChange={(e) => enterSearchMode(e.target.value)}
@@ -776,7 +779,7 @@ export default function ContentCalendar({
             {(viewMode === "search" || viewMode === "recent") && (
               <button
                 onClick={exitSearchMode}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
+                className="absolute right-0 top-1/2 flex w-11 -translate-y-1/2 items-center justify-center text-gray-500 hover:text-gray-600"
                 aria-label="Clear search"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -797,7 +800,7 @@ export default function ContentCalendar({
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Most Recent
+            Most recent
           </button>
 
           {pendingPieces > 0 && (
@@ -821,7 +824,7 @@ export default function ContentCalendar({
         {/* Row 2: Calendar navigation + view controls (hidden in search/recent mode) */}
         {viewMode !== "search" && viewMode !== "recent" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               {/* Company picker */}
               {showCompanyPicker && (
                 <select
@@ -846,7 +849,7 @@ export default function ContentCalendar({
               <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white">
                 <button
                   onClick={() => navigate(-1)}
-                  className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="min-w-11 px-3 py-2 text-gray-500 hover:text-gray-700 transition-colors"
                   aria-label="Previous"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -861,7 +864,7 @@ export default function ContentCalendar({
                 </button>
                 <button
                   onClick={() => navigate(1)}
-                  className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="min-w-11 px-3 py-2 text-gray-500 hover:text-gray-700 transition-colors"
                   aria-label="Next"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -879,10 +882,10 @@ export default function ContentCalendar({
               </>)}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {/* Show template toggle */}
               {viewMode !== "plan" && (
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex min-h-11 items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showTemplate}
@@ -898,6 +901,7 @@ export default function ContentCalendar({
                 {(["plan", "week", "month"] as const).map((mode) => (
                   <button
                     key={mode}
+                    aria-pressed={viewMode === mode}
                     onClick={() => setViewMode(mode)}
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       viewMode === mode
@@ -916,7 +920,7 @@ export default function ContentCalendar({
 
       {/* Summary stats */}
       {totalPieces > 0 && viewMode !== "plan" && (
-        <div className="flex items-center gap-6 rounded-lg border border-gray-200 bg-white px-5 py-3">
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-900">{totalPieces}</span>
             <span className="text-xs text-gray-500">posts</span>
@@ -960,10 +964,14 @@ export default function ContentCalendar({
       ) : viewMode === "plan" ? (
         <PlanBoard key={selectedCompany.id} companyId={selectedCompany.id} />
       ) : loading ? (
-        <div className="flex items-center justify-center py-16">
+        <div role="status" className="flex items-center justify-center gap-3 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
+          <span className="text-sm text-gray-500">Loading your calendar...</span>
         </div>
       ) : (
+        <>
+        <div className="sm:hidden"><CalendarAgenda cells={viewMode === "month" ? getMonthGrid().flat().filter(cell => cell.isCurrentMonth) : getWeekGrid()} /></div>
+        <div className="hidden sm:block">
         <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {viewMode === "month" ? (
             <MonthView
@@ -988,6 +996,8 @@ export default function ContentCalendar({
             ) : null}
           </DragOverlay>
         </DndContext>
+        </div>
+        </>
       )}
 
       {/* Legend */}
@@ -1011,6 +1021,29 @@ export default function ContentCalendar({
         )}
       </div>
       )}
+    </div>
+  );
+}
+
+/** On phones a date is a readable row, rather than one seventh of the screen. */
+function CalendarAgenda({ cells }: { cells: DayCell[] }) {
+  return (
+    <div className="space-y-3" aria-label="Calendar by day">
+      {cells.map(cell => (
+        <section key={formatDateKey(cell.date)} className={`workspace-panel p-4 ${cell.isToday ? "border-violet-300" : ""}`}>
+          <h3 className="mb-3 text-base font-medium"><time dateTime={formatDateKey(cell.date)}>{cell.date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}</time>{cell.isToday && <span className="ml-2 text-xs text-violet-800">Today</span>}</h3>
+          {cell.pieces.length ? <ul className="divide-y divide-gray-100">{cell.pieces.map(piece => (
+            <li key={piece.id}>
+              <Link href={`/content/${piece.id}`} className="flex min-h-11 items-start gap-3 py-3">
+                <span className="w-12 shrink-0 text-xs text-gray-500">{piece.scheduled_time ? formatTime(piece.scheduled_time) : "No time"}</span>
+                <div className="min-w-0 space-y-2"><p className="text-sm font-medium [overflow-wrap:anywhere]">{piece.title || getPostTypeLabel(piece.post_type)}</p><Badge status={piece.approval_status as ApprovalStatus} /></div>
+                <span aria-hidden="true" className="ml-auto text-gray-500">↗</span>
+              </Link>
+            </li>
+          ))}</ul> : <p className="text-sm text-gray-500">No posts scheduled.</p>}
+          {cell.templateSlots.length > 0 && <p className="mt-3 text-xs text-gray-500">{cell.templateSlots.length} empty {cell.templateSlots.length === 1 ? "slot" : "slots"} in your schedule.</p>}
+        </section>
+      ))}
     </div>
   );
 }

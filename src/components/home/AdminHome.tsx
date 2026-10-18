@@ -11,19 +11,23 @@ import PanelCard from "./PanelCard";
  */
 export default function AdminHome({ greeting, panels }: { greeting: string; panels: Panel[] }) {
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-12 pt-2 md:pt-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">{greeting}</h1>
+    <div className="space-y-8 pb-8">
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <p className="workspace-eyebrow">Your daily overview</p>
+          <h1 className="workspace-title">{greeting}</h1>
+          <p className="workspace-description">Your companies. Your content. A clear view of what needs you.</p>
+        </div>
         <nav aria-label="Start" className="flex flex-wrap gap-2">
-          <Link href="/generate/quick" className="inline-flex min-h-11 items-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-violet-700">Quick Post</Link>
+          <Link href="/generate/quick" className="workspace-button">Create a post <span aria-hidden="true">↗</span></Link>
           {isWeekBoardEnabled() && (
-            <Link href="/admin/weeks" className="inline-flex min-h-11 items-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50">Week Board</Link>
+            <Link href="/admin/weeks" className="workspace-button workspace-button-secondary">Week Board</Link>
           )}
-          <Link href="/setup" className="inline-flex min-h-11 items-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50">Companies</Link>
+          <Link href="/setup" className="workspace-button workspace-button-secondary">Companies</Link>
         </nav>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid items-start gap-5 xl:grid-cols-2">
         {panels.map((panel) => (
           <PanelCard key={panel.key} panel={panel} />
         ))}

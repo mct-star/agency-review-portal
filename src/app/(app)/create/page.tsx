@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const modes = [
   {
     title: "Quick Post",
-    description: "One post in 30 seconds",
+    description: "Turn one idea into a draft in your voice",
     href: "/generate/quick",
     icon: (
       <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -64,8 +64,9 @@ export default function CreatePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Create Content</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="workspace-eyebrow">From idea to draft</p>
+        <h1 className="workspace-title">Create Content</h1>
+        <p className="workspace-description">
           Choose how you want to create content today.
         </p>
       </div>
@@ -75,14 +76,14 @@ export default function CreatePage() {
           <Link
             key={mode.href}
             href={mode.href}
-            className="group flex flex-col rounded-xl border border-gray-200 bg-white p-6 transition-all hover:border-amber-300 hover:shadow-md"
+            className="workspace-panel workspace-card group flex flex-col p-6 sm:p-7"
           >
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-amber-50 text-amber-600 transition-colors group-hover:bg-amber-100">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-violet-100 text-violet-900 transition-colors group-hover:bg-violet-200">
               {mode.icon}
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">{mode.title}</h2>
-            <p className="mt-1 text-sm text-gray-500">{mode.description}</p>
-            <span className="mt-4 text-sm font-medium text-amber-600 group-hover:text-amber-700">
+            <h2 className="workspace-section-title">{mode.title}</h2>
+            <p className="workspace-description">{mode.description}</p>
+            <span className="mt-5 flex min-h-11 items-center text-sm font-medium text-gray-900">
               Get started &rarr;
             </span>
           </Link>

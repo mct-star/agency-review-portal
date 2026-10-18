@@ -54,8 +54,7 @@ function MiniPreview({ slug, visualTag, color }: { slug: string; visualTag: stri
         </div>
       )}
       <span
-        className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-        style={{ backgroundColor: color }}
+        className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
       >
         {visualTag}
       </span>
@@ -776,11 +775,11 @@ export default function QuickGenerate({
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div className="workspace-panel workspace-quick">
       {/* Removed: duplicate header , page title already shown above */}
 
       {state === "idle" || state === "error" ? (
-        <div className="p-6 space-y-5">
+        <div className="space-y-7 p-5 sm:p-7">
           {/* Company + Person selector */}
           {showCompanyPicker ? (
             /* Admin view: two separate dropdowns */
@@ -870,48 +869,36 @@ export default function QuickGenerate({
               {authorAvatar ? (
                 <img src={authorAvatar} alt={authorName} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-bold text-gray-500">
+                <div className="flex h-full w-full items-center justify-center bg-gray-200 text-xs font-bold text-gray-500">
                   {authorName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
               )}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">{authorName}</p>
-              <p className="text-[11px] text-gray-500">{authorTagline}</p>
+              <p className="text-xs text-gray-500">{authorTagline}</p>
             </div>
             {!selectedPersonId && !showCompanyPicker && (
-              <span className="ml-auto rounded bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">Company Page</span>
+              <span className="ml-auto rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">Company Page</span>
             )}
           </div>
 
-          {/* Visual flow guide */}
-          <div className="flex items-center justify-center gap-6 py-6 text-sm text-gray-500">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-600">1</span>
-              <span className="font-medium">Choose a topic</span>
-            </div>
-            <svg className="h-4 w-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-600">2</span>
-              <span className="font-medium">Pick a post type</span>
-            </div>
-            <svg className="h-4 w-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-600">3</span>
-              <span className="font-medium">Generate</span>
-            </div>
-          </div>
+          <ol aria-label="Creation steps" className="grid grid-cols-3 gap-3 border-y border-gray-200 py-5">
+            {["Choose a topic", "Pick a post type", "Generate"].map((step, index) => (
+              <li key={step} className="flex flex-col items-start gap-2 text-xs text-gray-600 sm:flex-row sm:items-center sm:text-sm"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 font-medium text-violet-800" aria-hidden="true">{index + 1}</span><span>{step}</span></li>
+            ))}
+          </ol>
 
           {/* Topic input with three-mode selector */}
           <div>
             <div className="mb-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="workspace-section-title block text-gray-900">
                 What do you want to post about?
               </label>
             </div>
 
             {/* Mode tabs: Topic Bank | Type your own | Off the cuff */}
-            <div className="mb-3 inline-flex w-full rounded-lg border border-gray-200 bg-gray-50 p-1" role="tablist" aria-label="Topic input mode">
+            <div className="mb-3 grid w-full grid-cols-3 gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1" role="group" aria-label="Topic input mode">
               {([
                 { id: "topic_bank" as const, icon: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z", label: "From Topic Bank" },
                 { id: "type_own" as const, icon: "M12 19l7-7 3 3-7 7-3-3zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5zM2 2l7.586 7.586M11 11a2 2 0 1 1-4 0 2 2 0 0 1 4 0z", label: "Type your own" },
@@ -922,19 +909,18 @@ export default function QuickGenerate({
                   <button
                     key={mode.id}
                     type="button"
-                    role="tab"
-                    aria-selected={isActive}
+                    aria-pressed={isActive}
                     onClick={() => setTopicMode(mode.id)}
-                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                    className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors sm:text-sm ${
                       isActive
                         ? "bg-white text-violet-700 shadow-sm ring-1 ring-violet-500"
                         : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
-                    <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="hidden h-3.5 w-3.5 shrink-0 sm:block" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d={mode.icon} />
                     </svg>
-                    <span className="truncate">{mode.label}</span>
+                    <span className="leading-4">{mode.label}</span>
                   </button>
                 );
               })}
@@ -946,7 +932,7 @@ export default function QuickGenerate({
                 {strategyTopics.length > 0 ? (
                   <>
                     <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-violet-500">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-violet-500">
                         Your saved topics for {new Date().toLocaleString("default", { month: "long" })}
                       </p>
                       <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto">
@@ -966,7 +952,7 @@ export default function QuickGenerate({
                             >
                               <span className="font-medium">{t.topic}</span>
                               {t.pillar && (
-                                <span className="ml-1.5 text-[10px] text-gray-500">{t.pillar}</span>
+                                <span className="ml-1.5 text-xs text-gray-500">{t.pillar}</span>
                               )}
                             </button>
                           );
@@ -974,7 +960,7 @@ export default function QuickGenerate({
                       </div>
                     </div>
                     {topic && (
-                      <p className="mt-2 text-[11px] text-gray-500">
+                      <p className="mt-2 text-xs text-gray-500">
                         Selected: <span className="font-medium text-gray-700">{topic}</span>
                       </p>
                     )}
@@ -1002,6 +988,7 @@ export default function QuickGenerate({
                   <textarea
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
+                    aria-label="What do you want to post about?"
                     placeholder="e.g. Why most product launches fail in the first 90 days..."
                     rows={3}
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 pr-14 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
@@ -1030,7 +1017,7 @@ export default function QuickGenerate({
                           className="block w-full px-4 py-2.5 text-left text-xs text-gray-700 hover:bg-violet-50 transition-colors border-b border-gray-50 last:border-0"
                         >
                           <span className="font-medium">{t.topic}</span>
-                          {t.pillar && <span className="ml-2 text-[10px] text-gray-500">{t.pillar}</span>}
+                          {t.pillar && <span className="ml-2 text-xs text-gray-500">{t.pillar}</span>}
                         </button>
                       ))}
                     </div>
@@ -1063,11 +1050,12 @@ export default function QuickGenerate({
                 <textarea
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
+                  aria-label="Your thoughts for this post"
                   placeholder="Tell me what happened, what you're thinking, or what you saw today."
                   rows={5}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
                 />
-                <p className="mt-1.5 text-[11px] text-gray-500">
+                <p className="mt-1.5 text-xs text-gray-500">
                   Brain-dump mode. Record your thoughts or type them out. The AI will find the angle and structure it into a post for you.
                 </p>
               </div>
@@ -1083,6 +1071,7 @@ export default function QuickGenerate({
               {availablePostTypes.map((pt) => (
                 <button
                   key={pt.slug}
+                  aria-pressed={selectedPostType?.slug === pt.slug}
                   onClick={() => setSelectedPostType(pt)}
                   className={`relative rounded-xl border p-3 text-center transition-all ${
                     selectedPostType?.slug === pt.slug
@@ -1091,7 +1080,7 @@ export default function QuickGenerate({
                   }`}
                 >
                   {pt.medium === "video" && (
-                    <span className="absolute right-2 top-2 rounded-full bg-violet-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                    <span className="absolute right-2 top-2 rounded-full bg-violet-600 px-1.5 py-0.5 text-xs font-semibold text-white">
                       Video
                     </span>
                   )}
@@ -1101,7 +1090,7 @@ export default function QuickGenerate({
                       <p className="text-sm font-semibold text-gray-900">
                         {pt.label}
                       </p>
-                      <p className="mt-0.5 text-[10px] text-gray-500 line-clamp-2">
+                      <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">
                         {pt.description}
                       </p>
                     </div>
@@ -1123,6 +1112,7 @@ export default function QuickGenerate({
                 return (
                   <button
                     key={p.id}
+                    aria-pressed={isSelected}
                     onClick={() => setPlatform(p.id)}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
                       isSelected
@@ -1186,7 +1176,7 @@ export default function QuickGenerate({
                     }}
                   />
                 </div>
-                <span className="text-[10px] font-semibold text-gray-500">{postUsage.limit - postUsage.used} left</span>
+                <span className="text-xs font-semibold text-gray-500">{postUsage.limit - postUsage.used} left</span>
               </div>
             </div>
           )}
@@ -1195,13 +1185,13 @@ export default function QuickGenerate({
           <button
             onClick={handleGenerate}
             disabled={!topic.trim() || !selectedPostType}
-            className="w-full rounded-lg bg-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="workspace-button w-full"
           >
             Generate Post
           </button>
         </div>
       ) : state === "generating" ? (
-        <div className="flex flex-col items-center justify-center p-12">
+        <div role="status" aria-live="polite" className="flex flex-col items-center justify-center p-12">
           <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
           <p className="text-sm font-medium text-gray-900">{progress}</p>
           {selectedPostType?.production !== "mac" && (
@@ -1229,7 +1219,7 @@ export default function QuickGenerate({
           </div>
 
           {/* Row 2: Grouped toolbar */}
-          <div className="rounded-xl border border-gray-200 bg-white p-1.5 flex flex-wrap items-center gap-1">
+          <div className="workspace-result-tools rounded-xl border border-gray-200 bg-white p-1.5 flex flex-wrap items-center gap-1">
             {/* Group 1: Content */}
             <div className="flex items-center gap-1">
               {!editing ? (
@@ -1472,7 +1462,7 @@ export default function QuickGenerate({
                 </div>
                 <ul className="mt-2 space-y-0.5">
                   {voiceMatch.feedback.slice(0, 3).map((f, i) => (
-                    <li key={i} className="text-[11px] text-gray-500 flex items-start gap-1">
+                    <li key={i} className="text-xs text-gray-500 flex items-start gap-1">
                       <span className="text-green-500 mt-px">{"\u2022"}</span> {f}
                     </li>
                   ))}
@@ -1492,7 +1482,7 @@ export default function QuickGenerate({
                 </p>
                 <ul className="mt-2 space-y-0.5">
                   {engagement.reasons.slice(0, 3).map((r, i) => (
-                    <li key={i} className="text-[11px] text-gray-500 flex items-start gap-1">
+                    <li key={i} className="text-xs text-gray-500 flex items-start gap-1">
                       <span className="text-blue-500 mt-px">{"\u2022"}</span> {r}
                     </li>
                   ))}
@@ -1560,7 +1550,7 @@ export default function QuickGenerate({
                   rows={12}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
-                <p className="mt-1 text-[10px] text-gray-500">{editedText.length} characters</p>
+                <p className="mt-1 text-xs text-gray-500">{editedText.length} characters</p>
               </div>
               {result.firstComment !== null && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">

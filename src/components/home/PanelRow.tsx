@@ -48,11 +48,11 @@ export default function PanelRow({ row }: { row: ActionRow }) {
 
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <Link href={row.href} className="block truncate text-sm font-medium text-gray-900 hover:underline">
+      <div className="min-w-0 flex-1">
+        <Link href={row.href} className="block text-sm font-medium text-gray-900 hover:underline [overflow-wrap:anywhere]">
           {row.title}
         </Link>
-        <p className="truncate text-xs text-gray-600">
+        <p className="mt-1 text-xs text-gray-600 [overflow-wrap:anywhere]">
           {row.sub}
           {row.ageLabel ? <span className="text-gray-400"> · {row.ageLabel}</span> : null}
         </p>
