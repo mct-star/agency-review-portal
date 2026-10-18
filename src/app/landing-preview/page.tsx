@@ -1,5 +1,5 @@
 /**
- * Public hero and first-section preview for Michael's design review. Audience
+ * Public full landing-page preview for Michael's design review. Audience
  * links personalise this illustration without changing the live platform.
  */
 import type { Metadata } from "next";

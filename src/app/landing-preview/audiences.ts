@@ -1,7 +1,7 @@
 export const audienceIds = ["hospitality", "professional", "healthcare", "agency"] as const;
 export type AudienceId = (typeof audienceIds)[number];
 export type PostStatus = "ready" | "review" | "draft";
-export interface ExamplePost { day: string; title: string; format: string; asset: string; status: PostStatus }
+export interface ExamplePost { day: string; title: string; format: string; asset: string; status: PostStatus; image?: string }
 export interface Audience {
   label: string; description: string; sourceLabel: string; source: string; inputs: readonly string[];
   weekTitle: string; weekNote: string; posts: readonly ExamplePost[];
@@ -19,9 +19,9 @@ export const audiences: Record<AudienceId, Audience> = {
     weekTitle: "This week at your place.",
     weekNote: "Something new. A reason to visit. A reminder at the right time.",
     posts: [
-      { day: "TUE", title: "Something new on the lunch menu", format: "Menu post", asset: "Photo + caption", status: "ready" },
-      { day: "THU", title: "Live music this Friday", format: "What’s on", asset: "Event card", status: "review" },
-      { day: "SAT", title: "Make a little room for the weekend", format: "Weekend reminder", asset: "Photo + caption", status: "draft" },
+      { day: "TUE", title: "Something new on the lunch menu", format: "Menu post", asset: "Photo + caption", status: "ready", image: "/landing-preview/seasonal-lunch.webp" },
+      { day: "THU", title: "Live music this Friday", format: "What’s on", asset: "Event card", status: "review", image: "/landing-preview/restaurant-music.webp" },
+      { day: "SAT", title: "Make a little room for the weekend", format: "Weekend reminder", asset: "Photo + caption", status: "draft", image: "/landing-preview/restaurant-chef.webp" },
     ],
     sectionTitle: "A week ahead.", sectionEmphasis: "Without the scramble.",
     sectionDescription: "Share what’s happening. See how it fits together. Check the posts before they go anywhere.",

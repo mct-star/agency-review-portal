@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import type { Audience, AudienceId, PostStatus } from "./audiences";
 import styles from "./preview.module.css";
 
@@ -15,7 +16,7 @@ export function WeekProgramme({ audience, compact = false }: { audience: Audienc
   return <ul className={`${styles.weekProgramme} ${compact ? styles.weekCompact : ""}`} aria-label="Illustrative weekly content plan">
     {audience.posts.map((post, index) => <li className={styles.weekItem} key={post.day}>
       <span className={styles.dayBadge}>{post.day}</span>
-      <div className={`${styles.assetThumbnail} ${styles[`assetTone${index}`]}`} aria-hidden="true"><span>{post.asset === "Photo + caption" ? "YOUR" : "A NEW"}</span><strong>{post.asset === "Photo + caption" ? "photos." : "idea."}</strong></div>
+      <div className={`${styles.assetThumbnail} ${styles[`assetTone${index}`]}`} aria-hidden="true">{post.image ? <Image src={post.image} alt="" fill sizes="(max-width: 780px) 55px, 68px" /> : <><span>{post.asset === "Photo + caption" ? "YOUR" : "A NEW"}</span><strong>{post.asset === "Photo + caption" ? "photos." : "idea."}</strong></>}</div>
       <div className={styles.postDetails}><h3>{post.title}</h3><p>{post.format}<span aria-hidden="true"> · </span>{post.asset}</p><span className={`${styles.postStatus} ${styles[`status${post.status}`]}`}><span aria-hidden="true" />{statuses[post.status]}</span></div>
     </li>)}
   </ul>;
