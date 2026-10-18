@@ -96,7 +96,8 @@
   color: #fffefa;
 }
 .workspace-welcome::before { content: ""; position: absolute; z-index: -1; width: 330px; height: 330px; right: -95px; top: -245px; border: 1px solid #fffefa; border-radius: 50%; opacity: .12; pointer-events: none; }
-.workspace-welcome-art { display: none; pointer-events: none; }
+.workspace-welcome-art { display: block; width: 170px; height: 107px; margin-top: 12px; margin-left: auto; pointer-events: none; }
+.workspace-welcome-art svg { display: block; width: 100%; height: auto; }
 .welcome-thread { stroke-dashoffset: 0; }
 .workspace-welcome .workspace-eyebrow { color: #d8c1ff; }
 .workspace-welcome :where(a, button):focus-visible { outline-color: #d8c1ff; }

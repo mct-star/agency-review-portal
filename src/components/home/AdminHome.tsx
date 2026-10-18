@@ -14,7 +14,6 @@ export default function AdminHome({ greeting, panels }: { greeting: string; pane
   return (
     <div className="space-y-8 pb-8">
       <div className="workspace-welcome flex flex-wrap items-end justify-between gap-5">
-        <WelcomeMotion />
         <div>
           <p className="workspace-eyebrow">Your daily overview</p>
           <h1 className="workspace-title">{greeting}</h1>
@@ -27,6 +26,7 @@ export default function AdminHome({ greeting, panels }: { greeting: string; pane
           )}
           <Link href="/setup" className="workspace-button workspace-button-secondary">Companies</Link>
         </nav>
+        <WelcomeMotion />
       </div>
 
       <div className="grid items-start gap-5 xl:grid-cols-2">

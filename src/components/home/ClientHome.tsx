@@ -24,10 +24,10 @@ export default function ClientHome(props: Props) {
   return (
     <div className="space-y-8 pb-8">
       <div className="workspace-welcome">
-        <WelcomeMotion />
         <p className="workspace-eyebrow">Your daily overview</p>
         <h1 className="workspace-title">{greeting}</h1>
         <p className="workspace-description">A little focus. A clear next step. Content that sounds like you.</p>
+        <WelcomeMotion />
       </div>
       <ContinueCard />
       <section className="workspace-panel workspace-nextstep flex flex-wrap items-center justify-between gap-5 p-5 sm:p-6" aria-label="Your next step">

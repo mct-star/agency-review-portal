@@ -32,7 +32,7 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12 pt-2 md:pt-6">
-      <div className="workspace-welcome"><WelcomeMotion /><p className="workspace-eyebrow">Your week, made easier</p><h1 className="workspace-title">{greeting}</h1></div>
+      <div className="workspace-welcome"><p className="workspace-eyebrow">Your week, made easier</p><h1 className="workspace-title">{greeting}</h1><WelcomeMotion /></div>
 
       {/* Waiting for you */}
       <section
