@@ -123,6 +123,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await generateText({
+      companyId: profile.company_id || undefined,
       systemPrompt: isHospitality ? HOSPITALITY_PROMPT : SYSTEM_PROMPT,
       userPrompt,
       maxTokens: 500,

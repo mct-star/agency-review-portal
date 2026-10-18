@@ -63,6 +63,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   let post;
   try {
     post = await generateHospitalityPost({
+      companyId: access.piece.company_id,
       company: { name: company.name as string, industry: company.industry as string | null, description: company.description as string | null, settings: readSettings(company.hospitality_settings) },
       postType,
       brief,

@@ -13,8 +13,7 @@
  * generically acceptable.
  */
 
-import { resolveProvider } from "@/lib/providers";
-import { callClaude, CLAUDE_HAIKU } from "@/lib/providers/content-adaptation/claude-util";
+import { requestText, resolveTextConfig, type TextConfig } from "@/lib/providers/text-runtime";
 
 // ════════════════════════════════════════════════════════════
 // Types
@@ -207,21 +206,11 @@ Your output must be INDISTINGUISHABLE from these samples.`);
 // Claude Haiku Evaluator (for gates 1, 2, 3, 6)
 // ════════════════════════════════════════════════════════════
 
-async function callClaudeHaiku(
-  apiKey: string,
-  systemPrompt: string,
-  userMessage: string
-): Promise<string> {
-  return callClaude(apiKey, CLAUDE_HAIKU, systemPrompt, userMessage, 1024);
-}
-
-async function getApiKey(companyId: string): Promise<string | null> {
-  try {
-    const resolved = await resolveProvider(companyId, "content_generation");
-    return (resolved?.credentials?.api_key as string) || null;
-  } catch {
-    return null;
-  }
+const GATE_SCHEMA = { type: "object", properties: { passed: { type: "boolean" }, explanation: { type: "string" } }, required: ["passed", "explanation"], additionalProperties: false };
+const HOOK_SCHEMA = { type: "object", properties: { type: { type: "string" }, explanation: { type: "string" } }, required: ["type", "explanation"], additionalProperties: false };
+const TRIPLE_SCHEMA = { type: "object", properties: { ros_atkins: GATE_SCHEMA, so_what: GATE_SCHEMA, pub_test: GATE_SCHEMA }, required: ["ros_atkins", "so_what", "pub_test"], additionalProperties: false };
+async function callQualityEvaluator(config: TextConfig, systemPrompt: string, userMessage: string, jsonSchema: Record<string, unknown> = GATE_SCHEMA): Promise<string> {
+  return (await requestText(config, { systemPrompt, userPrompt: userMessage, task: "classification", maxTokens: 1024, timeoutMs: 10000, jsonSchema })).text;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -235,7 +224,7 @@ async function getApiKey(companyId: string): Promise<string | null> {
 async function runGate1DayLaneTheme(
   content: string,
   postTypeSlug: string,
-  apiKey: string
+  config: TextConfig
 ): Promise<GateResult> {
   const gate: GateResult = {
     gate: "day_lane_theme",
@@ -345,8 +334,8 @@ Respond with JSON: {"passed": true/false, "explanation": "1 sentence"}`;
   }
 
   try {
-    const response = await callClaudeHaiku(
-      apiKey,
+    const response = await callQualityEvaluator(
+      config,
       "You are a content quality evaluator. Be strict. Respond with valid JSON only.",
       `POST CONTENT:\n${content}\n\n${evaluationPrompt}`
     );
@@ -373,7 +362,7 @@ Respond with JSON: {"passed": true/false, "explanation": "1 sentence"}`;
  */
 async function runGate2HealthcareSpecificity(
   content: string,
-  apiKey: string
+  config: TextConfig
 ): Promise<GateResult> {
   const gate: GateResult = {
     gate: "healthcare_specificity",
@@ -415,8 +404,8 @@ async function runGate2HealthcareSpecificity(
 
   // Then: Claude "Could Be Any Industry" test
   try {
-    const response = await callClaudeHaiku(
-      apiKey,
+    const response = await callQualityEvaluator(
+      config,
       "You are a content quality evaluator. Respond with valid JSON only.",
       `EVALUATE THIS POST for healthcare specificity.
 
@@ -450,7 +439,7 @@ Respond with JSON: {"passed": true/false, "explanation": "1 sentence"}`
  */
 async function runGate3HookTension(
   hookLine: string,
-  apiKey: string,
+  config: TextConfig,
   longForm = false,
 ): Promise<GateResult> {
   const gate: GateResult = {
@@ -466,8 +455,8 @@ async function runGate3HookTension(
   }
 
   try {
-    const response = await callClaudeHaiku(
-      apiKey,
+    const response = await callQualityEvaluator(
+      config,
       "You are a content quality evaluator. Respond with valid JSON only.",
       `Classify this ${longForm ? "article's opening line" : "LinkedIn post opening line"} into one of these types:
 - ACCUSATION: points at a problem the reader is complicit in
@@ -481,7 +470,8 @@ async function runGate3HookTension(
 
 HOOK LINE: "${hookLine}"
 
-Respond with JSON: {"type": "ONE_WORD_TYPE", "explanation": "1 sentence"}`
+Respond with JSON: {"type": "ONE_WORD_TYPE", "explanation": "1 sentence"}`,
+      HOOK_SCHEMA
     );
 
     const cleaned = response.replace(/```json\s*/gi, "").replace(/```/gi, "").trim();
@@ -730,7 +720,7 @@ export function runGate5StructureFormatting(
  */
 async function runGate6QualityTriple(
   content: string,
-  apiKey: string,
+  config: TextConfig,
   longForm = false,
 ): Promise<GateResult> {
   const gate: GateResult = {
@@ -742,8 +732,8 @@ async function runGate6QualityTriple(
   };
 
   try {
-    const response = await callClaudeHaiku(
-      apiKey,
+    const response = await callQualityEvaluator(
+      config,
       "You are a content quality evaluator. Be honest and strict. Respond with valid JSON only.",
       `Evaluate this ${longForm ? "article" : "LinkedIn post"} for three tests:
 
@@ -759,7 +749,8 @@ Respond with JSON:
   "ros_atkins": {"passed": true/false, "explanation": "1 sentence"},
   "so_what": {"passed": true/false, "explanation": "1 sentence"},
   "pub_test": {"passed": true/false, "explanation": "1 sentence"}
-}`
+}`,
+      TRIPLE_SCHEMA
     );
 
     const cleaned = response.replace(/```json\s*/gi, "").replace(/```/gi, "").trim();
@@ -793,33 +784,33 @@ Respond with JSON:
  * Runs all quality gates IN ORDER (fail fast — fundamental failures first).
  * Returns an array of GateResult objects.
  *
- * Gates 1, 2, 3, 6 use Claude Haiku for evaluation.
+ * Gates 1, 2, 3, 6 use the selected company provider for structured evaluation.
  * Gates 4, 5 are fully programmatic.
  */
 export async function runPostGenerationGates(
   options: GateOptions
 ): Promise<GateResult[]> {
   const results: GateResult[] = [];
-  const apiKey = await getApiKey(options.companyId);
+  const config = await resolveTextConfig(options.companyId);
 
   // Extract hook line
   const hookLine = options.hookLine || options.content.trim().split("\n")[0] || "";
 
   // Gate 1: Day/Lane/Theme Check (CRITICAL)
-  if (apiKey) {
-    const g1 = await runGate1DayLaneTheme(options.content, options.postTypeSlug, apiKey);
+  if (config) {
+    const g1 = await runGate1DayLaneTheme(options.content, options.postTypeSlug, config);
     results.push(g1);
   }
 
   // Gate 2: Healthcare Specificity (CRITICAL — only for companies explicitly in healthcare)
-  if (options.isHealthcareCompany === true && apiKey) {
-    const g2 = await runGate2HealthcareSpecificity(options.content, apiKey);
+  if (options.isHealthcareCompany === true && config) {
+    const g2 = await runGate2HealthcareSpecificity(options.content, config);
     results.push(g2);
   }
 
   // Gate 3: Hook Tension Type (HIGH)
-  if (apiKey) {
-    const g3 = await runGate3HookTension(hookLine, apiKey, isLongForm(options.postTypeSlug));
+  if (config) {
+    const g3 = await runGate3HookTension(hookLine, config, isLongForm(options.postTypeSlug));
     results.push(g3);
   }
 
@@ -842,8 +833,8 @@ export async function runPostGenerationGates(
   results.push(g5);
 
   // Gate 6: Ros Atkins / So What / Pub (MEDIUM)
-  if (apiKey) {
-    const g6 = await runGate6QualityTriple(options.content, apiKey, isLongForm(options.postTypeSlug));
+  if (config) {
+    const g6 = await runGate6QualityTriple(options.content, config, isLongForm(options.postTypeSlug));
     results.push(g6);
   }
 

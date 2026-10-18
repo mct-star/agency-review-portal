@@ -20,7 +20,7 @@ function deps(over: Partial<LibraryDeps> = {}): LibraryDeps & { uploads: string[
       people_present: false,
       text_space: true,
       scene_label: "A sunny deck.",
-      provider: "gemini" as const,
+      provider: "claude" as const,
     })),
     ...over,
   };
@@ -95,8 +95,10 @@ describe("autoTagItem", () => {
 
   it("writes vocabulary tags, keeps hand-written ones, and fills the scene sentence", async () => {
     const fake = fakeSupabase({ photo_inventory: { data: row }, companies: { data: { name: "Lakeside", industry: "hospitality", description: null } } });
-    const r = await autoTagItem(fake.client as never, "row1", { deps: deps() });
+    const d = deps();
+    const r = await autoTagItem(fake.client as never, "row1", { deps: d });
     expect(r.ok).toBe(true);
+    expect(d.tag).toHaveBeenCalledWith(expect.any(Array), { companyId: COMPANY, venueContext: "Lakeside. hospitality" });
     const update = fake.calls.filter((c) => c.method === "update").pop()!.args[0] as Record<string, unknown>;
     expect(update.tags).toEqual(["birthday", "weather:sunny", "place:deck"]);
     expect(update.scene_label).toBe("A sunny deck.");

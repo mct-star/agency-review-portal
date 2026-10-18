@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Queues one MCT post, for a calendar slot (slotId) or for today's slot
- * (no slotId), and follows the job until it finishes. The Mac writes the
- * post into Weekly_Outputs/Week_N/OUTPUT_WeekN_Post_<date>.md.
+ * (no slotId), and follows hosted API writing until the draft reaches Review.
  */
 
 interface JobRow {
@@ -30,7 +29,7 @@ export default function SinglePostButton({
   /** What the slot produces; changes the wording, not the route. */
   kind?: "post" | "video" | "meme" | "infographic";
 }) {
-  const noun = kind === "video" ? "video" : kind === "meme" ? "meme" : kind === "infographic" ? "infographic" : "post";
+  const noun = kind === "video" ? "video script" : kind === "meme" ? "meme" : kind === "infographic" ? "infographic" : "post";
   const [job, setJob] = useState<JobRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -85,8 +84,8 @@ export default function SinglePostButton({
 
   const active = job?.status === "queued" || job?.status === "running";
   const status =
-    job?.status === "queued" ? "Queued. It starts when the Mac picks it up."
-    : job?.status === "running" ? (kind === "video" ? "Producing the video..." : `Writing the ${noun}...`)
+    job?.status === "queued" ? "Queued for writing."
+    : job?.status === "running" ? (kind === "video" ? "Writing the video script..." : `Writing the ${noun}...`)
     : job?.status === "completed" ? (job.output_payload?.content_piece_id ? "In Content Review" : `Written: ${job.output_payload?.file ?? "see the week folder"}`)
     : job?.status === "failed" ? (job.error_message || `The ${noun} was not produced.`)
     : null;
@@ -95,17 +94,17 @@ export default function SinglePostButton({
     <div className={compact ? "space-y-1 pt-1" : "space-y-1"}>
       <button
         onClick={write}
-        disabled={busy || active}
+        disabled={busy || active || job?.status === "completed"}
         className={
           compact
-            ? "rounded border border-violet-300 bg-white px-2 py-0.5 text-[11px] font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+            ? "rounded border border-violet-300 bg-white px-2 py-0.5 text-xs font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-50"
             : "rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
         }
       >
-        {busy ? "Queuing..." : active ? "In progress" : job?.status === "completed" ? (kind === "video" ? "Produce again" : "Write again") : label || (kind === "video" ? "Produce this video" : kind === "meme" ? "Write this meme" : kind === "infographic" ? "Make this infographic" : "Write this post")}
+        {busy ? "Queuing..." : active ? "In progress" : job?.status === "completed" ? "Ready to review" : label || (kind === "video" ? "Write this video script" : kind === "meme" ? "Write this meme" : kind === "infographic" ? "Make this infographic" : "Write this post")}
       </button>
       {(message || status) && (
-        <p className={`text-[11px] ${job?.status === "failed" || message ? "text-red-700" : job?.status === "completed" ? "text-emerald-700" : "text-amber-800"}`}>
+        <p className={`text-xs ${job?.status === "failed" || message ? "text-red-700" : job?.status === "completed" ? "text-emerald-700" : "text-amber-800"}`}>
           {job?.status === "completed" && job.output_payload?.content_piece_id
             ? <a href={`/content/${job.output_payload.content_piece_id}`} className="underline">{message || status}</a>
             : (message || status)}

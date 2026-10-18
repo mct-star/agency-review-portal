@@ -108,10 +108,16 @@ describe("generateHospitalityPost", () => {
 
   it("returns a clean post with the standing hashtags", async () => {
     const generator = vi.fn(async () => reply("Sea bass is on the board today.\n\nPan-fried and served with crushed potatoes, £22, and it will be there until it runs out. Come and sit with us on the terrace, order one at the bar, and let us look after the rest of your afternoon."));
-    const post = await generateHospitalityPost({ company, postType: special, brief }, generator as never);
+    const post = await generateHospitalityPost({ companyId: "test-company", company, postType: special, brief }, generator as never);
     expect(post.warnings).toEqual([]);
     expect(post.body.endsWith("#lunch #SouthCerney")).toBe(true);
     expect(generator).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes production text through the supplied company identity", async () => {
+    const generator = vi.fn(async () => reply("Sea bass is on the board today, while it lasts."));
+    await generateHospitalityPost({ companyId: "company-a", company, postType: special, brief }, generator as never);
+    expect(generator).toHaveBeenCalledWith(expect.objectContaining({ companyId: "company-a" }));
   });
 
   it("asks again once when the writer invents a figure, then accepts the clean one", async () => {
@@ -119,7 +125,7 @@ describe("generateHospitalityPost", () => {
       .fn()
       .mockResolvedValueOnce(reply("Sea bass, £18, from 6pm. Great today with the kitchen open until late tonight for everyone."))
       .mockResolvedValueOnce(reply("Sea bass with crushed potatoes, £22, while it lasts."));
-    const post = await generateHospitalityPost({ company, postType: special, brief }, generator as never);
+    const post = await generateHospitalityPost({ companyId: "test-company", company, postType: special, brief }, generator as never);
     expect(generator).toHaveBeenCalledTimes(2);
     expect((generator.mock.calls[1][0] as { userPrompt: string }).userPrompt).toMatch(/£18, 6pm/);
     expect(post.caption).toContain("£22");
@@ -128,7 +134,7 @@ describe("generateHospitalityPost", () => {
 
   it("flags the figure for a person if the writer keeps it", async () => {
     const generator = vi.fn(async () => reply("Sea bass for £18 today, with crushed potatoes, while it lasts at the lake."));
-    const post = await generateHospitalityPost({ company, postType: special, brief }, generator as never);
+    const post = await generateHospitalityPost({ companyId: "test-company", company, postType: special, brief }, generator as never);
     expect(post.warnings.join(" ")).toMatch(/check £18/);
   });
 
@@ -137,7 +143,7 @@ describe("generateHospitalityPost", () => {
       .fn()
       .mockResolvedValueOnce({ text: "Sure! Here is a post", provider: "claude", model: "x" })
       .mockResolvedValueOnce(reply("Sea bass, £22, while it lasts."));
-    const post = await generateHospitalityPost({ company, postType: special, brief }, generator as never);
+    const post = await generateHospitalityPost({ companyId: "test-company", company, postType: special, brief }, generator as never);
     expect(post.caption).toContain("£22");
   });
 });

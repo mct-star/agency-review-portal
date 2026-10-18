@@ -265,6 +265,7 @@ export function realPorts(supabase: SupabaseAdmin): WeatherPorts {
     forecast: (args) => fetchDailyForecast(args),
     write: (company, summary, date) =>
       generateHospitalityPost({
+        companyId: company.id,
         company: { name: company.name, industry: company.industry, description: company.description, settings: readSettings(company.hospitality_settings) },
         postType: getPostType("weather_of_the_day")!,
         brief: "",
@@ -301,6 +302,7 @@ export function realPorts(supabase: SupabaseAdmin): WeatherPorts {
     },
     writeItem: (company, args) =>
       generateHospitalityPost({
+        companyId: company.id,
         company: { name: company.name, industry: company.industry, description: company.description, settings: readSettings(company.hospitality_settings) },
         postType: getPostType(args.postTypeSlug)!,
         brief: args.brief,

@@ -20,7 +20,7 @@ export const POST_PACKS: Record<PostPack, { label: string; description: string }
 };
 
 export type PostTypeMedium = "image" | "carousel" | "video" | "text";
-export type PostTypeProduction = "portal" | "mac" | "manual";
+export type PostTypeProduction = "portal" | "api" | "mac" | "manual";
 export type SlotType = "thesis" | "doc" | "carousel" | "reactive" | "video" | "meme";
 export type PostTypeContentType =
   | "social_post"
@@ -369,14 +369,14 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "One industry inside joke a week on the founder feed. Signals you are close enough to the work to laugh at it.",
     weekdayHint: "Saturday",
     medium: "image",
-    production: "mac",
+    production: "api",
     slotType: "meme",
     contentType: "meme",
     dbSlug: "meme",
     generation: {
       minWords: 4,
       maxWords: 20,
-      contentInstructions: `POST TYPE: Meme. One industry inside joke. Write a setup line and a punchline, under 20 words combined for the on-image text. No statistics. No client names. No emojis. The image generator is not yet wired for this archetype: return the text and mark the image as pending rather than failing.`,
+      contentInstructions: `POST TYPE: Meme. One industry inside joke. Write a setup line and a punchline, under 20 words combined for the on-image text. No statistics. No client names. No emojis. The platform renders this as a house-style card.`,
     },
   },
   {
@@ -389,7 +389,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "Restates the week's argument as one structured image people save and share. Sunday on the founder feed.",
     weekdayHint: "Sunday",
     medium: "image",
-    production: "mac",
+    production: "api",
     slotType: "meme",
     contentType: "social_post",
     dbSlug: "mini_infographic",
@@ -444,13 +444,13 @@ export const POST_TYPES: PostTypeOption[] = [
   {
     slug: "story_video",
     label: "Story video",
-    description: "A 40-90 second B-roll story video carrying one sourced number, produced on the Mac.",
+    description: "A sourced story script and shot list, ready for video production.",
     archetype: "video_story",
     color: "#7C3AED",
     visualTag: "Video",
     ecosystemRole: "Fast-cut B-roll story that carries one sourced number. High-attention pattern interrupt in the feed.",
     medium: "video",
-    production: "mac",
+    production: "api",
     slotType: "video",
     contentType: "video",
     dbSlug: "story_video",
@@ -471,7 +471,7 @@ export const POST_TYPES: PostTypeOption[] = [
     visualTag: "Video",
     ecosystemRole: "Reaction or ranking format for high-engagement, opinionated short-form video.",
     medium: "video",
-    production: "manual",
+    production: "api",
     slotType: "video",
     contentType: "video_script",
     dbSlug: "reaction_ranking",

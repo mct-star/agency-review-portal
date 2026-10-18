@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { CLAUDE_SONNET, callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 import {
   buildRegulatoryContext,
   COUNTRY_PROFILES,
@@ -147,14 +146,6 @@ export async function POST(request: Request) {
   const activeFramework = framework || company?.regulatory_framework || "general_healthcare";
   const frameworkLabel = FRAMEWORK_LABELS[activeFramework] || activeFramework;
 
-  // Resolve Claude API key
-  const provider = await resolveProvider(companyId, "content_generation");
-  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
-  if (apiKey === "no-anthropic-key-will-fallback-to-gemini" && !geminiKey) {
-    return NextResponse.json({ error: "No AI provider is configured for this company. Ask AGENCY to set it up." }, { status: 400 });
-  }
-
   // Build the regulatory context
   const regulatoryContext = buildRegulatoryContext(targetCountries);
   const countryNames = targetCountries
@@ -283,7 +274,12 @@ If the content appears compliant, return an empty issues array with overallScore
 
     let text: string;
     try {
-      text = await callClaude(apiKey, CLAUDE_SONNET, system, "Perform the regulatory compliance review now.", 4096);
+      text = (await generateText({
+        companyId,
+        systemPrompt: system,
+        userPrompt: "Perform the regulatory compliance review now.",
+        maxTokens: 4096,
+      })).text;
     } catch (err) {
       console.error(`[regulatory-review] LLM error for piece ${piece.id}:`, err);
       results.push({

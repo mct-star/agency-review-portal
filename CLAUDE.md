@@ -63,21 +63,32 @@ Run `npx tsc --noEmit` and `npm test` after any non-trivial change.
   `content-assets`, `media` and `renders` are public. Anything a client would
   not publish (compliance documents, raw uploads) goes in a private bucket.
 
-## One provider module
+## API-funded writing
 
-Every Claude call goes through `src/lib/providers/content-adaptation/claude-util.ts`
-(`callText`, `callClaude`, `currentClaudeModel`),
-`src/lib/providers/content-generation/generate-text.ts` or, for images,
-`src/lib/providers/vision/tag-image.ts`. Do not write a
-`fetch("https://api.anthropic.com/...")` anywhere else. Current ids are
-`claude-sonnet-5-5` (writing) and `claude-haiku-5-5` (classification, scoring,
-tagging). The 5.5 models reject `temperature` and think by default, so the
-module sends no temperature, switches thinking off and reads the first text
-block. Fallback is Gemini 2.5 Flash only. The result names the provider that
-answered; record that, not the one you asked for.
-`src/app/api/provider-truth.test.ts` enforces this: it fails if any other file
-under `src/app/api` or `src/lib` contains `api.anthropic.com` or a retired
-model id. Read the Gemini key as `process.env.GOOGLE_GEMINI_API_KEY` only.
+All text and vision calls use `src/lib/providers/text-runtime.ts` through
+`generateText`, `callText` or the content provider factory. Pass the authorised
+`companyId` on every request. Company settings select Claude or OpenAI and keep
+each provider's encrypted key. Never borrow another company's credentials.
+Writing uses Sonnet 5.5 or GPT-6.1 Sol. Only bounded, schema-validated utility
+tasks qualify for Haiku 5.5 or GPT-6 Luna; `utility_tier: quality` opts out.
+Record the answering provider and model from the returned result.
+
+Shared server funding uses `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, selected by
+`AI_TEXT_PROVIDER=claude|openai`. Cross-provider shared fallback requires
+`AI_TEXT_FALLBACK_APPROVED=true`. A configured company key never falls back to
+shared funding. Audio transcription uses its separate API provider.
+
+Week Board and queued cards/scripts use `src/lib/api-production/` with existing
+`content_generation_jobs`, `job_type=content_generation`, `provider=api_engine`.
+Authenticated enqueue routes call the hosted runner after the response;
+`/api/cron/content-production` recovers work with `CRON_SECRET`. No coding CLI
+or subscription credits are used. Keep leases, saved generation checkpoints,
+editorial decisions, tenant scope, actual model metadata and bounded retries.
+Only an explicit user retry resets exhausted jobs. Mac clip rendering remains
+FFmpeg/Whisper work and does not use Claude Code. A script is not a rendered video.
+
+`src/app/api/provider-truth.test.ts` guards native transport boundaries and
+retired model IDs. Do not add direct model API calls outside the central module.
 
 ## Database
 

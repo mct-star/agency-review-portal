@@ -132,13 +132,15 @@ export async function planWeekFromTranscript(
 
 /** The real writer and planner, for the route. */
 export function realInterviewDeps(
+  companyId: string,
   company: { name: string; industry: string | null; description: string | null; settings: VenueSettings },
   io: Pick<WeekInterviewDeps, "candidates" | "draft" | "saveUpcoming">
 ): WeekInterviewDeps {
   return {
-    plan: async (system, user) => (await generateText({ systemPrompt: system, userPrompt: user, maxTokens: 1500, temperature: 0.2, geminiModel: "gemini-2.5-flash" })).text,
+    plan: async (system, user) => (await generateText({ companyId, systemPrompt: system, userPrompt: user, maxTokens: 1500, temperature: 0.2, geminiModel: "gemini-2.5-flash" })).text,
     write: (postType, item) =>
       generateHospitalityPost({
+        companyId,
         company: { name: company.name, industry: company.industry, description: company.description, settings: company.settings },
         postType,
         brief: item.brief,

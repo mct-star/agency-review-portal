@@ -19,7 +19,6 @@ import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/
 import type { PlanTier } from "@/types/database";
 import { getPostType, packOf } from "@/lib/constants/post-types";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
-import { lastWriterUsed } from "@/lib/providers/content-generation/anthropic";
 
 /**
  * POST /api/generate/quick
@@ -741,7 +740,7 @@ export async function POST(request: Request) {
         const contentProviderData = await resolveProvider(companyId, "content_generation");
         const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
         const enhancedPrompt = claudeApiKey
-          ? await enhanceImagePrompt(rawPrompt, styleSlug, claudeApiKey)
+          ? await enhanceImagePrompt(rawPrompt, styleSlug, claudeApiKey, undefined, companyId)
           : rawPrompt;
 
         // Resolve dimensions: square for most styles, 4:3 for 3D/Pixar
@@ -823,7 +822,7 @@ export async function POST(request: Request) {
       warnings,
       // Admins only: which model family answered, so the API smoke test can
       // fail when Claude is down and Gemini quietly wrote the post.
-      ...(user.role === "admin" ? { provider: lastWriterUsed()?.provider } : {}),
+      ...(user.role === "admin" ? { provider: contentResult.writer?.provider, model: contentResult.writer?.model } : {}),
     });
   } catch (err) {
     console.error("[quick] Generation failed:", err);

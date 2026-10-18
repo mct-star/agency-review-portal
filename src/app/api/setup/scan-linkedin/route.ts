@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude, CLAUDE_SONNET } from "@/lib/providers/content-adaptation/claude-util";
+import { requireAdmin } from "@/lib/supabase/admin";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * POST /api/setup/scan-linkedin
  *
- * Analyses LinkedIn posts to extract voice profile using Claude.
+ * Analyses LinkedIn posts to extract a voice profile.
  *
  * Two input modes:
  * 1. Pasted posts: Body: { companyId, posts: string }
@@ -35,6 +34,21 @@ Return ONLY valid JSON in this exact format:
   "ai_voice_notes": "If AI patterns detected: specific examples of AI-generated phrases found, estimated percentage of content that appears AI-written, and recommendations for developing a more authentic voice. If not detected: null."
 }`;
 
+const VOICE_ANALYSIS_SCHEMA = {
+  type: "object",
+  properties: {
+    voice_description: { type: "string" },
+    writing_samples: { type: "string" },
+    banned_vocabulary: { type: "string" },
+    signature_devices: { type: "string" },
+    emotional_register: { type: "string" },
+    ai_voice_detected: { type: "boolean" },
+    ai_voice_notes: { type: ["string", "null"] },
+  },
+  required: ["voice_description", "writing_samples", "banned_vocabulary", "signature_devices", "emotional_register", "ai_voice_detected", "ai_voice_notes"],
+  additionalProperties: false,
+};
+
 export async function POST(request: Request) {
   const admin = await requireAdmin();
   if (!admin) {
@@ -51,41 +65,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // If a LinkedIn URL was provided, use Claude to extract posts from the profile
+  // A LinkedIn URL cannot be read from here, so supplied posts are required.
   let postsToAnalyse = posts || "";
-
-  // Resolve the Claude provider — try this company first, then fall back to any company
-  let resolved = await resolveProvider(companyId, "content_generation");
-
-  if (!resolved) {
-    // Fall back: find ANY company with a content generation provider
-    const supabase = await createAdminSupabaseClient();
-    const { data: configs } = await supabase
-      .from("company_api_configs")
-      .select("company_id")
-      .eq("service_category", "content_generation")
-      .eq("is_active", true)
-      .limit(1);
-
-    if (configs && configs.length > 0) {
-      resolved = await resolveProvider(configs[0].company_id, "content_generation");
-    }
-  }
-
-  if (!resolved) {
-    return NextResponse.json(
-      { error: "No AI provider is configured for this company. Ask AGENCY to set it up." },
-      { status: 400 }
-    );
-  }
-
-  const apiKey = resolved.credentials.api_key as string;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "No AI provider is configured for this company. Ask AGENCY to set it up." },
-      { status: 400 }
-    );
-  }
 
   // A LinkedIn URL cannot be read from here, and asking a model to guess posts
   // from a URL would invent samples and present them as the person's voice.
@@ -100,13 +81,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const responseText = await callClaude(
-      apiKey,
-      CLAUDE_SONNET,
-      "You are a writing style analyst. You MUST return ONLY valid JSON with no preamble, explanation, markdown code fences, or any other text. Start your response with { and end with }.",
-      `${VOICE_ANALYSIS_PROMPT}\n\n---\n\nLINKEDIN POSTS TO ANALYSE:\n\n${postsToAnalyse}`,
-      2000
-    );
+    const result = await generateText({
+      companyId,
+      systemPrompt: "You are a writing style analyst. You MUST return ONLY valid JSON with no preamble, explanation, markdown code fences, or any other text. Start your response with { and end with }.",
+      userPrompt: `${VOICE_ANALYSIS_PROMPT}\n\n---\n\nLINKEDIN POSTS TO ANALYSE:\n\n${postsToAnalyse}`,
+      maxTokens: 2000,
+      jsonSchema: VOICE_ANALYSIS_SCHEMA,
+    });
+    const responseText = result.text;
 
     if (!responseText) {
       throw new Error("The analysis returned an empty response.");
@@ -116,16 +98,16 @@ export async function POST(request: Request) {
     const stripped = responseText.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "").trim();
     const jsonMatch = stripped.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[scan-linkedin] Non-JSON response:", responseText.slice(0, 500));
-      throw new Error(`Claude did not return valid JSON. This usually means the API key needs checking. Raw response starts with: "${responseText.slice(0, 80)}..."`);
+      console.error("[scan-linkedin] Non-JSON response");
+      throw new Error("The analysis did not return valid JSON. Please try again.");
     }
 
     let parsed;
     try {
       parsed = JSON.parse(jsonMatch[0]);
     } catch (parseErr) {
-      console.error("[scan-linkedin] JSON parse error:", parseErr, "Raw:", jsonMatch[0].slice(0, 300));
-      throw new Error("Claude returned malformed JSON. Please try again.");
+      console.error("[scan-linkedin] JSON parse error");
+      throw new Error("The analysis returned malformed JSON. Please try again.");
     }
 
     return NextResponse.json({

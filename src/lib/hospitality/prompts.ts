@@ -25,6 +25,8 @@ export interface PromptCompany {
 }
 
 export interface PromptInput {
+  /** Tenant whose configured writer should be used for this request. */
+  companyId?: string;
   company: PromptCompany;
   postType: PostTypeOption;
   /** What the person told us, in their own words. */

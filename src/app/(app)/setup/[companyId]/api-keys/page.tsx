@@ -73,7 +73,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   stability_ai: "Stability AI",
   ideogram: "Ideogram",
   anthropic_claude: "Anthropic Claude",
-  openai_gpt4: "OpenAI GPT-4",
+  openai_gpt4: "OpenAI GPT-6.1 Sol",
   wordpress: "WordPress",
   wix: "Wix",
   metricool: "Metricool",
@@ -100,6 +100,7 @@ function ApiProvidersEditor() {
   const [editCategory, setEditCategory] = useState<ServiceCategory | null>(null);
   const [editProvider, setEditProvider] = useState("");
   const [editApiKey, setEditApiKey] = useState("");
+  const [utilityTier, setUtilityTier] = useState("economy");
 
   useEffect(() => {
     fetchConfigs();
@@ -126,6 +127,7 @@ function ApiProvidersEditor() {
         serviceCategory: editCategory,
         provider: editProvider,
         credentials: editApiKey ? { api_key: editApiKey } : undefined,
+        providerSettings: editCategory === "content_generation" ? { utility_tier: utilityTier } : undefined,
       }),
     });
 
@@ -223,6 +225,7 @@ function ApiProvidersEditor() {
                           setEditCategory(category.value);
                           setEditProvider(existing.provider);
                           setEditApiKey("");
+                          setUtilityTier(existing.provider_settings.utility_tier === "quality" ? "quality" : "economy");
                         }}
                         className="text-xs text-sky-600 hover:text-sky-800"
                       >
@@ -247,7 +250,7 @@ function ApiProvidersEditor() {
                     </label>
                     <select
                       value={editProvider}
-                      onChange={(e) => setEditProvider(e.target.value)}
+                      onChange={(e) => { setEditProvider(e.target.value); setEditApiKey(""); }}
                       className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     >
                       <option value="">Select provider...</option>
@@ -273,6 +276,16 @@ function ApiProvidersEditor() {
                       Leave blank to keep existing credentials
                     </p>
                   </div>
+                  {category.value === "content_generation" && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500">Writing uses {editProvider === "openai_gpt4" ? "GPT-6.1 Sol" : "Claude Sonnet 5.5"}. Company keys stay with this provider.</p>
+                      <label className="block text-xs font-medium text-gray-700" htmlFor="utility-tier">Classification and routing</label>
+                      <select id="utility-tier" value={utilityTier} onChange={e => setUtilityTier(e.target.value)} className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                        <option value="economy">Economy for short structured tasks</option>
+                        <option value="quality">Use the writing model for every task</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={handleSave}

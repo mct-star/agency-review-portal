@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     .from("content_pieces")
     .select("id, week_id")
     .eq("id", contentPieceId)
+    .eq("company_id", companyId)
     .single();
 
   if (!piece) {
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
       // technically precise Flux prompt with lighting, camera, and render specs.
       // Falls back to the raw prompt silently if enhancement fails.
       const enhancedPrompt = claudeApiKey
-        ? await enhanceImagePrompt(prompt, style, claudeApiKey, brandContext)
+        ? await enhanceImagePrompt(prompt, style, claudeApiKey, brandContext, companyId)
         : prompt;
 
       const result = await provider.generate({

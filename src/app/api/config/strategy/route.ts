@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * GET /api/config/strategy?companyId=...
@@ -229,24 +228,6 @@ async function handleMarkdownImport(
     is_active: true,
   });
 
-  // Try to extract structure using Claude
-  const resolved = await resolveProvider(companyId, "content_generation");
-
-  if (!resolved) {
-    // No AI provider — just store the blueprint, skip extraction
-    await supabase
-      .from("setup_progress")
-      .upsert({ company_id: companyId, step_strategy: true }, { onConflict: "company_id" });
-
-    return NextResponse.json({
-      themesCount: 0,
-      topicsCount: 0,
-      message: "Blueprint stored. Configure an AI provider to extract themes and topics automatically.",
-    });
-  }
-
-  const apiKey = resolved.credentials.api_key as string;
-
   try {
     const extractionPrompt = `Analyse this content strategy document and extract:
 1. Monthly or quarterly THEMES (e.g., "Why Is This Not Working?", "The Fourth Lever")
@@ -264,13 +245,12 @@ Return ONLY valid JSON:
 
 Extract as many themes and topics as you can find. Be specific, not generic.`;
 
-    const responseText = await callClaude(
-      apiKey,
-      currentClaudeModel(resolved.settings.model as string | undefined),
-      "Return only the JSON object requested. No preamble.",
-      `${extractionPrompt}\n\n---\n\nDOCUMENT:\n\n${markdownContent.substring(0, 50000)}`,
-      4000
-    );
+    const responseText = (await generateText({
+      companyId,
+      systemPrompt: "Return only the JSON object requested. No preamble.",
+      userPrompt: `${extractionPrompt}\n\n---\n\nDOCUMENT:\n\n${markdownContent.substring(0, 50000)}`,
+      maxTokens: 4000,
+    })).text;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
 

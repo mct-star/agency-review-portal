@@ -148,7 +148,7 @@ Rules:
 - No emojis except ♻️ in sign-offs`;
 
   try {
-    const genResult = await generateText({ systemPrompt, userPrompt, maxTokens: 8192 });
+    const genResult = await generateText({ companyId, systemPrompt, userPrompt, maxTokens: 8192 });
     const raw = genResult.text;
 
     // Parse JSON -- handle potential markdown fences

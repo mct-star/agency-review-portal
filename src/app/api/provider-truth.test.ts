@@ -9,9 +9,7 @@ const SELF = path.join(__dirname, "provider-truth.test.ts");
 
 /** The only files allowed to call the Anthropic API directly. */
 const MAY_CALL_ANTHROPIC = [
-  "src/lib/providers/content-adaptation/claude-util.ts",
-  "src/lib/providers/content-generation/generate-text.ts",
-  "src/lib/providers/vision/tag-image.ts",
+  "src/lib/providers/text-runtime.ts",
 ];
 /** The only files allowed to name a retired model id (the RETIRED map and its test). */
 const MAY_NAME_RETIRED = [
@@ -45,10 +43,15 @@ describe("provider truth", () => {
     expect(typeof currentClaudeModel).toBe("function");
   });
 
-  it("only the provider module, generate-text and tag-image call api.anthropic.com", () => {
+  it("only the central native transport calls api.anthropic.com", () => {
     const offenders = files
       .filter((f) => f.text.includes("api.anthropic.com") && !MAY_CALL_ANTHROPIC.includes(f.rel))
       .map((f) => f.rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it("text Responses calls remain in the native transport", () => {
+    const offenders = files.filter(f => f.text.includes("api.openai.com/v1/responses") && !MAY_CALL_ANTHROPIC.includes(f.rel)).map(f => f.rel);
     expect(offenders).toEqual([]);
   });
 

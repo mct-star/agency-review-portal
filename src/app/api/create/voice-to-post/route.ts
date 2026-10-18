@@ -11,7 +11,7 @@ import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
  *
  * Pipeline:
  *   1. Transcribe audio via Gemini (free) or OpenAI Whisper fallback (skipped if transcription provided)
- *   2. Generate LinkedIn post via Claude
+ *   2. Generate LinkedIn post via the configured text provider
  *
  * Returns: { postText, transcription, postType, imagePrompt }
  */
@@ -117,7 +117,7 @@ Write the LinkedIn post:`;
     let postText: string;
     let provider: string;
     try {
-      const result = await generateText({ systemPrompt, userPrompt, maxTokens: 1024 });
+      const result = await generateText({ companyId, systemPrompt, userPrompt, maxTokens: 1024 });
       postText = result.text;
       provider = result.provider;
     } catch (err) {

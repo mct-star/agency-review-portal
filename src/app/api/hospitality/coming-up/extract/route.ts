@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   try {
     const result = await extractUpcoming(
       { name: (file as File).name || "upload", type: file.type || "", bytes: Buffer.from(await file.arrayBuffer()) },
-      { venueName: venue.name, today, timeZone }
+      { companyId: companyId as string, venueName: venue.name, today, timeZone }
     );
     return NextResponse.json({ today, found: result.items, notes: result.notes });
   } catch (err) {

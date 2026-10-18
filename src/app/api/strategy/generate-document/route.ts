@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     // Build the prompt
     const prompt = buildDocumentPrompt(company, session, audiences, positioning, narrativeArcs);
 
-    // Call AI provider with three-tier fallback (Claude → Gemini → OpenAI)
+    // Use the company's configured text provider.
     const aiResult = await generateText({
       systemPrompt: "You are a content strategist generating a comprehensive content strategy document. Return ONLY a valid JSON object, no surrounding text or markdown code fences.",
       userPrompt: prompt,

@@ -1,23 +1,14 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import { londonToday } from "@/lib/single-post/today";
+import { queueApiProductionJob, ApiProductionQueueError } from "@/lib/api-production/queue";
+import { runApiProductionJob } from "@/lib/api-production/runner";
 
-/**
- * Single post: one MCT post for one calendar slot.
- *
- * POST /api/admin/single-post  { slotId?: string }
- *   Queues a `single_post` job. Without slotId it uses today's slot
- *   (Europe/London). The Mac job bridge poller (SinglePostHandler) writes
- *   the post with the weekly pipeline's Step 2 chain into
- *   Weekly_Outputs/Week_N/OUTPUT_WeekN_Post_<date>.md. One live job per
- *   slot, enforced by content_generation_jobs_single_post_active_uniq.
- *
- * GET /api/admin/single-post?slotIds=a,b
- *   Latest single_post job per slot, for the buttons' status line.
- * GET /api/admin/single-post?jobId=x
- *   One job and, once the Mac has written it, its piece: Quick Generate
- *   polls this to show the finished card or script in place.
+export const maxDuration = 300;
+
+/** Authenticated Week Board and Quick Generate entry point for hosted API authoring.
+ * Existing local jobs remain readable, but new writing uses the API executor.
  */
 
 const SLOT_COLUMNS =
@@ -34,8 +25,7 @@ export async function POST(request: Request) {
   const slotId = typeof body?.slotId === "string" ? body.slotId : null;
   const supabase = await createAdminSupabaseClient();
 
-  // Direct mode: Quick Post hands a Mac-made format (meme, infographic,
-  // video) straight to the Mac without a calendar slot.
+  // Quick Generate can queue a card or video script without a calendar slot.
   if (!slotId && typeof body?.postTypeSlug === "string") {
     return queueDirect(supabase, admin.id, body);
   }
@@ -43,7 +33,7 @@ export async function POST(request: Request) {
   let query = supabase.from("calendar_slots").select(SLOT_COLUMNS);
   query = slotId ? query.eq("id", slotId) : query.eq("slot_date", londonToday());
   const { data: slots, error: slotErr } = await query;
-  if (slotErr) return NextResponse.json({ error: slotErr.message }, { status: 500 });
+  if (slotErr) return NextResponse.json({ error: "Could not read the calendar." }, { status: 500 });
   if (!slots || slots.length === 0) {
     return NextResponse.json(
       { error: slotId ? "That calendar slot was not found." : "There is no post in the calendar for today.", code: "NO_SLOT" },
@@ -61,59 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "There is no Sunday post in the MCT feed." }, { status: 400 });
   }
 
-  // A video slot is produced on the Mac by the video_post handler, routed by
-  // its post type; everything else (including the meme) is a single_post.
-  const isVideo = slot.slot_type === "video";
-  if (isVideo && !slot.post_type_slug) {
-    return NextResponse.json({ error: "This video slot has no post type. Set post_type_slug on the calendar slot first." }, { status: 400 });
-  }
-  const { data: job, error: jobErr } = await supabase
-    .from("content_generation_jobs")
-    .insert(isVideo ? {
-      job_type: "video_post",
-      status: "queued",
-      company_id: slot.company_id,
-      week_id: null,
-      triggered_by: admin.id,
-      run_id: crypto.randomUUID(),
-      input_payload: {
-        post_type_slug: slot.post_type_slug,
-        post_date: slot.slot_date,
-        slot_id: slot.id,
-        topic: slot.topic, notes: slot.slot_role, pillar: slot.pillar,
-      },
-    } : {
-      job_type: "single_post",
-      status: "queued",
-      company_id: slot.company_id,
-      week_id: null,
-      triggered_by: admin.id,
-      run_id: crypto.randomUUID(),
-      input_payload: {
-        week: slot.week_number,
-        year: slot.year,
-        post_date: slot.slot_date,
-        slot_id: slot.id,
-        slot: {
-          topic: slot.topic, slot_role: slot.slot_role, slot_type: slot.slot_type,
-          pillar: slot.pillar, theme: slot.theme, source_owner: slot.source_owner,
-          post_type_slug: slot.post_type_slug,
-        },
-      },
-    })
-    .select("id, status, created_at, input_payload")
-    .single();
-
-  if (jobErr || !job) {
-    if (jobErr?.code === "23505") {
-      return NextResponse.json(
-        { error: "This post is already being written.", code: "ALREADY_RUNNING" },
-        { status: 409 }
-      );
-    }
-    return NextResponse.json({ error: jobErr?.message || "Failed to queue the post" }, { status: 500 });
-  }
-  return NextResponse.json({ data: { job, slot } });
+  return enqueue(supabase, admin.id, slot.company_id, { kind: "slot", slot_id: slot.id }, slot);
 }
 
 export async function GET(request: Request) {
@@ -131,12 +69,12 @@ export async function GET(request: Request) {
   let query = supabase
     .from("content_generation_jobs")
     .select("id, status, error_message, output_payload, input_payload, created_at, completed_at")
-    .in("job_type", ["single_post", "video_post"])
+    .or("job_type.in.(single_post,video_post),and(job_type.eq.content_generation,provider.eq.api_engine)")
     .order("created_at", { ascending: false })
     .limit(200);
   if (slotIds.length) query = query.in("input_payload->>slot_id", slotIds);
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "Could not read production status." }, { status: 500 });
 
   const latest: Record<string, unknown> = {};
   for (const row of data || []) {
@@ -146,65 +84,53 @@ export async function GET(request: Request) {
   return NextResponse.json({ data: latest, today: londonToday() });
 }
 
-// Script-first video types only: a podcast hook clip needs a clip spec from
-// the calendar and a talking head needs footage from Clips.
-const MAC_VIDEO_TYPES = new Set(["story_video", "reaction_ranking"]);
-const MAC_IMAGE_TYPES = new Set(["meme", "mini_infographic"]);
+const DIRECT_TYPES = new Set(["story_video", "reaction_ranking", "meme", "mini_infographic"]);
 
-async function queueDirect(
-  supabase: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
-  adminId: string,
-  body: { postTypeSlug: string; topic?: string; postDate?: string; companyId?: string; pillar?: string },
+async function enqueue(
+  db: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
+  actorId: string,
+  companyId: string,
+  input: Parameters<typeof queueApiProductionJob>[1]["input"],
+  slot?: unknown,
 ) {
-  const slug = body.postTypeSlug;
-  if (!MAC_VIDEO_TYPES.has(slug) && !MAC_IMAGE_TYPES.has(slug)) {
-    return NextResponse.json({ error: `${slug} is generated in the portal, not on the Mac.` }, { status: 400 });
+  try {
+    const job = await queueApiProductionJob(db, { companyId, actorId, input, retryFailed: true });
+    if (job.status === "queued") after(() => runApiProductionJob(job.id, companyId));
+    return NextResponse.json({ data: { job, ...(slot ? { slot } : {}) } });
+  } catch (error) {
+    if (error instanceof ApiProductionQueueError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    return NextResponse.json({ error: "Could not queue the post. Please retry." }, { status: 500 });
   }
-  if (!body.companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
-  const postDate = /^\d{4}-\d{2}-\d{2}$/.test(body.postDate || "") ? body.postDate! : londonToday();
-  const topic = (body.topic || "").trim().slice(0, 500) || null;
-  const d = new Date(`${postDate}T12:00:00Z`);
-  const isoWeek = (() => {
-    const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-    const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-    return { week: Math.ceil(((t.getTime() - y.getTime()) / 86400000 + 1) / 7), year: t.getUTCFullYear() };
-  })();
-
-  const isVideo = MAC_VIDEO_TYPES.has(slug);
-  const { data: job, error } = await supabase
-    .from("content_generation_jobs")
-    .insert({
-      job_type: isVideo ? "video_post" : "single_post",
-      status: "queued",
-      company_id: body.companyId,
-      week_id: null,
-      triggered_by: adminId,
-      run_id: crypto.randomUUID(),
-      input_payload: isVideo
-        ? { post_type_slug: slug, post_date: postDate, topic, pillar: body.pillar || null, origin: "quick_post" }
-        : {
-            week: isoWeek.week, year: isoWeek.year, post_date: postDate, origin: "quick_post",
-            slot: { topic, slot_role: slug === "meme" ? "Meme" : "Mini infographic", slot_type: "meme",
-                    pillar: body.pillar || "Personal", theme: null, source_owner: "quick_post", post_type_slug: slug },
-          },
-    })
-    .select("id, status, created_at, input_payload")
-    .single();
-  if (error || !job) return NextResponse.json({ error: error?.message || "Failed to queue" }, { status: 500 });
-  return NextResponse.json({ data: { job } });
 }
 
+async function queueDirect(
+  db: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
+  actorId: string,
+  body: { postTypeSlug: string; topic?: unknown; postDate?: unknown; companyId?: unknown; pillar?: unknown },
+) {
+  if (!DIRECT_TYPES.has(body.postTypeSlug)) return NextResponse.json({ error: "Choose a card or a script format. Clips need source footage." }, { status: 400 });
+  if (typeof body.companyId !== "string" || !body.companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
+  if (typeof body.topic !== "string" || !body.topic.trim()) return NextResponse.json({ error: "Add a topic first." }, { status: 400 });
+  const { data: company, error } = await db.from("companies").select("id").eq("id", body.companyId).maybeSingle();
+  if (error) return NextResponse.json({ error: "Could not check this company." }, { status: 500 });
+  if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+  return enqueue(db, actorId, body.companyId, { kind: "direct", direct: {
+    post_type_slug: body.postTypeSlug,
+    topic: body.topic.trim().slice(0, 500),
+    post_date: typeof body.postDate === "string" ? body.postDate : londonToday(),
+    pillar: typeof body.pillar === "string" ? body.pillar.slice(0, 200) : null,
+  } });
+}
 
 async function jobWithPiece(jobId: string) {
   const supabase = await createAdminSupabaseClient();
   const { data: job, error } = await supabase
     .from("content_generation_jobs")
-    .select("id, status, error_message, output_payload, content_piece_id")
+    .select("id, company_id, status, error_message, output_payload, content_piece_id")
     .eq("id", jobId)
-    .in("job_type", ["single_post", "video_post"])
+    .or("job_type.in.(single_post,video_post),and(job_type.eq.content_generation,provider.eq.api_engine)")
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "Could not read production status." }, { status: 500 });
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   const out = (job.output_payload || {}) as { content_piece_id?: string; image_url?: string };
   const pieceId = job.content_piece_id || out.content_piece_id || null;
@@ -214,6 +140,7 @@ async function jobWithPiece(jobId: string) {
       .from("content_pieces")
       .select("id, markdown_body, first_comment, cover_image_url, post_type")
       .eq("id", pieceId)
+      .eq("company_id", job.company_id)
       .maybeSingle();
     piece = data ? { ...data, cover_image_url: data.cover_image_url || out.image_url || null } : null;
   }

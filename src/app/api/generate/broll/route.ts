@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * POST /api/generate/broll
  *
  * Analyzes a transcript (with timestamps) and generates B-roll insertion
- * points. Uses Claude to identify natural cut points where visuals would
+ * points. Uses AI to identify natural cut points where visuals would
  * enhance the talking-head video.
  *
  * Body: {
@@ -31,6 +30,29 @@ interface BrollSuggestion {
   description: string;
   suggestedPrompt: string;
 }
+
+const BROLL_SCHEMA = {
+  type: "object",
+  properties: {
+    suggestions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          startSeconds: { type: "number" },
+          endSeconds: { type: "number" },
+          type: { type: "string", enum: ["image", "text_overlay", "screen_recording", "stock_footage"] },
+          description: { type: "string" },
+          suggestedPrompt: { type: "string" },
+        },
+        required: ["startSeconds", "endSeconds", "type", "description", "suggestedPrompt"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["suggestions"],
+  additionalProperties: false,
+};
 
 const BROLL_ANALYSIS_PROMPT = `You are a video editor analyzing a transcript to identify B-roll insertion points.
 
@@ -136,36 +158,20 @@ export async function POST(request: Request) {
     );
   }
 
-  // Resolve the Claude provider
-  const resolved = await resolveProvider(companyId, "content_generation");
-  if (!resolved) {
-    return NextResponse.json(
-      { error: "No content generation provider configured" },
-      { status: 400 }
-    );
-  }
-
-  const apiKey = resolved.credentials.api_key as string;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Content generation provider missing API key" },
-      { status: 400 }
-    );
-  }
-
   // Build the analysis prompt
   const analysisInput = subtitleCues
     ? `## TRANSCRIPT WITH TIMESTAMPS (SRT format)\n\n${subtitleCues}\n\n## FULL TEXT\n\n${transcript}`
     : `## TRANSCRIPT (no timestamps — estimate based on word count, ~150 words/minute)\n\n${transcript}`;
 
   try {
-    const responseText = await callClaude(
-      apiKey,
-      currentClaudeModel(resolved.settings.model as string | undefined),
-      "",
-      `${BROLL_ANALYSIS_PROMPT}\n\n---\n\n${analysisInput}`,
-      2000
-    ).catch((err) => {
+    const responseText = await generateText({
+      companyId,
+      systemPrompt: "",
+      userPrompt: `${BROLL_ANALYSIS_PROMPT}\n\n---\n\n${analysisInput}`,
+      maxTokens: 2000,
+      task: "classification",
+      jsonSchema: BROLL_SCHEMA,
+    }).then((result) => result.text).catch((err) => {
       console.error("[broll] analysis call failed:", err instanceof Error ? err.message : err);
       return null;
     });
