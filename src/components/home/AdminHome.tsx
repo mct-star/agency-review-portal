@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Panel } from "@/lib/admin-home/types";
 import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import PanelCard from "./PanelCard";
+import WelcomeMotion from "./WelcomeMotion";
 
 /**
  * The operator's home: what is waiting across every client, the clients
@@ -12,7 +13,8 @@ import PanelCard from "./PanelCard";
 export default function AdminHome({ greeting, panels }: { greeting: string; panels: Panel[] }) {
   return (
     <div className="space-y-8 pb-8">
-      <div className="flex flex-wrap items-end justify-between gap-5">
+      <div className="workspace-welcome flex flex-wrap items-end justify-between gap-5">
+        <WelcomeMotion />
         <div>
           <p className="workspace-eyebrow">Your daily overview</p>
           <h1 className="workspace-title">{greeting}</h1>

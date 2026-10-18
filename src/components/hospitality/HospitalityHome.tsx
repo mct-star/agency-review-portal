@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { postsWaitingLine } from "@/lib/hospitality/home";
+import JourneyIcon from "@/components/ui/JourneyIcon";
+import WelcomeMotion from "@/components/home/WelcomeMotion";
 
 export interface HospitalityHomeProps {
   greeting: string;
@@ -30,7 +32,7 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12 pt-2 md:pt-6">
-      <div><p className="workspace-eyebrow">Your week, made easier</p><h1 className="workspace-title">{greeting}</h1></div>
+      <div className="workspace-welcome"><WelcomeMotion /><p className="workspace-eyebrow">Your week, made easier</p><h1 className="workspace-title">{greeting}</h1></div>
 
       {/* Waiting for you */}
       <section
@@ -70,14 +72,18 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
           title="Write a post"
           body="One dish, a busy night, an event. Tell us what you want to say, we write it and you approve it."
           action="Write a post"
+          tone="lilac"
+          icon="write"
         />
         <ActionCard
           href="/create/week-interview"
           title="Talk through the week"
           body="Say what is on this week and we plan the week for you. You approve every post."
           action="Talk it through"
+          tone="mint"
+          icon="talk"
         />
-        <ActionCard href="/library" title="Add photos" body={libraryLine} action="Open the library" />
+        <ActionCard href="/library" title="Add photos" body={libraryLine} action="Open the library" tone="gold" icon="library" />
       </section>
 
       {weatherFailedLine && (
@@ -91,16 +97,18 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
   );
 }
 
-function ActionCard({ href, title, body, action }: { href: string; title: string; body: string; action: string }) {
+function ActionCard({ href, title, body, action, tone, icon }: { href: string; title: string; body: string; action: string; tone: "lilac" | "mint" | "gold"; icon: "write" | "talk" | "library" }) {
   return (
-    <div className="workspace-panel flex flex-col p-5">
+    <div className={`workspace-panel workspace-journey workspace-tone-${tone} flex flex-col p-5`}>
+      <span className="workspace-journey-icon mb-5"><JourneyIcon kind={icon} /></span>
       <h2 className="workspace-section-title">{title}</h2>
-      <p className="mt-2 flex-1 text-sm text-gray-600">{body}</p>
+      <p className="workspace-journey-description mt-2 flex-1 text-sm">{body}</p>
       <Link
         href={href}
-        className="workspace-button workspace-button-secondary mt-5"
+        className="workspace-journey-footer mt-5 gap-2"
       >
         {action}
+        <span className="workspace-action-arrow" aria-hidden="true">↗</span>
       </Link>
     </div>
   );
