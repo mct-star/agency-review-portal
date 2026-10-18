@@ -121,7 +121,18 @@
 .editorialSection { max-width:1408px; margin:0 auto; padding:110px 56px; display:grid; grid-template-columns:.8fr 1.2fr; gap:76px; align-items:center; }
 .editorialCopy { max-width:460px; }
 .illustrativeLabel { display:inline-block; margin-top:24px; color:#6c6b61; font-size:12px; border-bottom:1px solid #b7b4a8; padding-bottom:4px; }
-.formatShowcase { display:grid; grid-template-columns:.86fr 1fr; gap:18px; align-items:center; }
+.formatShowcase { display:grid; grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr); gap:30px; align-items:start; }
+.feedShowcase { width:100%; max-width:760px; min-width:0; justify-self:end; }
+.sourceMaterial { min-width:0; padding:22px; border:1px solid #deddd4; background:#fffefa; }
+.sourceMaterialLabel { margin:0 0 12px; color:#6c5780; font-size:12px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; }
+.sourcePhoto { height:210px; position:relative; overflow:hidden; background:#52534b; }
+.sourcePhoto img { object-fit:cover; }
+.sourcePhoto::after { content:""; position:absolute; inset:45% 0 0; background:linear-gradient(transparent,#151816b5); }
+.sourcePhoto > span { position:absolute; z-index:1; left:12px; bottom:12px; color:#fff; background:#1d2021c9; padding:6px 8px; font-size:12px; line-height:1.2; }
+.sourceQuote { min-height:210px; margin:0; padding:24px; display:flex; align-items:center; color:#373c37; background:#eee9df; font-family:var(--preview-font-serif),serif; font-size:23px; line-height:1.35; }
+.sourceMaterial > .sourceSummary { color:#5f6259; font-size:14px; line-height:1.5; margin:14px 0 11px; }
+.sourceMaterial ul { display:flex; flex-wrap:wrap; gap:6px; list-style:none; margin:0; padding:0; }
+.sourceMaterial li { border:1px solid #ddd9ce; border-radius:3px; padding:5px 7px; color:#565b53; font-size:12px; line-height:1.25; }
 .mediaCard { min-height:530px; position:relative; overflow:hidden; border-radius:4px; color:#fff; background:#4f5147; box-shadow:0 25px 60px -38px #1d202188; }
 .mediaCard::after { content:""; position:absolute; inset:35% 0 0; background:linear-gradient(transparent,#161a18d9); }
 .mediaCard img,.eventVisual > img,.reviewPhoto img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -154,6 +165,10 @@
 .eventSection { background:#e9e4d9; padding:96px max(56px,calc((100vw - 1296px)/2)); display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); gap:88px; align-items:center; }
 .eventVisual { position:relative; min-height:480px; overflow:hidden; background:#52534b; }
 .eventVisual > img { position:absolute; inset:0; }
+.eventTopic { position:absolute; inset:0; padding:clamp(24px,5vw,58px); display:flex; flex-direction:column; justify-content:center; background:#e9e4d9; }
+.eventTopic > span { color:#6b537e; font-size:12px; letter-spacing:.09em; }
+.eventTopic > strong { max-width:500px; margin-top:17px; font-family:var(--preview-font-serif),serif; font-size:clamp(33px,4vw,56px); line-height:1.08; font-weight:400; }
+.eventTopic > p { max-width:430px; margin:18px 0 0; color:#5f6259; font-size:18px; line-height:1.5; }
 .eventCard { position:absolute; right:24px; bottom:24px; width:min(360px,calc(100% - 48px)); padding:22px 24px; background:#fffefa; box-shadow:0 15px 35px #1719162c; }
 .eventCard > span { display:block; color:#765b88; letter-spacing:.04em; font-size:12px; }
 .eventCard > strong { display:block; font-family:var(--preview-font-serif),serif; font-size:27px; line-height:1.18; font-weight:400; margin-top:13px; }
@@ -180,6 +195,10 @@
 .reviewPhoto { min-height:590px; position:relative; overflow:hidden; }
 .reviewPhoto::after { content:""; position:absolute; inset:55% 0 0; background:linear-gradient(transparent,#151816ad); }
 .reviewPhoto > span { position:absolute; left:32px; bottom:28px; z-index:1; color:#fff; font-size:11px; letter-spacing:.14em; }
+.reviewGraphic { height:100%; min-height:inherit; padding:clamp(24px,5vw,60px); display:flex; flex-direction:column; justify-content:center; background:#e8e0f2; color:#322d38; }
+.reviewGraphic > span { color:#614a7d; font-size:12px; }
+.reviewGraphic > strong { max-width:480px; margin-top:20px; font-family:var(--preview-font-serif),serif; font-size:clamp(30px,4vw,52px); line-height:1.1; font-weight:400; }
+.reviewGraphic > p { max-width:470px; margin:18px 0 0; color:#544f59; font-size:15px; line-height:1.5; }
 .reviewStory { max-width:630px; padding:94px 60px 90px 9%; align-self:center; }
 .reviewStory h2 { font-size:clamp(40px,4.4vw,61px); }
 .reviewStory h2 em { color:#c8acf9; }
@@ -230,6 +249,9 @@
   .filmSection { padding:78px 32px; }
   .editorialSection,.planningSection { padding:82px 32px; gap:38px; }
   .mediaCard { min-height:440px; }
+  .formatShowcase { gap:20px; }
+  .sourceMaterial { padding:16px; }
+  .sourcePhoto,.sourceQuote { min-height:190px; height:190px; }
   .eventSection { padding:78px 32px; gap:40px; }
   .eventVisual { min-height:410px; }
   .reviewPhoto { min-height:500px; }
@@ -277,7 +299,9 @@
   .previewFooter { padding:18px 24px; flex-wrap:wrap; gap:7px 20px; font-size:12px; }
   .editorialSection,.planningSection { display:block; padding:70px 24px; }
   .editorialCopy,.planningIntro { max-width:570px; margin-bottom:32px; }
-  .formatShowcase { gap:12px; }
+  .formatShowcase { grid-template-columns:minmax(0,1fr); gap:20px; }
+  .sourceMaterial { padding:18px; }
+  .sourcePhoto,.sourceQuote { min-height:235px; height:235px; }
   .mediaCard { min-height:470px; }
   .eventSection { display:block; padding:68px 24px; }
   .eventVisual { min-height:430px; margin-bottom:36px; }
@@ -342,7 +366,9 @@
   .filmIntro h2,.editorialCopy h2,.eventCopy h2,.planningIntro h2,.reviewStory h2 { font-size:42px; }
   .filmIntro > p:last-child,.editorialCopy > p:not(.sectionEyebrow),.eventCopy > p:not(.sectionEyebrow),.planningIntro > p:not(.sectionEyebrow),.reviewStory > p:not(.sectionEyebrow) { font-size:16px; }
   .editorialSection,.planningSection { padding:62px 20px; }
-  .formatShowcase { grid-template-columns:.8fr 1fr; gap:9px; }
+  .formatShowcase { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .sourceMaterial { padding:15px; }
+  .sourcePhoto,.sourceQuote { min-height:210px; height:210px; }
   .mediaCard { min-height:395px; }
   .mediaCard > span,.mediaCard > strong { left:12px; right:12px; }
   .mediaCard > strong { font-size:20px; bottom:18px; }

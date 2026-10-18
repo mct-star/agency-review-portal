@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ContentFlow, { WeekProgramme } from "./ContentFlow";
 import { ProcessFilm } from "./ProcessFilm";
+import { SocialPostPreview } from "./SocialPostPreview";
 import { audienceIds, audiences, parseAudience, platformUrl, signupUrlForAudience, type AudienceId } from "./audiences";
 import styles from "./preview.module.css";
 import Image from "next/image";
@@ -102,7 +103,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
         <div className={styles.filmIntro}>
           <p className={styles.sectionEyebrow}>A WEEK, TAKING SHAPE</p>
           <h2 id="film-heading">Say what’s happening.<br /><em>See a week take shape.</em></h2>
-          <p>A new menu. Friday music. A moment from the kitchen. See how one restaurant update becomes a varied set of posts to review.</p>
+          <p>{audience.sourceSummary} See how that update becomes a varied set of posts for you to review.</p>
         </div>
         <ProcessFilm audienceId={audienceId} />
       </section>
@@ -110,35 +111,22 @@ export default function LandingExperience({ initialAudience }: { initialAudience
         <div className={styles.editorialCopy}>
           <p className={styles.sectionEyebrow}>ONE UPDATE, MORE TO WORK WITH</p>
           <h2 id="formats-heading">One update.<br /><em>More than one kind of post.</em></h2>
-          <p>Pair your updates with your photo library. Create a short post, a carousel or a story with a clear role in the week. Choose the formats that fit, then make the final edits.</p>
-          <span className={styles.illustrativeLabel}>A restaurant update, shown across three example formats.</span>
+          <p>Start with the details and source material that matter to your business. See a post in a familiar feed, then switch the platform and example to compare how the same idea can take shape.</p>
+          <span className={styles.illustrativeLabel}>Illustrative post previews. Nothing here is connected to a social account.</span>
         </div>
         <div className={styles.formatShowcase}>
-          <div className={styles.mediaCard}>
-            <Image src="/landing-preview/restaurant-chef.webp" alt="A chef preparing a dish in a restaurant kitchen" width={900} height={1100} sizes="(max-width: 780px) 86vw, 38vw" />
-            <span>YOUR PHOTO LIBRARY</span>
-            <strong>A moment worth sharing</strong>
+          <div className={styles.sourceMaterial}>
+            <p className={styles.sourceMaterialLabel}>{audience.sourceLabel}</p>
+            {audienceId === "hospitality" ? <div className={styles.sourcePhoto}><Image src="/landing-preview/seasonal-lunch.webp" alt="Illustrative seasonal lunch photo from the restaurant example" fill sizes="(max-width: 780px) 90vw, 35vw" /><span>SHARED RESTAURANT ILLUSTRATION</span></div> : <blockquote className={styles.sourceQuote}>{audience.source}</blockquote>}
+            <p className={styles.sourceSummary}>{audience.sourceSummary}</p>
+            <ul>{audience.inputs.map((input) => <li key={input}>{input}</li>)}</ul>
           </div>
-          <div className={styles.formatStack}>
-            <article className={styles.postMock}>
-              <div className={styles.postMockBar}><span>01 / SHORT POST</span></div>
-              <div className={styles.shortPostBody}><Image src="/landing-preview/seasonal-lunch.webp" alt="" width={160} height={160} /><div><strong>Lunch just got a little brighter.</strong><p>A new seasonal menu, made for a slower midday.</p><b>Explore the menu ↗</b></div></div>
-            </article>
-            <article className={`${styles.postMock} ${styles.carouselMock}`}>
-              <div className={styles.postMockBar}><span>02 / CAROUSEL COVER</span></div>
-              <div className={styles.carouselCover}><Image src="/landing-preview/restaurant-chef.webp" alt="" fill sizes="(max-width: 780px) 70vw, 30vw" /><span>FROM THE KITCHEN</span><strong>What makes a<br />good lunch break?</strong><i>Swipe to explore</i></div>
-            </article>
-            <article className={`${styles.postMock} ${styles.quoteMock}`}>
-              <div className={styles.postMockBar}><span>03 / STORY POST</span></div>
-              <div className={styles.quotePost}><span>THIS WEEK AT OUR PLACE</span><strong>Good food.<br />Live music.<br /><em>A reason to stay.</em></strong><p>Friday evening, at your own pace.</p></div>
-            </article>
-          </div>
+          <div className={styles.feedShowcase}><SocialPostPreview key={audienceId} audienceId={audienceId} /></div>
         </div>
       </section>
       <section className={styles.eventSection} aria-labelledby="event-heading">
         <div className={styles.eventVisual}>
-          <Image src="/landing-preview/seasonal-lunch.webp" alt="A seasonal lunch prepared with fresh ingredients" width={1100} height={800} sizes="(max-width: 780px) 100vw, 48vw" />
-          <div className={styles.eventCard}><span>WHAT’S ON / ILLUSTRATIVE</span><strong>A seasonal menu, this Friday</strong><p>Good food, a date to remember and a clear next step.</p><b>Reserve your place <span aria-hidden="true">↗</span></b></div>
+          {audienceId === "hospitality" ? <><Image src="/landing-preview/seasonal-lunch.webp" alt="Illustrative seasonal lunch at a restaurant" width={1100} height={800} sizes="(max-width: 780px) 100vw, 48vw" /><div className={styles.eventCard}><span>WHAT’S ON / ILLUSTRATIVE</span><strong>A seasonal menu, this Friday</strong><p>Good food, a date to remember and a clear next step.</p><b>Reserve your place <span aria-hidden="true">↗</span></b></div></> : <div className={styles.eventTopic}><span>ILLUSTRATIVE {audience.label.toUpperCase()} TOPIC</span><strong>{audience.socialPosts[1].visualTitle}</strong><p>{audience.socialPosts[1].title}</p></div>}
         </div>
         <div className={styles.eventCopy}>
           <p className={styles.sectionEyebrow}>MAKE THE NEXT STEP CLEAR</p>
@@ -169,7 +157,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
       </section>
       <section className={styles.reviewSection} aria-labelledby="review-heading">
         <div className={styles.reviewPhoto}>
-          <Image src="/landing-preview/restaurant-music.webp" alt="A live music evening at a neighbourhood restaurant" width={1000} height={1200} sizes="(max-width: 780px) 100vw, 42vw" />
+          {audienceId === "hospitality" ? <Image src="/landing-preview/restaurant-music.webp" alt="Illustrative live music evening at a restaurant" width={1000} height={1200} sizes="(max-width: 780px) 100vw, 42vw" /> : <div className={styles.reviewGraphic}><span>{audience.reviewTitle}</span><strong>{audience.reviewChecks[0]}</strong><p>{audience.reviewNote}</p></div>}
           <span>YOUR BUSINESS. YOUR FINAL SAY.</span>
         </div>
         <div className={styles.reviewStory}>
