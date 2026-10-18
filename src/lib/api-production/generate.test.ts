@@ -114,7 +114,7 @@ describe("API production authoring", () => {
     const result = await author(f, job());
     expect(result.warnings.join(" ")).toContain("could not complete");
     const quality = f.tables.content_assets.find(row => row.asset_metadata?.original_type === "api_generation_quality");
-    expect(quality.asset_metadata.gates[0].passed).toBe(false);
+    expect(quality?.asset_metadata.gates[0].passed).toBe(false);
   });
 
   it("creates a company-scoped pending text draft with source, strategy and voice context", async () => {
