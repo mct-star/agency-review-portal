@@ -34,9 +34,11 @@ interface PublishingJobRow {
   published_at: string | null;
   external_url: string | null;
   error_message: string | null;
+  response_payload?: { outcome_uncertain?: boolean } | null;
   created_at: string;
   company?: { name: string };
   content_piece?: { title: string; content_type: string };
+  social_account?: { account_name: string | null };
 }
 
 type PublishView = "single" | "weekly" | "monthly";
@@ -73,9 +75,10 @@ const STATUS_STYLES: Record<string, string> = {
 
 interface LinkedInAccount {
   id: string;
-  account_name: string;
-  account_id: string;
-  token_expires_at: string | null;
+  accountName: string;
+  accountId: string | null;
+  expiresAt: string | null;
+  usable: boolean;
 }
 
 /** Type of post context, used for badge + grouping logic. */
@@ -104,6 +107,9 @@ export default function PublishClient() {
   const [activeTab, setActiveTab] = useState<"ready" | "queue">("ready");
   const [publishView, setPublishView] = useState<PublishView>("single");
   const [linkedInAccount, setLinkedInAccount] = useState<LinkedInAccount | null>(null);
+  const [linkedInAccounts, setLinkedInAccounts] = useState<LinkedInAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [publishAt, setPublishAt] = useState("");
   const [publishingPieceId, setPublishingPieceId] = useState<string | null>(null);
   const [linkedInNotice, setLinkedInNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -133,10 +139,15 @@ export default function PublishClient() {
   // Fetch LinkedIn connection status when company changes
   useEffect(() => {
     if (!selectedCompanyId) { setLinkedInAccount(null); return; }
-    fetch(`/api/publish/social-accounts?companyId=${selectedCompanyId}&platform=linkedin_personal`)
+    fetch(`/api/publish/linkedin-direct?companyId=${selectedCompanyId}`)
       .then((r) => r.json())
-      .then((json) => setLinkedInAccount(json.account || null))
-      .catch(() => setLinkedInAccount(null));
+      .then((json) => {
+        const accounts = (json.accounts || []) as LinkedInAccount[];
+        setLinkedInAccounts(accounts);
+        setSelectedAccountId("");
+        setLinkedInAccount(null);
+      })
+      .catch(() => { setLinkedInAccount(null); setLinkedInAccounts([]); setSelectedAccountId(""); });
   }, [selectedCompanyId]);
 
   const fetchData = useCallback(() => {
@@ -268,10 +279,18 @@ export default function PublishClient() {
     }
   }
 
-  // Nothing posts from this list without its preview: open the piece, where
-  // the confirm step shows the exact post before the Mac sends it.
-  function handlePublishNow(pieceId: string) {
-    window.location.href = `/content/${pieceId}#publish`;
+  async function handlePublishNow(pieceId: string) {
+    if (!selectedCompanyId || !selectedAccountId) return;
+    try {
+      const res = await fetch("/api/publish/linkedin-direct", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: selectedCompanyId, pieceId, socialAccountId: selectedAccountId, scheduledFor: publishAt ? new Date(publishAt).toISOString() : null }),
+      });
+      const result = await res.json();
+      if (!res.ok) { alert(result.error || "Could not queue the LinkedIn post."); return; }
+      fetchData();
+      setActiveTab("queue");
+    } catch { alert("Could not queue the LinkedIn post."); }
   }
 
   const queuedCount = jobs.filter(
@@ -319,17 +338,17 @@ export default function PublishClient() {
 
       {/* LinkedIn connection card */}
       {selectedCompanyId && (
-        <div className="rounded-lg border border-gray-200 bg-white p-4 flex items-center justify-between">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <svg className="h-5 w-5 text-[#0077B5]" fill="currentColor" viewBox="0 0 24 24">
               <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
             </svg>
             {linkedInAccount ? (
               <div>
-                <p className="text-sm font-medium text-gray-900">Connected as {linkedInAccount.account_name}</p>
-                {linkedInAccount.token_expires_at && (
+                <p className="text-sm font-medium text-gray-900">Selected destination: {linkedInAccount.accountName}</p>
+                {linkedInAccount.expiresAt && (
                   <p className="text-xs text-gray-500">
-                    Token expires {new Date(linkedInAccount.token_expires_at).toLocaleDateString()}
+                    Token expires {new Date(linkedInAccount.expiresAt).toLocaleDateString()}
                   </p>
                 )}
               </div>
@@ -337,12 +356,21 @@ export default function PublishClient() {
               <p className="text-sm text-gray-600">LinkedIn not connected for this company</p>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          {linkedInAccounts.length > 0 && <select aria-label="LinkedIn publishing account" value={selectedAccountId} onChange={(event) => {
+            const id = event.target.value; setSelectedAccountId(id); setLinkedInAccount(linkedInAccounts.find((account) => account.id === id && account.usable) || null);
+          }} className="min-h-10 rounded-md border border-gray-200 px-2 text-sm">
+            <option value="">Choose a LinkedIn account</option>
+            {linkedInAccounts.map((account) => <option key={account.id} value={account.id} disabled={!account.usable}>{account.accountName}{account.usable ? "" : " (reconnect needed)"}</option>)}
+          </select>}
+          <input aria-label="LinkedIn publish date and time" type="datetime-local" value={publishAt} onChange={(event) => setPublishAt(event.target.value)} className="min-h-10 rounded-md border border-gray-200 px-2 text-sm" />
           <a
-            href={`/api/auth/linkedin?companyId=${selectedCompanyId}`}
+            href={`/api/auth/linkedin?companyId=${selectedCompanyId}&returnTo=publish`}
             className="rounded-md bg-[#0077B5] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#006097] transition-colors"
           >
             {linkedInAccount ? "Reconnect" : "Connect LinkedIn"}
           </a>
+          </div>
         </div>
       )}
 
@@ -678,6 +706,7 @@ export default function PublishClient() {
                             {PLATFORM_LABELS[job.target_platform] ||
                               job.target_platform}
                           </span>
+                          {job.social_account?.account_name && <span>Account: {job.social_account.account_name}</span>}
                           {job.scheduled_for && (
                             <span>
                               Scheduled:{" "}
@@ -695,6 +724,7 @@ export default function PublishClient() {
                               {job.error_message}
                             </span>
                           )}
+                          {job.response_payload?.outcome_uncertain && <span className="text-amber-700">Check LinkedIn before taking further action. This post was not retried.</span>}
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -703,7 +733,7 @@ export default function PublishClient() {
                             STATUS_STYLES[job.status] || "bg-gray-100 text-gray-600"
                           }`}
                         >
-                          {job.status}
+                          {job.response_payload?.outcome_uncertain ? "Needs checking" : job.status}
                         </span>
                         {job.external_url && (
                           <a
@@ -810,7 +840,7 @@ function renderPieceRow(
             <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
             </svg>
-            Review and publish to LinkedIn
+            Add to LinkedIn queue
           </button>
         </div>
       )}

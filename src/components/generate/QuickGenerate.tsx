@@ -220,9 +220,7 @@ export default function QuickGenerate({
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
-  const [postUrl, setPostUrl] = useState<string | null>(null);
   const [blueskyPostUrl, setBlueskyPostUrl] = useState<string | null>(null);
-  const [publishToLinkedIn, setPublishToLinkedIn] = useState(true);
   const [publishToBluesky, setPublishToBluesky] = useState(true);
   const [imagePrompt, setImagePrompt] = useState<string | null>(null);
   const [regeneratingImage, setRegeneratingImage] = useState(false);
@@ -349,28 +347,6 @@ export default function QuickGenerate({
     setPublishError(null);
 
     const errors: string[] = [];
-
-    // Publish to LinkedIn
-    if (publishToLinkedIn && linkedInConnected) {
-      try {
-        const res = await fetch("/api/publish/linkedin-direct", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyId: selectedCompany.id,
-            text: livePostText,
-            firstComment: liveFirstComment || undefined,
-            imageUrl: currentImageUrl || undefined,
-            carouselImageUrls: result.carouselImageUrls || undefined,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "LinkedIn publish failed");
-        setPostUrl(data.post?.url || null);
-      } catch (err) {
-        errors.push(`LinkedIn: ${err instanceof Error ? err.message : "failed"}`);
-      }
-    }
 
     // Publish to Bluesky
     if (publishToBluesky && blueskyConnected) {
@@ -758,7 +734,6 @@ export default function QuickGenerate({
     setProgress("");
     setPublished(false);
     setPublishError(null);
-    setPostUrl(null);
     setBlueskyPostUrl(null);
     setImagePrompt(null);
     setRegeneratingImage(false);
@@ -1336,17 +1311,11 @@ export default function QuickGenerate({
 
             {/* Group 3: Publish */}
             <div className="flex items-center gap-1">
-              {!published && (linkedInConnected || blueskyConnected) && (
+              {!published && linkedInConnected && (
+                <p className="max-w-xs text-xs text-gray-600">LinkedIn posts need approval first. Send this draft to Review, approve it, then queue it from Publish.</p>
+              )}
+              {!published && blueskyConnected && (
                 <>
-                  {linkedInConnected && (
-                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToLinkedIn ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-100"}`}>
-                      <input type="checkbox" checked={publishToLinkedIn} onChange={(e) => setPublishToLinkedIn(e.target.checked)} className="sr-only" />
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
-                      </svg>
-                      {publishToLinkedIn ? "✓" : ""} LinkedIn
-                    </label>
-                  )}
                   {blueskyConnected && (
                     <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToBluesky ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-100"}`}>
                       <input type="checkbox" checked={publishToBluesky} onChange={(e) => setPublishToBluesky(e.target.checked)} className="sr-only" />
@@ -1358,7 +1327,7 @@ export default function QuickGenerate({
                   )}
                   <button
                     onClick={handlePublish}
-                    disabled={publishing || (!publishToLinkedIn && !publishToBluesky)}
+                    disabled={publishing || !publishToBluesky}
                     className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                   >
                     {publishing ? (
@@ -1390,17 +1359,12 @@ export default function QuickGenerate({
               )}
               {published && (
                 <>
-                  {postUrl && (
-                    <a href={postUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5">
-                      View on LinkedIn
-                    </a>
-                  )}
                   {blueskyPostUrl && (
                     <a href={blueskyPostUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-colors flex items-center gap-1.5" style={{ backgroundColor: "#0085FF" }}>
                       View on Bluesky
                     </a>
                   )}
-                  {!postUrl && !blueskyPostUrl && (
+                  {!blueskyPostUrl && (
                     <span className="rounded-lg bg-green-100 px-2.5 py-1.5 text-xs font-medium text-green-700">Published</span>
                   )}
                 </>
@@ -1442,7 +1406,7 @@ export default function QuickGenerate({
           {/* Publish error */}
           {publishError && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              LinkedIn publish error: {publishError}
+              Social publishing error: {publishError}
             </div>
           )}
 
@@ -1598,8 +1562,8 @@ export default function QuickGenerate({
                       <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
                     </svg>
                     <div>
-                      <p className="text-sm font-semibold text-blue-900">Connect LinkedIn to publish directly</p>
-                      <p className="text-xs text-blue-600">One click to post this to your LinkedIn feed</p>
+                      <p className="text-sm font-semibold text-blue-900">Connect LinkedIn for publishing</p>
+                      <p className="text-xs text-blue-600">Posts go to Review for approval before they can be queued.</p>
                     </div>
                   </div>
                   <a

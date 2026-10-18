@@ -62,6 +62,7 @@ export interface LinkedInImageUploadResult {
 const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_API_BASE = "https://api.linkedin.com";
+const LINKEDIN_REQUEST_TIMEOUT_MS = 20_000;
 const LINKEDIN_SCOPES = "openid profile w_member_social";
 
 // ============================================================
@@ -233,6 +234,7 @@ export async function uploadImage(
         owner: `urn:li:person:${personUrn}`,
       },
     }),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
   });
 
   if (!initRes.ok) {
@@ -258,6 +260,7 @@ export async function uploadImage(
       "Content-Type": contentType,
     },
     body: new Uint8Array(imageBuffer),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
   });
 
   if (!uploadRes.ok) {
@@ -318,6 +321,7 @@ export async function createPost(
       "X-Restli-Protocol-Version": "2.0.0",
     },
     body: JSON.stringify(postBody),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -327,6 +331,7 @@ export async function createPost(
 
   // LinkedIn returns the post URN in the x-restli-id header
   const postId = res.headers.get("x-restli-id") || "";
+  if (!postId) throw new Error("LinkedIn accepted a post request without returning its post ID");
   const postUrn = postId.startsWith("urn:") ? postId : `urn:li:share:${postId}`;
 
   // Construct a viewable URL
@@ -377,6 +382,7 @@ export async function createMultiImagePost(
       "X-Restli-Protocol-Version": "2.0.0",
     },
     body: JSON.stringify(postBody),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -385,6 +391,7 @@ export async function createMultiImagePost(
   }
 
   const postId = res.headers.get("x-restli-id") || "";
+  if (!postId) throw new Error("LinkedIn accepted a post request without returning its post ID");
   const postUrn = postId.startsWith("urn:") ? postId : `urn:li:share:${postId}`;
   const postUrl = `https://www.linkedin.com/feed/update/${encodeURIComponent(postUrn)}/`;
 
@@ -426,6 +433,7 @@ export async function addComment(
           text,
         },
       }),
+      signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
     }
   );
 

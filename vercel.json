@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/weather-posts",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/linkedin-publishing",
+      "schedule": "* * * * *"
     }
   ]
 }
