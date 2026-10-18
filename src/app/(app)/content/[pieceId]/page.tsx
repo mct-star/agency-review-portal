@@ -16,6 +16,7 @@ import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
+import ContentSourceReference from "@/components/content/ContentSourceReference";
 
 interface PageProps {
   params: Promise<{ pieceId: string }>;
@@ -151,11 +152,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
               Theme: {piece.audience_theme}
             </span>
           )}
-          {piece.topic_bank_ref && (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium">
-              {piece.topic_bank_ref}
-            </span>
-          )}
+          <ContentSourceReference reference={piece.topic_bank_ref} isAdmin={profile.role === "admin"} />
           {piece.post_type && (
             <span className="text-gray-500">{piece.post_type}</span>
           )}

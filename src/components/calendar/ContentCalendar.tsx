@@ -1413,7 +1413,7 @@ function WeekDayCellView({
 
 // ── Search / Recent Results View ──────────────────────────────
 
-function SearchResultsView({
+export function SearchResultsView({
   results,
   weeks,
   loading,
@@ -1483,7 +1483,7 @@ function SearchResultsView({
             <Link
               key={piece.id}
               href={`/content/${piece.id}`}
-              className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+              className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3 hover:bg-gray-50 transition-colors sm:flex-nowrap sm:gap-4"
             >
               {/* Status dot */}
               <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${status.dotColor}`} />
@@ -1504,10 +1504,10 @@ function SearchResultsView({
               </span>
 
               {/* Title */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-900 truncate">{piece.title || "Untitled post"}</p>
+              <div className="order-first min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto">
+                <p className="text-sm text-gray-900 [overflow-wrap:anywhere] sm:truncate">{piece.title || "Untitled post"}</p>
                 {piece.markdown_body && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                  <p className="mt-0.5 line-clamp-2 text-xs text-gray-500 sm:line-clamp-1">
                     {piece.markdown_body.slice(0, 120).replace(/[#*_\n]/g, " ").trim()}
                   </p>
                 )}
