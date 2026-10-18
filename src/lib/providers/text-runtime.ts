@@ -125,13 +125,14 @@ export async function requestText(config: TextConfig, options: TextOptions, fetc
         const data = await response.json();
         if (anthropic ? data.stop_reason === "max_tokens" : data.status && data.status !== "completed") throw new TransportError(false);
         // Verify the answering model if present; never label an unexpected model as the selected one.
-        if (data.model !== model) throw new TransportError(false);
+        const suffix = typeof data.model === "string" && data.model.startsWith(model + "-") ? data.model.slice(model.length + 1) : "";
+        if (data.model !== model && !/^(?:\d{8}|\d{4}-\d{2}-\d{2})$/.test(suffix)) throw new TransportError(false);
         const text = anthropic
           ? data.content?.filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("")
           : data.output?.filter((o: { type: string }) => o.type === "message").flatMap((o: { content?: { type: string; text?: string }[] }) => o.content ?? []).filter((c: { type: string }) => c.type === "output_text").map((c: { text: string }) => c.text).join("");
         if (!text?.trim()) throw new TransportError(false);
         if (options.jsonSchema && !schemaCheck(JSON.parse(text), options.jsonSchema)) throw new TransportError(false);
-        return { text, provider: selected.provider, model };
+        return { text, provider: selected.provider, model: data.model };
       } catch (error) {
         if (!(error instanceof TransportError && error.transient && attempt === 0)) throw error;
       }

@@ -10,6 +10,11 @@ const claude = (text = "hello", model: string = TEXT_MODELS.claude.writing) => n
 const openai = (text = "hello", model: string = TEXT_MODELS.openai.writing) => new Response(JSON.stringify({ model, status: "completed", output: [{ type: "reasoning" }, { type: "message", content: [{ type: "output_text", text }] }] }));
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers(); resolveProvider.mockReset(); });
 describe("native dual text transport", () => {
+  it.each(["claude", "openai"] as const)("preserves a dated %s snapshot for the selected alias", async provider => {
+    const model = TEXT_MODELS[provider].writing + (provider === "claude" ? "-20261018" : "-2026-10-18");
+    const fetcher = vi.fn().mockResolvedValue(provider === "claude" ? claude("hello", model) : openai("hello", model));
+    expect(await requestText({ ...config, provider }, options, fetcher)).toMatchObject({ provider, model });
+  });
   it("keeps Claude writing rules, disables thinking and excludes temperature", async () => {
     const fetcher = vi.fn().mockResolvedValue(claude());
     expect(await requestText(config, options, fetcher)).toEqual({ text: "hello", provider: "claude", model: TEXT_MODELS.claude.writing });
