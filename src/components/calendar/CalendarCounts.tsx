@@ -42,7 +42,7 @@ export function UnscheduledCount({ count, loading, error }: { count: number; loa
     <div className="mb-2 space-y-1 px-1">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Unscheduled</h3>
       <p className="text-sm text-gray-700">{error ? "Count unavailable" : loading ? "Loading posts..." : `${count} ${count === 1 ? "post shown" : "posts shown"}`}</p>
-      <p className="text-xs text-gray-500">All dates and approval statuses. Up to 60 newest posts without a scheduled day, plus posts saved under Standalone content.</p>
+      <p className="text-xs text-gray-500">All dates and approval statuses. Shows up to 60 newest posts that have no scheduled day or are saved under Standalone content.</p>
     </div>
   );
 }

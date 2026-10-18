@@ -115,7 +115,7 @@ describe("unscheduled count scope", () => {
     const html = text(renderToStaticMarkup(createElement(UnscheduledCount, { count, loading: false, error: null })));
     expect(html).toContain(`${count} posts shown`);
     expect(html).toContain("All dates and approval statuses.");
-    expect(html).toContain("Up to 60 newest posts without a scheduled day, plus posts saved under Standalone content.");
+    expect(html).toContain("Shows up to 60 newest posts that have no scheduled day or are saved under Standalone content.");
   });
 
   it("withholds the count on loading or failure", () => {
