@@ -44,7 +44,7 @@ describe("phone navigation", () => {
     const desktop = asides[0];
     expect(desktop).toMatch(/(^| )hidden( |$)/);
     expect(desktop).toContain("md:flex");
-    expect(desktop).toContain("w-56");
+    expect(desktop).toContain("w-[248px]");
     expect(desktop).toContain("h-screen");
   });
 

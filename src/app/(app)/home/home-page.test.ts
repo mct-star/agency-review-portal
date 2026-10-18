@@ -157,11 +157,11 @@ describe("the home page for a business-to-business company", () => {
     };
     const html = await render();
     expect(html).toContain("New here? Build a strategy for best results, or jump straight in.");
-    expect(html).toContain("Build your content strategy");
-    expect(html).toContain("Skip to Quick Generate");
-    expect(html).toContain("Quick Generate");
+    expect(html).toContain("Build your strategy");
+    expect(html).toContain("Create a post");
+    expect(html).toContain("Quick Post");
     expect(html).toContain("Content Studio");
-    expect(html).toContain("Review Content");
+    expect(html).toContain("Content Review");
     expect(html).not.toContain("View detailed dashboard");
     expect(html).not.toContain("Talk through the week");
   });

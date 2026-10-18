@@ -43,16 +43,16 @@ export default function PanelRow({ row }: { row: ActionRow }) {
     tone === "danger"
       ? "border-red-200 text-red-700 hover:bg-red-50"
       : tone === "primary"
-        ? "border-violet-600 bg-violet-600 text-white hover:bg-violet-700"
-        : "border-gray-300 text-gray-700 hover:bg-gray-50";
+        ? "workspace-button"
+        : "workspace-button workspace-button-secondary";
 
   return (
     <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <Link href={row.href} className="block truncate text-sm font-medium text-gray-900 hover:underline">
+      <div className="min-w-0 flex-1">
+        <Link href={row.href} className="block text-sm font-medium text-gray-900 hover:underline [overflow-wrap:anywhere]">
           {row.title}
         </Link>
-        <p className="truncate text-xs text-gray-600">
+        <p className="mt-1 text-xs text-gray-600 [overflow-wrap:anywhere]">
           {row.sub}
           {row.ageLabel ? <span className="text-gray-400"> · {row.ageLabel}</span> : null}
         </p>

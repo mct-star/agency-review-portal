@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { postsWaitingLine } from "@/lib/hospitality/home";
+import JourneyIcon from "@/components/ui/JourneyIcon";
+import WelcomeMotion from "@/components/home/WelcomeMotion";
 
 export interface HospitalityHomeProps {
   greeting: string;
@@ -30,25 +32,25 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12 pt-2 md:pt-6">
-      <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">{greeting}</h1>
+      <div className="workspace-welcome"><p className="workspace-eyebrow">Your week, made easier</p><h1 className="workspace-title">{greeting}</h1><WelcomeMotion /></div>
 
       {/* Waiting for you */}
       <section
         aria-labelledby="waiting-heading"
-        className={`rounded-2xl border p-5 sm:p-6 ${somethingWaiting ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"}`}
+        className={`rounded-xl border p-5 sm:p-6 ${somethingWaiting ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"}`}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <div
               className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-2xl font-bold ${
-                somethingWaiting ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-500"
+                somethingWaiting ? "bg-amber-100 text-amber-900" : "bg-gray-100 text-gray-500"
               }`}
               aria-hidden="true"
             >
               {waitingTotal > 99 ? "99+" : waitingTotal}
             </div>
             <div>
-              <h2 id="waiting-heading" className="text-lg font-semibold text-gray-900">
+              <h2 id="waiting-heading" className="workspace-section-title">
                 Waiting for you
               </h2>
               <p className="text-sm text-gray-700">{postsWaitingLine(pendingPosts, photosWaiting)}</p>
@@ -56,9 +58,7 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
           </div>
           <Link
             href="/approvals"
-            className={`inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-colors ${
-              somethingWaiting ? "bg-amber-500 text-white hover:bg-amber-600" : "border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
-            }`}
+            className={`workspace-button ${somethingWaiting ? "" : "workspace-button-secondary"}`}
           >
             {somethingWaiting ? "See what is waiting" : "Open Waiting for you"}
           </Link>
@@ -72,14 +72,18 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
           title="Write a post"
           body="One dish, a busy night, an event. Tell us what you want to say, we write it and you approve it."
           action="Write a post"
+          tone="lilac"
+          icon="write"
         />
         <ActionCard
           href="/create/week-interview"
           title="Talk through the week"
           body="Say what is on this week and we plan the week for you. You approve every post."
           action="Talk it through"
+          tone="mint"
+          icon="talk"
         />
-        <ActionCard href="/library" title="Add photos" body={libraryLine} action="Open the library" />
+        <ActionCard href="/library" title="Add photos" body={libraryLine} action="Open the library" tone="gold" icon="library" />
       </section>
 
       {weatherFailedLine && (
@@ -93,16 +97,18 @@ export default function HospitalityHome({ greeting, pendingPosts, photosWaiting,
   );
 }
 
-function ActionCard({ href, title, body, action }: { href: string; title: string; body: string; action: string }) {
+function ActionCard({ href, title, body, action, tone, icon }: { href: string; title: string; body: string; action: string; tone: "lilac" | "mint" | "gold"; icon: "write" | "talk" | "library" }) {
   return (
-    <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-      <p className="mt-2 flex-1 text-sm text-gray-600">{body}</p>
+    <div className={`workspace-panel workspace-journey workspace-tone-${tone} flex flex-col p-5`}>
+      <span className="workspace-journey-icon mb-5"><JourneyIcon kind={icon} /></span>
+      <h2 className="workspace-section-title">{title}</h2>
+      <p className="workspace-journey-description mt-2 flex-1 text-sm">{body}</p>
       <Link
         href={href}
-        className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700"
+        className="workspace-journey-footer mt-5 gap-2"
       >
         {action}
+        <span className="workspace-action-arrow" aria-hidden="true">↗</span>
       </Link>
     </div>
   );

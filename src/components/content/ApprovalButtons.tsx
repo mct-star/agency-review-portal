@@ -119,12 +119,13 @@ export default function ApprovalButtons({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <h3 className="mb-4 text-sm font-semibold text-gray-900">Review</h3>
-      {error && <p className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+    <div className="workspace-panel p-5 sm:p-6">
+      <h2 className="workspace-section-title">Your decision</h2>
+      <p className="mb-5 mt-2 text-sm text-gray-500">Approve when you are happy with the content. This does not publish it.</p>
+      {error && <p role="alert" className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {currentStatus === "approved" ? (
-        <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+        <div role="status" className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-800">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
@@ -132,43 +133,48 @@ export default function ApprovalButtons({
         </div>
       ) : showChangeForm ? (
         <div className="space-y-3">
+          <label htmlFor="review-feedback" className="block text-sm font-medium text-gray-700">What needs to change?</label>
           <textarea
+            id="review-feedback"
+            autoFocus
             value={changeComment}
             onChange={(e) => setChangeComment(e.target.value)}
             placeholder="Describe the changes needed..."
             rows={3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={handleRequestChanges}
               disabled={loading || !changeComment.trim()}
-              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+              className="workspace-button"
             >
-              {loading ? "Sending..." : "Submit Change Request"}
+              {loading ? "Sending..." : "Request changes"}
             </button>
             <button
               onClick={() => setShowChangeForm(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={loading}
+              className="workspace-button workspace-button-secondary"
             >
               Cancel
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 xl:flex-col">
           <button
             onClick={handleApprove}
             disabled={loading}
-            className="rounded-lg bg-green-500 px-6 py-2 text-sm font-medium text-white hover:bg-green-600 disabled:opacity-50"
+            className="workspace-button"
           >
-            {loading ? "..." : "Approve"}
+            {loading ? "Approving..." : "Approve content"}
           </button>
           <button
             onClick={() => setShowChangeForm(true)}
-            className="rounded-lg border border-amber-300 bg-amber-50 px-6 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100"
+            disabled={loading}
+            className="workspace-button workspace-button-secondary"
           >
-            Request Changes
+            Request changes
           </button>
         </div>
       )}

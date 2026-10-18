@@ -35,7 +35,8 @@ async function VenueDays({ companyId, timezone }: { companyId: string; timezone:
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">The next two weeks</h1>
+        <p className="workspace-eyebrow">See the bigger picture</p>
+        <h1 className="workspace-title">The next two weeks</h1>
         <p className="mt-1 text-sm text-gray-600">Every post with a day, one day under the next. Tap Move to put a post on another day.</p>
       </div>
       <DayList days={groupByDay(posts, dates, today)} firstDate={today} />
@@ -103,9 +104,10 @@ export default async function CalendarPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Content Calendar</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Plan posts by dragging them onto a day. Posts you send to review wait in Unscheduled.
+        <p className="workspace-eyebrow">See the bigger picture</p>
+        <h1 className="workspace-title">Content Calendar</h1>
+        <p className="workspace-description">
+          Your drafts, dates and weekly rhythm in one place.
         </p>
       </div>
 

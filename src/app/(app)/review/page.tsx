@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { matchesReviewFilter } from "@/lib/utils/review-filter";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import Badge from "@/components/ui/Badge";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
@@ -71,7 +72,10 @@ async function HospitalityWeek({ companyId, timezone, week }: { companyId: strin
   );
 }
 
-export default async function WeeksPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
+export default async function WeeksPage({ searchParams }: { searchParams: Promise<{ week?: string; status?: string; q?: string }> }) {
+  const filters = await searchParams;
+  const filter = ["pending", "approved", "changes_requested"].includes(filters.status || "") ? filters.status! : "";
+  const search = filters.q || "";
   const profile = await getUserProfile();
   if (!profile) return null;
 
@@ -102,11 +106,12 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
 
   const allWeeks = (weeks || []) as Array<Week & { company?: Company }>;
 
-  const upcomingWeeks = allWeeks
+  const visibleWeeks = allWeeks.filter(w => matchesReviewFilter(w.status, [w.title, w.company?.name, w.pillar, w.theme, w.date_start, formatWeekLabel(w.date_start, w.week_number)].filter(Boolean).join(" "), filter, search));
+  const upcomingWeeks = visibleWeeks
     .filter((w) => w.date_start >= todayIso)
     .sort((a, b) => a.date_start.localeCompare(b.date_start)); // ascending: nearest first
 
-  const pastWeeks = allWeeks
+  const pastWeeks = visibleWeeks
     .filter((w) => w.date_start < todayIso)
     .sort((a, b) => b.date_start.localeCompare(a.date_start)); // descending: most recent first
 
@@ -136,13 +141,14 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
     .from("content_pieces")
     .select("id, title, post_type, approval_status, created_at, markdown_body, company_id")
     .is("week_id", null)
-    .in("approval_status", ["pending", "changes_requested"])
+    .in("approval_status", filter ? [filter] : ["pending", "changes_requested", "approved"])
     .order("created_at", { ascending: false })
     .limit(20);
   if (!isAdmin && profile.company_id) {
     individualQuery = individualQuery.eq("company_id", profile.company_id);
   }
-  const { data: individualPosts } = await individualQuery;
+  const { data: recentPosts } = await individualQuery;
+  const individualPosts = (recentPosts || []).filter(p => matchesReviewFilter(p.approval_status, `${p.title || ""} ${p.markdown_body || ""}`, filter, search));
 
   // Count published pieces via publishing_jobs
   let publishedQuery = supabase
@@ -158,119 +164,70 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Content Review</h1>
-        <Link
-          href="/generate"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-        >
-          Plan Next Week
-        </Link>
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <p className="workspace-eyebrow">Review and refine</p>
+          <h1 className="workspace-title">Content Review</h1>
+          <p className="workspace-description">A fresh pair of eyes. Your final say on every post.</p>
+        </div>
+        <Link href="/generate" className="workspace-button workspace-button-secondary">Plan next week <span aria-hidden="true">↗</span></Link>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-medium text-amber-700">Pending Review</p>
-          <p className="mt-1 text-2xl font-bold text-amber-900">
-            {pendingCount + changesRequestedCount}
-          </p>
-        </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-sm font-medium text-emerald-700">Approved</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-900">
-            {approvedCount}
-          </p>
-        </div>
-        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-          <p className="text-sm font-medium text-sky-700">Published</p>
-          <p className="mt-1 text-2xl font-bold text-sky-900">
-            {publishedCount ?? 0}
-          </p>
-        </div>
-      </div>
+      <dl className="workspace-summary workspace-panel">
+        {[{ label: "Awaiting review", value: pendingCount + changesRequestedCount }, { label: "Approved", value: approvedCount }, { label: "Published", value: publishedCount ?? 0 }].map(stat => (
+          <div key={stat.label}><dt className="text-xs text-gray-500 sm:text-sm">{stat.label}</dt><dd className="mt-2 text-3xl font-medium tabular-nums">{stat.value}</dd></div>
+        ))}
+      </dl>
 
-      {/* Guidance banner */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-start gap-3">
-        <svg className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 16v-4M12 8h.01" />
-        </svg>
-        <div className="flex-1">
-          <p className="text-sm font-medium text-blue-900">How review works</p>
-          <p className="text-xs text-blue-700 mt-1">
-            Posts appear here after generation. Review each one, then approve it to move it to Publish,
-            or request changes to send it back for editing. Approved posts can be published to LinkedIn with one click.
-          </p>
-        </div>
-      </div>
+      <details className="workspace-panel workspace-disclosure">
+        <summary>How review works</summary>
+        <p className="px-5 py-4 text-sm leading-6 text-gray-600">Open a draft to read it in full. Approve when it is ready, or request changes with your feedback. Approval records your decision. Publishing is a separate step.</p>
+      </details>
 
       {/* Search and Filters */}
       <ReviewFilters />
 
-      {/* Individual Posts (no week assignment) */}
+      <p className="text-xs text-gray-500" role="status">{visibleWeeks.length} {visibleWeeks.length === 1 ? "week" : "weeks"} and {individualPosts.length} individual {individualPosts.length === 1 ? "post" : "posts"} shown. Search covers all weeks and the 20 most recent individual posts for the selected status.</p>
+      {/* Individual posts (no week assignment) */}
       {individualPosts && individualPosts.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Individual Posts
+            <h2 className="workspace-section-title">
+              Individual posts
               <span className="ml-2 text-sm font-normal text-gray-500">{individualPosts.length}</span>
             </h2>
           </div>
           <div className="space-y-2">
             {individualPosts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/content/${post.id}`}
-                className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm hover:shadow-md transition-shadow"
-              >
-                {/* Status dot */}
-                <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                  post.approval_status === "pending" ? "bg-amber-400" : "bg-red-400"
-                }`} />
-
-                {/* Post type badge */}
-                <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
-                  {post.post_type?.replace(/_/g, " ") || "Post"}
-                </span>
-
-                {/* Title + preview */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{post.title || "Untitled post"}</p>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
-                    {post.markdown_body?.slice(0, 80).replace(/[#*_\n]/g, " ").trim() || ""}
-                  </p>
-                </div>
-
-                {/* Date */}
-                <span className="text-xs text-gray-500 flex-shrink-0">
-                  {new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                </span>
-
-                {/* Inline actions or arrow */}
-                {(post.approval_status === "pending" || post.approval_status === "changes_requested") ? (
-                  <InlineApproveButtons pieceId={post.id} companyId={post.company_id} />
-                ) : (
-                  <svg className="h-4 w-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                )}
-              </Link>
+              <article key={post.id} className="workspace-panel workspace-card workspace-review-row">
+                <Link href={`/content/${post.id}`} className="min-w-0 flex-1 rounded-sm">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-gray-500">{post.post_type?.replace(/_/g, " ") || "Post"}</span>
+                    <Badge status={post.approval_status} />
+                  </div>
+                  <h3 className="text-base font-medium text-gray-900 [overflow-wrap:anywhere]">{post.title || "Untitled post"}</h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-gray-500">{post.markdown_body?.slice(0, 160).replace(/[#*_\n]/g, " ").trim() || "Open this post to review its content."}</p>
+                  <p className="mt-2 text-xs text-gray-500">{new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <span className="ml-2 font-medium text-gray-700">Read post <span aria-hidden="true">↗</span></span></p>
+                </Link>
+                {(post.approval_status === "pending" || post.approval_status === "changes_requested") && <InlineApproveButtons pieceId={post.id} companyId={post.company_id} />}
+              </article>
             ))}
           </div>
         </section>
       )}
 
-      {allWeeks.length === 0 ? (
+      {visibleWeeks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-12 text-center">
-          <p className="text-gray-500">No content weeks yet.</p>
+          <p className="text-base font-medium text-gray-900">{filter || search ? "No weeks match your filters." : "Your next week starts here."}</p>
+          <p className="mt-2 text-sm text-gray-500">{filter || search ? "Clear the filters or try another search." : "Create a week of content and bring it here for review."}</p>
+          {!filter && !search && <Link href="/generate" className="workspace-button workspace-button-secondary mt-5">Plan a week</Link>}
         </div>
       ) : (
         <div className="space-y-10">
-          {/* Upcoming Weeks */}
+          {/* Upcoming weeks */}
           <section>
             <div className="mb-4 flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Upcoming Weeks</h2>
+              <h2 className="workspace-section-title">Upcoming weeks</h2>
               {upcomingWeeks.length > 0 && (
                 <span className="text-xs text-gray-500">
                   {upcomingWeeks.length} {upcomingWeeks.length === 1 ? "week" : "weeks"}
@@ -302,11 +259,11 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
             <div className="border-t border-gray-200" />
           )}
 
-          {/* Past Weeks */}
+          {/* Past weeks */}
           {pastWeeks.length > 0 && (
             <section>
               <div className="mb-4 flex items-baseline justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Past Weeks</h2>
+                <h2 className="workspace-section-title">Past weeks</h2>
                 <span className="text-xs text-gray-500">
                   {pastWeeks.length} {pastWeeks.length === 1 ? "week" : "weeks"}
                 </span>
@@ -336,11 +293,11 @@ function WeekCard({
   return (
     <Link
       href={`/review/${week.id}`}
-      className="group rounded-xl border border-gray-200 bg-white overflow-hidden transition-all hover:shadow-lg hover:border-gray-300"
+      className="workspace-panel workspace-card group overflow-hidden"
     >
       {/* Brand bar — thicker, branded */}
       <div
-        className="h-2"
+        className="h-1"
         style={{ backgroundColor: company?.brand_color || "#e5e7eb" }}
       />
 
@@ -387,7 +344,7 @@ function WeekCard({
         {/* Week number + status */}
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-lg font-bold text-gray-900 group-hover:text-sky-700">
+            <h3 className="text-lg font-bold text-gray-900 group-hover:text-violet-800">
               {formatWeekLabel(week.date_start, week.week_number)}
             </h3>
             {week.title && (
@@ -399,18 +356,18 @@ function WeekCard({
 
         {/* Dates */}
         <div className="mt-3 text-xs text-gray-500">
-          {week.date_start} — {week.date_end}
+          {new Date(week.date_start + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} to {new Date(week.date_end + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
         </div>
 
         {(week.pillar || week.theme) && (
           <div className="mt-2 flex flex-wrap gap-1">
             {week.pillar && (
-              <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+              <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                 {week.pillar}
               </span>
             )}
             {week.theme && (
-              <span className="rounded bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-600">
+              <span className="rounded bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-600">
                 {week.theme}
               </span>
             )}

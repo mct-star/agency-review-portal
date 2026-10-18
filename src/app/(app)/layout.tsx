@@ -8,6 +8,11 @@ import HelpChatWidget from "@/components/chat/HelpChatWidget";
 import ViewAsBanner from "@/components/layout/ViewAsBanner";
 import { getEffectivePlan, getTrialDaysRemaining } from "@/lib/utils/get-effective-plan";
 import { isB2bOnlyPage } from "@/lib/hospitality/b2b-only";
+import localFont from "next/font/local";
+import WorkspaceHeader from "@/components/layout/WorkspaceHeader";
+import "./workspace.css";
+
+const workspaceFont = localFont({ src: "../../../public/fonts/Jost-variable-latin.woff2", variable: "--font-workspace", display: "swap", weight: "100 900" });
 
 /**
  * Authenticated layout for the three main sections: Setup, Generate, Review.
@@ -101,14 +106,16 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex h-dvh flex-col md:h-screen md:flex-row">
+    <div className={`workspace ${workspaceFont.variable} flex h-dvh flex-col md:h-screen md:flex-row`}>
+      <a href="#workspace-main" className="workspace-skip workspace-button">Skip to content</a>
       <ResponsiveSidebar user={profile} platformLogoUrl={platformLogoUrl} companyPlan={companyPlan} complexity={companyComplexity} postPack={postPack} waitingCount={waitingCount} />
-      <main className="flex-1 overflow-y-auto bg-gray-50">
+      <main id="workspace-main" tabIndex={-1} className="min-w-0 flex-1 overflow-y-auto outline-none">
+        <WorkspaceHeader user={profile} postPack={postPack} />
         {profile.viewing_as && <ViewAsBanner companyName={profile.viewing_as.companyName} />}
         {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
           <TrialBanner daysRemaining={trialDaysRemaining} />
         )}
-        <div className="p-4 md:p-6">{children}</div>
+        <div className="workspace-content">{children}</div>
       </main>
       <HelpChatWidget />
     </div>

@@ -81,8 +81,9 @@ export default async function WeeklyPlannerPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Weekly Planner</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="workspace-eyebrow">Build your rhythm</p>
+        <h1 className="workspace-title">Weekly Planner</h1>
+        <p className="workspace-description">
           Map post types to days and build your weekly narrative arc.
         </p>
       </div>

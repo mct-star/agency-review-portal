@@ -19,6 +19,7 @@ export default function ResponsiveSidebar(props: SidebarProps) {
   const pathname = usePathname();
   const menuButton = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLDivElement>(null);
+  const background = useRef<HTMLElement | null>(null);
 
   // Close on navigation.
   useEffect(() => {
@@ -27,11 +28,25 @@ export default function ResponsiveSidebar(props: SidebarProps) {
 
   useEffect(() => {
     if (!open) return;
-    drawer.current?.focus();
+    background.current = document.getElementById("workspace-main");
+    if (background.current) background.current.inert = true;
+    const focusFrame = window.requestAnimationFrame(() => drawer.current?.focus());
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
         menuButton.current?.focus();
+      }
+      if (e.key === "Tab") {
+        const items = drawer.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]');
+        if (!items?.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const outside = !drawer.current?.contains(document.activeElement);
+        if (e.shiftKey && (outside || document.activeElement === first || document.activeElement === drawer.current)) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && (outside || document.activeElement === last || document.activeElement === drawer.current)) {
+          e.preventDefault(); first.focus();
+        }
       }
     };
     // Turning the phone sideways (or widening the window) to desktop width closes the drawer.
@@ -42,15 +57,17 @@ export default function ResponsiveSidebar(props: SidebarProps) {
     window.addEventListener("keydown", onKey);
     media.addEventListener("change", onWide);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", onKey);
       media.removeEventListener("change", onWide);
+      if (background.current) background.current.inert = false;
     };
   }, [open]);
 
   return (
     <>
       {/* Phone top bar */}
-      <header className="flex h-14 shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-2 md:hidden">
+      <header className="flex h-16 shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-3 md:hidden">
         <button
           ref={menuButton}
           type="button"
@@ -81,15 +98,15 @@ export default function ResponsiveSidebar(props: SidebarProps) {
       </header>
 
       {/* 768 px and up: the fixed sidebar */}
-      <Sidebar {...props} className="hidden h-screen w-56 shrink-0 flex-col border-r border-gray-200 bg-white md:flex" />
+      <Sidebar {...props} className="hidden h-screen w-[248px] shrink-0 flex-col border-r border-gray-200 bg-white md:flex" />
 
       {/* Under 768 px: the drawer */}
       <div
-        className={`fixed inset-0 z-40 transition-[visibility] duration-200 md:hidden ${open ? "visible" : "invisible pointer-events-none"}`}
+        className={`fixed inset-0 z-40 transition-[visibility] duration-[220ms] md:hidden ${open ? "visible" : "invisible pointer-events-none"}`}
       >
         <div
-          className={`absolute inset-0 bg-gray-900/40 transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`}
-          onClick={() => setOpen(false)}
+          className={`absolute inset-0 bg-gray-900/40 transition-opacity duration-[220ms] ${open ? "opacity-100" : "opacity-0"}`}
+          onClick={() => { setOpen(false); menuButton.current?.focus(); }}
           aria-hidden="true"
           data-testid="phone-menu-backdrop"
         />
@@ -104,7 +121,7 @@ export default function ResponsiveSidebar(props: SidebarProps) {
           onClick={(e) => {
             if ((e.target as HTMLElement).closest("a")) setOpen(false);
           }}
-          className={`absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl outline-none transition-transform duration-200 ease-out ${
+          className={`absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl outline-none transition-transform duration-[220ms] ease-out ${
             open ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -116,7 +133,7 @@ export default function ResponsiveSidebar(props: SidebarProps) {
               menuButton.current?.focus();
             }}
             aria-label="Close menu"
-            className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
+            className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M6 6l12 12M18 6L6 18" />

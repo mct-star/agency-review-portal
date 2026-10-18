@@ -60,7 +60,8 @@ export default async function QuickGeneratePage({
   if (companies.length === 0) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900">Quick Generate</h1>
+        <p className="workspace-eyebrow">Create in your voice</p>
+        <h1 className="workspace-title">Quick Generate</h1>
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
           <p className="text-sm text-gray-500">No company set up yet. Complete your company setup first.</p>
         </div>
@@ -77,10 +78,11 @@ export default async function QuickGeneratePage({
     : hospitalityCompanies[0];
   if (hospitalityTarget) {
     return (
-      <div className="space-y-6">
+      <div className="workspace-quick space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Write a post</h1>
-          <p className="mt-1 text-sm text-gray-500">Tell us what you want to say. We write it, pick a photo from your library, and leave it for you to approve.</p>
+          <p className="workspace-eyebrow">Create in your voice</p>
+        <h1 className="workspace-title">Write a post</h1>
+          <p className="workspace-description">Tell us what you want to say. We write it, pick a photo from your library, and leave it for you to approve.</p>
         </div>
         <HospitalityQuickPost companyId={hospitalityTarget.id} />
       </div>
@@ -88,10 +90,11 @@ export default async function QuickGeneratePage({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="workspace-quick space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Quick Generate</h1>
-        <p className="mt-1 text-sm text-gray-500">Create a single post instantly. No planning required.</p>
+        <p className="workspace-eyebrow">Create in your voice</p>
+        <h1 className="workspace-title">Quick Generate</h1>
+        <p className="workspace-description">Create a single post instantly. No planning required.</p>
       </div>
       <QuickGenerate
         companies={companies.map((c) => ({
