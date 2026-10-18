@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminSupabaseClient, getSignedInProfile, requireCompanyUser } from "@/lib/supabase/admin";
 import { decryptJson, encrypt } from "@/lib/crypto";
-import { hasMetaPermissions, META_PENDING_COOKIE, metaConfig, metaGraph, selectMetaPage } from "@/lib/meta/oauth";
+import { hasMetaPermissions, hasMetaPublishTask, META_PENDING_COOKIE, metaConfig, metaGraph, selectMetaPage } from "@/lib/meta/oauth";
 
 type PendingGrant = { companyId: string; userId: string; accessToken: string; expiresAt: string; grantExpiresAt: number; nonce: string };
 async function pendingGrant(): Promise<PendingGrant | null> {
@@ -60,8 +60,8 @@ export async function POST(request: Request) {
     const pages = await listPages(pending.accessToken);
     const page = selectMetaPage(pages, body.pageId, body.instagramId);
     if (!page || typeof page.name !== "string") return NextResponse.json({ error: "That Page is not available to the signed-in Meta account." }, { status: 403 });
-    const tasks = Array.isArray(page.tasks) ? page.tasks : [];
-    if (!tasks.some((task) => ["CREATE_CONTENT", "MANAGE", "FULL_CONTROL"].includes(String(task)))) return NextResponse.json({ error: "This Meta account cannot publish to the selected Page." }, { status: 403 });
+    const tasks = Array.isArray(page.tasks) ? page.tasks.filter((task): task is string => typeof task === "string") : [];
+    if (!hasMetaPublishTask(tasks)) return NextResponse.json({ error: "This Meta account cannot publish to the selected Page." }, { status: 403 });
     const linkedIg = page.instagram_business_account as { id?: string; username?: string } | undefined;
     if (body.instagramId && body.instagramId !== linkedIg?.id) return NextResponse.json({ error: "Choose the Instagram account linked to this Page." }, { status: 400 });
     if (body.instagramId) {

@@ -5,6 +5,20 @@ export const META_PENDING_COOKIE = "meta_pending_grant";
 export const META_NONCE_COOKIE = "meta_oauth_nonce";
 export const META_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts", "instagram_basic", "instagram_content_publish"] as const;
 
+const META_PUBLISH_TASKS = new Set([
+  "CREATE_CONTENT",
+  "MANAGE",
+  "FULL_CONTROL",
+  "PROFILE_PLUS_CREATE_CONTENT",
+  "PROFILE_PLUS_MANAGE",
+  "PROFILE_PLUS_FULL_CONTROL",
+]);
+
+/** Recognises Meta's Page publishing tasks without accepting read-only or moderation access. */
+export function hasMetaPublishTask(tasks: unknown): boolean {
+  return Array.isArray(tasks) && tasks.some((task) => typeof task === "string" && META_PUBLISH_TASKS.has(task));
+}
+
 export function hasMetaPermissions(rows: Array<{ permission?: string; status?: string }>, includeInstagram = false) {
   const required = ["pages_show_list", "pages_read_engagement", "pages_manage_posts", ...(includeInstagram ? ["instagram_basic", "instagram_content_publish"] : [])];
   return required.every((name) => rows.some((row) => row.permission === name && row.status === "granted"));
