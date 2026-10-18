@@ -219,7 +219,7 @@ export async function autoTagItem(
       : null;
 
     // One call. For a video the several frames go in together.
-    const result = await deps.tag(images, { venueContext });
+    const result = await deps.tag(images, { venueContext, companyId: item.company_id });
     const merged = unionFrameTags([result]);
 
     await supabase

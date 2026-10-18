@@ -42,7 +42,7 @@ const HOSPITALITY_POST_SCHEMA = {
  * figure persists the post is returned with a warning rather than hidden.
  */
 export async function generateHospitalityPost(
-  input: PromptInput,
+  input: PromptInput & { companyId: string },
   generator: TextGenerator = generateText
 ): Promise<GeneratedHospitalityPost> {
   const { system, user } = buildHospitalityPrompt(input);
@@ -56,7 +56,7 @@ export async function generateHospitalityPost(
   let unsupported: string[] = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await generator({ systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash", jsonSchema: HOSPITALITY_POST_SCHEMA, effort: "medium" });
+    const result = await generator({ companyId: input.companyId, systemPrompt: system, userPrompt: attemptUser, maxTokens: 700, temperature: 0.6, geminiModel: "gemini-2.5-flash", jsonSchema: HOSPITALITY_POST_SCHEMA, effort: "medium" });
     let parsed;
     try {
       parsed = parseHospitalityJson(result.text);

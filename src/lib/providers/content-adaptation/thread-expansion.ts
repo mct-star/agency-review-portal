@@ -1,5 +1,6 @@
 import type { AdaptationStrategy, AdaptationInput, AdaptationOutput } from "./strategies";
-import { callClaude, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
+import type { TextConfig } from "../text-runtime";
+import { callText, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
 
 interface ThreadResponse {
   threadParts: string[];
@@ -10,7 +11,8 @@ interface ThreadResponse {
 
 export function createThreadExpansionStrategy(
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): AdaptationStrategy {
   const { apiKey, model } = resolveClaudeConfig(credentials, settings);
 
@@ -48,7 +50,7 @@ Create the thread. Respond with JSON (no code fences):
   "mentions": ["array", "of", "mentions"]
 }`;
 
-      const text = await callClaude(apiKey, model, system, "Create the thread now.", 4096);
+      const { text, ...writer } = await callText(apiKey, model, system, "Create the thread now.", 4096, { config });
       const result = parseClaudeJson<ThreadResponse>(text);
 
       const totalChars = result.threadParts.reduce((sum, p) => sum + p.length, 0);
@@ -63,6 +65,7 @@ Create the thread. Respond with JSON (no code fences):
         canonicalUrl: null,
         mediaUrls: null,
         metadata: {
+          writer,
           partCount: result.threadParts.length,
           perPartLimit,
         },

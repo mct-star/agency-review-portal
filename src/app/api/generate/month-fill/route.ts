@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude, parseClaudeJson, resolveClaudeConfig } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 import type { PostingSlotWithType } from "@/types/database";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
@@ -181,12 +180,9 @@ export async function POST(request: Request) {
   let aiTitles: TitleEntry[] = [];
   let usedAI = false;
 
-  // Try to use Claude for title generation
-  const resolved = await resolveProvider(companyId, "content_generation");
-  if (resolved && weekSlots.length > 0) {
+  // Use the company's configured writer, or the shared text policy.
+  if (weekSlots.length > 0) {
     try {
-      const { apiKey, model } = resolveClaudeConfig(resolved.credentials, resolved.settings);
-
       // Build the slot list for the prompt
       const slotListText = weekSlots
         .map(
@@ -221,8 +217,9 @@ Return ONLY a JSON array of objects with this exact structure (no markdown, no c
 
 Generate exactly ${weekSlots.length} titles, one per slot listed above. Each title must be unique, under 12 words, and be a compelling hook relevant to the pillar and theme.`;
 
-      const raw = await callClaude(apiKey, model, systemPrompt, userMessage, 4096);
-      aiTitles = parseClaudeJson<TitleEntry[]>(raw);
+      const result = await generateText({ companyId, systemPrompt, userPrompt: userMessage, maxTokens: 4096 });
+      const raw = result.text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+      aiTitles = JSON.parse(raw) as TitleEntry[];
       usedAI = true;
     } catch (err) {
       console.error("AI title generation failed, falling back to topic bank:", err);

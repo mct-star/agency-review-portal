@@ -61,6 +61,7 @@ export async function POST(request: Request) {
   let post;
   try {
     post = await generateHospitalityPost({
+      companyId: company.id as string,
       company: { name: company.name as string, industry: company.industry as string | null, description: company.description as string | null, settings: readSettings(company.hospitality_settings) },
       postType,
       brief,

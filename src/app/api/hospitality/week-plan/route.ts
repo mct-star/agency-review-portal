@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     const result = await planWeekFromTranscript(
       { companyId: cid, venueName: company.name as string, settings, weekAnyDate, transcript, today },
       realInterviewDeps(
+        cid,
         { name: company.name as string, industry: company.industry as string | null, description: company.description as string | null, settings },
         {
           candidates: async () => {

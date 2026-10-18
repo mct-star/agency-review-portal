@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   try {
     const prompt = buildPrompt(linkedInSlug, profileType, linkedInUrl);
 
-    // Call AI provider with three-tier fallback (Claude → Gemini → OpenAI)
+    // Use the company's configured text provider.
     const aiResult = await generateText({
       systemPrompt: "You are a competitive content strategist. Return ONLY a valid JSON object, no surrounding text or markdown code fences.",
       userPrompt: prompt,

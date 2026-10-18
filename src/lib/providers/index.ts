@@ -78,6 +78,8 @@ export interface ContentGenerationOutput {
   }[];
   /** Anything the caller should tell the user (for example, metadata the writer did not return). */
   warnings?: string[];
+  /** Identity of the model that produced this specific result. */
+  writer?: import("./text-runtime").WriterIdentity;
 }
 
 export interface ContentProvider {
@@ -203,14 +205,15 @@ export async function resolveProvider(
 ): Promise<ResolvedProvider | null> {
   const supabase = await createAdminSupabaseClient();
 
-  const { data: config } = await supabase
+  const { data: config, error } = await supabase
     .from("company_api_configs")
     .select("*")
     .eq("company_id", companyId)
     .eq("service_category", serviceCategory)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
+  if (error) throw new Error("Could not resolve the company provider configuration.");
   if (!config) return null;
 
   let credentials: Record<string, unknown> = {};
@@ -228,7 +231,7 @@ export async function resolveProvider(
   return {
     provider: config.provider,
     credentials,
-    settings: config.provider_settings || {},
+    settings: { ...(config.provider_settings || {}), provider: config.provider },
   };
 }
 
@@ -236,81 +239,26 @@ export async function resolveProvider(
 
 /**
  * Get the content generation provider for a company.
- * Falls back to a stub provider if none is configured.
+ * Uses shared server funding only when this company has no active configuration.
  */
-export async function getContentProvider(
-  companyId: string
-): Promise<{ provider: ContentProvider; providerName: string }> {
-  const resolved = await resolveProvider(companyId, "content_generation");
-
-  if (!resolved) {
-    // No company-level provider configured — use env var fallback (Gemini → Claude → OpenAI)
-    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY;
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-
-    if (geminiKey || anthropicKey) {
-      // Use the Anthropic provider with env var key — it has built-in Gemini fallback
-      const { createClaudeContentProvider } = await import(
-        "./content-generation/anthropic"
-      );
-      return {
-        providerName: geminiKey ? "gemini_fallback" : "anthropic_env",
-        provider: createClaudeContentProvider(
-          { api_key: anthropicKey || "no-key-will-fall-through-to-gemini" },
-          {}
-        ),
-      };
-    }
-
-    return {
-      providerName: "none",
-      provider: {
-        async generate() {
-          throw new Error("No AI provider is configured for this company. Ask AGENCY to set it up.");
-        },
-      },
-    };
-  }
-
-  // For now, all content generation goes through Claude (Anthropic API)
-  // Additional providers can be added here as switch cases
-  switch (resolved.provider) {
-    case "anthropic_claude":
-    default: {
-      const { createClaudeContentProvider } = await import(
-        "./content-generation/anthropic"
-      );
-      return {
-        providerName: resolved.provider,
-        provider: createClaudeContentProvider(
-          resolved.credentials,
-          resolved.settings
-        ),
-      };
-    }
-  }
+export async function getContentProvider(companyId: string): Promise<{ provider: ContentProvider; providerName: string }> {
+  const { resolveTextConfig } = await import("./text-runtime");
+  const config = await resolveTextConfig(companyId);
+  const { createClaudeContentProvider } = await import("./content-generation/anthropic");
+  return {
+    providerName: config.provider === "claude" ? "anthropic_claude" : "openai_gpt4",
+    provider: createClaudeContentProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config),
+  };
 }
 
-/**
- * Get the platform adaptation provider for a company.
- * Platform adaptation always uses Claude regardless of content_generation config.
- */
-export async function getPlatformAdaptationProvider(
-  companyId: string
-): Promise<{ provider: PlatformAdaptationProvider; providerName: string }> {
-  const resolved = await resolveProvider(companyId, "content_generation");
-
-  // Platform adaptation always uses Claude
-  const { createClaudePlatformAdaptationProvider } = await import(
-    "./content-generation/anthropic"
-  );
-
+/** Resolve adaptation through the same company policy as the content writer. */
+export async function getPlatformAdaptationProvider(companyId: string): Promise<{ provider: PlatformAdaptationProvider; providerName: string }> {
+  const { resolveTextConfig } = await import("./text-runtime");
+  const config = await resolveTextConfig(companyId);
+  const { createClaudePlatformAdaptationProvider } = await import("./content-generation/anthropic");
   return {
-    providerName: resolved?.provider || "anthropic_claude",
-    provider: createClaudePlatformAdaptationProvider(
-      resolved?.credentials || {},
-      resolved?.settings || {}
-    ),
+    providerName: config.provider === "claude" ? "anthropic_claude" : "openai_gpt4",
+    provider: createClaudePlatformAdaptationProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config),
   };
 }
 

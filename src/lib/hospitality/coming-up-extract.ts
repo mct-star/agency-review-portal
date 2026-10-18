@@ -33,8 +33,8 @@ export interface ExtractDeps {
 
 export async function extractUpcoming(
   file: { name: string; type: string; bytes: Buffer },
-  ctx: { venueName: string; today: string; timeZone: string },
-  deps: ExtractDeps = realExtractDeps
+  ctx: { companyId?: string; venueName: string; today: string; timeZone: string },
+  deps: ExtractDeps = realExtractDeps(ctx.companyId)
 ): Promise<ParsedUpcoming> {
   const k = uploadKind(file.name, file.type);
   if (!k.ok) throw new UploadError(k.error);
@@ -73,7 +73,7 @@ async function readWithRetry(read: (user: string) => Promise<string>, user: stri
 /** A reason the person can act on. Anything else is a server fault. */
 export class UploadError extends Error {}
 
-export const realExtractDeps: ExtractDeps = {
+export const realExtractDeps = (companyId?: string): ExtractDeps => ({
   pdfText: async (bytes) => {
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: new Uint8Array(bytes) });
@@ -84,7 +84,7 @@ export const realExtractDeps: ExtractDeps = {
     }
   },
   readText: async (system, user) =>
-    (await generateText({ systemPrompt: system, userPrompt: user, maxTokens: 2000, temperature: 0.2, geminiModel: "gemini-2.5-flash" })).text,
+    (await generateText({ companyId, systemPrompt: system, userPrompt: user, maxTokens: 2000, temperature: 0.2, geminiModel: "gemini-2.5-flash" })).text,
   readImage: async (system, user, base64, mediaType) =>
-    (await callTextWithImage(process.env.ANTHROPIC_API_KEY || NO_ANTHROPIC_KEY, CLAUDE_SONNET, system, user, base64, mediaType, 2000)).text,
-};
+    (await callTextWithImage(process.env.ANTHROPIC_API_KEY || NO_ANTHROPIC_KEY, CLAUDE_SONNET, system, user, base64, mediaType, 2000, { companyId })).text,
+});

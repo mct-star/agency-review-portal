@@ -89,7 +89,8 @@ export async function enhanceImagePrompt(
   style: string | undefined,
   anthropicApiKey: string,
   /** The company's image brand context; editorial styles follow it over the defaults. */
-  brandContext?: string
+  brandContext?: string,
+  companyId?: string
 ): Promise<string> {
   const editorial = isEditorialStyle(style);
   const system = editorial && brandContext?.trim()
@@ -106,7 +107,7 @@ export async function enhanceImagePrompt(
 Remember: output ONLY the enhanced prompt, nothing else.`;
 
   try {
-    const enhanced = (await callClaude(anthropicApiKey, CLAUDE_HAIKU, system, userMessage, 600)).trim();
+    const enhanced = (await callClaude(anthropicApiKey, CLAUDE_HAIKU, system, userMessage, 600, { companyId })).trim();
 
     if (!enhanced || enhanced.length < 50) {
       return rawPrompt;

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude, currentClaudeModel } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * GET /api/generate/report?weekId=xxx&companyId=xxx
@@ -97,15 +96,6 @@ async function generateAINarrative(
   companyName: string,
 ): Promise<AINarrative | null> {
   try {
-    const resolved = await resolveProvider(companyId, "content_generation");
-    if (!resolved) return null;
-
-    const apiKey = resolved.credentials.api_key as string;
-    if (!apiKey) return null;
-
-    const provider = resolved.provider;
-    const isAnthropic = provider === "anthropic_claude" || provider.startsWith("anthropic");
-
     const postSummaries = pieces
       .map((p) => `- ${p.day}: "${p.title}" (${friendlyRole(p.ecosystemRole)})`)
       .join("\n");
@@ -127,41 +117,13 @@ SECTION 1 - "This Week's Story": Write 2-3 paragraphs explaining what story this
 
 SECTION 2 - "Key Messages": Write 3-5 bullet points (each starting with "- ") summarising what the audience should take away from this week's content. Write from the audience's perspective, not the content creator's. Each bullet should be a clear, actionable insight.`;
 
-    if (isAnthropic) {
-      try {
-        const text = await callClaude(
-          apiKey,
-          currentClaudeModel(resolved.settings.model as string | undefined),
-          "",
-          prompt,
-          1500
-        );
-        return parseAIResponse(text);
-      } catch {
-        return null;
-      }
-    } else {
-      // OpenAI-compatible fallback
-      const model = (resolved.settings.model as string) || "gpt-4o";
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1500,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || "";
-      return parseAIResponse(text);
-    }
+    const result = await generateText({
+      companyId,
+      systemPrompt: "",
+      userPrompt: prompt,
+      maxTokens: 1500,
+    });
+    return parseAIResponse(result.text);
   } catch {
     return null;
   }

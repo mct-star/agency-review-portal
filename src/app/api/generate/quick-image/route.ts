@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     const contentProviderData = await resolveProvider(companyId, "content_generation");
     const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
     const enhancedPrompt = claudeApiKey
-      ? await enhanceImagePrompt(imagePrompt, archetype || "default", claudeApiKey)
+      ? await enhanceImagePrompt(imagePrompt, archetype || "default", claudeApiKey, undefined, companyId)
       : imagePrompt;
 
     const imgResult = await imgProvider.generate({

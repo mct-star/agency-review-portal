@@ -70,7 +70,7 @@ interface PostTypeOption {
   color: string;
   visualTag?: string;  // Short label for the image style
   medium: "image" | "carousel" | "video" | "text";
-  production: "portal" | "mac" | "manual";
+  production: "portal" | "api" | "mac" | "manual";
 }
 
 const POST_TYPES: PostTypeOption[] = REGISTRY_POST_TYPES.map((pt) => ({
@@ -184,10 +184,9 @@ export default function QuickGenerate({
   showCompanyPicker = false,
 }: QuickGenerateProps) {
   const isAdmin = useIsAdmin();
-  // Types produced on the Mac pipeline (memes, mini infographics, video) are
-  // staff-only: a client's request would go to an admin-only route.
+  // Queued cards and scripts remain staff-only through the admin route.
   const availablePostTypes = useMemo(
-    () => POST_TYPES.filter((pt) => isAdmin === true || pt.production !== "mac"),
+    () => POST_TYPES.filter((pt) => isAdmin === true || pt.production === "portal"),
     [isAdmin]
   );
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(companies[0]);
@@ -197,7 +196,7 @@ export default function QuickGenerate({
     initialPostType ? POST_TYPES.find((p) => p.slug === initialPostType) || null : null
   );
   useEffect(() => {
-    if (isAdmin === false && selectedPostType?.production === "mac") setSelectedPostType(null);
+    if (isAdmin === false && selectedPostType && selectedPostType.production !== "portal") setSelectedPostType(null);
   }, [isAdmin, selectedPostType]);
   const [platform, setPlatform] = useState("linkedin");
   const [state, setState] = useState<GenerationState>("idle");
@@ -234,7 +233,7 @@ export default function QuickGenerate({
   const [sendingToReview, setSendingToReview] = useState(false);
   const [sentToReview, setSentToReview] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  // A post the Mac made already exists as a piece; this is its id.
+  // Queued authoring already saved a piece; keep its id for edits.
   const [macPieceId, setMacPieceId] = useState<string | null>(null);
   const pollToken = useRef(0);
 
@@ -443,21 +442,20 @@ export default function QuickGenerate({
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
 
-    // Formats made on the Mac (house cards, script-first videos) are queued
-    // there; the finished piece lands in Review with its image or script.
-    if (selectedPostType.production === "mac" || selectedPostType.production === "manual") {
+    // Queue cards and scripts through the hosted writer.
+    if (selectedPostType.production !== "portal") {
       if (["podcast_hook_clip", "talking_head"].includes(selectedPostType.slug)) {
         setError(
           selectedPostType.slug === "talking_head"
             ? "A talking head starts from your footage. Drop the clip into Clips and it is cut from there."
-            : "A podcast hook clip is cut from an episode. Add it to the Source Calendar with the episode and clip, and the Mac cuts it."
+            : "A podcast hook clip is cut from an episode. Add it to the Source Calendar with the episode and clip, for editing."
         );
         return;
       }
       setError(null);
       setMacQueued(null);
       setState("generating");
-      setProgress("Sending to the Mac...");
+      setProgress("Queuing your draft...");
       const token = ++pollToken.current;
       const label = selectedPostType.label;
       const slug = selectedPostType.slug;
@@ -471,10 +469,10 @@ export default function QuickGenerate({
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Could not queue it (${res.status})`);
         const jobId: string | undefined = json.data?.job?.id;
-        if (!jobId) throw new Error("The Mac did not return a job");
+        if (!jobId) throw new Error("The platform did not return a job");
 
-        // Wait for the Mac, then show the finished post here, like any other.
-        setProgress(`The Mac is making the ${label} ${kind}. About a minute.`);
+        // Show the saved draft when hosted writing finishes.
+        setProgress(`Creating your ${label} ${kind}...`);
         const deadline = Date.now() + 5 * 60 * 1000;
         while (Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, 5000));
@@ -482,7 +480,7 @@ export default function QuickGenerate({
           const poll = await fetch(`/api/admin/single-post?jobId=${jobId}`);
           const pj = await poll.json().catch(() => ({}));
           const job = pj.data as { status?: string; error?: string | null; piece?: { id: string; markdown_body: string; first_comment: string | null; cover_image_url: string | null; post_type: string | null } | null } | undefined;
-          if (job?.status === "failed") throw new Error(job.error || `The Mac could not make the ${label}`);
+          if (job?.status === "failed") throw new Error(job.error || `Could not create the ${label}`);
           if (job?.status === "completed" && job.piece) {
             const p = job.piece;
             setResult({ postText: p.markdown_body, firstComment: p.first_comment, imageUrl: p.cover_image_url, postType: p.post_type || slug });
@@ -499,7 +497,7 @@ export default function QuickGenerate({
             return;
           }
         }
-        setMacQueued(`The Mac is still working on the ${label}. It will land in Review with its ${kind}.`);
+        setMacQueued(`Your ${label} is still queued. It will appear in Content Review with its ${kind}.`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not queue it");
       }
@@ -625,7 +623,7 @@ export default function QuickGenerate({
     setSendError(null);
     try {
       if (macPieceId) {
-        // The Mac already saved it; keep any edits, then put it in the tray.
+        // Keep any edits to the saved draft, then put it in the tray.
         if (livePostText !== result.postText || (liveFirstComment || "") !== (result.firstComment || "") || editing) {
           const saved = await fetch("/api/content/pieces", {
             method: "PATCH",
@@ -1169,7 +1167,7 @@ export default function QuickGenerate({
         <div role="status" aria-live="polite" className="flex flex-col items-center justify-center p-12">
           <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
           <p className="text-sm font-medium text-gray-900">{progress}</p>
-          {selectedPostType?.production !== "mac" && (
+          {selectedPostType?.production === "portal" && (
             <p className="mt-1 text-xs text-gray-500">This usually takes 15-30 seconds</p>
           )}
         </div>

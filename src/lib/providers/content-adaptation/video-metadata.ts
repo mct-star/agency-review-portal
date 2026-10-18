@@ -1,5 +1,6 @@
 import type { AdaptationStrategy, AdaptationInput, AdaptationOutput } from "./strategies";
-import { callClaude, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
+import type { TextConfig } from "../text-runtime";
+import { callText, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
 
 interface VideoMetadataResponse {
   title: string;
@@ -11,7 +12,8 @@ interface VideoMetadataResponse {
 
 export function createVideoMetadataStrategy(
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): AdaptationStrategy {
   const { apiKey, model } = resolveClaudeConfig(credentials, settings);
 
@@ -66,7 +68,7 @@ Generate the metadata. Respond with JSON (no code fences):
   "caption": "social caption for the video post"
 }`;
 
-      const text = await callClaude(apiKey, model, system, "Generate video metadata now.", 4096);
+      const { text, ...writer } = await callText(apiKey, model, system, "Generate video metadata now.", 4096, { config });
       const result = parseClaudeJson<VideoMetadataResponse>(text);
 
       return {
@@ -79,6 +81,7 @@ Generate the metadata. Respond with JSON (no code fences):
         canonicalUrl: null,
         mediaUrls: input.videoUrl ? [input.videoUrl] : null,
         metadata: {
+          writer,
           title: result.title,
           description: result.description,
           tags: result.tags,

@@ -9,6 +9,7 @@ vi.mock("../content-adaptation/claude-util", () => {
     CLAUDE_SONNET: "claude-sonnet-5-5",
     CLAUDE_HAIKU: "claude-haiku-5-5",
     currentClaudeModel: (m?: string | null) => m || "claude-sonnet-5-5",
+    resolveClaudeConfig: (c: { api_key: string }) => ({ apiKey: c.api_key, model: "claude-sonnet-5-5" }),
     callClaude,
     // The adapter calls callText; the test asserts on callClaude, so callText forwards to it.
     callText: vi.fn(async (...args: unknown[]) => ({

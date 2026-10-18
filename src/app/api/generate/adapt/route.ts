@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getCharLimit, getDefaultAdaptationType } from "@/lib/platform-registry";
 import { resolveAdaptationStrategy } from "@/lib/providers/content-adaptation/strategies";
-import { resolveProvider } from "@/lib/providers";
+import { resolveTextConfig } from "@/lib/providers/text-runtime";
 import type { AdaptationType, DistributionPlatform } from "@/types/database";
 
 interface PlatformRequest {
@@ -32,7 +32,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { contentPieceId, platforms: rawPlatforms } = body;
 
   if (!contentPieceId || !rawPlatforms || !Array.isArray(rawPlatforms) || rawPlatforms.length === 0) {
@@ -109,27 +110,10 @@ export async function POST(request: Request) {
       .eq("id", piece.company_id)
       .single();
 
-    // Resolve credentials for the content_generation provider (used by all strategies)
-    let credentials: Record<string, unknown> = {};
-    let providerSettings: Record<string, unknown> = {};
-    let providerName = "anthropic";
-    try {
-      const resolved = await resolveProvider(piece.company_id, "content_generation");
-      if (resolved) {
-        credentials = resolved.credentials;
-        providerSettings = resolved.settings;
-        providerName = resolved.provider;
-      }
-    } catch {
-      // Fall back to env var if no provider configured
-      credentials = {};
-      providerSettings = {};
-    }
-
-    await supabase
-      .from("content_generation_jobs")
-      .update({ provider: providerName, progress: 20 })
-      .eq("id", jobId);
+    const config = await resolveTextConfig(piece.company_id);
+    const credentials = { api_key: config.apiKey };
+    const providerSettings = { ...config.settings, provider: config.provider };
+    await supabase.from("content_generation_jobs").update({ progress: 20 }).eq("id", jobId);
 
     // Adapt for each platform sequentially
     const variants: Record<string, unknown>[] = [];
@@ -144,7 +128,8 @@ export async function POST(request: Request) {
       const strategy = await resolveAdaptationStrategy(
         adaptationType,
         credentials,
-        providerSettings
+        providerSettings,
+        config
       );
 
       const result = await strategy.adapt({
@@ -178,7 +163,7 @@ export async function POST(request: Request) {
 
       await supabase
         .from("content_generation_jobs")
-        .update({ progress: Math.round(20 + progressPerPlatform * (i + 1)) })
+        .update({ progress: Math.round(20 + progressPerPlatform * (i + 1)), provider: (result.metadata.writer as { provider?: string } | undefined)?.provider })
         .eq("id", jobId);
     }
 

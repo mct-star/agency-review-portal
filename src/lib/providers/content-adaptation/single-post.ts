@@ -1,5 +1,6 @@
 import type { AdaptationStrategy, AdaptationInput, AdaptationOutput } from "./strategies";
-import { callClaude, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
+import type { TextConfig } from "../text-runtime";
+import { callText, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
 
 const PLATFORM_RULES: Record<string, string> = {
   twitter: `Twitter/X rules:
@@ -106,14 +107,15 @@ interface SinglePostResponse {
 
 export function createSinglePostStrategy(
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): AdaptationStrategy {
   const { apiKey, model } = resolveClaudeConfig(credentials, settings);
 
   return {
     async adapt(input: AdaptationInput): Promise<AdaptationOutput> {
       const system = buildPrompt(input);
-      const text = await callClaude(apiKey, model, system, "Adapt the content now.", 2048);
+      const { text, ...writer } = await callText(apiKey, model, system, "Adapt the content now.", 2048, { config });
       const result = parseClaudeJson<SinglePostResponse>(text);
 
       return {
@@ -125,7 +127,7 @@ export function createSinglePostStrategy(
         threadParts: null,
         canonicalUrl: null,
         mediaUrls: null,
-        metadata: {},
+        metadata: { writer },
       };
     },
   };
