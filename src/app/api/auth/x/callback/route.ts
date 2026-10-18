@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const pending = cookieValue(request, X_STATE_COOKIE).split(".");
   const returnBase = new URL(redirectUri).origin;
   const returnUrl = (query: string) => state
-    ? new URL(state.returnTo === "publish" ? `/publish?${query}` : `/setup/${state.companyId}/social?${query}`, returnBase)
+    ? new URL(state.returnTo === "publish" ? `/publish?companyId=${encodeURIComponent(state.companyId)}&${query}` : `/setup/${state.companyId}/social?${query}`, returnBase)
     : new URL(`/setup?${query}`, returnBase);
   const responseFor = (query: string) => {
     const response = NextResponse.redirect(returnUrl(query));

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decrypt } from "@/lib/crypto";
-import { createAdminSupabaseClient, requireAdmin } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient, requireCompanyUser } from "@/lib/supabase/admin";
 import { listPinterestBoards } from "@/lib/pinterest/oauth";
 
 /** Lists boards accessible to one active Pinterest connection, scoped to the specified company and social account row. */
 export async function GET(request: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const companyId = request.nextUrl.searchParams.get("companyId") || "";
   const socialAccountId = request.nextUrl.searchParams.get("socialAccountId") || "";
   if (!companyId || !socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
+  const user = await requireCompanyUser(companyId);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "admin" && !user.can_publish) return NextResponse.json({ error: "Your account cannot publish." }, { status: 403 });
 
   const supabase = await createAdminSupabaseClient();
   const { data: account } = await supabase.from("company_social_accounts")

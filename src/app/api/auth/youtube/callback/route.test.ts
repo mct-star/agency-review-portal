@@ -3,7 +3,7 @@ import { signYouTubeOAuthState } from "@/lib/youtube/oauth-state";
 
 const mocks = vi.hoisted(() => ({
   nonce: "nonce-abcdefghijklmnopqrstuvwxyz012345",
-  profile: { id: "user-a", role: "client", company_id: "company-a", can_publish: true },
+  profile: { id: "user-a", role: "admin", company_id: "company-a", can_publish: true },
   exchange: vi.fn(),
   listChannels: vi.fn(),
   save: vi.fn(),
@@ -33,7 +33,7 @@ describe("YouTube OAuth callback", () => {
     process.env.YOUTUBE_REDIRECT_URI = "https://portal.example/api/auth/youtube/callback";
     process.env.NEXT_PUBLIC_APP_URL = "https://portal.example";
     mocks.nonce = "nonce-abcdefghijklmnopqrstuvwxyz012345";
-    mocks.profile = { id: "user-a", role: "client", company_id: "company-a", can_publish: true };
+    mocks.profile = { id: "user-a", role: "admin", company_id: "company-a", can_publish: true };
     mocks.exchange.mockReset().mockResolvedValue({ accessToken: "secret-access", refreshToken: "secret-refresh", expiresAt: new Date().toISOString(), scope: "youtube.upload youtube.readonly" });
     mocks.listChannels.mockReset();
     mocks.save.mockReset().mockResolvedValue({ id: "row-a", accountId: "UC123456", accountName: "Exact channel" });

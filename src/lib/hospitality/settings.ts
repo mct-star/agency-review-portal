@@ -4,7 +4,7 @@
  * plan, the trial or anything else on the company row.
  */
 
-export const NETWORKS = ["facebook", "instagram", "linkedin", "threads", "bluesky", "x", "tiktok", "gbp"] as const;
+export const NETWORKS = ["facebook", "instagram", "linkedin", "threads", "bluesky", "x", "tiktok", "gbp", "youtube", "pinterest"] as const;
 
 export interface SettingsPatch {
   post_pack?: "b2b" | "hospitality";

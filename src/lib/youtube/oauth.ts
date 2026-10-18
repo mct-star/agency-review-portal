@@ -9,7 +9,7 @@ export const YOUTUBE_NONCE_COOKIE = "youtube_oauth_nonce";
 export async function canManageYouTube(companyId: string) {
   const profile = await requireCompanyUser(companyId);
   if (!profile) return { profile: null, reason: "unauthorized" as const };
-  if (profile.role !== "admin" && !profile.can_publish) return { profile, reason: "forbidden" as const };
+  if (profile.role !== "admin") return { profile, reason: "forbidden" as const };
   return { profile, reason: null };
 }
 

@@ -23,6 +23,8 @@ const NETWORK_LABELS: Array<[string, string]> = [
   ["threads", "Threads"],
   ["bluesky", "Bluesky"],
   ["x", "X"],
+  ["youtube", "YouTube"],
+  ["pinterest", "Pinterest"],
 ];
 
 /** Venue and posting settings for a company: the pack, where posts go, how they are written, the team photo link and inviting colleagues. */
@@ -92,12 +94,12 @@ export default function VenueSettings({ companyId, canChangePack = false, childr
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-gray-900">Where your posts go</h2>
-        <p className="text-sm text-gray-600">When you export a week, each post is marked for these networks.</p>
+        <p className="text-sm text-gray-600">AGENCY enables the networks for this company. Connect an account and choose approved content in Publish. Downloads include the networks supported by the export format.</p>
         <div className="flex flex-wrap gap-2">
           {NETWORK_LABELS.map(([id, label]) => {
             const on = s.social_networks.includes(id);
             return (
-              <button key={id} type="button" aria-pressed={on} disabled={saving}
+              <button key={id} type="button" aria-pressed={on} disabled={saving || !canChangePack}
                 onClick={() => save({ social_networks: on ? s.social_networks.filter((n) => n !== id) : [...s.social_networks, id] })}
                 className={`rounded-full border px-3 py-1 text-sm ${on ? "border-violet-600 bg-violet-600 text-white" : "border-gray-300 bg-white text-gray-700"}`}>
                 {label}
@@ -105,7 +107,7 @@ export default function VenueSettings({ companyId, canChangePack = false, childr
             );
           })}
         </div>
-        {s.social_networks.length === 0 && <p className="text-xs text-gray-500">None chosen. Pick at least one so the download marks the right networks.</p>}
+        {s.social_networks.length === 0 && <p className="text-xs text-gray-500">LinkedIn is enabled by default. Ask AGENCY to add another network.</p>}
       </section>
 
       {hospitality && (
