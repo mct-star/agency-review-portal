@@ -51,7 +51,8 @@ export default async function PublishPage() {
       .eq("company_id", profile.company_id)
       .in("id", weekIds)
       .order("date_start", { ascending: false }) : { data: [] as Array<{ id: string; date_start: string; date_end: string }> };
-    return <ClientPublishView companyId={profile.company_id} canPublish={!!profile.can_publish} weeks={weeks || []} pieces={pieces} />;
+    const { data: company } = await supabase.from("companies").select("post_pack").eq("id", profile.company_id).maybeSingle();
+    return <Suspense><ClientPublishView companyId={profile.company_id} canPublish={!!profile.can_publish} weeks={weeks || []} pieces={pieces} isHospitality={company?.post_pack === "hospitality"} /></Suspense>;
   }
 
   return (

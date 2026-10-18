@@ -70,6 +70,7 @@ export function hospitalitySections(user: User): NavSection[] {
         { href: "/coming-up", label: "Coming up", icon: "calendarView" },
         { href: "/calendar", label: "Calendar", icon: "calendarView" },
         { href: "/review", label: "This week", icon: "send" },
+        ...(user.can_publish ? [{ href: "/publish", label: "Publish", icon: "send" }] : []),
       ],
     },
     {

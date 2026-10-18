@@ -19,7 +19,6 @@ export const B2B_ONLY_PAGE_PREFIXES = [
   "/create", // the create hub, article, month fill, repurpose
   "/plan", // the weekly planner
   "/compliance",
-  "/publish",
   "/analytics", // LinkedIn post analytics
   "/setup", // the operator's setup tree (the venue's own page is allowed below)
   "/content", // the business-to-business piece detail
