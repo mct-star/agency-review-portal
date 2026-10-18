@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/publish/approved?companyId=uuid
@@ -7,11 +7,6 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
  * Used by the publishing dashboard to show what's ready to publish.
  */
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
 
@@ -20,6 +15,12 @@ export async function GET(request: Request) {
       { error: "companyId is required" },
       { status: 400 }
     );
+  }
+
+  const profile = await requireCompanyUser(companyId);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (profile.role !== "admin" && !profile.can_publish) {
+    return NextResponse.json({ error: "Your account cannot publish." }, { status: 403 });
   }
 
   const supabase = await createAdminSupabaseClient();

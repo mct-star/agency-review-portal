@@ -5,6 +5,7 @@ import UpgradeGate from "@/components/billing/UpgradeGate";
 import { effectivePlanFor, FEATURE_PLANS, planAllows } from "@/lib/plan-gate";
 import PublishClient from "./PublishClient";
 import ClientPublishView from "./ClientPublishView";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const metadata: Metadata = {
   title: "Publish | AGENCY",
@@ -35,9 +36,22 @@ export default async function PublishPage() {
   }
 
   // A client sees the download and the connected accounts only; the queue
-  // and the direct-publish controls are staff tools.
+  // and direct-publish controls stay scoped to their own company.
   if (profile.role !== "admin" && profile.company_id) {
-    return <ClientPublishView companyId={profile.company_id} />;
+    const supabase = await createAdminSupabaseClient();
+    const { data: approved } = await supabase.from("content_pieces")
+      .select("id, title, content_type, week_id")
+      .eq("company_id", profile.company_id)
+      .eq("approval_status", "approved")
+      .order("created_at", { ascending: false });
+    const pieces = approved || [];
+    const weekIds = [...new Set(pieces.map((piece) => piece.week_id).filter((id): id is string => !!id))];
+    const { data: weeks } = weekIds.length ? await supabase.from("weeks")
+      .select("id, date_start, date_end")
+      .eq("company_id", profile.company_id)
+      .in("id", weekIds)
+      .order("date_start", { ascending: false }) : { data: [] as Array<{ id: string; date_start: string; date_end: string }> };
+    return <ClientPublishView companyId={profile.company_id} canPublish={!!profile.can_publish} weeks={weeks || []} pieces={pieces} />;
   }
 
   return (
