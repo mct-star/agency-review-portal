@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import PlanBoard from "./PlanBoard";
+import CalendarCounts, { calendarViewPieces } from "./CalendarCounts";
 import Badge from "@/components/ui/Badge";
 import type { ApprovalStatus } from "@/types/database";
 import {
@@ -469,6 +470,8 @@ export default function ContentCalendar({
   const [pieces, setPieces] = useState<CalendarPiece[]>([]);
   const [templateSlots, setTemplateSlots] = useState<TemplateSlot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const calendarRequest = useRef(0);
   const [showTemplate, setShowTemplate] = useState(true);
 
   // Search & recent
@@ -476,6 +479,9 @@ export default function ContentCalendar({
   const [searchResults, setSearchResults] = useState<CalendarPiece[]>([]);
   const [searchWeeks, setSearchWeeks] = useState<CalendarWeek[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchStatus, setSearchStatus] = useState<"" | "pending">("");
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const searchRequest = useRef(0);
   const [previousViewMode, setPreviousViewMode] = useState<ViewMode>("plan");
 
   // Popover state
@@ -501,7 +507,9 @@ export default function ContentCalendar({
 
   // Fetch data for the visible date range
   const fetchData = useCallback(async () => {
+    const request = ++calendarRequest.current;
     setLoading(true);
+    setCalendarError(null);
     try {
       const rangeStart = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
       const rangeEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0);
@@ -515,13 +523,14 @@ export default function ContentCalendar({
       if (!res.ok) throw new Error("Failed to load calendar data");
 
       const json = await res.json();
+      if (request !== calendarRequest.current) return;
       setWeeks(json.weeks || []);
       setPieces(json.pieces || []);
       setTemplateSlots(json.slots || []);
     } catch {
-      // empty calendar is fine
+      if (request === calendarRequest.current) setCalendarError("Could not load calendar counts. Try again.");
     } finally {
-      setLoading(false);
+      if (request === calendarRequest.current) setLoading(false);
     }
   }, [selectedCompany.id, currentDate]);
 
@@ -699,7 +708,9 @@ export default function ContentCalendar({
 
   // Search & recent data fetching
   const fetchSearchResults = useCallback(async (q: string, mode: "search" | "recent", statusFilter?: string) => {
+    const request = ++searchRequest.current;
     setSearchLoading(true);
+    setSearchError(null);
     try {
       const params = new URLSearchParams({ companyId: selectedCompany.id, mode });
       if (q.trim()) params.set("q", q.trim());
@@ -708,13 +719,13 @@ export default function ContentCalendar({
       const res = await fetch(`/api/calendar/search?${params}`);
       if (!res.ok) throw new Error("Search failed");
       const json = await res.json();
+      if (request !== searchRequest.current) return;
       setSearchResults(json.pieces || []);
       setSearchWeeks(json.weeks || []);
     } catch {
-      setSearchResults([]);
-      setSearchWeeks([]);
+      if (request === searchRequest.current) setSearchError("Could not load these posts. Try again.");
     } finally {
-      setSearchLoading(false);
+      if (request === searchRequest.current) setSearchLoading(false);
     }
   }, [selectedCompany.id]);
 
@@ -725,9 +736,12 @@ export default function ContentCalendar({
     }
     setViewMode("search");
     setSearchQuery(query);
-    if (query.trim().length >= 2) {
-      fetchSearchResults(query, "search");
+    if (query.trim().length >= 2 || (searchStatus && !query.trim())) {
+      fetchSearchResults(query, "search", searchStatus || undefined);
     } else {
+      ++searchRequest.current;
+      setSearchLoading(false);
+      setSearchError(null);
       setSearchResults([]);
     }
   }
@@ -738,21 +752,26 @@ export default function ContentCalendar({
     }
     setViewMode("recent");
     setSearchQuery("");
+    setSearchStatus("");
     fetchSearchResults("", "recent");
   }
 
   function exitSearchMode() {
+    ++searchRequest.current;
     setViewMode(previousViewMode);
     setSearchQuery("");
+    setSearchStatus("");
+    setSearchError(null);
+    setSearchLoading(false);
     setSearchResults([]);
     setSearchWeeks([]);
   }
 
-  // Summary stats
-  const totalPieces = pieces.length;
-  const approvedPieces = pieces.filter((p) => p.approval_status === "approved").length;
-  const pendingPieces = pieces.filter((p) => p.approval_status === "pending").length;
-  const changesRequested = pieces.filter((p) => p.approval_status === "changes_requested").length;
+  const summaryCells = viewMode === "month" ? getMonthGrid().flat() : viewMode === "week" ? getWeekGrid() : [];
+  const visiblePieces = calendarViewPieces(summaryCells, viewMode === "month" ? "month" : "week");
+  const countedCells = summaryCells.filter(cell => viewMode !== "month" || cell.isCurrentMonth);
+  const dateLabel = (date: Date) => date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const summaryDates = countedCells.length ? `${dateLabel(countedCells[0].date)} to ${dateLabel(countedCells[countedCells.length - 1].date)}` : "";
 
   // Title
   const title =
@@ -809,7 +828,6 @@ export default function ContentCalendar({
             Most recent
           </button>
 
-          {pendingPieces > 0 && (
             <button
               onClick={() => {
                 if (viewMode !== "search" && viewMode !== "recent") {
@@ -817,14 +835,15 @@ export default function ContentCalendar({
                 }
                 setViewMode("search");
                 setSearchQuery("");
+                setSearchStatus("pending");
                 fetchSearchResults("", "search", "pending");
               }}
+              aria-pressed={viewMode === "search" && searchStatus === "pending"}
               className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors"
             >
               <div className="h-2 w-2 rounded-full bg-amber-400" />
-              {pendingPieces} Pending Approval
+              Pending approval
             </button>
-          )}
         </div>
 
         {/* Row 2: Calendar navigation + view controls (hidden in search/recent mode) */}
@@ -925,37 +944,15 @@ export default function ContentCalendar({
       </div>
 
       {/* Summary stats */}
-      {totalPieces > 0 && viewMode !== "plan" && (
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900">{totalPieces}</span>
-            <span className="text-xs text-gray-500">posts</span>
-          </div>
-          <div className="h-4 w-px bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-400" />
-            <span className="text-xs text-gray-600">{approvedPieces} approved</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-gray-300" />
-            <span className="text-xs text-gray-600">{pendingPieces} pending</span>
-          </div>
-          {changesRequested > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-amber-400" />
-              <span className="text-xs text-gray-600">{changesRequested} changes</span>
-            </div>
-          )}
-          <div className="h-4 w-px bg-gray-200" />
-          <div className="flex-1">
-            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-green-400 transition-all"
-                style={{ width: `${totalPieces ? (approvedPieces / totalPieces) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        </div>
+      {(viewMode === "week" || viewMode === "month") && (
+        <CalendarCounts
+          items={visiblePieces}
+          heading={viewMode === "week" ? "Scheduled this week" : "Scheduled this month"}
+          scope={`${selectedCompany.name} | ${summaryDates}`}
+          note="Counts cover these dates only. Unscheduled posts and empty schedule slots are excluded."
+          loading={loading}
+          error={calendarError}
+        />
       )}
 
       {/* Calendar Grid / Search Results */}
@@ -966,10 +963,13 @@ export default function ContentCalendar({
           loading={searchLoading}
           mode={viewMode}
           query={searchQuery}
+          companyName={selectedCompany.name}
+          statusFilter={searchStatus}
+          error={searchError}
         />
       ) : viewMode === "plan" ? (
-        <PlanBoard key={selectedCompany.id} companyId={selectedCompany.id} />
-      ) : loading ? (
+        <PlanBoard key={selectedCompany.id} companyId={selectedCompany.id} companyName={selectedCompany.name} />
+      ) : calendarError ? null : loading ? (
         <div role="status" className="flex items-center justify-center gap-3 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
           <span className="text-sm text-gray-500">Loading your calendar...</span>
@@ -1441,14 +1441,26 @@ export function SearchResultsView({
   loading,
   mode,
   query,
+  companyName,
+  statusFilter = "",
+  error,
 }: {
   results: CalendarPiece[];
   weeks: CalendarWeek[];
   loading: boolean;
   mode: "search" | "recent";
   query: string;
+  companyName: string;
+  statusFilter?: "" | "pending";
+  error?: string | null;
 }) {
   const weekMap = new Map(weeks.map((w) => [w.id, w]));
+  const heading = mode === "recent" ? "Most recent posts" : statusFilter === "pending" ? "Pending approval results" : "Search results";
+  const scope = `${companyName} | All dates | ${statusFilter === "pending" ? "Pending approval only" : "All approval statuses"}${query.trim() ? ` | Search: ${query.trim()}` : ""}`;
+  const note = mode === "recent"
+    ? "Up to 20 newest posts saved under a week or Standalone content, including posts without a scheduled day."
+    : "Up to 50 newest matching posts saved under a week or Standalone content, including posts without a scheduled day.";
+  const summary = <CalendarCounts items={results} heading={heading} scope={scope} note={note} loading={loading} error={error} />;
 
   const STATUS_LABELS: Record<string, { label: string; dotColor: string }> = {
     pending: { label: "Pending", dotColor: "bg-gray-300" },
@@ -1456,42 +1468,36 @@ export function SearchResultsView({
     changes_requested: { label: "Changes Requested", dotColor: "bg-amber-400" },
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
-      </div>
-    );
-  }
-
-  if (mode === "search" && query.length < 2) {
+  if (mode === "search" && query.trim().length < 2 && !(statusFilter && !query.trim())) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
         <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <p className="mt-2 text-sm text-gray-500">Type at least 2 characters to search</p>
+        <p className="mt-2 text-xs text-gray-500">{scope}</p>
       </div>
     );
   }
 
+  if (loading || error) return summary;
+
   if (results.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
+      <div className="space-y-2">
+        {summary}
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center">
         <p className="text-sm text-gray-500">
-          {mode === "search" ? `No posts found for "${query}"` : "No recent posts found"}
+          {statusFilter === "pending" ? "No matching posts pending approval." : mode === "search" ? `No posts found for "${query}"` : "No recent posts found"}
         </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-medium text-gray-700">
-          {mode === "recent" ? "Most Recent Posts" : `${results.length} result${results.length !== 1 ? "s" : ""}`}
-        </h3>
-      </div>
+      {summary}
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
         {results.map((piece) => {

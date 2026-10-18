@@ -15,6 +15,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { dateInWeek } from "@/lib/calendar/schedule";
+import { UnscheduledCount } from "./CalendarCounts";
 
 /**
  * The planning board (27 Sept 2026): posts sent to review wait in the
@@ -129,7 +130,7 @@ function DropZone({ id, date, className, children, onTap }: {
   );
 }
 
-export default function PlanBoard({ companyId }: { companyId: string }) {
+export default function PlanBoard({ companyId, companyName }: { companyId: string; companyName: string }) {
   const [start, setStart] = useState(() => mondayOf(iso(new Date())));
   const [weeks, setWeeks] = useState<PlanWeekRow[]>([]);
   const [pieces, setPieces] = useState<PlanPiece[]>([]);
@@ -232,6 +233,7 @@ export default function PlanBoard({ companyId }: { companyId: string }) {
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <div className="space-y-3">
+        <p className="text-xs text-gray-600">{companyName} | Four-week plan | {shortDate(start)} to {new Date(addDaysIso(start, WEEKS_SHOWN * 7 - 1) + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-gray-600">
             {selected ? "Now tap a day, or the tray, to place it." : "Drag a post onto a day. On a phone, tap it, then tap a day."}
@@ -252,17 +254,15 @@ export default function PlanBoard({ companyId }: { companyId: string }) {
             onTap={tapTarget(null)}
             className="w-full flex-shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-2 lg:w-60"
           >
-            <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-gray-500" onClick={tapTarget(null)}>
-              Unscheduled ({tray.length})
-            </p>
+            <UnscheduledCount count={tray.length} loading={loading} error={error} />
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               {tray.map((p) => (
                 <Thumb key={p.id} piece={p} selected={selected === p.id} onSelect={() => setSelected(selected === p.id ? null : p.id)} />
               ))}
             </div>
-            {tray.length === 0 && !loading && (
+            {tray.length === 0 && !loading && !error && (
               <p className="px-1 py-4 text-xs text-gray-500" onClick={tapTarget(null)}>
-                Nothing waiting. Posts you send to review from Quick Generate land here.
+                No unscheduled posts to show. Posts you send to review from Quick Generate land here.
               </p>
             )}
           </DropZone>
