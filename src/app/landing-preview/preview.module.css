@@ -8,6 +8,7 @@
 .brand { display:inline-flex; align-items:center; gap:11px; color:var(--ink); min-height:44px; flex-shrink:0; }
 .brand svg { flex-shrink:0; }
 .wordmark { white-space:nowrap; font-size:25px; line-height:1.2; font-weight:500; letter-spacing:-.035em; }
+.wordmarkBreak { display:inline; }
 .navigation { display:flex; align-items:center; gap:32px; font-size:15px; }
 .navigation a { min-height:44px; display:inline-flex; align-items:center; color:var(--ink); }
 .headerCta { border:1px solid var(--ink); border-radius:5px; padding:11px 17px; gap:22px; transition:background .18s,color .18s; }
@@ -22,11 +23,12 @@
 .mobileAudience { display:none; }
 .heroGrid { display:grid; grid-template-columns:minmax(0,.95fr) minmax(0,1.15fr); gap:48px; align-items:center; }
 .heroCopy { position:relative; z-index:1; }
-.hero h1 { margin:0; font-size:clamp(54px,5.1vw,74px); line-height:1.06; letter-spacing:-.043em; font-weight:500; }
-.hero h1 em { display:inline-block; font-family:var(--preview-font-serif),serif; font-weight:400; font-size:.86em; letter-spacing:-.06em; position:relative; z-index:0; padding:0 .08em .12em 0; white-space:nowrap; }
+.hero h1 { margin:0; font-size:clamp(54px,5.1vw,68px); line-height:1.02; letter-spacing:-.043em; font-weight:500; }
+.hero h1 em { display:inline-block; font-family:var(--preview-font-serif),serif; font-weight:400; font-size:.86em; letter-spacing:-.06em; position:relative; z-index:0; padding:0 .08em .12em 0; }
 .hero h1 em::after { content:""; position:absolute; left:0; bottom:11px; width:100%; height:12px; background:var(--purple); transform:rotate(-2deg); z-index:-1; opacity:.8; }
 .pocketLine { font-size:22px; line-height:1.4; margin:20px 0 0; font-weight:500; letter-spacing:-.015em; }
-.heroDescription { max-width:390px; font-size:20px; line-height:1.5; color:#555958; margin:15px 0 0; }
+.heroDescription { max-width:390px; font-size:19px; line-height:1.45; color:#555958; margin:14px 0 0; }
+.heroProcess { max-width:440px; font-size:15px; line-height:1.5; color:#66685f; margin:10px 0 0; }
 .heroActions { display:flex; flex-wrap:wrap; align-items:center; gap:12px 22px; margin-top:29px; }
 .primaryCta { display:inline-flex; min-height:52px; align-items:center; justify-content:space-between; gap:38px; padding:14px 22px; border-radius:5px; background:var(--ink); color:#fff; font-size:16px; font-weight:500; transition:background .18s,transform .18s; }
 .primaryCta:hover { background:#3d3157; transform:translateY(-2px); }
@@ -148,10 +150,11 @@
   .mobileAudience label { font-size:14px; color:#62665b; }
   .mobileAudience select { max-width:235px; min-height:44px; padding:9px 30px 9px 13px; border:1px solid #d7cfdf; border-radius:4px; color:#4f3279; background:#eee7f7; font-size:15px; }
   .heroGrid { display:grid; grid-template-columns:minmax(0,1fr); gap:35px; }
-  .hero h1 { font-size:clamp(50px,8.7vw,65px); line-height:1.055; }
+  .hero h1 { font-size:clamp(42px,8vw,60px); line-height:1.035; }
   .hero h1 em::after { bottom:9px; height:10px; }
   .pocketLine { margin-top:19px; font-size:21px; }
   .heroDescription { max-width:440px; margin-top:12px; font-size:18px; line-height:1.5; }
+  .heroProcess { font-size:15px; }
   .heroActions { margin-top:25px; }
   .heroFootnote { margin-top:15px; }
   .workspaceTopLabel { display:inline; }
@@ -177,6 +180,8 @@
   .brand { gap:7px; }
   .brand > svg { width:22px; height:22px; }
   .wordmark { font-size:18px; }
+  .wordmark { white-space:normal; }
+  .wordmarkBreak { display:block; }
   .navigation { gap:11px; }
   .headerCta { gap:9px; font-size:13px; padding:9px 11px; }
   .login { font-size:13px; }
@@ -185,7 +190,7 @@
   .mobileAudience { gap:10px; padding-bottom:14px; }
   .mobileAudience select { max-width:211px; font-size:14px; }
   .heroGrid { gap:31px; }
-  .hero h1 { font-size:51px; }
+  .hero h1 { font-size:clamp(39px,11.2vw,44px); line-height:1.04; }
   .hero h1 em { font-size:.83em; }
   .pocketLine { font-size:20px; margin-top:17px; }
   .heroDescription { margin-top:12px; }
@@ -220,5 +225,5 @@
   .reviewChecks li { font-size:15px; }
   .previewFooter { padding:18px 20px; }
 }
-@media (max-width:390px) { .headerCta svg { display:none; } .hero h1 { font-size:48px; } }
+@media (max-width:390px) { .headerCta svg { display:none; } .hero h1 { font-size:clamp(37px,10.8vw,42px); } }
 @media (prefers-reduced-motion:reduce) { .page *, .page *::before, .page *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }

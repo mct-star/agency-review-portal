@@ -6,9 +6,9 @@ import styles from "./preview.module.css";
 
 const statuses: Record<PostStatus, string> = { ready: "Ready to share", review: "For review", draft: "Draft" };
 const stages = [
-  { id: "source", number: "01", label: "Your updates" },
-  { id: "week", number: "02", label: "A planned week" },
-  { id: "review", number: "03", label: "Your approval" },
+  { id: "source", number: "01", label: "Speak" },
+  { id: "week", number: "02", label: "Create" },
+  { id: "review", number: "03", label: "Review" },
 ] as const;
 
 export function WeekProgramme({ audience, compact = false }: { audience: Audience; compact?: boolean }) {

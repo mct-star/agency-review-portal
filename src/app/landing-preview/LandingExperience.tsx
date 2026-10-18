@@ -33,7 +33,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
 
   return <>
     <header className={styles.header}>
-      <a href="#top" className={styles.brand} aria-label="SocialTempo, back to top"><ContentMark /><span className={styles.wordmark}>SocialTempo</span></a>
+      <a href="#top" className={styles.brand} aria-label="The Daily Dictate, back to top"><ContentMark /><span className={styles.wordmark}>The Daily <span className={styles.wordmarkBreak}>Dictate</span></span></a>
       <nav className={styles.navigation} aria-label="Main navigation">
         <a href="#how-it-works" className={styles.howNav}>How it works</a>
         <Link href={`${platformUrl}/login`} className={styles.login}>Log in</Link>
@@ -56,19 +56,20 @@ export default function LandingExperience({ initialAudience }: { initialAudience
         </div>
         <div className={styles.heroGrid}>
           <div className={styles.heroCopy}>
-            <h1 id="hero-heading">Keep posting.<br />Get on with<br /><em>your business.</em></h1>
-            <p className={styles.pocketLine}>Keeping up with social posting for your business is hard. SocialTempo makes it easy.</p>
+            <h1 id="hero-heading">Talk through<br />your week.<br /><em>Get social posts</em><br /><em>to review.</em></h1>
+            <p className={styles.pocketLine}>Keep posting. Get on with your business.</p>
             <p className={styles.heroDescription}>{audience.description}</p>
+            <p className={styles.heroProcess}>Speak updates on your phone or laptop. Add photos, events or offers, then review a varied week of drafts.</p>
             <div className={styles.heroActions}>
-              <Link href={signupUrl} className={styles.primaryCta}>Get started<Arrow diagonal /></Link>
-              <a href="#how-it-works" className={styles.secondaryCta}>See how it works<Arrow /></a>
+              <a href="#example-week" className={styles.primaryCta}>See an example week<Arrow /></a>
+              <Link href={signupUrl} className={styles.secondaryCta}>Get started<Arrow diagonal /></Link>
             </div>
-            <p className={styles.heroFootnote}>A plan for the week. The final say stays with you.</p>
+            <p className={styles.heroFootnote}>You decide what is ready to share.</p>
           </div>
-          <figure className={styles.workspaceFigure} aria-label={`Illustrative ${audience.label.toLowerCase()} content week`}>
+          <figure id="example-week" className={styles.workspaceFigure} aria-label={`Illustrative ${audience.label.toLowerCase()} content week`}>
             <figcaption className={styles.workspaceCaption}><span />Illustrative example</figcaption>
             <div className={styles.workspace}>
-              <div className={styles.workspaceTop}><ContentMark /><span>Your content week</span><span className={styles.workspaceTopLabel}>PLAN / CREATE / REVIEW</span></div>
+              <div className={styles.workspaceTop}><ContentMark /><span>Your content week</span><span className={styles.workspaceTopLabel}>SPEAK / CREATE / REVIEW</span></div>
               <div className={styles.workspaceContent}>
                 <div className={styles.workspaceHeading}><span>{audience.label}</span><h2>{audience.weekTitle}</h2></div>
                 <div className={styles.inputNote}>
@@ -96,7 +97,7 @@ export default function LandingExperience({ initialAudience }: { initialAudience
       </section>
     </main>
     <footer className={styles.previewFooter}>
-      <div className={styles.conceptMeta}><span>SocialTempo | Design preview</span><span className={styles.conceptOrigin}>A product concept by AGENCY Bristol</span></div>
+      <div className={styles.conceptMeta}><span>The Daily Dictate | Design preview</span><span className={styles.conceptOrigin}>A product concept by AGENCY Bristol</span></div>
       <Link href={platformUrl}>View current site<Arrow /></Link>
     </footer>
   </>;
