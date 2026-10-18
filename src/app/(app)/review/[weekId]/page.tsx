@@ -117,7 +117,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
               <p className="mt-1 text-gray-600">{week.title}</p>
             )}
             <p className="mt-1 text-sm text-gray-500">
-              {week.date_start} — {week.date_end}
+              {new Date(week.date_start + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} to {new Date(week.date_end + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
               <span className="ml-2 text-gray-500">| {company.name}</span>
             </p>
             {week.pillar && (
