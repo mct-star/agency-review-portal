@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { fakeSupabase } from "@/test/fake-supabase";
 
 const mocks = vi.hoisted(() => ({
   requireAdmin: vi.fn(),
@@ -8,11 +9,12 @@ const mocks = vi.hoisted(() => ({
   exchangePinterestCode: vi.fn(),
   getPinterestIdentity: vi.fn(),
   listPinterestBoards: vi.fn(),
+  refreshPinterestGrant: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({ requireAdmin: mocks.requireAdmin, requireCompanyUser: mocks.requireCompanyUser, createAdminSupabaseClient: mocks.createAdminSupabaseClient }));
 vi.mock("@/lib/crypto", () => ({ decrypt: vi.fn(() => "decrypted-access-token"), encrypt: (value: string) => `encrypted:${value}` }));
-vi.mock("@/lib/pinterest/oauth", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/pinterest/oauth")>()), exchangePinterestCode: mocks.exchangePinterestCode, getPinterestIdentity: mocks.getPinterestIdentity, listPinterestBoards: mocks.listPinterestBoards }));
+vi.mock("@/lib/pinterest/oauth", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/pinterest/oauth")>()), exchangePinterestCode: mocks.exchangePinterestCode, getPinterestIdentity: mocks.getPinterestIdentity, listPinterestBoards: mocks.listPinterestBoards, refreshPinterestGrant: mocks.refreshPinterestGrant }));
 
 import { GET as startPinterest } from "./route";
 import { GET as callbackPinterest } from "./callback/route";
@@ -33,6 +35,7 @@ beforeEach(() => {
   mocks.exchangePinterestCode.mockReset();
   mocks.getPinterestIdentity.mockReset();
   mocks.listPinterestBoards.mockReset();
+  mocks.refreshPinterestGrant.mockReset();
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -79,5 +82,20 @@ describe("Pinterest OAuth and board routes", () => {
     const response = await listBoards(boardsRequest());
     expect(response.status).toBe(403);
     expect(mocks.createAdminSupabaseClient).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an expired grant before listing boards without exposing credentials", async () => {
+    mocks.requireCompanyUser.mockResolvedValue({ id: "member", role: "client", company_id: companyId, can_publish: true });
+    const db = fakeSupabase({ company_social_accounts: { data: { id: "account-a", company_id: companyId, account_id: "agency", access_token_encrypted: "encrypted:old", refresh_token_encrypted: "encrypted:refresh", token_expires_at: "2020-01-01T00:00:00Z", platform_metadata: {} } } });
+    mocks.createAdminSupabaseClient.mockResolvedValue(db.client);
+    mocks.refreshPinterestGrant.mockResolvedValue({ accessToken: "rotated-access", refreshToken: "rotated-refresh", expiresAt: "2099-01-01T00:00:00Z", refreshTokenExpiresAt: null, scope: ["boards:read", "pins:write"] });
+    mocks.getPinterestIdentity.mockResolvedValue({ username: "agency" });
+    mocks.listPinterestBoards.mockResolvedValue([{ id: "board-a", name: "AGENCY", privacy: "PUBLIC" }]);
+    const response = await listBoards(boardsRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ boards: [{ id: "board-a", name: "AGENCY" }] });
+    expect(mocks.listPinterestBoards).toHaveBeenCalledWith("rotated-access");
+    expect(db.calls).toContainEqual({ table: "company_social_accounts", method: "eq", args: ["company_id", companyId] });
+    expect(db.calls).toContainEqual({ table: "company_social_accounts", method: "update", args: [expect.objectContaining({ access_token_encrypted: "encrypted:rotated-access", refresh_token_encrypted: "encrypted:rotated-refresh" })] });
   });
 });
