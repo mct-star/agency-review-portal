@@ -37,6 +37,12 @@ describe("Threads callback grant validation", () => {
 
   it("saves an encrypted grant only after identity and publishing permission checks", async () => {
     const response = await callback();
+    const extensionRequest = fetchMock.mock.calls[1];
+    const extensionUrl = new URL(extensionRequest[0] as string);
+    expect(extensionUrl.searchParams.get("grant_type")).toBe("th_exchange_token");
+    expect(extensionUrl.searchParams.get("client_secret")).toBe("private-app-secret");
+    expect(extensionUrl.searchParams.get("access_token")).toBe("private-short-token");
+    expect(extensionRequest[1]?.headers).toBeUndefined();
     expect(mocks.request.mock.calls.map(([path]) => path)).toEqual(["me", "me/threads_publishing_limit"]);
     expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ company_id: "company-a", account_id: "thread-user", access_token_encrypted: "encrypted-grant" }), expect.anything());
     expect(response.headers.get("location")).toContain("threads_connected=1");

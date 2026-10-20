@@ -42,7 +42,8 @@ export async function GET(request: Request) {
     const longUrl = new URL("https://graph.threads.net/access_token");
     longUrl.searchParams.set("grant_type", "th_exchange_token");
     longUrl.searchParams.set("client_secret", config.appSecret);
-    const longResponse = await fetch(longUrl, { headers: { authorization: `Bearer ${short.access_token}` }, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(12_000) });
+    longUrl.searchParams.set("access_token", short.access_token);
+    const longResponse = await fetch(longUrl, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(12_000) });
     const token = await longResponse.json().catch(() => null) as ThreadsToken | null;
     if (!longResponse.ok || !token || typeof token.access_token !== "string" || !Number.isFinite(token.expires_in) || !token.expires_in) return fail("token_extension_failed", longResponse.status);
     step = "profile_verification";
