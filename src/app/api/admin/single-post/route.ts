@@ -4,6 +4,7 @@ import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import { londonToday } from "@/lib/single-post/today";
 import { queueApiProductionJob, ApiProductionQueueError } from "@/lib/api-production/queue";
 import { runApiProductionJob } from "@/lib/api-production/runner";
+import { readDraftPlan } from "@/lib/calendar/quick-create";
 
 export const maxDuration = 300;
 
@@ -106,18 +107,21 @@ async function enqueue(
 async function queueDirect(
   db: Awaited<ReturnType<typeof createAdminSupabaseClient>>,
   actorId: string,
-  body: { postTypeSlug: string; topic?: unknown; postDate?: unknown; companyId?: unknown; pillar?: unknown },
+  body: { postTypeSlug: string; topic?: unknown; postDate?: unknown; postTime?: unknown; companyId?: unknown; pillar?: unknown },
 ) {
   if (!DIRECT_TYPES.has(body.postTypeSlug)) return NextResponse.json({ error: "Choose a card or a script format. Clips need source footage." }, { status: 400 });
   if (typeof body.companyId !== "string" || !body.companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
   if (typeof body.topic !== "string" || !body.topic.trim()) return NextResponse.json({ error: "Add a topic first." }, { status: 400 });
+  const plan = readDraftPlan(body.postDate, body.postTime);
+  if (plan.error) return NextResponse.json({ error: plan.error }, { status: 400 });
   const { data: company, error } = await db.from("companies").select("id").eq("id", body.companyId).maybeSingle();
   if (error) return NextResponse.json({ error: "Could not check this company." }, { status: 500 });
   if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
   return enqueue(db, actorId, body.companyId, { kind: "direct", direct: {
     post_type_slug: body.postTypeSlug,
     topic: body.topic.trim().slice(0, 500),
-    post_date: typeof body.postDate === "string" ? body.postDate : londonToday(),
+    post_date: plan.date || londonToday(),
+    ...(plan.time ? { post_time: plan.time } : {}),
     pillar: typeof body.pillar === "string" ? body.pillar.slice(0, 200) : null,
   } });
 }

@@ -9,6 +9,7 @@ import { predictEngagement } from "@/lib/utils/engagement-predictor";
 import { setLastActivity } from "@/lib/utils/last-activity";
 import { POST_TYPES as REGISTRY_POST_TYPES } from "@/lib/constants/post-types";
 import { useIsAdmin } from "@/lib/use-is-admin";
+import { plannedDraftLabel, readDraftPlan } from "@/lib/calendar/quick-create";
 
 /**
  * Quick Generate , the "make me a post" experience.
@@ -160,6 +161,9 @@ const PLATFORM_COLORS: Record<string, string> = {
 
 interface QuickGenerateProps {
   initialCompanyId?: string;
+  initialScheduledDate?: string;
+  initialScheduledTime?: string;
+  initialPlanningError?: string;
   companies: CompanyOption[];
   spokespersons?: SpokespersonOption[];
   showCompanyPicker?: boolean;
@@ -183,6 +187,9 @@ export default function QuickGenerate({
   initialTopic,
   initialPostType,
   initialCompanyId,
+  initialScheduledDate,
+  initialScheduledTime,
+  initialPlanningError,
   showCompanyPicker = false,
 }: QuickGenerateProps) {
   const isAdmin = useIsAdmin();
@@ -192,6 +199,10 @@ export default function QuickGenerate({
     [isAdmin]
   );
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(() => companies.find((company) => company.id === initialCompanyId) || companies[0]);
+  const draftPlan = selectedCompany.id === initialCompanyId
+    ? readDraftPlan(initialScheduledDate, initialScheduledTime) : readDraftPlan(null, null);
+  const planningError = initialPlanningError || draftPlan.error;
+  const calendarHref = `/calendar?${new URLSearchParams({ companyId: selectedCompany.id, ...(draftPlan.date ? { date: draftPlan.date } : {}) })}`;
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [topic, setTopic] = useState(initialTopic || "");
   const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(
@@ -400,6 +411,7 @@ export default function QuickGenerate({
 
   async function handleGenerate() {
     if (!topic.trim() || !selectedPostType) return;
+    if (planningError) { setError(planningError); return; }
 
     // Queue cards and scripts through the hosted writer.
     if (selectedPostType.production !== "portal") {
@@ -423,7 +435,9 @@ export default function QuickGenerate({
         const res = await fetch("/api/admin/single-post", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ postTypeSlug: slug, topic: topic.trim(), companyId: selectedCompany.id }),
+          body: JSON.stringify({ postTypeSlug: slug, topic: topic.trim(), companyId: selectedCompany.id,
+            ...(draftPlan.date ? { postDate: draftPlan.date, postTime: draftPlan.time } : {}),
+          }),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || `Could not queue it (${res.status})`);
@@ -574,13 +588,13 @@ export default function QuickGenerate({
     await navigator.clipboard.writeText(liveFirstComment);
   }
 
-  // Send to review: the post goes into Review and waits, unscheduled, on
-  // the planning board until it is dragged onto a day.
+  // A planned draft retains its calendar slot. Other drafts wait in the Unscheduled tray.
   async function handleSendToReview() {
     if (!result) return;
     setSendingToReview(true);
     setSendError(null);
     try {
+      if (planningError) throw new Error(planningError);
       if (macPieceId) {
         // Keep any edits to the saved draft, then put it in the tray.
         if (livePostText !== result.postText || (liveFirstComment || "") !== (result.firstComment || "") || editing) {
@@ -594,7 +608,7 @@ export default function QuickGenerate({
         const res = await fetch("/api/calendar/reschedule", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pieceId: macPieceId, date: null }),
+          body: JSON.stringify({ pieceId: macPieceId, date: draftPlan.date, scheduledTime: draftPlan.time, ...(draftPlan.date ? { createPlannedWeek: true } : {}) }),
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not send it");
       } else {
@@ -604,7 +618,9 @@ export default function QuickGenerate({
           body: JSON.stringify({
             companyId: selectedCompany.id,
             spokespersonId: selectedPerson?.id || null,
-            unscheduled: true,
+            unscheduled: !draftPlan.date,
+            scheduledDate: draftPlan.date,
+            scheduledTime: draftPlan.time,
             postType: result.postType,
             platform,
             title: topic,
@@ -705,6 +721,9 @@ export default function QuickGenerate({
 
   return (
     <div className="workspace-panel workspace-quick">
+      {(draftPlan.date || planningError) && <div className={`m-5 rounded-lg border p-4 text-sm sm:m-7 ${planningError ? "border-red-200 bg-red-50 text-red-800" : "border-violet-200 bg-violet-50 text-violet-900"}`} role={planningError ? "alert" : "status"}>
+        {planningError || plannedDraftLabel(draftPlan)}{" "}<a href={calendarHref} className="font-medium underline">Open Calendar</a>
+      </div>}
       {/* Removed: duplicate header , page title already shown above */}
 
       {state === "idle" || state === "error" ? (
@@ -1281,7 +1300,7 @@ export default function QuickGenerate({
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                   In Review.{" "}
-                  <a href="/calendar" className="underline">Plan it</a>
+                  <a href={calendarHref} className="underline">{draftPlan.date ? "View planned draft" : "Plan it"}</a>
                 </span>
               )}
             </div>

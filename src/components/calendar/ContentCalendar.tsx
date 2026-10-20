@@ -1,6 +1,7 @@
 "use client";
 
 import { getPostType } from "@/lib/constants/post-types";
+import { calendarQuickCreateHref, readDraftPlan } from "@/lib/calendar/quick-create";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -75,6 +76,8 @@ interface DayCell {
 interface ContentCalendarProps {
   companies: CompanyOption[];
   showCompanyPicker?: boolean;
+  initialCompanyId?: string;
+  initialDate?: string;
 }
 
 type ViewMode = "plan" | "month" | "week" | "search" | "recent";
@@ -454,11 +457,14 @@ function MorePiecesPopover({
 export default function ContentCalendar({
   companies,
   showCompanyPicker = false,
+  initialCompanyId,
+  initialDate,
 }: ContentCalendarProps) {
   const router = useRouter();
-  const [selectedCompany, setSelectedCompany] = useState(companies[0]);
-  const [viewMode, setViewMode] = useState<ViewMode>("plan");
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedCompany, setSelectedCompany] = useState(() => companies.find((company) => company.id === initialCompanyId) || companies[0]);
+  const plannedDate = readDraftPlan(initialDate, null).date;
+  const [viewMode, setViewMode] = useState<ViewMode>(plannedDate ? "week" : "plan");
+  const [currentDate, setCurrentDate] = useState(() => plannedDate ? new Date(`${plannedDate}T12:00:00`) : new Date());
   const [weeks, setWeeks] = useState<CalendarWeek[]>([]);
   const [pieces, setPieces] = useState<CalendarPiece[]>([]);
   const [templateSlots, setTemplateSlots] = useState<TemplateSlot[]>([]);
@@ -970,11 +976,12 @@ export default function ContentCalendar({
         </div>
       ) : (
         <>
-        <div className="sm:hidden"><CalendarAgenda cells={viewMode === "month" ? getMonthGrid().flat().filter(cell => cell.isCurrentMonth) : getWeekGrid()} /></div>
+        <div className="sm:hidden"><CalendarAgenda companyId={selectedCompany.id} cells={viewMode === "month" ? getMonthGrid().flat().filter(cell => cell.isCurrentMonth) : getWeekGrid()} /></div>
         <div className="hidden sm:block">
         <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {viewMode === "month" ? (
             <MonthView
+              companyId={selectedCompany.id}
               grid={getMonthGrid()}
               expandedPieceId={expandedPieceId}
               setExpandedPieceId={setExpandedPieceId}
@@ -983,6 +990,7 @@ export default function ContentCalendar({
             />
           ) : (
             <WeekView
+              companyId={selectedCompany.id}
               cells={getWeekGrid()}
               expandedPieceId={expandedPieceId}
               setExpandedPieceId={setExpandedPieceId}
@@ -1026,7 +1034,7 @@ export default function ContentCalendar({
 }
 
 /** On phones a date is a readable row, rather than one seventh of the screen. */
-function CalendarAgenda({ cells }: { cells: DayCell[] }) {
+function CalendarAgenda({ cells, companyId }: { cells: DayCell[]; companyId: string }) {
   return (
     <div className="space-y-3" aria-label="Calendar by day">
       {cells.map(cell => (
@@ -1041,7 +1049,11 @@ function CalendarAgenda({ cells }: { cells: DayCell[] }) {
               </Link>
             </li>
           ))}</ul> : <p className="text-sm text-gray-500">No posts scheduled.</p>}
-          {cell.templateSlots.length > 0 && <p className="mt-3 text-xs text-gray-500">{cell.templateSlots.length} empty {cell.templateSlots.length === 1 ? "slot" : "slots"} in your schedule.</p>}
+          {cell.templateSlots.length > 0 && <ul className="mt-3 space-y-2">{cell.templateSlots.map((slot) => <li key={slot.id}>
+            <Link href={calendarQuickCreateHref(companyId, formatDateKey(cell.date), slot.scheduled_time, slot.post_types?.slug || "")} className="flex min-h-11 items-center rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-violet-700">
+              Create {slot.post_types?.label || slot.slot_label || "post"} at {formatTime(slot.scheduled_time)}
+            </Link>
+          </li>)}</ul>}
         </section>
       ))}
     </div>
@@ -1078,12 +1090,14 @@ function DragOverlayPill({ piece }: { piece: CalendarPiece }) {
 // ── Month View ───────────────────────────────────────────────
 
 function MonthView({
+  companyId,
   grid,
   expandedPieceId,
   setExpandedPieceId,
   expandedDayKey,
   setExpandedDayKey,
 }: {
+  companyId: string;
   grid: DayCell[][];
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1106,6 +1120,7 @@ function MonthView({
         <div key={rowIdx} className="grid grid-cols-7 border-b border-gray-100 last:border-b-0">
           {row.map((cell) => (
             <MonthDayCellView
+              companyId={companyId}
               key={formatDateKey(cell.date)}
               cell={cell}
               expandedPieceId={expandedPieceId}
@@ -1123,10 +1138,12 @@ function MonthView({
 // ── Week View ────────────────────────────────────────────────
 
 function WeekView({
+  companyId,
   cells,
   expandedPieceId,
   setExpandedPieceId,
 }: {
+  companyId: string;
   cells: DayCell[];
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1135,6 +1152,7 @@ function WeekView({
     <div className="grid grid-cols-7 gap-3">
       {cells.map((cell) => (
         <WeekDayCellView
+          companyId={companyId}
           key={formatDateKey(cell.date)}
           cell={cell}
           expandedPieceId={expandedPieceId}
@@ -1148,12 +1166,14 @@ function WeekView({
 // ── Month Day Cell ──────────────────────────────────────────
 
 function MonthDayCellView({
+  companyId,
   cell,
   expandedPieceId,
   setExpandedPieceId,
   expandedDayKey,
   setExpandedDayKey,
 }: {
+  companyId: string;
   cell: DayCell;
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1258,7 +1278,7 @@ function MonthDayCellView({
               key={slot.id}
               onClick={() => {
                 const slug = slot.post_types?.slug || "";
-                router.push(`/generate/quick?postType=${slug}&day=${dayName}`);
+                router.push(calendarQuickCreateHref(companyId, dateKey, slot.scheduled_time, slug));
               }}
               className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-xs text-gray-500 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
             >
@@ -1283,10 +1303,12 @@ function MonthDayCellView({
 // ── Week Day Cell ───────────────────────────────────────────
 
 function WeekDayCellView({
+  companyId,
   cell,
   expandedPieceId,
   setExpandedPieceId,
 }: {
+  companyId: string;
   cell: DayCell;
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1386,7 +1408,7 @@ function WeekDayCellView({
               key={slot.id}
               onClick={() => {
                 const slug = slot.post_types?.slug || "";
-                router.push(`/generate/quick?postType=${slug}&day=${dayName}`);
+                router.push(calendarQuickCreateHref(companyId, dateKey, slot.scheduled_time, slug));
               }}
               className="w-full text-left rounded-lg border-2 border-dashed border-gray-200 p-2.5 transition-colors hover:border-violet-400 hover:bg-violet-50 cursor-pointer group"
             >

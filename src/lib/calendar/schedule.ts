@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { addDays, isoWeekOfDate, mondayOf } from "@/lib/hospitality/week";
 
 /**
  * Where a post sits on the plan (27 Sept 2026).
@@ -61,4 +62,26 @@ export async function standaloneWeekId(supabase: SupabaseClient, companyId: stri
   }).select("id").single();
   if (error || !week) throw new Error(`Could not create the standalone week: ${error?.message}`);
   return week.id as string;
+}
+
+/** Resolve a calendar-created draft's real week, including a future recurring slot without a week yet. */
+export async function plannedWeekId(supabase: SupabaseClient, companyId: string, date: string): Promise<string> {
+  const { data: existing, error: findError } = await supabase.from("weeks").select("id")
+    .eq("company_id", companyId).gt("week_number", 0).lte("date_start", date).gte("date_end", date)
+    .order("date_start").limit(1).maybeSingle();
+  if (findError) throw new Error("The planned week could not be checked. Try again.");
+  if (existing?.id) return existing.id as string;
+  const { week, year } = isoWeekOfDate(date);
+  const start = mondayOf(date);
+  const { error: createError } = await supabase.from("weeks").upsert({
+    company_id: companyId, week_number: week, year,
+    date_start: start, date_end: addDays(start, 6), title: `Week ${week}`, status: "draft",
+  }, { onConflict: "company_id,week_number,year", ignoreDuplicates: true });
+  if (createError) throw new Error("The planned week could not be created. Try again.");
+  const { data: resolved, error } = await supabase.from("weeks").select("id, date_start, date_end")
+    .eq("company_id", companyId).eq("week_number", week).eq("year", year).limit(1).maybeSingle();
+  if (error || !resolved?.id || resolved.date_start > date || resolved.date_end < date) {
+    throw new Error("The planned week could not be confirmed. Open Calendar and try again.");
+  }
+  return resolved.id as string;
 }

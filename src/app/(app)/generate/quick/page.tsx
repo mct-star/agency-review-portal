@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import QuickGenerate from "@/components/generate/QuickGenerate";
 import HospitalityQuickPost from "@/components/hospitality/HospitalityQuickPost";
+import { plannedDraftLabel, readDraftPlan } from "@/lib/calendar/quick-create";
+import { getPostType } from "@/lib/constants/post-types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const profile = await getUserProfile();
@@ -15,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function QuickGeneratePage({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string; postType?: string; company?: string; companyId?: string }>;
+  searchParams: Promise<{ topic?: string; postType?: string; company?: string; companyId?: string; date?: string; time?: string }>;
 }) {
   const params = await searchParams;
   const profile = await getUserProfile();
@@ -47,6 +49,8 @@ export default async function QuickGeneratePage({
   const companyIds = companies.map((c) => c.id);
   const requestedCompanyId = params.company || params.companyId;
   const selectedCompanyId = companyIds.includes(requestedCompanyId || "") ? requestedCompanyId : undefined;
+  const plan = readDraftPlan(params.date, params.time);
+  if ((params.date || params.time) && !selectedCompanyId) plan.error = "Choose a company and slot in Calendar before planning this draft.";
   type SpokespersonInfo = { id: string; company_id: string; name: string; tagline: string | null; profile_picture_url: string | null; is_primary: boolean };
   let spokespersons: SpokespersonInfo[] = [];
   if (companyIds.length > 0) {
@@ -86,9 +90,21 @@ export default async function QuickGeneratePage({
         <h1 className="workspace-title">Write a post</h1>
           <p className="workspace-description">Tell us what you want to say. We write it, pick a photo from your library, and leave it for you to approve.</p>
         </div>
-        <HospitalityQuickPost companyId={hospitalityTarget.id} />
+        <HospitalityQuickPost key={`${hospitalityTarget.id}:${params.date || ""}:${params.time || ""}`} companyId={hospitalityTarget.id}
+          initialDate={plan.date || undefined} initialTime={plan.time || undefined} initialPostType={params.postType}
+          initialPlanningError={plan.error || undefined} />
       </div>
     );
+  }
+
+  const plannedFormat = params.postType ? getPostType(params.postType) : undefined;
+  if (!isAdmin && selectedCompanyId && plan.date && plannedFormat && plannedFormat.production !== "portal") {
+    return <div className="workspace-panel space-y-4 p-5 sm:p-7">
+      <h1 className="workspace-title">This format needs AGENCY production</h1>
+      <p className="text-sm text-gray-700">{plannedDraftLabel(plan)}</p>
+      <p className="text-sm text-gray-700">Ask your administrator to prepare {plannedFormat.label}, or return to Calendar to choose another format.</p>
+      <a href={`/calendar?${new URLSearchParams({ companyId: selectedCompanyId, date: plan.date })}`} className="workspace-button workspace-button-secondary">Return to Calendar</a>
+    </div>;
   }
 
   return (
@@ -99,8 +115,11 @@ export default async function QuickGeneratePage({
         <p className="workspace-description">Create a single post instantly. No planning required.</p>
       </div>
       <QuickGenerate
-        key={selectedCompanyId}
+        key={`${selectedCompanyId || "default"}:${params.date || ""}:${params.time || ""}`}
         initialCompanyId={selectedCompanyId}
+        initialScheduledDate={plan.date || undefined}
+        initialScheduledTime={plan.time || undefined}
+        initialPlanningError={plan.error || undefined}
         companies={companies.map((c) => ({
           id: c.id,
           name: c.name,

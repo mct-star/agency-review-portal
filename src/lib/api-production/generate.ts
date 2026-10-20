@@ -276,7 +276,8 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
   const piece = {
     id: pieceId, week_id: weekId, company_id: companyId,
     content_type: databaseContentType(postType.contentType, postType.medium),
-    title: output.title, day_of_week: dayName(source.date), scheduled_time: null,
+    title: output.title, day_of_week: dayName(source.date), scheduled_date: source.date,
+    scheduled_time: job.input_payload.kind === "direct" && job.input_payload.direct?.post_time ? `${job.input_payload.direct.post_time.slice(0, 5)}:00` : null,
     markdown_body: output.markdownBody, first_comment: output.firstComment,
     pillar: source.pillar || null, audience_theme: slot?.theme || null,
     topic_bank_ref: slot?.source_anchor ? `SOURCE: ${slot.source_anchor}` : null,

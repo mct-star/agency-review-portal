@@ -34,12 +34,14 @@ function suggestedSlot(now = new Date()): { date: string; time: string } {
  * One post for the venue: pick the kind, say what it is, choose the photo and
  * when it goes out, get a draft and approve it.
  */
-export default function HospitalityQuickPost({ companyId }: { companyId: string }) {
-  const [slug, setSlug] = useState(TYPES[0].slug);
+export default function HospitalityQuickPost({ companyId, initialDate, initialTime, initialPostType, initialPlanningError }: {
+  companyId: string; initialDate?: string; initialTime?: string; initialPostType?: string; initialPlanningError?: string;
+}) {
+  const [slug, setSlug] = useState(TYPES.find((type) => type.slug === initialPostType)?.slug || TYPES[0].slug);
   const [brief, setBrief] = useState("");
-  const [slot, setSlot] = useState(() => suggestedSlot());
+  const [slot, setSlot] = useState(() => ({ ...suggestedSlot(), ...(initialDate ? { date: initialDate } : {}), ...(initialTime ? { time: initialTime } : {}) }));
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialPlanningError || null);
   const [result, setResult] = useState<Result | null>(null);
   const [text, setText] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export default function HospitalityQuickPost({ companyId }: { companyId: string 
 
   async function write(e: React.FormEvent) {
     e.preventDefault();
+    if (initialPlanningError) { setError(initialPlanningError); return; }
     setBusy(true);
     setError(null);
     setResult(null);

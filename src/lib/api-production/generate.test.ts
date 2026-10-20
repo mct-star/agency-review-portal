@@ -154,6 +154,17 @@ describe("API production authoring", () => {
     expect(f.tables.content_pieces).toHaveLength(1);
   });
 
+  it("saves a hosted calendar draft's date and time without another browser save or a publishing job", async () => {
+    const f = makeDb(seed());
+    const queued = job({ input_payload: { kind: "direct", direct: { post_type_slug: "insight", topic: "Calendar topic", post_date: "2027-01-01", post_time: "16:45" } } });
+    const result = await author(f, queued);
+    expect(f.tables.content_pieces.find((piece) => piece.id === result.pieceId)).toMatchObject({
+      company_id: company.id, scheduled_date: "2027-01-01", scheduled_time: "16:45:00", approval_status: "pending",
+    });
+    expect(f.tables.weeks[0]).toMatchObject({ company_id: company.id, week_number: 53, year: 2026, date_start: "2026-12-28", date_end: "2027-01-03" });
+    expect(f.tables.publishing_jobs).toBeUndefined();
+  });
+
   it.each(["content_generation_jobs:update", "content_pieces:insert", "content_assets:upsert"])("recovers an uncertain %s acknowledgement without regenerating or duplicating saved output", async mutation => {
     const f = makeDb(seed());
     f.failAfterCommit[mutation] = "Response lost after the write committed";

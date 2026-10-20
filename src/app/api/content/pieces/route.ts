@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { standaloneWeekId } from "@/lib/calendar/schedule";
+import { dayOfDate, plannedWeekId, standaloneWeekId } from "@/lib/calendar/schedule";
+import { readDraftPlan } from "@/lib/calendar/quick-create";
 
 /**
  * POST /api/content/pieces
@@ -13,6 +14,8 @@ import { standaloneWeekId } from "@/lib/calendar/schedule";
  *   spokespersonId?: string,
  *   weekNumber?: number,   // or unscheduled: true, the planning board's tray
  *   unscheduled?: boolean,
+ *   scheduledDate?: string, // editorial calendar date, YYYY-MM-DD
+ *   scheduledTime?: string, // optional local clock time, HH:MM
  *   postType: string,
  *   platform: string,
  *   title: string,
@@ -20,11 +23,12 @@ import { standaloneWeekId } from "@/lib/calendar/schedule";
  *   firstComment?: string,
  *   imageUrl?: string,
  *   carouselImageUrls?: string[],
- *   status?: string,       // default "draft"
+ *   status?: string,       // default "draft"; calendar-created posts always remain pending
  * }
  */
 export async function POST(request: Request) {
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "A content draft is required" }, { status: 400 });
   const {
     companyId,
     spokespersonId,
@@ -39,8 +43,10 @@ export async function POST(request: Request) {
     status = "draft",
     unscheduled = false,
   } = body;
+  const plan = readDraftPlan(body.scheduledDate, body.scheduledTime);
+  if (plan.error) return NextResponse.json({ error: plan.error }, { status: 400 });
 
-  if (!companyId || (!weekNumber && !unscheduled) || !markdownBody) {
+  if (!companyId || (!weekNumber && !unscheduled && !plan.date) || typeof markdownBody !== "string" || !markdownBody.trim()) {
     return NextResponse.json(
       { error: "companyId, markdownBody, and weekNumber or unscheduled are required" },
       { status: 400 }
@@ -55,10 +61,19 @@ export async function POST(request: Request) {
   const supabase = await createAdminSupabaseClient();
   const year = new Date().getFullYear();
 
+  if (spokespersonId) {
+    const { data: person, error } = await supabase.from("company_spokespersons").select("id")
+      .eq("id", spokespersonId).eq("company_id", companyId).maybeSingle();
+    if (error || !person) return NextResponse.json({ error: "The selected person does not belong to this company" }, { status: 403 });
+  }
+
   // Find or create the week
   let weekId: string;
 
-  if (unscheduled) {
+  if (plan.date) {
+    try { weekId = await plannedWeekId(supabase, companyId, plan.date); }
+    catch (reason) { return NextResponse.json({ error: reason instanceof Error ? reason.message : "The planned week could not be saved" }, { status: 500 }); }
+  } else if (unscheduled) {
     try {
       weekId = await standaloneWeekId(supabase, companyId);
     } catch (e) {
@@ -126,8 +141,9 @@ export async function POST(request: Request) {
       first_comment: firstComment || null,
       post_type: postType || null,
       word_count: wordCount,
-      approval_status: status === "approved" ? "approved" : "pending",
+      approval_status: plan.date ? "pending" : status === "approved" ? "approved" : "pending",
       cover_image_url: imageUrl || null,
+      ...(plan.date ? { day_of_week: dayOfDate(plan.date), scheduled_date: plan.date, scheduled_time: plan.time ? `${plan.time}:00` : null } : {}),
     })
     .select("id")
     .single();
@@ -168,7 +184,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     id: piece.id,
     weekId,
-    weekNumber: unscheduled ? null : weekNumber,
+    weekNumber: plan.date || unscheduled ? null : weekNumber,
   });
 }
 

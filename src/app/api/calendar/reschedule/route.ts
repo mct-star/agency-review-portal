@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { dateInWeek, dayOfDate, isIsoDate, normDay, standaloneWeekId, weekForDate } from "@/lib/calendar/schedule";
+import { dateInWeek, dayOfDate, isIsoDate, normDay, plannedWeekId, standaloneWeekId, weekForDate } from "@/lib/calendar/schedule";
+import { readDraftPlan } from "@/lib/calendar/quick-create";
 
 /**
  * PATCH /api/calendar/reschedule
@@ -12,6 +13,7 @@ import { dateInWeek, dayOfDate, isIsoDate, normDay, standaloneWeekId, weekForDat
  *   { pieceId, date: "YYYY-MM-DD" }  onto that day, in whichever week covers it
  *   { pieceId, date: null }          back to the Unscheduled tray
  *   { pieceId, newDayOfWeek }        another day of the piece's own week (older callers)
+ *   { pieceId, date, scheduledTime, createPlannedWeek: true } from Calendar's quick-created draft
  *
  * Week, day and scheduled date always move together.
  */
@@ -22,12 +24,15 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const pieceId = typeof body.pieceId === "string" ? body.pieceId : "";
   const hasDate = Object.prototype.hasOwnProperty.call(body, "date");
+  const hasTime = Object.prototype.hasOwnProperty.call(body, "scheduledTime");
   if (!pieceId || (!hasDate && !body.newDayOfWeek)) {
     return NextResponse.json({ error: "pieceId and date (or newDayOfWeek) are required" }, { status: 400 });
   }
   if (hasDate && body.date !== null && !isIsoDate(body.date)) {
     return NextResponse.json({ error: "date must be YYYY-MM-DD, or null for the Unscheduled tray" }, { status: 400 });
   }
+  const plan = hasTime || body.createPlannedWeek ? readDraftPlan(body.date, body.scheduledTime) : null;
+  if (plan?.error) return NextResponse.json({ error: plan.error }, { status: 400 });
   const newDay = hasDate ? null : normDay(body.newDayOfWeek as string);
   if (!hasDate && !newDay) {
     return NextResponse.json({ error: `Invalid day: ${body.newDayOfWeek}` }, { status: 400 });
@@ -44,10 +49,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let patch: { week_id: string; day_of_week: string | null; scheduled_date: string | null };
+  let patch: { week_id: string; day_of_week: string | null; scheduled_date: string | null; scheduled_time?: string | null };
   try {
     if (hasDate && body.date === null) {
       patch = { week_id: await standaloneWeekId(supabase, piece.company_id), day_of_week: null, scheduled_date: null };
+    } else if (hasDate && body.createPlannedWeek === true) {
+      const date = body.date as string;
+      patch = { week_id: await plannedWeekId(supabase, piece.company_id, date), day_of_week: dayOfDate(date), scheduled_date: date };
     } else if (hasDate) {
       const date = body.date as string;
       const { data: weeks, error } = await supabase.from("weeks")
@@ -67,6 +75,8 @@ export async function PATCH(request: Request) {
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Could not place the post" }, { status: 500 });
   }
+
+  if (hasTime) patch.scheduled_time = plan?.time ? `${plan.time}:00` : null;
 
   const { error: updateErr } = await supabase.from("content_pieces").update(patch).eq("id", pieceId);
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });

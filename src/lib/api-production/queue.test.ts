@@ -8,6 +8,18 @@ const brief = { post_type_slug: "insight", topic: "Verified topic", post_date: "
 const args = { companyId: "a", actorId: "admin", input: { kind: "direct" as const, direct: brief } };
 
 describe("API production queue", () => {
+  it("distinguishes two editorial times while preserving the identity of an unchanged brief", () => {
+    const first = { kind: "direct" as const, direct: { ...brief, post_time: "09:00" } };
+    const second = { kind: "direct" as const, direct: { ...brief, post_time: "16:45" } };
+    expect(apiProductionJobId("a", first)).not.toBe(apiProductionJobId("a", second));
+    expect(apiProductionJobId("a", args.input)).toBe(apiProductionJobId("a", { kind: "direct", direct: { ...brief, post_time: null } }));
+  });
+
+  it("rejects an invalid optional editorial time before persisting the job", async () => {
+    const { db, tables } = productionTestDb();
+    await expect(queueApiProductionJob(db, { ...args, input: { kind: "direct", direct: { ...brief, post_time: "24:30" } } })).rejects.toMatchObject({ status: 400 });
+    expect(tables.content_generation_jobs).toBeUndefined();
+  });
   it("concurrent duplicate requests atomically share one API-owned row", async () => {
     const { db, tables } = productionTestDb();
     const jobs = await Promise.all([queueApiProductionJob(db, args), queueApiProductionJob(db, args)]);

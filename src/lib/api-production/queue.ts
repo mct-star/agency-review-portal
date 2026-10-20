@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { POST_TYPE_SLUGS } from "@/lib/constants/post-types";
 import { productionId } from "./identity";
+import { readDraftPlan } from "@/lib/calendar/quick-create";
 import { API_PRODUCTION_JOB_TYPE, API_PRODUCTION_PROVIDER, type ApiProductionInput, type ApiProductionJob, type ProductionDb } from "./types";
 
 export class ApiProductionQueueError extends Error {
@@ -45,6 +46,7 @@ export function apiProductionJobId(companyId: string, input: ApiProductionInput)
     post_date: input.direct?.post_date,
     pillar: input.direct?.pillar || null,
     notes: input.direct?.notes || null,
+    ...(input.direct?.post_time ? { post_time: input.direct.post_time } : {}),
   });
   return productionId(API_PRODUCTION_PROVIDER, companyId, input.kind, target || "");
 }
@@ -57,10 +59,11 @@ export async function queueApiProductionJob(db: ProductionDb, args: QueueArgs): 
   const date = input.kind === "direct" ? input.direct?.post_date : undefined;
   const parsedDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00.000Z`) : null;
   const validDate = !!parsedDate && !Number.isNaN(parsedDate.valueOf()) && parsedDate.toISOString().slice(0, 10) === date;
+  const validTime = input.kind !== "direct" || !readDraftPlan(date, input.direct?.post_time).error;
   if (!companyId || !["week", "slot", "direct"].includes(input.kind)
     || input.kind === "week" && !input.week_id
     || input.kind === "slot" && !input.slot_id
-    || input.kind === "direct" && (!input.direct?.topic?.trim() || !input.direct.post_type_slug || !POST_TYPE_SLUGS.includes(input.direct.post_type_slug) || !validDate)) {
+    || input.kind === "direct" && (!input.direct?.topic?.trim() || !input.direct.post_type_slug || !POST_TYPE_SLUGS.includes(input.direct.post_type_slug) || !validDate || !validTime)) {
     throw new ApiProductionQueueError("The production request is incomplete.", 400, "INVALID_INPUT");
   }
 
