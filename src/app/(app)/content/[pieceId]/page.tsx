@@ -278,8 +278,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
 
       {/* Publishing always goes through the confirm step below, which shows
           the exact post; there is no one-click approve-and-publish. */}
-      {/* LinkedIn Publish (admin only, social posts only, already approved) */}
-      {profile.role === "admin" && media.shape === "images" && (piece.content_type === "social_post" || piece.content_type === "meme") && (
+      {/* The Mac path handles memes and multi-image social posts; ordinary social posts use Publish. */}
+      {profile.role === "admin" && ["none", "image", "images"].includes(media.shape) && (piece.content_type === "meme" || (piece.content_type === "social_post" && media.shape === "images")) && (
         <LinkedInPublishButton
           pieceId={piece.id}
           companyId={piece.company_id}
