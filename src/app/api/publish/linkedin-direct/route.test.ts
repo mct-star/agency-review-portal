@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   profile: { id: "user-1", role: "client", company_id: "company-1", can_publish: true } as Record<string, unknown> | null,
   tables: {} as Record<string, unknown>,
+  updates: [] as Array<{ table: string; values: Record<string, unknown>; filters: Array<[string, unknown]> }>,
   inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
+  requireAdmin: vi.fn(async () => state.profile?.role === "admin" ? state.profile : null),
   requireCompanyUser: vi.fn(async (companyId: string) => state.profile?.company_id === companyId || state.profile?.role === "admin" ? state.profile : null),
   createAdminSupabaseClient: async () => ({
     from: (table: string) => {
@@ -20,6 +22,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         return data.filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value));
       };
       chain.select = () => chain;
+      chain.update = (values: Record<string, unknown>) => { state.updates.push({ table, values, filters }); return chain; };
       chain.eq = (key: string, value: unknown) => { filters.push([key, value]); return chain; };
       chain.not = () => chain;
       chain.insert = (row: Record<string, unknown>) => {
@@ -31,7 +34,7 @@ vi.mock("@/lib/supabase/admin", () => ({
       };
       chain.maybeSingle = async () => ({ data: inserted && !insertError ? inserted : rows()[0] || null, error: insertError });
       chain.single = chain.maybeSingle;
-      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(rows()).then(resolve);
+      chain.then = (resolve: (value: unknown) => void) => Promise.resolve({ data: rows(), error: null }).then(resolve);
       return chain;
     },
   }),
@@ -39,7 +42,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/hospitality/pack-guard", () => ({ refuseHospitality: async () => null }));
 vi.mock("@/lib/content/piece-media", () => ({ resolvePieceMedia: () => ({ shape: "none", items: [] }) }));
 
-import { POST } from "./route";
+import { GET, POST, DELETE } from "./route";
 
 const request = (body: unknown) => new Request("http://localhost/api/publish/linkedin-direct", { method: "POST", body: JSON.stringify(body) });
 const input = (extra: Record<string, unknown> = {}) => ({ companyId: "company-1", pieceId: "piece-1", socialAccountId: "account-1", ...extra });
@@ -47,6 +50,7 @@ const input = (extra: Record<string, unknown> = {}) => ({ companyId: "company-1"
 beforeEach(() => {
   state.profile = { id: "user-1", role: "client", company_id: "company-1", can_publish: true };
   state.inserts = [];
+  state.updates = [];
   state.tables = {
     content_pieces: [{ id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved post", first_comment: null }],
     company_social_accounts: [{ id: "account-1", company_id: "company-1", platform: "linkedin_personal", account_id: "person-1", account_name: "Selected profile", access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 86400000).toISOString(), is_active: true }],
@@ -94,5 +98,32 @@ describe("POST /api/publish/linkedin-direct", () => {
     expect(first.status).toBe(201);
     const duplicate = await POST(request(input()));
     expect(duplicate.status).toBe(409);
+  });
+});
+
+
+describe("LinkedIn connection metadata and withdrawal", () => {
+  it("reports a usable connection before any publishing account is selected", async () => {
+    const response = await GET(new Request("http://localhost/api/publish/linkedin-direct?companyId=company-1"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.connected).toBe(true);
+    expect(body.accounts[0]).toMatchObject({ id: "account-1", usable: true });
+    expect(JSON.stringify(body)).not.toContain("ciphertext");
+  });
+  it("allows only administrators to withdraw grants", async () => {
+    const response = await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }));
+    expect(response.status).toBe(401);
+    expect(state.updates).toHaveLength(0);
+  });
+  it("refuses an account outside the selected company and scopes every update", async () => {
+    state.profile = { id: "admin-1", role: "admin" };
+    const wrongTenant = await DELETE(request({ companyId: "company-2", socialAccountId: "account-1" }));
+    expect(wrongTenant.status).toBe(404);
+    expect(state.updates).toHaveLength(0);
+    const response = await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }));
+    expect(response.status).toBe(200);
+    expect(state.updates[0].values).toEqual({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null });
+    expect(state.updates[0].filters).toEqual(expect.arrayContaining([["company_id", "company-1"], ["id", "account-1"], ["platform", "linkedin_personal"]]));
   });
 });

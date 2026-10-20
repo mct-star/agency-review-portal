@@ -42,7 +42,7 @@ export function blueskyClientMetadata(env: Record<string, string | undefined> = 
   };
 }
 
-type BlueskyOAuthState = { companyId: string; userId: string; nonce: string; exp: number };
+type BlueskyOAuthState = { companyId: string; userId: string; nonce: string; exp: number; returnTo?: "setup" | "publish" };
 
 function stateSigningSecret() { return process.env.BLUESKY_OAUTH_PRIVATE_JWK?.trim() || ""; }
 function stateSign(body: string) { return createHmac("sha256", stateSigningSecret()).update(body).digest("base64url"); }
@@ -64,6 +64,7 @@ export function verifyBlueskyOAuthState(state: string | null, nonce: string | un
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<BlueskyOAuthState>;
     if (typeof parsed.companyId !== "string" || typeof parsed.userId !== "string" || parsed.nonce !== nonce || typeof parsed.exp !== "number" || parsed.exp * 1000 < now) return null;
+    if (parsed.returnTo !== undefined && parsed.returnTo !== "setup" && parsed.returnTo !== "publish") return null;
     return parsed as BlueskyOAuthState;
   } catch {
     return null;

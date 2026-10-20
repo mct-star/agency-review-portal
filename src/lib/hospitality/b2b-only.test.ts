@@ -52,6 +52,8 @@ describe("isB2bOnlyPage", () => {
       "/notifications",
       "/settings",
       "/setup/11111111-1111-4111-8111-111111111111/hospitality",
+      "/setup/11111111-1111-4111-8111-111111111111/social",
+      "/setup/11111111-1111-4111-8111-111111111111/start",
       "/not-available",
       "",
     ]) {
@@ -90,6 +92,8 @@ const OPEN_TO_HOSPITALITY = [
 /** Open by equality or pattern only, so the pages beneath them stay blocked. */
 const OPEN_EXACT = [
   "/review", // the venue's review home
+  "/setup/11111111-1111-4111-8111-111111111111/social",
+  "/setup/11111111-1111-4111-8111-111111111111/start",
   "/setup/11111111-1111-4111-8111-111111111111/hospitality", // the venue's own settings
 ];
 const isOpen = (r: string) => OPEN_EXACT.includes(r) || OPEN_TO_HOSPITALITY.some((p) => r === p || r.startsWith(`${p}/`));

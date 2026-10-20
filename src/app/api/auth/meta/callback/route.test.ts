@@ -29,6 +29,13 @@ describe("Meta OAuth callback", () => {
     vi.unstubAllGlobals();
   });
 
+  it("finishes an explicitly signed publishing connection in Settings before returning", async () => {
+    const state = createMetaState({ companyId: "company-a", userId: "user-a", nonce: "nonce-a", returnTo: "publish" });
+    mock.graph.mockResolvedValue({ data: ["pages_show_list", "pages_read_engagement", "pages_manage_posts"].map((permission) => ({ permission, status: "granted" })) });
+    const response = await GET(new Request("https://portal.example/api/auth/meta/callback?code=code&state=" + encodeURIComponent(state)));
+    expect(response.headers.get("location")).toBe("https://portal.example/setup/company-a/social?meta_choose_page=1&from=publish");
+  });
+
   it("rejects a tampered state before exchanging a code", async () => {
     const response = await GET(new Request("https://portal.example/api/auth/meta/callback?code=code&state=bad"));
     expect(response.headers.get("location")).toContain("meta_error=invalid_session");
@@ -47,7 +54,7 @@ describe("Meta OAuth callback", () => {
     const state = createMetaState({ companyId: "company-a", userId: "user-a", nonce: "nonce-a" });
     mock.graph.mockResolvedValue({ data: ["pages_show_list", "pages_read_engagement", "pages_manage_posts"].map((permission) => ({ permission, status: "granted" })) });
     const response = await GET(new Request("https://portal.example/api/auth/meta/callback?code=code&state=" + encodeURIComponent(state)));
-    expect(response.headers.get("location")).toContain("companyId=company-a&meta_choose_page=1");
+    expect(response.headers.get("location")).toBe("https://portal.example/setup/company-a/social?meta_choose_page=1");
     expect(mock.graph).toHaveBeenCalledWith("me/permissions", { fields: "permission,status" }, "long-user-token");
     expect(mock.encrypt).toHaveBeenCalledWith(expect.objectContaining({ companyId: "company-a", userId: "user-a", accessToken: "long-user-token" }));
     expect(response.headers.get("set-cookie")).toContain("encrypted-pending-grant");

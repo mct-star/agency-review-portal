@@ -1,3 +1,4 @@
+import { socialOAuthReturnPath } from "@/lib/connections/state";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSignedInProfile, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -11,11 +12,11 @@ export async function GET(request: Request) {
   const nonce = jar.get(BLUESKY_NONCE_COOKIE)?.value;
   const sdkState = url.searchParams.get("state");
   let state: ReturnType<typeof verifyBlueskyPendingState> = null;
-  const returnTo = (error: string) => `${url.origin}/publish${state?.companyId ? `?companyId=${encodeURIComponent(state.companyId)}&bluesky_error=${encodeURIComponent(error)}` : `?bluesky_error=${encodeURIComponent(error)}`}`;
+  const returnTo = (error: string) => url.origin + socialOAuthReturnPath(state?.companyId, state?.returnTo, `bluesky_error=${encodeURIComponent(error)}`);
   const clearNonce = (response: NextResponse) => response.cookies.set(BLUESKY_NONCE_COOKIE, "", { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/bluesky", maxAge: 0 });
   const fail = (error: string) => { const response = NextResponse.redirect(returnTo(error)); clearNonce(response); return response; };
   const config = blueskyOAuthConfig();
-  if (!sdkState || !config || url.searchParams.has("error") || !url.searchParams.has("code")) return fail("grant_cancelled");
+  if (!sdkState || !config) return fail("invalid_state");
   const supabase = await createAdminSupabaseClient();
   const { data: pending } = await supabase.from("bluesky_oauth_states").select("company_id,user_id,encrypted_value,expires_at")
     .eq("state_key", sdkState).maybeSingle();
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
   const profile = await getSignedInProfile();
   const companyUser = await requireCompanyUser(state.companyId);
   if (!profile || profile.id !== state.userId || profile.role !== "admin" || !companyUser || companyUser.role !== "admin") return fail("not_authorised");
+  if (url.searchParams.has("error") || !url.searchParams.has("code")) return fail("grant_cancelled");
 
   try {
     const { client, sessionCache } = await createBlueskyOAuthClient({ companyId: state.companyId, userId: state.userId });
@@ -53,7 +55,7 @@ export async function GET(request: Request) {
       is_active: true,
     }, { onConflict: "company_id,platform,account_id" });
     if (error) return fail("save_failed");
-    const response = NextResponse.redirect(`${url.origin}/publish?companyId=${encodeURIComponent(state.companyId)}&bluesky_connected=1`);
+    const response = NextResponse.redirect(url.origin + socialOAuthReturnPath(state.companyId, state.returnTo, "bluesky_connected=1"));
     clearNonce(response);
     return response;
   } catch {

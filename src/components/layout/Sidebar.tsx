@@ -87,6 +87,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
 
   function isActive(href: string): boolean {
     if (pathname === href) return true;
+    if (href === "/setup" && /^\/setup\/[^/]+\/social(?:\/|$)/.test(pathname)) return false;
     if (href === "/generate" && pathname.startsWith("/generate/quick")) return false;
     if (pathname.startsWith(href + "/")) return true;
     if (href === "/review" && pathname.startsWith("/content/")) return true;

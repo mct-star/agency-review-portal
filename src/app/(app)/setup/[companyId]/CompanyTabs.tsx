@@ -20,7 +20,7 @@ const B2B_TABS: Tab[] = [
   { label: "Voice", href: "/voice" },
   { label: "Topics", href: "/topics" },
   { label: "Schedule", href: "/schedule" },
-  { label: "Social", href: "/social" },
+  { label: "Connections", href: "/social" },
   { label: "Brand style", href: "/brand-style" },
   { label: "Image mapping", href: "/image-mapping" },
   { label: "Blueprint", href: "/blueprint" },
@@ -32,6 +32,7 @@ const B2B_TABS: Tab[] = [
 const HOSPITALITY_TABS: Tab[] = [
   { label: "Overview", href: "" },
   { label: "Venue and posting", href: "/hospitality" },
+  { label: "Connections", href: "/social" },
   { label: "People", href: "/people" },
   { label: "Photos", href: "/library", absolute: true },
 ];

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   if (profile.role !== "admin") return NextResponse.json({ error: "Only an administrator can connect publishing accounts." }, { status: 403 });
   if (!blueskyOAuthConfig()) return NextResponse.json({ error: "Bluesky OAuth is not configured." }, { status: 503 });
   const nonce = newBlueskyNonce();
-  const state = createBlueskyOAuthState({ companyId, userId: profile.id, nonce });
+  const state = createBlueskyOAuthState({ companyId, userId: profile.id, nonce, returnTo: url.searchParams.get("returnTo") === "publish" ? "publish" : "setup" });
   try {
     const { client } = await createBlueskyOAuthClient({ companyId, userId: profile.id });
     const identifier = handle.includes(".") ? handle : `${handle}.bsky.social`;

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { isOurStorageUrl } from "@/lib/media/our-storage-url";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
+import { oauthStateSecret } from "@/lib/linkedin/oauth-state";
 import { directLinkedInJobId } from "@/lib/linkedin/direct-publish";
 
 /** Queue an approved LinkedIn post for one explicitly selected account. */
@@ -119,10 +120,29 @@ export async function GET(request: Request) {
   const usable = accounts.find((account) => account.usable);
   const first = accounts[0];
   return NextResponse.json({
+    configured: !!process.env.LINKEDIN_CLIENT_ID && !!oauthStateSecret(),
     accounts,
     connected: !!usable,
     accountName: usable?.accountName || first?.accountName || null,
     expired: !!first && !!first.accountId && !first.usable && !!first.expiresAt,
     noToken: !!first && !first.accountId,
   });
+}
+
+
+/** Administrators withdraw one company-owned LinkedIn grant without deleting publishing history. */
+export async function DELETE(request: Request) {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json().catch(() => null) as { companyId?: string; socialAccountId?: string } | null;
+  if (!body?.companyId || !body.socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
+  const supabase = await createAdminSupabaseClient();
+  const { data: account } = await supabase.from("company_social_accounts").select("id")
+    .eq("id", body.socialAccountId).eq("company_id", body.companyId).eq("platform", "linkedin_personal").maybeSingle();
+  if (!account) return NextResponse.json({ error: "LinkedIn account not found." }, { status: 404 });
+  const { error } = await supabase.from("company_social_accounts")
+    .update({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null })
+    .eq("id", account.id).eq("company_id", body.companyId).eq("platform", "linkedin_personal");
+  if (error) return NextResponse.json({ error: "Could not disconnect this LinkedIn account." }, { status: 500 });
+  return NextResponse.json({ disconnected: true });
 }
