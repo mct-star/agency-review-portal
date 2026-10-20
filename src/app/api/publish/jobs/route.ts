@@ -19,6 +19,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
   const status = searchParams.get("status");
+  const pieceId = searchParams.get("pieceId");
   const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
 
   const admin = await requireAdmin();
@@ -34,20 +35,21 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("publishing_jobs")
-    .select("*, company:companies(name), content_piece:content_pieces(title, content_type), social_account:company_social_accounts(account_name)")
+    .select("*, company:companies(name), content_piece:content_pieces(title, content_type), social_account:company_social_accounts(account_name)", { count: "exact" })
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (companyId) query = query.eq("company_id", companyId);
   if (status) query = query.eq("status", status);
+  if (pieceId) query = query.eq("content_piece_id", pieceId);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (admin) return NextResponse.json({ data: data || [] });
+  if (admin) return NextResponse.json({ data: data || [], count });
   const safeData = (data || []).map((job) => ({
     id: job.id,
     company_id: job.company_id,
@@ -64,7 +66,7 @@ export async function GET(request: Request) {
     content_piece: job.content_piece,
     social_account: job.social_account,
   }));
-  return NextResponse.json({ data: safeData });
+  return NextResponse.json({ data: safeData, count });
 }
 
 export async function POST(request: Request) {
