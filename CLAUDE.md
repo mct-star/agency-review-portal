@@ -77,6 +77,11 @@ Shared server funding uses `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, selected by
 `AI_TEXT_PROVIDER=claude|openai`. Cross-provider shared fallback requires
 `AI_TEXT_FALLBACK_APPROVED=true`. A configured company key never falls back to
 shared funding. Audio transcription uses its separate API provider.
+Company writing failover requires `provider_settings.fallback_approved: true`
+on the selected provider. It uses only the opposite writer stored for that
+same company, including an inactive retained key. Missing or unusable alternate
+credentials leave the primary usable without fallback. Set approval on both
+provider rows when both directions are authorised.
 
 Week Board and queued cards/scripts use `src/lib/api-production/` with existing
 `content_generation_jobs`, `job_type=content_generation`, `provider=api_engine`.

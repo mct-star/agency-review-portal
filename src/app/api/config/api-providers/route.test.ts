@@ -67,6 +67,30 @@ describe("admin provider settings", () => {
     expect(data.data[0]).toMatchObject({ company_id: "a", has_credentials: true });
     expect(JSON.stringify(data)).not.toContain("ciphertext");
   });
+  it.each([undefined, { api_key: "" }, { api_key: "   " }])("saves fallback approval with retained matching credentials %j", async credentials => {
+    const response = await POST(save({ credentials, providerSettings: { fallback_approved: true } }));
+    expect(response.status).toBe(200);
+    expect(rows[0]).toMatchObject({ credentials_encrypted: "existing-ciphertext", provider_settings: { utility_tier: "quality", fallback_approved: true } });
+    expect(encryptJson).not.toHaveBeenCalled();
+    expect(JSON.stringify(await response.json())).not.toContain("ciphertext");
+  });
+  it.each([undefined, { api_key: "" }, { api_key: "   " }])("does not treat blank credentials as valid for a new provider %j", async credentials => {
+    expect((await POST(save({ provider: "openai_gpt4", credentials, providerSettings: { fallback_approved: true } }))).status).toBe(400);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].is_active).toBe(true);
+    expect(encryptJson).not.toHaveBeenCalled();
+  });
+  it("preserves fallback approval during utility changes and accepts explicit withdrawal", async () => {
+    rows[0].provider_settings = { utility_tier: "quality", fallback_approved: true };
+    expect((await POST(save({ providerSettings: { utility_tier: "economy" } }))).status).toBe(200);
+    expect(rows[0].provider_settings).toEqual({ utility_tier: "economy", fallback_approved: true });
+    expect((await POST(save({ providerSettings: { fallback_approved: false } }))).status).toBe(200);
+    expect(rows[0].provider_settings).toEqual({ utility_tier: "economy", fallback_approved: false });
+  });
+  it.each(["true", 1, null])("refuses non-Boolean fallback approval %s", async fallback_approved => {
+    expect((await POST(save({ providerSettings: { fallback_approved } }))).status).toBe(400);
+    expect(rows[0].provider_settings).toEqual({ utility_tier: "quality" });
+  });
   it("rejects unauthorised and malformed requests", async () => {
     requireAdmin.mockResolvedValueOnce(null);
     expect((await POST(save())).status).toBe(401);

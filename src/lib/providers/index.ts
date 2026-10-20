@@ -203,15 +203,24 @@ export async function resolveProvider(
   companyId: string,
   serviceCategory: ServiceCategory
 ): Promise<ResolvedProvider | null> {
+  return resolveProviderConfig(companyId, serviceCategory);
+}
+
+/** Read one company's retained alternate writer, even while it is inactive. */
+export async function resolveStoredWritingProvider(companyId: string, provider: "anthropic_claude" | "openai_gpt4"): Promise<ResolvedProvider | null> {
+  return resolveProviderConfig(companyId, "content_generation", provider);
+}
+
+async function resolveProviderConfig(companyId: string, serviceCategory: ServiceCategory, storedProvider?: string): Promise<ResolvedProvider | null> {
   const supabase = await createAdminSupabaseClient();
 
-  const { data: config, error } = await supabase
+  let query = supabase
     .from("company_api_configs")
     .select("*")
     .eq("company_id", companyId)
-    .eq("service_category", serviceCategory)
-    .eq("is_active", true)
-    .maybeSingle();
+    .eq("service_category", serviceCategory);
+  query = storedProvider ? query.eq("provider", storedProvider) : query.eq("is_active", true);
+  const { data: config, error } = await query.maybeSingle();
 
   if (error) throw new Error("Could not resolve the company provider configuration.");
   if (!config) return null;
