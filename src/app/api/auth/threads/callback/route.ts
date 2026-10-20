@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSignedInProfile, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { encrypt } from "@/lib/crypto";
-import { THREADS_NONCE_COOKIE, threadsConfig, threadsRequest, verifyThreadsState, type ThreadsToken } from "@/lib/threads/oauth";
+import { THREADS_NONCE_COOKIE, ThreadsApiError, threadsConfig, threadsRequest, verifyThreadsState, type ThreadsToken } from "@/lib/threads/oauth";
 
 /** Validates the signed Threads grant and saves the selected user's account to their company. */
 export async function GET(request: Request) {
@@ -13,7 +13,10 @@ export async function GET(request: Request) {
   const state = verifyThreadsState(url.searchParams.get("state"), nonce, secret);
   const returnTo = (error: string) => `${url.origin}/publish${state?.companyId ? `?companyId=${encodeURIComponent(state.companyId)}&threads_error=${encodeURIComponent(error)}` : `?threads_error=${encodeURIComponent(error)}`}`;
   const clearNonce = (response: NextResponse) => response.cookies.set(THREADS_NONCE_COOKIE, "", { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/threads", maxAge: 0 });
-  const fail = (error: string) => { const response = NextResponse.redirect(returnTo(error)); clearNonce(response); return response; };
+  const fail = (error: string, httpStatus?: number) => {
+    if (error.endsWith("_failed")) console.warn("[Threads OAuth] connection failed", { step: error, httpStatus: httpStatus ?? null });
+    const response = NextResponse.redirect(returnTo(error)); clearNonce(response); return response;
+  };
   if (!state) return fail("invalid_state");
   const profile = await getSignedInProfile();
   const companyUser = await requireCompanyUser(state.companyId);
@@ -22,6 +25,7 @@ export async function GET(request: Request) {
   const config = threadsConfig();
   if (!config) return fail("not_configured");
 
+  let step = "token_exchange";
   try {
     const shortResponse = await fetch("https://graph.threads.net/oauth/access_token", {
       method: "POST",
@@ -32,19 +36,23 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(12_000),
     });
     const short = await shortResponse.json().catch(() => null) as ThreadsToken | null;
-    if (!shortResponse.ok || !short || typeof short.access_token !== "string") return fail("grant_invalid");
+    if (!shortResponse.ok || !short || typeof short.access_token !== "string") return fail("token_exchange_failed", shortResponse.status);
 
+    step = "token_extension";
     const longUrl = new URL("https://graph.threads.net/access_token");
     longUrl.searchParams.set("grant_type", "th_exchange_token");
     longUrl.searchParams.set("client_secret", config.appSecret);
     const longResponse = await fetch(longUrl, { headers: { authorization: `Bearer ${short.access_token}` }, redirect: "error", cache: "no-store", signal: AbortSignal.timeout(12_000) });
     const token = await longResponse.json().catch(() => null) as ThreadsToken | null;
-    if (!longResponse.ok || !token || typeof token.access_token !== "string" || !Number.isFinite(token.expires_in) || !token.expires_in) return fail("grant_invalid");
+    if (!longResponse.ok || !token || typeof token.access_token !== "string" || !Number.isFinite(token.expires_in) || !token.expires_in) return fail("token_extension_failed", longResponse.status);
+    step = "profile_verification";
     const identity = await threadsRequest("me", token.access_token, { fields: "id,username" });
-    if (typeof identity.id !== "string" || typeof identity.username !== "string" || (token.user_id && token.user_id !== identity.id)) return fail("grant_invalid");
+    if (typeof identity.id !== "string" || typeof identity.username !== "string" || (token.user_id && token.user_id !== identity.id)) return fail("profile_verification_failed");
     // The documented publishing quota endpoint requires content publishing access, validating that scope before replacing a live grant.
+    step = "publishing_permission";
     await threadsRequest("me/threads_publishing_limit", token.access_token, { fields: "quota_usage,config" });
 
+    step = "save";
     const supabase = await createAdminSupabaseClient();
     const { error } = await supabase.from("company_social_accounts").upsert({
       company_id: state.companyId,
@@ -61,7 +69,7 @@ export async function GET(request: Request) {
     const response = NextResponse.redirect(`${url.origin}/publish?companyId=${encodeURIComponent(state.companyId)}&threads_connected=1`);
     clearNonce(response);
     return response;
-  } catch {
-    return fail("grant_invalid");
+  } catch (error) {
+    return fail(`${step}_failed`, error instanceof ThreadsApiError ? error.status : undefined);
   }
 }

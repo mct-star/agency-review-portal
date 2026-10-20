@@ -12,6 +12,11 @@ adds encrypted, server-only Bluesky authorisation state and permits Pinterest
 account identities. Live migration version: `20261020085747`. Verified RLS,
 service-role writes, no anon/authenticated access, and all existing platforms retained.
 
+Applied 20 October 2026: `20261020100148_social_network_rollout.sql`
+permits YouTube and Pinterest in company network selections while preserving
+the eight existing values. Live migration version: `20261020100942`.
+Verified the constraint and AGENCY's enabled networks; other companies were unchanged.
+
 `supabase/run_pending_migrations_018_to_022.sql` is an old catch-up script and
 stays where it is.
 
