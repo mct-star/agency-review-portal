@@ -61,6 +61,52 @@ describe("native dual text transport", () => {
     await expect(requestText(approved, options, unauthorised)).rejects.toThrow();
     expect(unauthorised).toHaveBeenCalledTimes(1);
   });
+  it.each(["claude", "openai"] as const)("recovers a %s rate limit once without changing provider", async provider => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+      .mockResolvedValueOnce(provider === "claude" ? claude("recovered") : openai("recovered"));
+    expect(await requestText({ ...config, provider }, options, fetcher)).toMatchObject({ provider, text: "recovered" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1][0]).toBe(fetcher.mock.calls[0][0]);
+  });
+  it.each([400, 401, 402, 403])("fails closed on unclassified HTTP %s errors even with approved fallback", async status => {
+    const approved = sharedTextConfig({ ANTHROPIC_API_KEY: "a", OPENAI_API_KEY: "b", AI_TEXT_FALLBACK_APPROVED: "true" });
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { message: "Account has insufficient credits. private account detail" } }), { status }));
+    await expect(requestText(approved, options, fetcher)).rejects.toThrow(/^The writing assistant could not complete/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("bounds an exhausted-quota 429 and permits only an explicitly approved fallback", async () => {
+    const exhausted = () => new Response(JSON.stringify({ error: { code: "insufficient_quota" } }), { status: 429 });
+    const fetcher = vi.fn().mockImplementation(async () => exhausted());
+    await expect(requestText({ provider: "openai", apiKey: "a" }, options, fetcher)).rejects.toThrow(/could not complete/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const approved = sharedTextConfig({ AI_TEXT_PROVIDER: "openai", OPENAI_API_KEY: "a", ANTHROPIC_API_KEY: "b", AI_TEXT_FALLBACK_APPROVED: "true" });
+    fetcher.mockReset().mockResolvedValueOnce(exhausted()).mockResolvedValueOnce(claude("approved fallback"));
+    expect(await requestText(approved, options, fetcher)).toMatchObject({ provider: "claude", text: "approved fallback" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    ["claude", 400, { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API. Please add credits." }],
+    ["claude", 400, { type: "invalid_request_error", message: "You have reached your specified API usage limits. Access resumes next month." }],
+    ["claude", 400, { type: "invalid_request_error", message: "You have reached your specified workspace API usage limits. Access resumes next month." }],
+    ["claude", 402, { type: "billing_error", message: "Check payment details." }],
+    ["claude", 429, { type: "rate_limit_error", details: { error_code: "enforced_spend_limit_reached" } }],
+    ...["insufficient_quota", "credit_balance_exhausted", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"].map(code => ["openai", 429, { code }] as const),
+    ["openai", 429, { type: "insufficient_quota" }],
+  ] as const)("uses only approved fallback for %s HTTP %s funding failure %j without retrying the exhausted account", async (provider, status, error) => {
+    vi.stubEnv("AI_TEXT_FALLBACK_APPROVED", "true");
+    vi.stubEnv("ANTHROPIC_API_KEY", "shared-claude");
+    vi.stubEnv("OPENAI_API_KEY", "shared-openai");
+    const response = () => new Response(JSON.stringify({ error }), { status });
+    const selected = provider;
+    const company = vi.fn().mockImplementation(async () => response());
+    await expect(requestText({ provider: selected, apiKey: "company-owned" }, options, company)).rejects.toThrow(/^The writing assistant could not complete/);
+    expect(company).toHaveBeenCalledTimes(1);
+    const approved = sharedTextConfig({ AI_TEXT_PROVIDER: selected, ANTHROPIC_API_KEY: "a", OPENAI_API_KEY: "b", AI_TEXT_FALLBACK_APPROVED: "true" });
+    const alternate = selected === "claude" ? "openai" : "claude";
+    const fetcher = vi.fn().mockResolvedValueOnce(response()).mockResolvedValueOnce(alternate === "claude" ? claude("funded fallback") : openai("funded fallback"));
+    expect(await requestText(approved, options, fetcher)).toMatchObject({ provider: alternate, text: "funded fallback" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("aborts a hung request within one total deadline", async () => {
     vi.useFakeTimers();
     const fetcher = vi.fn().mockImplementation(() => new Promise(() => {}));
