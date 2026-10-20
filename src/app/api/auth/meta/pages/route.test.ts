@@ -35,8 +35,8 @@ describe("Meta Page selection", () => {
   it("stores encrypted tokens only for the explicitly selected Page and its linked Instagram", async () => {
     mock.graph.mockImplementation(async (path: string) => {
       if (path === "me/accounts") return { data: [
-        { id: "page-a", name: "Page A", access_token: "page-token-a", tasks: ["CREATE_CONTENT"], instagram_business_account: { id: "ig-a", username: "account_a" } },
-        { id: "page-b", name: "Page B", access_token: "page-token-b", tasks: ["CREATE_CONTENT"], instagram_business_account: { id: "ig-b", username: "account_b" } },
+        { id: "page-a", name: "Page A", access_token: "page-token-a", tasks: ["PROFILE_PLUS_CREATE_CONTENT"], instagram_business_account: { id: "ig-a", username: "account_a" } },
+        { id: "page-b", name: "Page B", access_token: "page-token-b", tasks: ["PROFILE_PLUS_CREATE_CONTENT"], instagram_business_account: { id: "ig-b", username: "account_b" } },
       ] };
       if (path === "me/permissions") return { data: ["pages_show_list", "pages_read_engagement", "pages_manage_posts", "instagram_basic", "instagram_content_publish"].map((permission) => ({ permission, status: "granted" })) };
       if (path === "debug_token") return { data: { is_valid: true, app_id: "app-a", expires_at: 0, data_access_expires_at: 0 } };
@@ -51,6 +51,13 @@ describe("Meta Page selection", () => {
     expect(saved.map((row) => [row.company_id, row.platform, row.account_id])).toEqual([["company-a", "facebook", "page-b"], ["company-a", "instagram", "ig-b"]]);
     expect(saved.every((row) => row.access_token_encrypted === "ciphertext")).toBe(true);
     expect(mock.stored).toBe("page-token-b");
+  });
+
+  it("refuses a Page that grants only non-publishing tasks", async () => {
+    mock.graph.mockResolvedValue({ data: [{ id: "page-a", name: "Page A", access_token: "page-token-a", tasks: ["PROFILE_PLUS_ANALYZE"] }] });
+    const response = await POST(new Request("https://portal.example/api/auth/meta/pages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId: "company-a", pageId: "page-a" }) }));
+    expect(response.status).toBe(403);
+    expect(mock.upsert).not.toHaveBeenCalled();
   });
 
   it("rejects an Instagram identity from another Page", async () => {

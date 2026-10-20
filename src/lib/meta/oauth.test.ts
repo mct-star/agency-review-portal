@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createMetaState, hasMetaPermissions, META_SCOPES, selectMetaPage, verifyMetaState } from "./oauth";
+import { createMetaState, hasMetaPermissions, hasMetaPublishTask, META_SCOPES, selectMetaPage, verifyMetaState } from "./oauth";
 
 const secret = process.env.META_APP_SECRET;
 afterEach(() => { if (secret === undefined) delete process.env.META_APP_SECRET; else process.env.META_APP_SECRET = secret; });
@@ -19,6 +19,14 @@ describe("Meta OAuth state and grant selection", () => {
     expect(META_SCOPES).toEqual(["pages_show_list", "pages_read_engagement", "pages_manage_posts", "instagram_basic", "instagram_content_publish"]);
     expect(hasMetaPermissions(META_SCOPES.map((permission) => ({ permission, status: "granted" })))).toBe(true);
     expect(hasMetaPermissions([{ permission: "pages_show_list", status: "declined" }])).toBe(false);
+  });
+
+  it.each(["CREATE_CONTENT", "MANAGE", "FULL_CONTROL", "PROFILE_PLUS_CREATE_CONTENT", "PROFILE_PLUS_MANAGE", "PROFILE_PLUS_FULL_CONTROL"])("accepts publishing task %s", (task) => {
+    expect(hasMetaPublishTask([task])).toBe(true);
+  });
+
+  it.each([undefined, [], ["PROFILE_PLUS_ANALYZE"], ["PROFILE_PLUS_MESSAGING"], ["PROFILE_PLUS_MODERATE"], [42]])("rejects non-publishing task values %j", (tasks) => {
+    expect(hasMetaPublishTask(tasks)).toBe(false);
   });
 
   it("accepts only the explicitly selected Page and its linked Instagram identity", () => {
