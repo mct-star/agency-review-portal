@@ -56,7 +56,9 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
 const PLATFORM_LABELS: Record<string, string> = {
   linkedin_personal: "LinkedIn (Personal)",
   linkedin_company: "LinkedIn (Company)",
-  twitter: "Twitter/X",
+  twitter: "X",
+  youtube: "YouTube",
+  pinterest: "Pinterest",
   bluesky: "Bluesky",
   threads: "Threads",
   facebook: "Facebook",

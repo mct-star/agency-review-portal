@@ -4,7 +4,7 @@ const PINTEREST_AUTHORIZE_URL = "https://www.pinterest.com/oauth/";
 const PINTEREST_TOKEN_URL = "https://api.pinterest.com/v5/oauth/token";
 const PINTEREST_API = "https://api.pinterest.com/v5";
 
-export const PINTEREST_SCOPES = ["boards:read", "pins:write"] as const;
+export const PINTEREST_SCOPES = ["user_accounts:read", "boards:read", "boards:write", "pins:read", "pins:write"] as const;
 export const PINTEREST_STATE_COOKIE = "pinterest_oauth_pending";
 export const PINTEREST_STATE_TTL_SECONDS = 600;
 

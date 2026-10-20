@@ -169,15 +169,21 @@ export async function processDirectSocialJob(
     const [{ data: currentPiece }, { data: currentAccount }, { data: currentActor }, { data: currentCompany }] = await Promise.all([
       supabase.from("content_pieces").select("id,company_id,approval_status,content_type,markdown_body,title,cover_image_url")
         .eq("id", job.content_piece_id).eq("company_id", job.company_id).maybeSingle(),
-      supabase.from("company_social_accounts").select("id,company_id,platform,account_id,is_active")
+      supabase.from("company_social_accounts").select("id,company_id,platform,account_id,is_active,access_token_encrypted")
         .eq("id", account.id).eq("company_id", job.company_id).eq("platform", platform).eq("is_active", true).maybeSingle(),
       job.triggered_by ? supabase.from("users").select("id,role,company_id,can_publish").eq("id", job.triggered_by).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from("companies").select("social_networks,post_pack").eq("id", job.company_id).maybeSingle(),
     ]);
     if (!currentPiece || currentPiece.approval_status !== "approved" || toDirectSocialText(currentPiece.markdown_body || "") !== payload.text || (currentPiece.title?.trim() || null) !== (payload.title || null)) throw new Error("Approval or approved content changed before publishing.");
-    if (!currentAccount || currentAccount.account_id !== payload.account_id || !currentActor || (currentActor.role !== "admin" && (currentActor.company_id !== job.company_id || !currentActor.can_publish))) throw new Error("Publishing permission or selected account changed before dispatch.");
+    if (!currentAccount || currentAccount.account_id !== payload.account_id || currentAccount.access_token_encrypted !== currentAccessCipher || !currentActor || (currentActor.role !== "admin" && (currentActor.company_id !== job.company_id || !currentActor.can_publish))) throw new Error("Publishing permission or selected account changed before dispatch.");
     const currentNetworks = Array.isArray(currentCompany?.social_networks) ? currentCompany.social_networks as string[] : [];
     if (!currentNetworks.includes(network) || (currentCompany?.post_pack === "hospitality" && currentActor.role !== "admin")) throw new Error("This destination is no longer available for the company.");
+    const [{ data: latestImages, error: imageError }, { data: latestAssets, error: assetError }] = await Promise.all([
+      supabase.from("content_images").select("public_url,filename,sort_order,dimensions").eq("content_piece_id", currentPiece.id),
+      supabase.from("content_assets").select("asset_type,file_url,text_content,asset_metadata").eq("content_piece_id", currentPiece.id).not("file_url", "is", null),
+    ]);
+    const latestMedia = resolvePieceMedia(currentPiece, latestImages || [], latestAssets || []);
+    if (imageError || assetError || latestMedia.shape !== mediaResolved.shape || JSON.stringify(latestMedia.items.map(({ url, kind }) => ({ url, kind }))) !== JSON.stringify(mediaResolved.items.map(({ url, kind }) => ({ url, kind })))) throw new Error("Approved media changed before dispatch.");
 
     publishStarted = true;
     const result = await adapter.publish(input);

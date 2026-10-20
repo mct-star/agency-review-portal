@@ -109,7 +109,7 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
       </section>}
 
       <MetaPublishingPanel companyId={companyId} canPublish={canPublish} pieces={approvedPosts} />
-      <SocialPublishingPanel key={companyId} companyId={companyId} canPublish={canPublish} />
+      {!isHospitality && <SocialPublishingPanel key={companyId} companyId={companyId} canPublish={canPublish} />}
 
       {!isHospitality && <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-gray-900">LinkedIn queue</h2>

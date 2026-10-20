@@ -13,10 +13,11 @@ describe("Pinterest OAuth", () => {
     expect(verifyPinterestState(state, "wrong-secret", 1_001_000)).toBeNull();
   });
 
-  it("requests only board read and pin write scopes", () => {
+  it("requests the scopes required by identity, boards and create-Pin endpoints", () => {
     const url = getPinterestAuthorizationUrl("client-id", "https://portal.example/api/auth/pinterest/callback", "signed-state");
     expect(url.origin + url.pathname).toBe("https://www.pinterest.com/oauth/");
     expect(url.searchParams.get("scope")?.split(",")).toEqual([...PINTEREST_SCOPES]);
+    expect(PINTEREST_SCOPES).toContain("user_accounts:read");
     expect(url.searchParams.get("state")).toBe("signed-state");
   });
 

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const jar = await cookies();
   const nonce = jar.get(BLUESKY_NONCE_COOKIE)?.value;
   const sdkState = url.searchParams.get("state");
-  let state: ReturnType<typeof verifyBlueskyOAuthState> = null;
+  let state: ReturnType<typeof verifyBlueskyPendingState> = null;
   const returnTo = (error: string) => `${url.origin}/publish${state?.companyId ? `?companyId=${encodeURIComponent(state.companyId)}&bluesky_error=${encodeURIComponent(error)}` : `?bluesky_error=${encodeURIComponent(error)}`}`;
   const clearNonce = (response: NextResponse) => response.cookies.set(BLUESKY_NONCE_COOKIE, "", { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/bluesky", maxAge: 0 });
   const fail = (error: string) => { const response = NextResponse.redirect(returnTo(error)); clearNonce(response); return response; };
