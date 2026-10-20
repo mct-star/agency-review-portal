@@ -1,5 +1,5 @@
 /** Native text transport and company credential policy, shared by writers and adapters. */
-import { resolveProvider } from "./index";
+import { resolveProvider, resolveStoredWritingProvider } from "./index";
 export const TEXT_MODELS = {
   claude: { writing: "claude-sonnet-5-5", utility: "claude-haiku-5-5" },
   openai: { writing: "gpt-6.1-sol", utility: "gpt-6-luna" },
@@ -51,7 +51,21 @@ export function sharedTextConfig(env: Partial<NodeJS.ProcessEnv> = process.env):
 export async function resolveTextConfig(companyId?: string): Promise<TextConfig> {
   if (companyId) {
     const config = await resolveProvider(companyId, "content_generation");
-    if (config) return companyTextConfig(config.provider, config.credentials, config.settings);
+    if (config) {
+      const primary = companyTextConfig(config.provider, config.credentials, config.settings);
+      if (config.settings.fallback_approved === true) {
+        try {
+          const alternate = await resolveStoredWritingProvider(companyId, primary.provider === "claude" ? "openai_gpt4" : "anthropic_claude");
+          if (alternate) primary.fallback = companyTextConfig(alternate.provider, alternate.credentials, {
+            ...alternate.settings,
+            ...(primary.settings?.utility_tier === "quality" ? { utility_tier: "quality" } : {}),
+          });
+        } catch {
+          // An unavailable alternate must not prevent use of the primary or borrow shared funding.
+        }
+      }
+      return primary;
+    }
   }
   return sharedTextConfig();
 }

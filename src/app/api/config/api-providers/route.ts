@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   if (serviceCategory === "content_generation" && !["anthropic_claude", "openai_gpt4"].includes(provider)) {
     return NextResponse.json({ error: "Unsupported writing provider" }, { status: 400 });
   }
-  if (credentials !== undefined && (!credentials || typeof credentials !== "object" || Array.isArray(credentials) || (serviceCategory === "content_generation" && (typeof credentials.api_key !== "string" || !credentials.api_key.trim())))) {
+  if (credentials !== undefined && (!credentials || typeof credentials !== "object" || Array.isArray(credentials) || (serviceCategory === "content_generation" && typeof credentials.api_key !== "string"))) {
     return NextResponse.json({ error: "A valid API key is required" }, { status: 400 });
   }
   if (providerSettings !== undefined && (!providerSettings || typeof providerSettings !== "object" || Array.isArray(providerSettings))) {
@@ -80,18 +80,26 @@ export async function POST(request: Request) {
   if (serviceCategory === "content_generation" && providerSettings?.utility_tier !== undefined && !["economy", "quality"].includes(providerSettings.utility_tier)) {
     return NextResponse.json({ error: "Invalid utility tier" }, { status: 400 });
   }
+  if (serviceCategory === "content_generation" && providerSettings?.fallback_approved !== undefined && typeof providerSettings.fallback_approved !== "boolean") {
+    return NextResponse.json({ error: "Invalid fallback approval" }, { status: 400 });
+  }
   // Blank means retain this company's key for this exact provider, never reuse the old provider's key.
   const { data: existing, error: lookupError } = await supabase.from("company_api_configs")
     .select("credentials_encrypted, provider_settings").eq("company_id", companyId)
     .eq("service_category", serviceCategory).eq("provider", provider).maybeSingle();
   if (lookupError) return NextResponse.json({ error: "Could not load provider settings" }, { status: 500 });
-  if (serviceCategory === "content_generation" && !credentials && !existing?.credentials_encrypted) {
+  const hasNewCredentials = serviceCategory === "content_generation" ? !!credentials?.api_key?.trim() : !!credentials;
+  if (serviceCategory === "content_generation" && !hasNewCredentials && !existing?.credentials_encrypted) {
     return NextResponse.json({ error: "Enter a key for the selected writing provider" }, { status: 400 });
   }
-  const credentialsEncrypted = credentials ? encryptJson({ ...credentials, ...(typeof credentials.api_key === "string" ? { api_key: credentials.api_key.trim() } : {}) }) : existing?.credentials_encrypted ?? null;
-  const suppliedSettings = providerSettings ?? existing?.provider_settings ?? {};
+  const credentialsEncrypted = hasNewCredentials ? encryptJson({ ...credentials, ...(typeof credentials.api_key === "string" ? { api_key: credentials.api_key.trim() } : {}) }) : existing?.credentials_encrypted ?? null;
+  const suppliedSettings = serviceCategory === "content_generation"
+    ? { ...(existing?.provider_settings ?? {}), ...(providerSettings ?? {}) }
+    : providerSettings ?? existing?.provider_settings ?? {};
   const settings = serviceCategory === "content_generation"
-    ? { utility_tier: suppliedSettings.utility_tier === "quality" ? "quality" : "economy" }
+    ? { utility_tier: suppliedSettings.utility_tier === "quality" ? "quality" : "economy",
+      ...(typeof suppliedSettings.fallback_approved === "boolean" ? { fallback_approved: suppliedSettings.fallback_approved } : {}),
+    }
     : suppliedSettings;
 
   // Upsert — unique on (company_id, service_category, provider)
