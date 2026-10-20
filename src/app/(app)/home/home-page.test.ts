@@ -8,17 +8,21 @@ const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 type Counts = Record<string, number>;
 let counts: Counts = {};
 let profile: Record<string, unknown> | null = null;
+let countsError = false;
 
 function builder(table: string) {
   const filters: Record<string, unknown> = {};
   const answer = () => {
     const n = counts[`${table}:${filters.status ?? filters.approval_status ?? ""}`] ?? 0;
     const mine = filters.company_id === COMPANY_ID;
-    return { data: [], count: mine ? n : 0, error: null };
+    const pieces = table === "content_pieces" && (filters.approval_status === "approved" || filters.approval_status === "pending")
+      ? Array.from({ length: mine ? n : 0 }, (_, index) => ({ id: `p-${index}`, week_id: null })) : [];
+    return { data: pieces, count: mine ? n : 0, error: countsError ? { message: "Unavailable" } : null };
   };
   const b: Record<string, unknown> = {
     select: () => b,
     eq: (col: string, val: unknown) => ((filters[col] = val), b),
+    not: () => b,
     in: () => b,
     gte: () => b,
     order: () => b,
@@ -38,8 +42,10 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   getUserProfile: async () => profile,
-  createServerSupabaseClient: async () => ({ from: (t: string) => builder(t) }),
+  createServerSupabaseClient: async () => ({ from: (t: string) => builder(t), auth: { getUser: async () => ({ data: { user: { user_metadata: { company_name: "New Example" } } } }) } }),
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }) }));
 
 import HomePage from "./page";
 
@@ -61,6 +67,7 @@ const hospitalityCompany = {
 beforeEach(() => {
   counts = {};
   profile = null;
+  countsError = false;
 });
 
 describe("the home page for a hospitality venue", () => {
@@ -144,7 +151,7 @@ describe("the home page for a hospitality venue", () => {
 });
 
 describe("the home page for a business-to-business company", () => {
-  it("keeps the strategy banner and the three tiles, with no dashboard link", async () => {
+  it("offers setup separately from creation and the three tiles", async () => {
     counts = { "content_pieces:pending": 0 };
     profile = {
       id: "u2",
@@ -156,8 +163,10 @@ describe("the home page for a business-to-business company", () => {
       company: { id: COMPANY_ID, name: "Example Consulting", post_pack: "b2b" },
     };
     const html = await render();
-    expect(html).toContain("New here? Build a strategy for best results, or jump straight in.");
-    expect(html).toContain("Build your strategy");
+    expect(html).toContain("Finish setup");
+    expect(html).toContain(`/setup/${COMPANY_ID}/start`);
+    expect(html).not.toContain("New here?");
+    expect(html).not.toContain("Build your strategy");
     expect(html).toContain("Create a post");
     expect(html).toContain("Quick Post");
     expect(html).toContain("Content Studio");
@@ -169,6 +178,46 @@ describe("the home page for a business-to-business company", () => {
   it("is also what a company with no pack set gets", async () => {
     profile = { id: "u3", email: "x@example.test", full_name: "Xi Example", role: "client", company_id: COMPANY_ID, can_publish: false, company: { id: COMPANY_ID } };
     expect(await render()).toContain("Content Studio");
+  });
+
+  it("shows setup on the actual first-login Home destination before a company exists", async () => {
+    profile = { id: "new-user", role: "client", company_id: null, full_name: "New Person" };
+    const html = await render();
+    expect(html).toContain("Set up your workspace");
+    expect(html).toContain("New Example");
+    expect(html).toContain("Create workspace");
+    expect(html).not.toContain("Content Studio");
+    expect(html).not.toContain("Build your strategy");
+  });
+
+  it("puts approved work ahead of optional strategy setup without offering unauthorised publishing", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, name: "Example", post_pack: "b2b" } };
+    // Counts use the same table-scoped response as the other Home tests.
+    counts = { "content_pieces:approved": 2 };
+    const html = await render();
+    expect(html).toContain("2 approved posts not yet queued.");
+    expect(html).toContain("View approved content");
+    expect(hrefs(html)).not.toContain("/publish");
+    expect(html).not.toContain("Build your strategy");
+  });
+
+  it("prioritises review even when the company has no completed strategy", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, name: "Example", post_pack: "b2b" } };
+    counts = { "content_pieces:pending": 2, "content_pieces:approved": 3 };
+    const html = await render();
+    expect(html).toContain("2 individual posts awaiting review.");
+    expect(html).toContain("Review now");
+    expect(html).not.toContain("Build your strategy");
+  });
+
+  it("does not invent a zero or claim readiness after a count failure", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, name: "Example", post_pack: "b2b" } };
+    countsError = true;
+    const html = await render();
+    expect(html).toContain("Some content counts could not be checked.");
+    expect(html).toContain("Unavailable");
+    expect(html).not.toContain("All caught up");
+    expect(html).not.toContain("not yet queued.");
   });
 
   it("gives the operator the four panels, even on a hospitality company", async () => {

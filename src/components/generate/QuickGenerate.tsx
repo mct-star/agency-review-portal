@@ -159,6 +159,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 };
 
 interface QuickGenerateProps {
+  initialCompanyId?: string;
   companies: CompanyOption[];
   spokespersons?: SpokespersonOption[];
   showCompanyPicker?: boolean;
@@ -181,6 +182,7 @@ export default function QuickGenerate({
   spokespersons = [],
   initialTopic,
   initialPostType,
+  initialCompanyId,
   showCompanyPicker = false,
 }: QuickGenerateProps) {
   const isAdmin = useIsAdmin();
@@ -189,7 +191,7 @@ export default function QuickGenerate({
     () => POST_TYPES.filter((pt) => isAdmin === true || pt.production === "portal"),
     [isAdmin]
   );
-  const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(companies[0]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption>(() => companies.find((company) => company.id === initialCompanyId) || companies[0]);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [topic, setTopic] = useState(initialTopic || "");
   const [selectedPostType, setSelectedPostType] = useState<PostTypeOption | null>(

@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function QuickGeneratePage({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string; postType?: string; company?: string }>;
+  searchParams: Promise<{ topic?: string; postType?: string; company?: string; companyId?: string }>;
 }) {
   const params = await searchParams;
   const profile = await getUserProfile();
@@ -45,6 +45,8 @@ export default async function QuickGeneratePage({
 
   // Fetch spokespersons
   const companyIds = companies.map((c) => c.id);
+  const requestedCompanyId = params.company || params.companyId;
+  const selectedCompanyId = companyIds.includes(requestedCompanyId || "") ? requestedCompanyId : undefined;
   type SpokespersonInfo = { id: string; company_id: string; name: string; tagline: string | null; profile_picture_url: string | null; is_primary: boolean };
   let spokespersons: SpokespersonInfo[] = [];
   if (companyIds.length > 0) {
@@ -74,7 +76,7 @@ export default async function QuickGeneratePage({
   const { data: packRows } = await supabase.from("companies").select("id, name, post_pack").in("id", companyIds);
   const hospitalityCompanies = ((packRows || []) as Array<{ id: string; name: string; post_pack: string | null }>).filter((c) => c.post_pack === "hospitality");
   const hospitalityTarget = isAdmin
-    ? hospitalityCompanies.find((c) => c.id === params?.company)
+    ? hospitalityCompanies.find((c) => c.id === selectedCompanyId)
     : hospitalityCompanies[0];
   if (hospitalityTarget) {
     return (
@@ -97,6 +99,8 @@ export default async function QuickGeneratePage({
         <p className="workspace-description">Create a single post instantly. No planning required.</p>
       </div>
       <QuickGenerate
+        key={selectedCompanyId}
+        initialCompanyId={selectedCompanyId}
         companies={companies.map((c) => ({
           id: c.id,
           name: c.name,

@@ -4,6 +4,7 @@ import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/pro
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
 import { routeImageStyle, getEffectiveProvider } from "@/lib/providers/image-routing";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
+import { loadGenerationVoiceProfile } from "@/lib/generation/voice-profile";
 import {
   buildPreGenerationContext,
   runPostGenerationGates,
@@ -195,10 +196,7 @@ export async function POST(request: Request) {
     }
 
     // ── Fetch voice profile for this spokesperson (or company default) ──
-    const voiceQuery = spokespersonId
-      ? supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).eq("spokesperson_id", spokespersonId).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single()
-      : supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).is("spokesperson_id", null).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single();
-    const { data: voiceProfile } = await voiceQuery;
+    const voiceProfile = await loadGenerationVoiceProfile(supabase, companyId, spokespersonId);
     const voicePromptText = buildVoicePrompt(voiceProfile);
 
     // Blog teasers use CTA URLs instead of sign-offs, and have no first comment.
