@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 type Platform = "bluesky" | "threads" | "twitter" | "youtube" | "pinterest";
 type Account = { id: string; platform: Platform; accountId: string; accountName: string; usable: boolean };
@@ -17,7 +18,8 @@ const platforms: { id: Platform; label: string; auth: string; network: string }[
 const labelFor = (platform: string) => platforms.find((item) => item.id === platform)?.label || platform;
 
 /** Connects exact social destinations and queues approved content through the shared publishing worker. */
-export default function SocialPublishingPanel({ companyId, canPublish, canConnect = false, onQueued }: { companyId: string; canPublish: boolean; canConnect?: boolean; onQueued?: () => void }) {
+export default function SocialPublishingPanel({ companyId, canPublish, canConnect = false, onQueued, mode = "publish" }: { companyId: string; canPublish: boolean; canConnect?: boolean; onQueued?: () => void; mode?: "publish" | "manage" }) {
+  const managing = mode === "manage";
   const params = useSearchParams();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [configured, setConfigured] = useState<Partial<Record<Platform, boolean>>>({});
@@ -34,6 +36,7 @@ export default function SocialPublishingPanel({ companyId, canPublish, canConnec
   const [pinLink, setPinLink] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
   const [boardNotice, setBoardNotice] = useState("");
   const [timeZone, setTimeZone] = useState("your device time zone");
@@ -41,7 +44,7 @@ export default function SocialPublishingPanel({ companyId, canPublish, canConnec
   const refresh = useCallback(async (signal?: AbortSignal) => {
     const responses = await Promise.allSettled([
       fetch(`/api/publish/social?companyId=${encodeURIComponent(companyId)}`, { cache: "no-store", signal }),
-      fetch(`/api/publish/jobs?companyId=${encodeURIComponent(companyId)}&limit=50`, { cache: "no-store", signal }),
+      ...(managing ? [] : [fetch(`/api/publish/jobs?companyId=${encodeURIComponent(companyId)}&limit=50`, { cache: "no-store", signal })]),
     ]);
     if (signal?.aborted) return;
     const connection = responses[0];
@@ -51,17 +54,19 @@ export default function SocialPublishingPanel({ companyId, canPublish, canConnec
     if (signal?.aborted) return;
     setConfigured(data.configured || {}); setEnabled(data.enabledNetworks || []);
     setAccounts(data.accounts || []); setPieces(data.pieces || []);
+    setLoadError("");
     const queue = responses[1];
+    if (!queue) return;
     if (queue.status === "rejected") throw new Error("Connections loaded, but publishing status could not be refreshed.");
     const queueData = await queue.value.json();
     if (!queue.value.ok) throw new Error(queueData.error || "Could not load publishing status.");
     if (!signal?.aborted) setJobs(queueData.data || []);
-  }, [companyId]);
+  }, [companyId, managing]);
 
   useEffect(() => {
     if (!canPublish) { setLoading(false); return; }
     const controller = new AbortController();
-    void refresh(controller.signal).catch((error) => { if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : "Could not load connections."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    void refresh(controller.signal).catch((error) => { if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Could not load connections."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [canPublish, refresh]);
   useEffect(() => { setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "your device time zone"); }, []);
@@ -93,6 +98,7 @@ export default function SocialPublishingPanel({ companyId, canPublish, canConnec
   }, [companyId, selected?.id, selected?.platform]);
 
   async function disconnect(id: string) {
+    if (!window.confirm("Disconnect this social account from this company?")) return;
     setBusy(true); setNotice("");
     try {
       const response = await fetch("/api/publish/social", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, socialAccountId: id }) });
@@ -120,15 +126,18 @@ export default function SocialPublishingPanel({ companyId, canPublish, canConnec
   const recent = jobs.filter((job) => platforms.some((platform) => platform.id === job.target_platform)).slice(0, 15);
 
   return <section className="space-y-5 rounded-lg border border-gray-200 bg-white p-5">
-    <div><h2 className="text-sm font-semibold text-gray-900">More social accounts</h2><p className="mt-1 text-sm text-gray-600">Connect a destination, then choose approved content and when it should publish.</p></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-gray-900">{managing ? "More social accounts" : "Publish to more social accounts"}</h2><p className="mt-1 text-sm text-gray-600">{managing ? "Manage the accounts available for publishing." : "Choose approved content, a destination and when it should publish."}</p></div>{!managing && <Link href={`/setup/${companyId}/social`} className="inline-flex min-h-11 items-center text-sm text-blue-700 underline">Manage connections</Link>}</div>
     {!canPublish ? <p className="text-sm text-gray-600">Publishing is not enabled for your account.</p> : <>
       {notice && <p role="status" className="text-sm text-gray-700">{notice}</p>}
-      {loading ? <p className="text-sm text-gray-600">Loading connections...</p> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{platforms.map((platform) => <div key={platform.id} className="space-y-2 rounded-md border border-gray-200 p-3">
+      {loadError && <div role="alert"><p className="text-sm text-red-700">{loadError}</p><button type="button" onClick={() => void refresh().catch((error) => setLoadError(error instanceof Error ? error.message : "Could not load connections."))} className="min-h-11 text-sm text-blue-700 underline">Try again</button></div>}
+      {loading ? <p className="text-sm text-gray-600">Loading connections...</p> : managing && !loadError ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{platforms.map((platform) => <div key={platform.id} className="space-y-2 rounded-md border border-gray-200 p-3">
         <h3 className="text-sm font-semibold text-gray-900">{platform.label}</h3>
-        {accounts.filter((account) => account.platform === platform.id).map((account) => <div key={account.id} className="space-y-1 text-sm"><p>{account.accountName}{account.usable ? "" : " (reconnect needed)"}</p><button type="button" disabled={busy} onClick={() => void disconnect(account.id)} className="min-h-11 text-xs text-red-700 underline disabled:opacity-50">Disconnect {account.accountName}</button></div>)}
-        {!canConnect ? <p className="text-xs text-gray-600">AGENCY manages connections for this company.</p> : !configured[platform.id] ? <p className="text-xs text-gray-600">Connection setup is still required.</p> : platform.id === "bluesky" ? <form action="/api/auth/bluesky" method="get" className="space-y-2"><input type="hidden" name="companyId" value={companyId} /><input type="hidden" name="returnTo" value="publish" /><label className="block text-xs text-gray-700">Bluesky handle<input name="handle" required autoComplete="username" placeholder="name.bsky.social" maxLength={253} className="mt-1 block min-h-11 w-full rounded border border-gray-300 px-3 text-sm" /></label><button type="submit" className="min-h-11 rounded-md bg-sky-700 px-3 text-sm font-semibold text-white">Connect Bluesky</button></form> : <a href={`/api/auth/${platform.auth}?companyId=${encodeURIComponent(companyId)}&returnTo=publish`} className="inline-flex min-h-11 items-center rounded-md bg-sky-700 px-3 text-sm font-semibold text-white">Connect {platform.label}</a>}
-      </div>)}</div>}
-      {accounts.length > 0 && <div className="grid gap-4 md:grid-cols-2">
+        {accounts.filter((account) => account.platform === platform.id).map((account) => <div key={account.id} className="space-y-1 text-sm"><p>{account.accountName}{account.usable ? "" : " (reconnect needed)"}</p>{account.usable && <p className="text-xs text-green-700">Connected</p>}{canConnect && <button type="button" disabled={busy} onClick={() => void disconnect(account.id)} className="min-h-11 text-xs text-red-700 underline disabled:opacity-50">Disconnect {account.accountName}</button>}</div>)}
+        {accounts.filter((account) => account.platform === platform.id).length === 0 && <p className="text-xs text-gray-600">Not connected</p>}
+        {!canConnect ? <p className="text-xs text-gray-600">AGENCY manages connections for this company.</p> : !configured[platform.id] ? <p className="text-xs text-gray-600">Connection setup is still required.</p> : platform.id === "bluesky" ? <form action="/api/auth/bluesky" method="get" className="space-y-2"><input type="hidden" name="companyId" value={companyId} /><input type="hidden" name="returnTo" value="setup" /><label className="block text-xs text-gray-700">Bluesky handle<input name="handle" required autoComplete="username" placeholder="name.bsky.social" maxLength={253} className="mt-1 block min-h-11 w-full rounded border border-gray-300 px-3 text-sm" /></label><button type="submit" className="min-h-11 rounded-md bg-sky-700 px-3 text-sm font-semibold text-white">{accounts.some((account) => account.platform === platform.id && !account.usable) ? "Reconnect Bluesky" : "Connect Bluesky"}</button></form> : <a href={`/api/auth/${platform.auth}?companyId=${encodeURIComponent(companyId)}&returnTo=setup`} className="inline-flex min-h-11 items-center rounded-md bg-sky-700 px-3 text-sm font-semibold text-white">{accounts.some((account) => account.platform === platform.id && !account.usable) ? "Reconnect" : "Connect"} {platform.label}</a>}
+      </div>)}</div> : null}
+      {!managing && !loading && !loadError && accounts.length === 0 && <p className="text-sm text-gray-600">Connect a social account in Settings before publishing.</p>}
+      {!managing && accounts.length > 0 && <div className="grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium text-gray-700">Social destination<select value={accountId} onChange={(event) => { setAccountId(event.target.value); setPieceId(""); setMadeForKids(""); setPrivacy("private"); setPinLink(""); }} className="mt-1 block min-h-11 w-full rounded border border-gray-300 px-3"><option value="">Choose an account</option>{accounts.map((account) => <option key={account.id} value={account.id} disabled={!account.usable}>{labelFor(account.platform)}: {account.accountName}{account.usable ? "" : " (reconnect needed)"}</option>)}</select></label>
         <label className="text-sm font-medium text-gray-700">Approved content<select value={pieceId} onChange={(event) => setPieceId(event.target.value)} className="mt-1 block min-h-11 w-full rounded border border-gray-300 px-3" disabled={!selected}><option value="">Choose approved content</option>{choices.map((piece) => <option key={piece.id} value={piece.id}>{piece.title || "Untitled post"}</option>)}</select></label>
         {selected && !networkEnabled && <p role="status" className="text-sm text-amber-800 md:col-span-2">Ask AGENCY to enable {labelFor(selected.platform)} publishing for this company.</p>}

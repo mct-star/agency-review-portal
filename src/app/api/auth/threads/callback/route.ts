@@ -1,3 +1,4 @@
+import { socialOAuthReturnPath } from "@/lib/connections/state";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSignedInProfile, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const nonce = jar.get(THREADS_NONCE_COOKIE)?.value;
   const secret = process.env.THREADS_APP_SECRET?.trim() || "";
   const state = verifyThreadsState(url.searchParams.get("state"), nonce, secret);
-  const returnTo = (error: string) => `${url.origin}/publish${state?.companyId ? `?companyId=${encodeURIComponent(state.companyId)}&threads_error=${encodeURIComponent(error)}` : `?threads_error=${encodeURIComponent(error)}`}`;
+  const returnTo = (error: string) => url.origin + socialOAuthReturnPath(state?.companyId, state?.returnTo, `threads_error=${encodeURIComponent(error)}`);
   const clearNonce = (response: NextResponse) => response.cookies.set(THREADS_NONCE_COOKIE, "", { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/threads", maxAge: 0 });
   const fail = (error: string, httpStatus?: number) => {
     if (error.endsWith("_failed")) console.warn("[Threads OAuth] connection failed", { step: error, httpStatus: httpStatus ?? null });
@@ -67,7 +68,7 @@ export async function GET(request: Request) {
       is_active: true,
     }, { onConflict: "company_id,platform,account_id" });
     if (error) return fail("save_failed");
-    const response = NextResponse.redirect(`${url.origin}/publish?companyId=${encodeURIComponent(state.companyId)}&threads_connected=1`);
+    const response = NextResponse.redirect(url.origin + socialOAuthReturnPath(state.companyId, state.returnTo, "threads_connected=1"));
     clearNonce(response);
     return response;
   } catch (error) {

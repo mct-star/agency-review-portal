@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const config = metaConfig();
   if (!config) return NextResponse.json({ error: "Meta publishing is not configured for this portal." }, { status: 503 });
   const nonce = randomMetaNonce();
-  const state = createMetaState({ companyId, userId: profile.id, nonce });
+  const state = createMetaState({ companyId, userId: profile.id, nonce, returnTo: url.searchParams.get("returnTo") === "publish" ? "publish" : "setup" });
   const auth = new URL(`https://www.facebook.com/${config.version}/dialog/oauth`);
   auth.searchParams.set("client_id", config.appId);
   auth.searchParams.set("redirect_uri", config.redirectUri);

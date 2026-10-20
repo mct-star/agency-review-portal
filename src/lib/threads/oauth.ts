@@ -13,7 +13,7 @@ export function threadsConfig(env: Record<string, string | undefined> = process.
 
 export function newThreadsNonce() { return randomBytes(24).toString("base64url"); }
 
-type ThreadsState = { companyId: string; userId: string; nonce: string; exp: number };
+type ThreadsState = { companyId: string; userId: string; nonce: string; exp: number; returnTo?: "setup" | "publish" };
 
 function sign(value: string, secret: string) {
   return createHmac("sha256", secret).update(value).digest("base64url");
@@ -36,6 +36,7 @@ export function verifyThreadsState(state: string | null, nonce: string | undefin
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<ThreadsState>;
     if (typeof parsed.companyId !== "string" || typeof parsed.userId !== "string" || parsed.nonce !== nonce || typeof parsed.exp !== "number" || parsed.exp * 1000 < now) return null;
+    if (parsed.returnTo !== undefined && parsed.returnTo !== "setup" && parsed.returnTo !== "publish") return null;
     return parsed as ThreadsState;
   } catch {
     return null;

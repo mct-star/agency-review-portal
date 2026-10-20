@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const secret = process.env.THREADS_APP_SECRET?.trim();
   if (!config || !secret) return NextResponse.json({ error: "Threads account connection is not configured." }, { status: 503 });
   const nonce = newThreadsNonce();
-  const state = createThreadsState({ companyId, userId: profile.id, nonce }, secret);
+  const state = createThreadsState({ companyId, userId: profile.id, nonce, returnTo: url.searchParams.get("returnTo") === "publish" ? "publish" : "setup" }, secret);
   const auth = new URL("https://threads.net/oauth/authorize");
   auth.searchParams.set("client_id", config.appId);
   auth.searchParams.set("redirect_uri", config.redirectUri);

@@ -15,6 +15,15 @@ describe("Meta OAuth state and grant selection", () => {
     expect(verifyMetaState(state, "nonce-a", now + 11 * 60_000)).toBeNull();
   });
 
+  it("signs the local return destination and refuses a tampered destination", () => {
+    process.env.META_APP_SECRET = "test-meta-app-secret";
+    const state = createMetaState({ companyId: "company-a", userId: "user-a", nonce: "nonce-a", returnTo: "setup" });
+    expect(verifyMetaState(state, "nonce-a")?.returnTo).toBe("setup");
+    const [version, payload, signature] = state.split(".");
+    const changed = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(payload, "base64url").toString()), returnTo: "publish" })).toString("base64url");
+    expect(verifyMetaState(`${version}.${changed}.${signature}`, "nonce-a")).toBeNull();
+  });
+
   it("requests only the selected Facebook Login permission family", () => {
     expect(META_SCOPES).toEqual(["pages_show_list", "pages_read_engagement", "pages_manage_posts", "instagram_basic", "instagram_content_publish"]);
     expect(hasMetaPermissions(META_SCOPES.map((permission) => ({ permission, status: "granted" })))).toBe(true);

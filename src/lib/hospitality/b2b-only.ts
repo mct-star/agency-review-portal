@@ -32,7 +32,7 @@ export const B2B_ONLY_PAGE_PREFIXES = [
 export const HOSPITALITY_EXACT_PAGES = ["/review"] as const;
 
 /** A venue's own setup page: the company id in the path varies. */
-const HOSPITALITY_SETUP_PAGE = /^\/setup\/[0-9a-f-]{36}\/hospitality(\/|$)/i;
+const HOSPITALITY_SETUP_PAGE = /^\/setup\/[0-9a-f-]{36}\/(?:hospitality|social|start)$/i;
 
 /** Inside those prefixes, the pages a hospitality venue does use. */
 export const HOSPITALITY_PAGES_INSIDE_B2B_PREFIXES = [

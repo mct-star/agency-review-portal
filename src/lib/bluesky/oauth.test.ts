@@ -21,6 +21,12 @@ describe("Bluesky OAuth state and stored sessions", () => {
     expect(verifyBlueskyOAuthState(`${state}x`, "nonce-a", 1_001_000)).toBeNull();
   });
 
+  it("preserves the signed Settings return target", () => {
+    vi.stubEnv("BLUESKY_OAUTH_PRIVATE_JWK", "unit-test-state-signing-key");
+    const state = createBlueskyOAuthState({ companyId: "company-a", userId: "user-a", nonce: "nonce-a", returnTo: "setup" });
+    expect(verifyBlueskyOAuthState(state, "nonce-a")?.returnTo).toBe("setup");
+  });
+
   it("requests only repo posting and image upload scopes", () => {
     expect(BLUESKY_OAUTH_SCOPE.split(" ")).toEqual([
       "atproto",

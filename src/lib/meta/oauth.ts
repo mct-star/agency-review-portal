@@ -17,7 +17,7 @@ export function selectMetaPage<T extends { id?: unknown; name?: unknown; access_
   return instagramId && instagram?.id !== instagramId ? null : page;
 }
 
-export type MetaState = { companyId: string; userId: string; nonce: string; exp: number };
+export type MetaState = { companyId: string; userId: string; nonce: string; exp: number; returnTo?: "setup" | "publish" };
 const stateKey = () => (process.env.META_APP_SECRET || "").trim();
 
 export function metaConfig(env: Record<string, string | undefined> = process.env) {
@@ -51,6 +51,7 @@ export function verifyMetaState(state: string | null, nonce: string | undefined,
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<MetaState>;
     if (typeof parsed.companyId !== "string" || typeof parsed.userId !== "string" || parsed.nonce !== nonce || typeof parsed.exp !== "number" || parsed.exp * 1000 < now) return null;
+    if (parsed.returnTo !== undefined && parsed.returnTo !== "setup" && parsed.returnTo !== "publish") return null;
     return parsed as MetaState;
   } catch { return null; }
 }

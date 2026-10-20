@@ -111,6 +111,8 @@ export default function PublishClient() {
   const [activeTab, setActiveTab] = useState<"ready" | "queue">("ready");
   const [publishView, setPublishView] = useState<PublishView>("single");
   const [linkedInAccount, setLinkedInAccount] = useState<LinkedInAccount | null>(null);
+  const [connectionError, setConnectionError] = useState("");
+  const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [linkedInAccounts, setLinkedInAccounts] = useState<LinkedInAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [publishAt, setPublishAt] = useState("");
@@ -148,15 +150,20 @@ export default function PublishClient() {
   // Fetch LinkedIn connection status when company changes
   useEffect(() => {
     if (!selectedCompanyId) { setLinkedInAccount(null); return; }
-    fetch(`/api/publish/linkedin-direct?companyId=${selectedCompanyId}`)
-      .then((r) => r.json())
+    const controller = new AbortController();
+    setConnectionsLoading(true); setConnectionError(""); setLinkedInAccounts([]); setLinkedInAccount(null); setSelectedAccountId("");
+    fetch(`/api/publish/linkedin-direct?companyId=${selectedCompanyId}`, { signal: controller.signal })
+      .then(async (r) => { if (!r.ok) throw new Error("Could not load LinkedIn connections."); return r.json(); })
       .then((json) => {
+        if (controller.signal.aborted) return;
         const accounts = (json.accounts || []) as LinkedInAccount[];
         setLinkedInAccounts(accounts);
         setSelectedAccountId("");
         setLinkedInAccount(null);
       })
-      .catch(() => { setLinkedInAccount(null); setLinkedInAccounts([]); setSelectedAccountId(""); });
+      .catch(() => { if (!controller.signal.aborted) setConnectionError("Could not load LinkedIn connections. Check Settings and try again."); })
+      .finally(() => { if (!controller.signal.aborted) setConnectionsLoading(false); });
+    return () => controller.abort();
   }, [selectedCompanyId]);
 
   const fetchData = useCallback(() => {
@@ -362,7 +369,7 @@ export default function PublishClient() {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-gray-600">LinkedIn not connected for this company</p>
+              <p className="text-sm text-gray-600">{connectionsLoading ? "Loading LinkedIn connections..." : connectionError || (linkedInAccounts.some((account) => account.usable) ? "LinkedIn connected. Choose a publishing account." : linkedInAccounts.length ? "LinkedIn needs reconnecting in Settings." : "LinkedIn is not connected.")}</p>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -374,10 +381,10 @@ export default function PublishClient() {
           </select>}
           <input aria-label="LinkedIn publish date and time" type="datetime-local" value={publishAt} onChange={(event) => setPublishAt(event.target.value)} className="min-h-10 rounded-md border border-gray-200 px-2 text-sm" />
           <a
-            href={`/api/auth/linkedin?companyId=${selectedCompanyId}&returnTo=publish`}
+            href={`/setup/${selectedCompanyId}/social`}
             className="rounded-md bg-[#0077B5] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#006097] transition-colors"
           >
-            {linkedInAccount ? "Reconnect" : "Connect LinkedIn"}
+            Manage connections
           </a>
           </div>
         </div>

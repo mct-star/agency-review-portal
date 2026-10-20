@@ -78,6 +78,7 @@ export function hospitalitySections(user: User): NavSection[] {
       items: [
         { href: `${base}/hospitality`, label: "Venue and posting", icon: "building" },
         { href: `${base}/hospitality#brand`, label: "Brand", icon: "settings" },
+        { href: `${base}/social`, label: "Connections", icon: "link" },
       ],
     },
   ];
@@ -220,7 +221,7 @@ export function clientSections(user: User): NavSection[] {
       title: "Settings",
       items: [
         { href: "/settings", label: "Brand & People", icon: "settings" },
-        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: FEATURE_PLANS.connections, minComplexity: "intermediate" },
+        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: FEATURE_PLANS.connections },
       ],
     },
   ];

@@ -1,3 +1,4 @@
+import { socialOAuthReturnPath } from "@/lib/connections/state";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getSignedInProfile, requireCompanyUser } from "@/lib/supabase/admin";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const nonce = jar.get(META_NONCE_COOKIE)?.value;
   const state = verifyMetaState(url.searchParams.get("state"), nonce);
   const origin = url.origin;
-  const returnTo = (key: string) => `${origin}/publish?companyId=${encodeURIComponent(state?.companyId || "")}&meta_error=${key}`;
+  const returnTo = (key: string) => origin + socialOAuthReturnPath(state?.companyId, state?.returnTo, `meta_error=${encodeURIComponent(key)}`);
   const expireCookie = (response: NextResponse, name: string) => response.cookies.set(name, "", { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/meta", maxAge: 0 });
   const error = (key: string) => {
     const response = NextResponse.redirect(returnTo(key));
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
     if (!hasMetaPermissions(permissions)) return error("permissions_missing");
     const encrypted = encryptJson({ companyId: state.companyId, userId: state.userId, accessToken: tokenData.access_token,
       expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(), grantExpiresAt: Date.now() + 10 * 60_000, nonce: state.nonce });
-    const result = NextResponse.redirect(`${origin}/publish?companyId=${encodeURIComponent(state.companyId)}&meta_choose_page=1`);
+    const result = NextResponse.redirect(origin + socialOAuthReturnPath(state.companyId, "setup", "meta_choose_page=1" + (state.returnTo === "publish" ? "&from=publish" : "")));
     result.cookies.set(META_PENDING_COOKIE, encrypted, { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/meta", maxAge: 600 });
     expireCookie(result, META_NONCE_COOKIE);
     return result;
