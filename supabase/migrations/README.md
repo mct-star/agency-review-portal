@@ -7,9 +7,10 @@ and apply a migration before the code that reads it is pushed. Every statement
 is `IF NOT EXISTS` (or otherwise idempotent), so a file is safe to re-run.
 Nothing runs automatically on deploy.
 
-Pending, not yet applied: `20261018080000_direct_social_oauth_and_pinterest.sql`
+Applied 20 October 2026: `20261018080000_direct_social_oauth_and_pinterest.sql`
 adds encrypted, server-only Bluesky authorisation state and permits Pinterest
-account identities. Apply before enabling these connection flows.
+account identities. Live migration version: `20261020085747`. Verified RLS,
+service-role writes, no anon/authenticated access, and all existing platforms retained.
 
 `supabase/run_pending_migrations_018_to_022.sql` is an old catch-up script and
 stays where it is.
