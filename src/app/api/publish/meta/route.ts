@@ -59,10 +59,14 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role !== "admin" && !user.can_publish) return NextResponse.json({ error: "Your account cannot publish." }, { status: 403 });
   const supabase = await createAdminSupabaseClient();
-  const { data, error } = await supabase.from("company_social_accounts").select("id, platform, account_name, account_id, access_token_encrypted, token_expires_at, is_active, platform_metadata")
-    .eq("company_id", companyId).in("platform", ["facebook", "instagram"]).eq("is_active", true);
+  const [{ data, error }, { data: company, error: companyError }] = await Promise.all([
+    supabase.from("company_social_accounts").select("id, platform, account_name, account_id, access_token_encrypted, token_expires_at, is_active, platform_metadata")
+      .eq("company_id", companyId).in("platform", ["facebook", "instagram"]).eq("is_active", true),
+    supabase.from("companies").select("social_networks").eq("id", companyId).maybeSingle(),
+  ]);
   if (error) return NextResponse.json({ error: "Could not load Meta accounts." }, { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } });
-  return NextResponse.json({ configured: !!metaConfig(), accounts: (data || []).map((row) => { const expiry = row.token_expires_at ? Date.parse(row.token_expires_at) : null; return { id: row.id, platform: row.platform, accountName: row.account_name || row.platform, accountId: row.account_id, usable: !!row.account_id && !!row.access_token_encrypted && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now())), pageId: (row.platform_metadata as { page_id?: string } | null)?.page_id || null }; }) }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  if (companyError || !company) return NextResponse.json({ error: "Could not load enabled publishing destinations." }, { status: 500 });
+  return NextResponse.json({ configured: !!metaConfig(), enabledNetworks: company.social_networks || [], accounts: (data || []).map((row) => { const expiry = row.token_expires_at ? Date.parse(row.token_expires_at) : null; return { id: row.id, platform: row.platform, accountName: row.account_name || row.platform, accountId: row.account_id, usable: !!row.account_id && !!row.access_token_encrypted && (expiry === null || (Number.isFinite(expiry) && expiry > Date.now())), pageId: (row.platform_metadata as { page_id?: string } | null)?.page_id || null }; }) }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
 export async function DELETE(request: Request) {

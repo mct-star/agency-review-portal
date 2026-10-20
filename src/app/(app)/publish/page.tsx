@@ -39,25 +39,25 @@ export default async function PublishPage() {
   // and direct-publish controls stay scoped to their own company.
   if (profile.role !== "admin" && profile.company_id) {
     const supabase = await createAdminSupabaseClient();
-    const { data: approved } = await supabase.from("content_pieces")
+    const { data: approved, error: approvedError } = await supabase.from("content_pieces")
       .select("id, title, content_type, week_id")
       .eq("company_id", profile.company_id)
       .eq("approval_status", "approved")
       .order("created_at", { ascending: false });
     const pieces = approved || [];
     const weekIds = [...new Set(pieces.map((piece) => piece.week_id).filter((id): id is string => !!id))];
-    const { data: weeks } = weekIds.length ? await supabase.from("weeks")
+    const { data: weeks, error: weeksError } = weekIds.length ? await supabase.from("weeks")
       .select("id, date_start, date_end")
       .eq("company_id", profile.company_id)
       .in("id", weekIds)
-      .order("date_start", { ascending: false }) : { data: [] as Array<{ id: string; date_start: string; date_end: string }> };
+      .order("date_start", { ascending: false }) : { data: [] as Array<{ id: string; date_start: string; date_end: string }>, error: null };
     const { data: company } = await supabase.from("companies").select("post_pack").eq("id", profile.company_id).maybeSingle();
-    return <Suspense><ClientPublishView companyId={profile.company_id} canPublish={!!profile.can_publish} weeks={weeks || []} pieces={pieces} isHospitality={company?.post_pack === "hospitality"} /></Suspense>;
+    return <Suspense><ClientPublishView userId={profile.id} companyId={profile.company_id} canPublish={!!profile.can_publish} weeks={weeks || []} pieces={pieces} isHospitality={company?.post_pack === "hospitality"} downloadsUnavailable={!!approvedError || !!weeksError} /></Suspense>;
   }
 
   return (
     <Suspense>
-      <PublishClient />
+      <PublishClient userId={profile.id} />
     </Suspense>
   );
 }

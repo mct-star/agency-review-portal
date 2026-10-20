@@ -7,6 +7,10 @@ export default defineConfig({
   testMatch: "*.spec.ts",
   workers: 1,
   reporter: "list",
+  projects: [
+    { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    { name: "mobile", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+  ],
   use: {
     headless: true,
     channel: existsSync("/Applications/Google Chrome.app") ? "chrome" : undefined,

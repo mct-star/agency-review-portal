@@ -1256,8 +1256,8 @@ export default function QuickGenerate({
             {/* Publishing follows approval in the shared Publish page. */}
             <div className="flex items-center gap-2">
               <p className="max-w-xs text-xs text-gray-600">Send this draft to Review, approve it, then choose the destination in Publish.</p>
-              <a href={`/publish?companyId=${selectedCompany.id}`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-medium text-blue-700 underline">
-                {linkedInConnected || blueskyConnected ? "Open Publish" : "Connect social accounts"}
+              <a href={`/setup/${selectedCompany.id}/social`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-medium text-blue-700 underline">
+                Manage social accounts
               </a>
             </div>
             <div className="mx-1 h-6 w-px bg-gray-200" />
@@ -1448,10 +1448,10 @@ export default function QuickGenerate({
                     </div>
                   </div>
                   <a
-                    href={`/api/auth/linkedin?companyId=${selectedCompany?.id}`}
+                    href={`/setup/${selectedCompany.id}/social`}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
                   >
-                    Connect now
+                    Open Connections
                   </a>
                 </div>
               )}

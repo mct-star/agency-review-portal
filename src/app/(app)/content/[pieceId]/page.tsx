@@ -268,10 +268,18 @@ export default async function ContentPiecePage({ params }: PageProps) {
         isAdmin={profile.role === "admin"}
       />
 
+      {(profile.role === "admin" || profile.can_publish) && piece.approval_status === "approved" && ["social_post", "video", "video_script"].includes(piece.content_type) && (
+        <div className="workspace-panel space-y-3 p-5">
+          <h2 className="text-lg font-semibold">Publish this content</h2>
+          <p className="text-sm text-gray-600">Choose a connected account and time, then confirm the publishing details.</p>
+          <Link href={`/publish?companyId=${encodeURIComponent(piece.company_id)}&pieceId=${encodeURIComponent(piece.id)}`} className="workspace-button">Choose destination and time</Link>
+        </div>
+      )}
+
       {/* Publishing always goes through the confirm step below, which shows
           the exact post; there is no one-click approve-and-publish. */}
       {/* LinkedIn Publish (admin only, social posts only, already approved) */}
-      {profile.role === "admin" && (piece.content_type === "social_post" || piece.content_type === "meme") && (
+      {profile.role === "admin" && media.shape === "images" && (piece.content_type === "social_post" || piece.content_type === "meme") && (
         <LinkedInPublishButton
           pieceId={piece.id}
           companyId={piece.company_id}
