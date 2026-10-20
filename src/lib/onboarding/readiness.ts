@@ -5,7 +5,6 @@ export type SetupCompany = {
   id: string;
   name?: string | null;
   description?: string | null;
-  website_url?: string | null;
   blog_base_url?: string | null;
   post_pack?: string | null;
 };

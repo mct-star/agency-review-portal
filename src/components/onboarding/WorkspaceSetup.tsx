@@ -25,7 +25,7 @@ export default function WorkspaceSetup({ company, userId, initialStep, readiness
   const steps = stepsForPack(hospitality);
   const [step, setStep] = useState<SetupStep>(steps.includes(initialStep) ? initialStep : "brand");
   const [name, setName] = useState(company.name || "");
-  const [website, setWebsite] = useState(company.blog_base_url || company.website_url || "");
+  const [website, setWebsite] = useState(company.blog_base_url || "");
   const [description, setDescription] = useState(company.description || "");
   const [voice, setVoice] = useState("");
   const [samples, setSamples] = useState("");

@@ -13,8 +13,9 @@ export default async function StartSetupPage({ params }: { params: Promise<{ com
   if (!profile) redirect("/login");
   if (profile.role !== "admin" && profile.company_id !== companyId) redirect("/home");
   const supabase = await createServerSupabaseClient();
-  const { data: company } = await supabase.from("companies")
-    .select("id, name, description, website_url, blog_base_url, post_pack").eq("id", companyId).maybeSingle();
+  const { data: company, error } = await supabase.from("companies")
+    .select("id, name, description, blog_base_url, post_pack").eq("id", companyId).maybeSingle();
+  if (error) throw new Error("Workspace setup could not be loaded. Please try again.");
   if (!company) notFound();
   const readiness = await loadSetupReadiness(supabase, company as SetupCompany);
   const { data: { user } } = await supabase.auth.getUser();
