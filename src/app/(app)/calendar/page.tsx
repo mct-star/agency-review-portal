@@ -49,7 +49,8 @@ export const metadata: Metadata = {
   description: "View and manage scheduled content",
 };
 
-export default async function CalendarPage() {
+export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ companyId?: string; date?: string }> }) {
+  const params = await searchParams;
   const profile = await getUserProfile();
   if (!profile) return null;
 
@@ -113,8 +114,11 @@ export default async function CalendarPage() {
 
       {companies.length > 0 ? (
         <ContentCalendar
+          key={`${params.companyId || "default"}:${params.date || "current"}`}
           companies={companies}
           showCompanyPicker={isAdmin && companies.length > 1}
+          initialCompanyId={companies.some((company) => company.id === params.companyId) ? params.companyId : undefined}
+          initialDate={params.date}
         />
       ) : (
         <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">

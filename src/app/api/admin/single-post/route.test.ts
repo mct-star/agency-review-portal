@@ -39,4 +39,16 @@ describe("hosted authoring entry points", () => {
     expect(state.queue).toHaveBeenCalledWith(state.db, { companyId: "company-a", actorId: "admin", retryFailed: true, weekId: "week-a", input: { kind: "week", week_id: "week-a", mode: "resume" } });
     expect((await runWeek(request({ mode: "bad" }), { params: Promise.resolve({ weekId: "week-a" }) })).status).toBe(400);
   });
+
+  it("persists the calendar date and time in a hosted job before returning to the browser", async () => {
+    expect((await POST(request({ companyId: "company-a", postTypeSlug: "meme", topic: "Topic", postDate: "2027-01-01", postTime: "16:45:00" }))).status).toBe(200);
+    expect(state.queue).toHaveBeenCalledWith(state.db, expect.objectContaining({ companyId: "company-a", input: {
+      kind: "direct", direct: { post_type_slug: "meme", topic: "Topic", post_date: "2027-01-01", post_time: "16:45", pillar: null },
+    } }));
+  });
+
+  it("refuses invalid calendar times before writing a hosted job", async () => {
+    expect((await POST(request({ companyId: "company-a", postTypeSlug: "meme", topic: "Topic", postDate: "2027-01-01", postTime: "26:45" }))).status).toBe(400);
+    expect(state.queue).not.toHaveBeenCalled();
+  });
 });

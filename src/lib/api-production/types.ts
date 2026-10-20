@@ -10,6 +10,7 @@ export interface DirectProductionBrief {
   post_type_slug: string;
   topic: string;
   post_date: string;
+  post_time?: string | null;
   pillar?: string | null;
   notes?: string | null;
 }

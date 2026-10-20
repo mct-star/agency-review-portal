@@ -6,8 +6,8 @@ import UpgradeGate from "@/components/billing/UpgradeGate";
 import { effectivePlanFor, FEATURE_PLANS, planAllows } from "@/lib/plan-gate";
 
 export const metadata: Metadata = {
-  title: "Analytics | AGENCY",
-  description: "Track your content performance",
+  title: "LinkedIn analytics | AGENCY",
+  description: "Engagement for LinkedIn posts published through this platform",
 };
 
 interface AnalyticsRow {
@@ -151,9 +151,9 @@ export default async function AnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+          <h1 className="text-2xl font-bold text-gray-900">LinkedIn analytics</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Engagement for posts published through this platform. Posts scheduled through your scheduling tool are not counted here.
+            Engagement for LinkedIn posts published through this platform. Other social networks and posts published outside this platform are not counted here.
           </p>
         </div>
         {isAdmin && <PollButton />}

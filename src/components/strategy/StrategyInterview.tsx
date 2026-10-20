@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { POST_TYPES, WEEKLY_RHYTHMS } from "@/lib/constants/post-types";
 import type { StrategySession, StrategyAudience, StrategyPositioning } from "@/types/database";
 import VoiceDictation from "@/components/ui/VoiceDictation";
@@ -1160,6 +1161,9 @@ export default function StrategyInterview({
                       : "Your content strategy is ready."}
                   </p>
                   <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                    <Link href={`/calendar?companyId=${encodeURIComponent(companyId)}`} className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
+                      Plan your content
+                    </Link>
                     {shareLink && (
                       <button
                         onClick={() => {

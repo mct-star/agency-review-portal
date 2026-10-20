@@ -301,9 +301,9 @@ export default async function ComplianceDashboardPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Built for regulated industries</h2>
             <p className="mt-1 text-sm text-gray-600 max-w-2xl">
-              Every post is reviewed against your chosen regulatory framework before it goes live.
-              Our three-colour system maps each sentence to Legal, Regulatory, or Compliance responsibilities —
-              the same structure that regulated industries use for content sign-off. No post leaves this platform without a compliance score.
+              Run an optional check against your chosen regulatory framework to support your review.
+              The three-colour system highlights Legal, Regulatory and Compliance responsibilities.
+              These checks support your sign-off process. They do not replace professional review or automatically block publishing.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">

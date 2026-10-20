@@ -10,16 +10,21 @@ test.beforeAll(async () => {
     configFile: false,
     appType: "custom",
     root: path.resolve(__dirname, "../.."),
+    cacheDir: "node_modules/.vite/strategy-dictation",
     server: { host: "127.0.0.1", port: 0 },
     oxc: { jsx: { runtime: "automatic" } },
-    optimizeDeps: { exclude: ["next/navigation"] },
+    optimizeDeps: { exclude: ["next/navigation", "next/link"] },
     resolve: { alias: [{ find: "@", replacement: path.resolve(__dirname, "../../src") }] },
     plugins: [{
       name: "isolated-interview-navigation",
       enforce: "pre",
-      resolveId(id) { if (id === "next/navigation") return "\0fixture-navigation"; },
+      resolveId(id) {
+        if (id === "next/navigation") return "\0fixture-navigation";
+        if (id === "next/link") return "\0fixture-link";
+      },
       load(id) {
         if (id === "\0fixture-navigation") return 'export const useRouter = () => ({ push: (href) => { window.fixtureNavigation = href; } });';
+        if (id === "\0fixture-link") return 'import React from "react"; export default function Link(props) { return React.createElement("a", props); }';
       },
     }],
   });
