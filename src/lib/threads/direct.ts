@@ -6,7 +6,8 @@ const REFRESH_WINDOW_MS = 7 * 24 * 60 * 60_000;
 async function refreshToken(token: string, signal: AbortSignal) {
   const url = new URL("https://graph.threads.net/refresh_access_token");
   url.searchParams.set("grant_type", "th_refresh_token");
-  const response = await fetch(url, { headers: { authorization: `Bearer ${token}` }, redirect: "error", cache: "no-store", signal });
+  url.searchParams.set("access_token", token);
+  const response = await fetch(url, { redirect: "error", cache: "no-store", signal });
   const body = await response.json().catch(() => null) as ThreadsToken | null;
   if (!response.ok || !body || typeof body.access_token !== "string" || !Number.isFinite(body.expires_in) || !body.expires_in) {
     throw new Error("The Threads connection needs reconnecting.");
