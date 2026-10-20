@@ -34,7 +34,7 @@ export function getYouTubeAuthorizationUrl(clientId: string, redirectUri: string
     scope: YOUTUBE_SCOPES.join(" "),
     state,
     access_type: "offline",
-    include_granted_scopes: "true",
+    include_granted_scopes: "false",
     prompt: "select_account consent",
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;

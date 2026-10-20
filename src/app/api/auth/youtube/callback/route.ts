@@ -52,6 +52,9 @@ export async function GET(request: Request) {
     const tokens = await exchangeYouTubeCode(code, clientId, clientSecret, redirectUri);
     const grantedScopes = new Set(tokens.scope.split(/\s+/).filter(Boolean));
     if (YOUTUBE_SCOPES.some((scope) => !grantedScopes.has(scope))) return back("youtube_error=missing_scope");
+    if ([...grantedScopes].some((scope) => !(YOUTUBE_SCOPES as readonly string[]).includes(scope))) {
+      return back("youtube_error=unexpected_scope");
+    }
     const channels = await listMyYouTubeChannels(tokens.accessToken);
     if (channels.length === 0) return back("youtube_error=no_channel");
     const channel = exactYouTubeChannel(channels);

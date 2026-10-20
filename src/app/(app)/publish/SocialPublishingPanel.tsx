@@ -73,6 +73,7 @@ export default function SocialPublishingPanel({ companyId, canPublish, canConnec
   }, [jobs, refresh]);
   useEffect(() => {
     if (params.get("youtube_error") === "ambiguous_channel") setNotice("Google returned more than one YouTube channel. Choose the intended YouTube identity in Google's sign-in or default-channel settings, then connect again. Your saved accounts have been kept.");
+    else if (params.get("youtube_error") === "unexpected_scope") setNotice("The YouTube connection included access to other Google services and was not saved. Contact your platform administrator to check the connection settings.");
     else if (platforms.some((platform) => params.has(`${platform.auth}_error`))) setNotice("The social connection did not complete. Start Connect again. Your saved accounts have been kept.");
   }, [params]);
 

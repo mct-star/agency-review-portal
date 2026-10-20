@@ -65,4 +65,12 @@ describe("YouTube OAuth callback", () => {
     expect(mocks.save).not.toHaveBeenCalled();
     expect(response.headers.get("location")).toBe("https://portal.example/publish?youtube_error=ambiguous_channel&companyId=company-a");
   });
+
+  it("refuses a grant that includes permissions from another Google integration", async () => {
+    mocks.exchange.mockResolvedValue({ accessToken: "secret-access", refreshToken: "secret-refresh", expiresAt: new Date().toISOString(), scope: "youtube.upload youtube.readonly https://www.googleapis.com/auth/adwords" });
+    const response = await callback([{ id: "UC123456", title: "Exact channel" }]);
+    expect(mocks.listChannels).not.toHaveBeenCalled();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe("https://portal.example/publish?youtube_error=unexpected_scope&companyId=company-a");
+  });
 });
