@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isOurStorageUrl } from "@/lib/media/our-storage-url";
 
 export const DIRECT_SOCIAL_JOB_MARKER = "direct-social-v1" as const;
 
@@ -45,6 +46,8 @@ export type DirectSocialPublishInput = {
   media: DirectSocialMedia | null;
   options: DirectSocialPublishOptions;
   signal: AbortSignal;
+  /** Persist a provider's rotated credentials before it retries a request after refresh. */
+  onCredentialsRefreshed?: (credentials: DirectSocialCredentials) => Promise<void>;
 };
 
 export type DirectSocialRefreshResult =
@@ -101,4 +104,43 @@ export function toDirectSocialText(markdown: string) {
     .replace(/[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+export function directSocialNetwork(platform: DirectSocialPlatform): string {
+  return platform === "twitter" ? "x" : platform;
+}
+
+/** Public storage objects only, with no signed query parameters or arbitrary host. */
+export function isDirectSocialPublicMediaUrl(value: string) {
+  if (!isOurStorageUrl(value)) return false;
+  try {
+    const url = new URL(value);
+    return url.pathname.startsWith("/storage/v1/object/public/") && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+export function validateDirectSocialOptions(platform: DirectSocialPlatform, value: unknown): DirectSocialPublishOptions | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const options = value as Record<string, unknown>;
+  const allowed: Record<DirectSocialPlatform, string[]> = {
+    bluesky: [], threads: [], twitter: [],
+    pinterest: ["boardId", "link"],
+    youtube: ["privacy", "madeForKids"],
+  };
+  if (Object.keys(options).some((key) => !allowed[platform].includes(key))) return null;
+  if (platform === "pinterest") {
+    if (typeof options.boardId !== "string" || !options.boardId.trim()) return null;
+    if (options.link !== undefined && options.link !== null) {
+      if (typeof options.link !== "string") return null;
+      try { if (new URL(options.link).protocol !== "https:") return null; } catch { return null; }
+    }
+    return { boardId: options.boardId.trim(), ...(typeof options.link === "string" && options.link ? { link: options.link } : {}) };
+  }
+  if (platform === "youtube") {
+    if (!["public", "unlisted", "private"].includes(String(options.privacy)) || typeof options.madeForKids !== "boolean") return null;
+    return { privacy: options.privacy, madeForKids: options.madeForKids };
+  }
+  return {};
 }
