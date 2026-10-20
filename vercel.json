@@ -21,6 +21,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/social-publishing",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/content-production",
       "schedule": "*/2 * * * *"
     }

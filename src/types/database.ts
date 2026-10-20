@@ -64,6 +64,7 @@ export type DistributionPlatform =
   | "facebook"
   | "instagram"
   | "tiktok"
+  | "pinterest"
   // Content/newsletter platforms. DEPRECATED: syndication is retired and
   // nothing offers these any more. Kept only so old rows still type-check.
   | "substack"
@@ -83,6 +84,7 @@ export type SocialPlatform = Extract<
   | "facebook"
   | "instagram"
   | "tiktok"
+  | "pinterest"
 >;
 
 export type ContentPlatform = Extract<DistributionPlatform, "substack" | "medium">;

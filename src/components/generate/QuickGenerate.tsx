@@ -214,12 +214,6 @@ export default function QuickGenerate({
   const [linkedInExpired, setLinkedInExpired] = useState(false);
   const [linkedInAccountName, setLinkedInAccountName] = useState<string | null>(null);
   const [blueskyConnected, setBlueskyConnected] = useState(false);
-  const [blueskyAccountName, setBlueskyAccountName] = useState<string | null>(null);
-  const [publishing, setPublishing] = useState(false);
-  const [published, setPublished] = useState(false);
-  const [publishError, setPublishError] = useState<string | null>(null);
-  const [blueskyPostUrl, setBlueskyPostUrl] = useState<string | null>(null);
-  const [publishToBluesky, setPublishToBluesky] = useState(true);
   const [imagePrompt, setImagePrompt] = useState<string | null>(null);
   const [regeneratingImage, setRegeneratingImage] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -309,7 +303,6 @@ export default function QuickGenerate({
         const bskyAccount = (data.data || []).find((a: { platform: string; account_name?: string }) => a.platform === "bluesky");
         if (!cancelled) {
           setBlueskyConnected(!!bskyAccount);
-          setBlueskyAccountName(bskyAccount?.account_name || null);
         }
       } catch {
         if (!cancelled) { setBlueskyConnected(false); }
@@ -338,42 +331,6 @@ export default function QuickGenerate({
     }
     fetchUsage();
   }, [selectedCompany.id]);
-
-  async function handlePublish() {
-    if (!result) return;
-    setPublishing(true);
-    setPublishError(null);
-
-    const errors: string[] = [];
-
-    // Publish to Bluesky
-    if (publishToBluesky && blueskyConnected) {
-      try {
-        const res = await fetch("/api/publish/bluesky", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyId: selectedCompany.id,
-            text: livePostText,
-            imageUrl: currentImageUrl || undefined,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Bluesky publish failed");
-        setBlueskyPostUrl(data.post?.url || null);
-      } catch (err) {
-        errors.push(`Bluesky: ${err instanceof Error ? err.message : "failed"}`);
-      }
-    }
-
-    if (errors.length > 0) {
-      setPublishError(errors.join(". "));
-    }
-    if (errors.length === 0) {
-      setPublished(true);
-    }
-    setPublishing(false);
-  }
 
   async function handleRegenerateImage() {
     if (!selectedPostType) return;
@@ -729,9 +686,6 @@ export default function QuickGenerate({
     setCurrentImageUrl(null);
     setError(null);
     setProgress("");
-    setPublished(false);
-    setPublishError(null);
-    setBlueskyPostUrl(null);
     setImagePrompt(null);
     setRegeneratingImage(false);
     setEditing(false);
@@ -1297,69 +1251,13 @@ export default function QuickGenerate({
             {/* Divider */}
             <div className="mx-1 h-6 w-px bg-gray-200" />
 
-            {/* Group 3: Publish */}
-            <div className="flex items-center gap-1">
-              {!published && linkedInConnected && (
-                <p className="max-w-xs text-xs text-gray-600">LinkedIn posts need approval first. Send this draft to Review, approve it, then queue it from Publish.</p>
-              )}
-              {!published && blueskyConnected && (
-                <>
-                  {blueskyConnected && (
-                    <label className={`rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors flex items-center gap-1 ${publishToBluesky ? "bg-blue-50 text-blue-700" : "text-gray-500 hover:bg-gray-100"}`}>
-                      <input type="checkbox" checked={publishToBluesky} onChange={(e) => setPublishToBluesky(e.target.checked)} className="sr-only" />
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z" />
-                      </svg>
-                      {publishToBluesky ? "✓" : ""} Bluesky
-                    </label>
-                  )}
-                  <button
-                    onClick={handlePublish}
-                    disabled={publishing || !publishToBluesky}
-                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-                  >
-                    {publishing ? (
-                      <>
-                        <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Publishing...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                        </svg>
-                        Publish
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-              {!published && !linkedInConnected && !blueskyConnected && (
-                <a
-                  href={`/setup/${selectedCompany.id}/social`}
-                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors flex items-center gap-1.5"
-                >
-                  Connect social accounts
-                </a>
-              )}
-              {published && (
-                <>
-                  {blueskyPostUrl && (
-                    <a href={blueskyPostUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-colors flex items-center gap-1.5" style={{ backgroundColor: "#0085FF" }}>
-                      View on Bluesky
-                    </a>
-                  )}
-                  {!blueskyPostUrl && (
-                    <span className="rounded-lg bg-green-100 px-2.5 py-1.5 text-xs font-medium text-green-700">Published</span>
-                  )}
-                </>
-              )}
+            {/* Publishing follows approval in the shared Publish page. */}
+            <div className="flex items-center gap-2">
+              <p className="max-w-xs text-xs text-gray-600">Send this draft to Review, approve it, then choose the destination in Publish.</p>
+              <a href={`/publish?companyId=${selectedCompany.id}`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-medium text-blue-700 underline">
+                {linkedInConnected || blueskyConnected ? "Open Publish" : "Connect social accounts"}
+              </a>
             </div>
-
-            {/* Divider */}
             <div className="mx-1 h-6 w-px bg-gray-200" />
 
             {/* Group 4: Send to review */}
@@ -1389,13 +1287,6 @@ export default function QuickGenerate({
 
           {sendError && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{sendError}</div>
-          )}
-
-          {/* Publish error */}
-          {publishError && (
-            <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              Social publishing error: {publishError}
-            </div>
           )}
 
           {/* Overlay error */}

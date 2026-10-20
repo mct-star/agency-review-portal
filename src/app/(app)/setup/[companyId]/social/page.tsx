@@ -50,10 +50,10 @@ const PLATFORM_ICONS: Record<string, { path: string; color: string }> = {
 const COMPANY_PLATFORMS: { value: SocialPlatform; label: string; status: "active" | "coming_soon" }[] = [
   { value: "linkedin_company", label: "LinkedIn (Company Page)", status: "coming_soon" },
   { value: "bluesky", label: "Bluesky", status: "active" },
-  { value: "twitter", label: "Twitter / X", status: "coming_soon" },
-  { value: "facebook", label: "Facebook Page", status: "coming_soon" },
-  { value: "instagram", label: "Instagram", status: "coming_soon" },
-  { value: "threads", label: "Threads", status: "coming_soon" },
+  { value: "twitter", label: "X", status: "active" },
+  { value: "facebook", label: "Facebook Page", status: "active" },
+  { value: "instagram", label: "Instagram", status: "active" },
+  { value: "threads", label: "Threads", status: "active" },
 ];
 
 function CompanySocialEditor() {
@@ -67,11 +67,6 @@ function CompanySocialEditor() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [bskyHandle, setBskyHandle] = useState("");
-  const [bskyAppPassword, setBskyAppPassword] = useState("");
-  const [bskyConnecting, setBskyConnecting] = useState(false);
-  const [bskyError, setBskyError] = useState<string | null>(null);
-  const [showBskyForm, setShowBskyForm] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -106,33 +101,6 @@ function CompanySocialEditor() {
       }
     } catch {
       setLinkedInAccount(null);
-    }
-  }
-
-  async function handleConnectBluesky() {
-    if (!bskyHandle || !bskyAppPassword) return;
-    setBskyConnecting(true);
-    setBskyError(null);
-    try {
-      const res = await fetch("/api/config/social-accounts/bluesky", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          handle: bskyHandle,
-          appPassword: bskyAppPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Connection failed");
-      setShowBskyForm(false);
-      setBskyHandle("");
-      setBskyAppPassword("");
-      fetchAccounts();
-    } catch (err) {
-      setBskyError(err instanceof Error ? err.message : "Connection failed");
-    } finally {
-      setBskyConnecting(false);
     }
   }
 
@@ -385,17 +353,10 @@ function CompanySocialEditor() {
                         </button>
                       </div>
                     ))
-                  ) : platform.value === "bluesky" ? (
-                    <button
-                      onClick={() => setShowBskyForm(true)}
-                      className="mt-1 text-xs font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      Connect with app password →
-                    </button>
-                  ) : ["facebook", "instagram", "threads"].includes(platform.value) ? (
-                    <p className="mt-1 text-[10px] text-gray-300 font-medium">Coming Q2 2026</p>
-                  ) : platform.value === "twitter" ? (
-                    <p className="mt-1 text-[10px] text-gray-300 font-medium">Coming soon</p>
+                  ) : ["bluesky", "facebook", "instagram", "threads", "twitter"].includes(platform.value) ? (
+                    <Link href={`/publish?companyId=${companyId}`} className="mt-1 inline-flex min-h-11 items-center text-xs font-medium text-blue-700 underline">
+                      Manage publishing connection
+                    </Link>
                   ) : (
                     <p className="mt-1 text-xs text-gray-500">Not connected</p>
                   )}
@@ -406,73 +367,7 @@ function CompanySocialEditor() {
         })}
       </div>
 
-      {/* Bluesky Connect Form */}
-      {showBskyForm && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#0085FF">
-                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm3.784 14.594c-1.177.593-2.755.77-3.784.77s-2.607-.177-3.784-.77C6.752 15.826 6 14.608 6 13.2c0-2.318 2.135-4.2 6-4.2s6 1.882 6 4.2c0 1.408-.752 2.626-2.216 3.394z" />
-              </svg>
-              <h3 className="text-sm font-semibold text-gray-900">Connect Bluesky</h3>
-            </div>
-            <button onClick={() => { setShowBskyForm(false); setBskyError(null); }} className="text-gray-500 hover:text-gray-600">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-            </button>
-          </div>
-
-          <p className="text-xs text-gray-600">
-            Create an app password at{" "}
-            <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-              bsky.app/settings/app-passwords
-            </a>
-            {" "}then enter it below. Your main password is never used.
-          </p>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Bluesky Handle</label>
-              <input
-                type="text"
-                value={bskyHandle}
-                onChange={(e) => setBskyHandle(e.target.value)}
-                placeholder="yourname.bsky.social"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">App Password</label>
-              <input
-                type="password"
-                value={bskyAppPassword}
-                onChange={(e) => setBskyAppPassword(e.target.value)}
-                placeholder="xxxx-xxxx-xxxx-xxxx"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          {bskyError && (
-            <p className="text-xs text-red-600">{bskyError}</p>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleConnectBluesky}
-              disabled={bskyConnecting || !bskyHandle || !bskyAppPassword}
-              className="rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {bskyConnecting ? "Verifying..." : "Connect Bluesky"}
-            </button>
-            <button
-              onClick={() => { setShowBskyForm(false); setBskyError(null); }}
-              className="rounded-md border border-gray-300 px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      <p className="text-sm text-gray-600">YouTube, Pinterest and all direct publishing connections are managed on <Link href={`/publish?companyId=${companyId}`} className="inline-flex min-h-11 items-center text-blue-700 underline">Publish</Link>.</p>
 
       {loading && (
         <p className="text-center text-sm text-gray-500">Loading...</p>

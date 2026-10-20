@@ -4,6 +4,10 @@ import { isB2bOnlyPage } from "@/lib/hospitality/b2b-only";
 import { VIEW_AS_COOKIE, verifyViewAs, viewAsSecret } from "@/lib/view-as";
 
 export async function middleware(request: NextRequest) {
+  // Bluesky must fetch the public OAuth client identity without a portal session.
+  if (["/oauth-client-metadata.json", "/.well-known/jwks.json"].includes(request.nextUrl.pathname)) {
+    return NextResponse.next({ request });
+  }
   // The (app) layout cannot see the address it is rendering for, so it is
   // passed along as a request header.
   request.headers.set("x-pathname", request.nextUrl.pathname);

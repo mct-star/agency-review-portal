@@ -8,9 +8,8 @@ import { validateSettings } from "@/lib/hospitality/settings";
  * GET /api/company/hospitality?companyId=    the company's pack, networks and venue settings
  * PUT /api/company/hospitality  { companyId, ...fields }
  *
- * A company member (or an admin) can change only the fields validateSettings
- * allows: the pack, the networks posts are exported to, the venue notes and
- * hashtags, and the daily weather post settings. Never the plan.
+ * Company members can change venue notes, hashtags and weather settings.
+ * AGENCY alone controls the post pack and enabled publishing networks.
  */
 const COLUMNS =
   "post_pack, social_networks, hospitality_settings, postcode, latitude, longitude, timezone, weather_post_enabled, weather_post_time, weather_post_for";
@@ -39,6 +38,9 @@ export async function PUT(request: Request) {
   // with one tap, 14 Oct 2026).
   if (result.patch.post_pack !== undefined && access.profile.role !== "admin") {
     return NextResponse.json({ error: "Only AGENCY can change the kind of posts. Ask us and we will switch it." }, { status: 403 });
+  }
+  if (result.patch.social_networks !== undefined && access.profile.role !== "admin") {
+    return NextResponse.json({ error: "Only AGENCY can change publishing networks. Ask us to enable a network." }, { status: 403 });
   }
 
   const supabase = await createAdminSupabaseClient();

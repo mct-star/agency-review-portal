@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
 import MetaPublishingPanel from "./MetaPublishingPanel";
+import SocialPublishingPanel from "./SocialPublishingPanel";
 
 type Account = { id: string; accountName: string; accountId: string | null; usable: boolean; expiresAt: string | null };
 type Piece = { id: string; title: string | null; content_type: string; week_id: string | null };
@@ -108,6 +109,7 @@ export default function ClientPublishView({ companyId, canPublish, weeks, pieces
       </section>}
 
       <MetaPublishingPanel companyId={companyId} canPublish={canPublish} pieces={approvedPosts} />
+      {!isHospitality && <SocialPublishingPanel key={companyId} companyId={companyId} canPublish={canPublish} />}
 
       {!isHospitality && <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-gray-900">LinkedIn queue</h2>

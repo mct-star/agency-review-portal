@@ -7,6 +7,7 @@ import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type { Company, ContentType } from "@/types/database";
 import { getPlatformsForContentType } from "@/lib/platform-registry";
 import MetaPublishingPanel from "./MetaPublishingPanel";
+import SocialPublishingPanel from "./SocialPublishingPanel";
 
 interface ApprovedPieceWeek {
   id?: string;
@@ -55,7 +56,9 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
 const PLATFORM_LABELS: Record<string, string> = {
   linkedin_personal: "LinkedIn (Personal)",
   linkedin_company: "LinkedIn (Company)",
-  twitter: "Twitter/X",
+  twitter: "X",
+  youtube: "YouTube",
+  pinterest: "Pinterest",
   bluesky: "Bluesky",
   threads: "Threads",
   facebook: "Facebook",
@@ -381,6 +384,7 @@ export default function PublishClient() {
       )}
 
       {selectedCompanyId && <MetaPublishingPanel companyId={selectedCompanyId} canPublish pieces={pieces.filter((piece) => piece.content_type === "social_post")} onQueued={fetchData} />}
+      {selectedCompanyId && <SocialPublishingPanel key={selectedCompanyId} companyId={selectedCompanyId} canPublish canConnect onQueued={fetchData} />}
 
       {selectedCompanyId && (
         <>
