@@ -19,6 +19,13 @@ function makeDb(seed: Record<string, Row[]> = {}) {
   const tables: Record<string, Row[]> = structuredClone(seed);
   const calls: Array<{ table: string; action: string; filters: string[]; values?: Row | Row[] }> = [];
   const fail: Record<string, string> = {};
+  const failAfterCommit: Record<string, string> = {};
+  function ambiguousResponse(table: string, action: string) {
+    const message = failAfterCommit[`${table}:${action}`];
+    if (!message) return null;
+    delete failAfterCommit[`${table}:${action}`];
+    return { data: null, error: { message } };
+  }
   const db = { from(table: string) {
     let action = "select";
     let values: Row | Row[] = {};
@@ -49,17 +56,17 @@ function makeDb(seed: Record<string, Row[]> = {}) {
               created.push(found);
             } else { tables[table].push(structuredClone(value)); created.push(value); }
           }
-          return { data: one ? created[0] || null : created, error: null };
+          return ambiguousResponse(table, action) || { data: one ? created[0] || null : created, error: null };
         }
         const rows = tables[table].filter(row => filters.every(fn => fn(row)));
         if (action === "update") rows.forEach(row => Object.assign(row, structuredClone(values)));
-        return { data: one ? structuredClone(rows[0] || null) : structuredClone(rows), error: null };
+        return ambiguousResponse(table, action) || { data: one ? structuredClone(rows[0] || null) : structuredClone(rows), error: null };
       },
       then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) { return query.run().then(resolve, reject); },
     };
     return query;
   } } as unknown as ProductionDb;
-  return { db, tables, calls, fail };
+  return { db, tables, calls, fail, failAfterCommit };
 }
 
 const company = { id: "company-a", name: "Example Company", slug: "example", spokesperson_name: "Alex", brand_color: "#A27BF9", post_pack: "b2b", industry: "software", description: "A software company" };
@@ -145,6 +152,19 @@ describe("API production authoring", () => {
     expect(second.pieceId).toBe(first.pieceId);
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(f.tables.content_pieces).toHaveLength(1);
+  });
+
+  it.each(["content_generation_jobs:update", "content_pieces:insert", "content_assets:upsert"])("recovers an uncertain %s acknowledgement without regenerating or duplicating saved output", async mutation => {
+    const f = makeDb(seed());
+    f.failAfterCommit[mutation] = "Response lost after the write committed";
+    await expect(author(f, job())).rejects.toThrow();
+    const result = await author(f, job());
+    expect(result.pieceId).toBe(productionId(company.id, "api-production-piece", "job-a"));
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(f.tables.content_pieces).toHaveLength(1);
+    const assets = f.tables.content_assets;
+    expect(assets).toHaveLength(2);
+    expect(new Set(assets.map(row => row.id)).size).toBe(assets.length);
   });
 
   it.each(["approved", "changes_requested", "pending"])("preserves an existing %s editorial piece", async status => {

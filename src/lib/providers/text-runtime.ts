@@ -64,7 +64,23 @@ export function modelFor(config: TextConfig, options: TextOptions): string {
   return TEXT_MODELS[config.provider][utility ? "utility" : "writing"];
 }
 class TransportError extends Error {
-  constructor(readonly transient: boolean) { super(FAILURE); }
+  constructor(readonly transient: boolean, readonly fallbackAllowed = transient) { super(FAILURE); }
+}
+/** Native funding errors cannot recover on retry, but may use an approved fallback. */
+async function fundingFailure(response: Response, provider: TextProvider): Promise<boolean> {
+  if (![400, 402, 429].includes(response.status)) return false;
+  const payload = await response.json().catch(() => null);
+  const error = payload?.error;
+  if (!error || typeof error !== "object") return false;
+  if (provider === "openai") return response.status === 429 && (
+    error.type === "insufficient_quota" || ["insufficient_quota", "credit_balance_exhausted", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"].includes(error.code)
+  );
+  if (response.status === 402) return error.type === "billing_error";
+  if (response.status === 429) return error.type === "rate_limit_error" && error.details?.error_code === "enforced_spend_limit_reached";
+  return error.type === "invalid_request_error" && typeof error.message === "string" && (
+    /^Your credit balance is too low to access the Anthropic API\./.test(error.message)
+    || /^You have reached your specified (?:workspace )?API usage limits\b/.test(error.message)
+  );
 }
 function schemaCheck(value: unknown, schema: Record<string, unknown>): boolean {
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
@@ -121,7 +137,11 @@ export async function requestText(config: TextConfig, options: TextOptions, fetc
           headers: { "Content-Type": "application/json", ...(anthropic ? { "x-api-key": selected.apiKey, "anthropic-version": "2023-06-01" } : { Authorization: `Bearer ${selected.apiKey}` }) },
           body: JSON.stringify(body),
         }).catch(() => { throw new TransportError(!controller.signal.aborted); });
-        if (!response.ok) throw new TransportError(response.status === 429 || response.status >= 500);
+        if (!response.ok) {
+          const funding = await fundingFailure(response, selected.provider);
+          const transient = response.status === 429 || response.status >= 500;
+          throw new TransportError(!funding && transient, funding || transient);
+        }
         const data = await response.json();
         if (anthropic ? data.stop_reason === "max_tokens" : data.status && data.status !== "completed") throw new TransportError(false);
         // Verify the answering model if present; never label an unexpected model as the selected one.
@@ -143,7 +163,7 @@ export async function requestText(config: TextConfig, options: TextOptions, fetc
     return await Promise.race([(async () => {
       try { return await call(config); }
       catch (error) {
-        if (!controller.signal.aborted && config.fallback && error instanceof TransportError && error.transient) return call(config.fallback);
+        if (!controller.signal.aborted && config.fallback && error instanceof TransportError && error.fallbackAllowed) return call(config.fallback);
         throw error;
       }
     })(), deadline]);
