@@ -7,6 +7,10 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { loadAdminPanels } from "@/lib/admin-home/panels";
 import { greetingFor, weatherFailedLine, weatherLine, type WeatherSettings } from "@/lib/hospitality/home";
 import { todayIn } from "@/lib/hospitality/week";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
+import SetupReadiness from "@/components/onboarding/SetupReadiness";
+import { loadSetupReadiness, type SetupCompany } from "@/lib/onboarding/readiness";
+import { loadApprovedUnqueued } from "@/lib/onboarding/home-work";
 
 export const metadata: Metadata = {
   title: "Home | AGENCY",
@@ -27,6 +31,21 @@ export default async function HomePage() {
   const companyId = profile?.company_id;
   const firstName = (profile?.full_name || "there").split(" ")[0];
 
+  // Login and the auth callback both land here, including before a workspace exists.
+  if (profile && !isAdmin && !companyId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    return <OnboardingWizard userId={profile.id} userName={profile.full_name || undefined}
+      initialCompanyName={typeof user?.user_metadata?.company_name === "string" ? user.user_metadata.company_name : ""}
+      initialIndustry={typeof user?.user_metadata?.industry === "string" ? user.user_metadata.industry : ""} />;
+  }
+
+  const setupReadiness = !isAdmin && companyId && profile?.company
+    ? await loadSetupReadiness(supabase, { ...profile.company, id: companyId } as SetupCompany)
+    : null;
+  const setupCard = setupReadiness && companyId
+    ? <SetupReadiness companyId={companyId} readiness={setupReadiness} hospitality={profile?.company?.post_pack === "hospitality"} />
+    : null;
+
   // A hospitality venue gets its own home: what is waiting, three ways to
   // start, and the weather post. The operator (admin) keeps the full home.
   const company = profile?.company as ({ post_pack?: string | null; timezone?: string | null } & WeatherSettings) | null | undefined;
@@ -40,14 +59,14 @@ export default async function HomePage() {
     const now = new Date();
     const tz = company.timezone || "Europe/London";
     return (
-      <HospitalityHome
+      <div>{setupCard}<HospitalityHome
         greeting={greetingFor(firstName, now, company.timezone)}
         pendingPosts={posts.count ?? 0}
         photosWaiting={photos.count ?? 0}
         libraryCount={library.count ?? 0}
         weatherLine={weatherLine(company, now)}
         weatherFailedLine={weatherFailedLine(lastRun.data as { status: string; target_date: string } | null, todayIn(tz, now))}
-      />
+      /></div>
     );
   }
 
@@ -58,23 +77,24 @@ export default async function HomePage() {
   }
 
   // ── Fetch counts for smart nudge ──
-  let approvedNotPublished = 0;
+  let approvedNotPublished: number | null = 0;
   let thisWeekCount = 0;
-  let strategyCompleted = false;
 
   // Review units: individual posts (no week) + distinct weeks with pending pieces
   let pendingSingles = 0;
   let pendingWeekCount = 0;
   let pendingWeekLabels: string[] = [];
+  let countsUnavailable = false;
 
   if (companyId || isAdmin) {
     const cid = companyId;
 
     // Pending review, grouped by creation unit
     {
-      let q = supabase.from("content_pieces").select("id, week_id").eq("approval_status", "pending");
+      let q = supabase.from("content_pieces").select("id, week_id", { count: "exact" }).eq("approval_status", "pending");
       if (!isAdmin && cid) q = q.eq("company_id", cid);
-      const { data: pendingPieces } = await q;
+      const { data: pendingPieces, error, count } = await q;
+      if (error || count !== (pendingPieces || []).length) countsUnavailable = true;
 
       if (pendingPieces) {
         const singles = pendingPieces.filter(p => !p.week_id);
@@ -88,6 +108,7 @@ export default async function HomePage() {
           const { data: weeks } = await supabase
             .from("weeks")
             .select("date_start")
+            .eq("company_id", cid)
             .in("id", weekIds)
             .order("date_start", { ascending: true })
             .limit(3);
@@ -99,13 +120,9 @@ export default async function HomePage() {
       }
     }
 
-    // Approved but not published
-    {
-      let q = supabase.from("content_pieces").select("id", { count: "exact", head: true }).eq("approval_status", "approved");
-      if (!isAdmin && cid) q = q.eq("company_id", cid);
-      const { count } = await q;
-      approvedNotPublished = count || 0;
-    }
+    // Count first publication candidates, never repeat a queued or uncertain attempt.
+    approvedNotPublished = cid ? await loadApprovedUnqueued(supabase, cid) : null;
+    if (approvedNotPublished === null) countsUnavailable = true;
 
     // Posts this week
     {
@@ -118,15 +135,11 @@ export default async function HomePage() {
 
       let q = supabase.from("content_pieces").select("id", { count: "exact", head: true }).gte("created_at", weekStart.toISOString());
       if (!isAdmin && cid) q = q.eq("company_id", cid);
-      const { count } = await q;
-      thisWeekCount = count || 0;
+      const { count, error } = await q;
+      if (error || count === null) countsUnavailable = true;
+      else thisWeekCount = count;
     }
 
-    // Strategy status
-    if (cid) {
-      const { data: company } = await supabase.from("companies").select("strategy_completed").eq("id", cid).single();
-      strategyCompleted = company?.strategy_completed || false;
-    }
   }
 
   const totalPendingUnits = pendingSingles + pendingWeekCount;
@@ -136,10 +149,10 @@ export default async function HomePage() {
   let nudgeHref: string;
   let nudgeLabel: string;
 
-  if (!strategyCompleted && !isAdmin) {
-    nudgeText = "New here? Build a strategy for best results, or jump straight in.";
-    nudgeHref = "/strategy"; // used for left button
-    nudgeLabel = ""; // not used: custom two-button layout below
+  if (countsUnavailable) {
+    nudgeText = "Some content counts could not be checked. Open your content to see the latest status.";
+    nudgeHref = "/review";
+    nudgeLabel = "Open content";
   } else if (totalPendingUnits > 0) {
     // Build a human-readable description of what's pending
     const parts: string[] = [];
@@ -154,28 +167,27 @@ export default async function HomePage() {
     nudgeText = `${parts.join(" and ")} awaiting review.`;
     nudgeHref = "/review";
     nudgeLabel = "Review now";
+  } else if (approvedNotPublished !== null && approvedNotPublished > 0) {
+    nudgeText = `${approvedNotPublished} approved post${approvedNotPublished !== 1 ? "s" : ""} not yet queued.`;
+    nudgeHref = profile?.can_publish ? "/publish" : "/review";
+    nudgeLabel = profile?.can_publish ? "Open publishing" : "View approved content";
   } else if (thisWeekCount === 0) {
-    nudgeText = "You haven't posted anything this week yet.";
+    nudgeText = "Start with an idea and turn it into a draft.";
     nudgeHref = "/generate/quick";
     nudgeLabel = "Create a post";
-  } else if (approvedNotPublished > 0) {
-    nudgeText = `${approvedNotPublished} approved post${approvedNotPublished !== 1 ? "s" : ""} ready to publish.`;
-    nudgeHref = "/publish";
-    nudgeLabel = "Publish now";
   } else {
     nudgeText = "All caught up. Keep the momentum going.";
     nudgeHref = "/generate/quick";
     nudgeLabel = "Create next post";
   }
 
-  return <ClientHome
+  return <div className="space-y-6">{setupCard}<ClientHome
     greeting={greeting(firstName)}
-    strategyCompleted={strategyCompleted}
     nudgeText={nudgeText}
     nudgeHref={nudgeHref}
     nudgeLabel={nudgeLabel}
-    thisWeekCount={thisWeekCount}
-    approvedNotPublished={approvedNotPublished}
-    totalPendingUnits={totalPendingUnits}
-  />;
+    thisWeekCount={countsUnavailable ? null : thisWeekCount}
+    approvedNotPublished={countsUnavailable ? null : approvedNotPublished}
+    totalPendingUnits={countsUnavailable ? null : totalPendingUnits}
+  /></div>;
 }
