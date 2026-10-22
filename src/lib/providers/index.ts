@@ -16,6 +16,7 @@
 
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { decryptJson } from "@/lib/crypto";
+import { contentPrincipal } from "@/lib/ops-content/principal";
 import type { ServiceCategory } from "@/types/database";
 
 // ── Provider interfaces ─────────────────────────────────────
@@ -254,10 +255,22 @@ export async function getContentProvider(companyId: string): Promise<{ provider:
   const { resolveTextConfig } = await import("./text-runtime");
   const config = await resolveTextConfig(companyId);
   const { createClaudeContentProvider } = await import("./content-generation/anthropic");
-  return {
-    providerName: config.provider === "claude" ? "anthropic_claude" : "openai_gpt4",
-    provider: createClaudeContentProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config),
-  };
+  const providerName = config.provider === "claude" ? "anthropic_claude" : "openai_gpt4";
+  const engine = createClaudeContentProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config);
+  // Ops content requests write as AGENCY, so they always carry the brand instructions.
+  if (contentPrincipal()) {
+    const { BRAND_CONTEXT_COPY, CURRENT_CONTENT_OVERRIDES } = await import("@/lib/ops-content/brand-context");
+    return {
+      providerName,
+      provider: {
+        generate: input => engine.generate({
+          ...input,
+          additionalContext: [input.additionalContext, BRAND_CONTEXT_COPY, CURRENT_CONTENT_OVERRIDES].filter(Boolean).join("\n\n"),
+        }),
+      },
+    };
+  }
+  return { providerName, provider: engine };
 }
 
 /** Resolve adaptation through the same company policy as the content writer. */

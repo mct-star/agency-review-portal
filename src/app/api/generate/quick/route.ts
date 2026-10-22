@@ -20,6 +20,7 @@ import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/
 import type { PlanTier } from "@/types/database";
 import { getPostType, packOf } from "@/lib/constants/post-types";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
+import { contentPrincipal } from "@/lib/ops-content/principal";
 
 /**
  * POST /api/generate/quick
@@ -99,6 +100,7 @@ const STYLE_PROMPTS: Record<string, string | ((appearance: string) => string)> =
 export async function POST(request: Request) {
   const body = await request.json();
   const { companyId, spokespersonId, topic, postTypeSlug, platform } = body;
+  const nativeContext=contentPrincipal()?`\nActual supplied media inventory: ${JSON.stringify(body.sourceContext || [])}. Never infer events or visual details from filenames. Selected canonical CTA: ${body.ctaUrl || "none"}. Use only this CTA when supplied; if none, do not invent a CTA URL. No fictional personal stories.`:"";
 
   if (!companyId || !topic || !postTypeSlug) {
     return NextResponse.json(
@@ -281,7 +283,7 @@ export async function POST(request: Request) {
       voiceDescription: !voicePromptText ? (voiceProfile?.voice_description || undefined) : undefined,
       bannedVocabulary: !voicePromptText ? (voiceProfile?.banned_vocabulary || undefined) : undefined,
       signatureDevices: !voicePromptText ? (voiceProfile?.signature_devices || undefined) : undefined,
-      additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.${blogTeaserContext ? `\n\n${blogTeaserContext}` : ""}`,
+      additionalContext: `Platform: ${platform || "linkedin"}. This is a standalone quick-generated post, not part of a weekly ecosystem.${nativeContext}${blogTeaserContext ? `\n\n${blogTeaserContext}` : ""}`,
       // Company context for industry-aware content
       companyIndustry: (company as Record<string, unknown>)?.industry as string || undefined,
       companyDescription: (company as Record<string, unknown>)?.description as string || undefined,
@@ -386,7 +388,9 @@ export async function POST(request: Request) {
       text_only: "skip",
       meme_card: "skip",
     };
-    const styleSlug = archetypeToStyle[effectiveStyle] || effectiveStyle;
+    // Native Ops uses private, explicitly selected real media. This scoped
+    // call generates copy only; it must never publish generated draft images.
+    const styleSlug = contentPrincipal() ? "real_photo" : (archetypeToStyle[effectiveStyle] || effectiveStyle);
 
     const isQuoteCard = styleSlug === "quote_card";
     const isCarousel = styleSlug === "carousel_framework";
@@ -830,4 +834,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

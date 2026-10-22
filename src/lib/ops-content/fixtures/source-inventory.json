@@ -1,0 +1,58 @@
+[
+  {
+    "id": "interview-1",
+    "type": "current_story",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true,
+    "kind": "interview",
+    "occurred_at": "2026-10-09"
+  },
+  {
+    "id": "assessment-source",
+    "type": "asset",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true
+  },
+  {
+    "id": "snake-source",
+    "type": "asset",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true,
+    "media_id": "00000000-0000-4000-8000-000000000011"
+  },
+  {
+    "id": "nhs-source",
+    "type": "asset",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true,
+    "media_id": "00000000-0000-4000-8000-000000000014"
+  },
+  {
+    "id": "podcast-source",
+    "type": "podcast",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true,
+    "media_id": "00000000-0000-4000-8000-000000000012",
+    "has_burned_captions": true
+  },
+  {
+    "id": "skit-source",
+    "type": "skit",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true,
+    "media_id": "00000000-0000-4000-8000-000000000013"
+  },
+  {
+    "id": "newsletter-source",
+    "type": "newsletter",
+    "title": "Fixture source only",
+    "evidence": "Fixture source evidence, not a real content claim.",
+    "supplied_by_user": true
+  }
+]

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr"; // used in requireAdmin for cookie-based auth check
 import { cookies } from "next/headers";
+import { contentPrincipal } from "@/lib/ops-content/principal";
 import { canAccessCompany } from "@/lib/auth/permissions";
 
 /**
@@ -31,6 +32,8 @@ export async function createAdminSupabaseClient() {
  * Returns the user profile row, or null if not authenticated/not admin.
  */
 export async function requireAdmin() {
+  const content = contentPrincipal();
+  if (content) return content;
   const cookieStore = await cookies();
 
   // Use anon key to check the JWT-based auth
@@ -73,6 +76,8 @@ export async function requireAdmin() {
  * Returns the user profile row, or null if not authorised.
  */
 export async function requireCompanyUser(companyId: string) {
+  const content = contentPrincipal();
+  if (content) return content.companyId === companyId ? content : null;
   const cookieStore = await cookies();
 
   const authClient = createServerClient(
