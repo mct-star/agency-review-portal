@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * POST /api/generate/voice-score
@@ -13,8 +14,6 @@ import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
  * Returns: { score: number, feedback: string[] }
  */
 
-const MODEL_HAIKU = "claude-3-5-haiku-20241022";
-const API_URL = "https://api.anthropic.com/v1/messages";
 
 export async function POST(request: Request) {
   try {
@@ -32,6 +31,10 @@ export async function POST(request: Request) {
     const user = await requireCompanyUser(companyId);
     if (!user) {
       return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    }
+    {
+      const refused = await refuseHospitality(user, companyId);
+      if (refused) return refused;
     }
 
     // Fetch voice profile
@@ -91,11 +94,26 @@ ${postText}
 Score the voice match from 0-100 and provide exactly 2 bullet points of feedback.
 Return ONLY valid JSON with no other text: { "score": 85, "feedback": ["First feedback point", "Second feedback point"] }`;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
+    const scoreSchema = {
+      type: "object",
+      properties: {
+        score: { type: "integer", minimum: 0, maximum: 100 },
+        feedback: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 2 },
+      },
+      required: ["score", "feedback"],
+      additionalProperties: false,
+    };
 
     let rawText: string;
     try {
-      rawText = await callClaude(apiKey, MODEL_HAIKU, "", prompt, 256);
+      rawText = (await generateText({
+        companyId,
+        systemPrompt: "",
+        userPrompt: prompt,
+        maxTokens: 256,
+        task: "classification",
+        jsonSchema: scoreSchema,
+      })).text;
     } catch (err) {
       console.error("[voice-score] LLM error:", err);
       return NextResponse.json(

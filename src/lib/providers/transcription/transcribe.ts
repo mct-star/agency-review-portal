@@ -5,6 +5,8 @@
  * Used by voice-to-post, voice dictation, and other transcription endpoints.
  */
 
+import { audioExtension } from "./audio-format";
+
 export interface TranscriptionResult {
   text: string;
   provider: "gemini" | "openai";
@@ -19,17 +21,11 @@ export async function transcribeAudio(
   mimeType: string = "audio/webm",
   companyId?: string
 ): Promise<TranscriptionResult> {
-  // Try to get Gemini key from multiple sources
-  let geminiKey =
-    process.env.GOOGLE_GEMINI_API_KEY ||
-    process.env.Gemini ||
-    process.env.GEMINI_API_KEY ||
-    process.env.GEMINI ||
-    "";
+  let geminiKey = process.env.GOOGLE_GEMINI_API_KEY || "";
 
-  console.log(`[transcribe v2] geminiKey found: ${!!geminiKey}, length: ${geminiKey.length}, openai: ${!!process.env.OPENAI_API_KEY}`);
-
-  // If no env var, try to get from company API configs (where image generation stores it)
+  // If no env var, try this company's own stored Gemini key (where image
+  // generation stores it). Never another company's: before 14 Oct 2026 the
+  // lookup below fell back to any company's active key.
   if (!geminiKey && companyId) {
     try {
       const { createAdminSupabaseClient } = await import("@/lib/supabase/admin");
@@ -52,28 +48,6 @@ export async function transcribeAudio(
     }
   }
 
-  // Also try platform-level Gemini config (not company-specific)
-  if (!geminiKey) {
-    try {
-      const { createAdminSupabaseClient } = await import("@/lib/supabase/admin");
-      const supabase = await createAdminSupabaseClient();
-      const { data: configs } = await supabase
-        .from("company_api_configs")
-        .select("credentials_encrypted")
-        .eq("provider", "gemini_imagen")
-        .eq("is_active", true)
-        .limit(1)
-        .single();
-      if (configs?.credentials_encrypted) {
-        const { decrypt } = await import("@/lib/crypto");
-        const decrypted = JSON.parse(decrypt(configs.credentials_encrypted));
-        geminiKey = decrypted.api_key || "";
-      }
-    } catch {
-      // No platform config either
-    }
-  }
-
   if (geminiKey) {
     try {
       const text = await transcribeWithGemini(geminiKey, audioBuffer, mimeType);
@@ -87,7 +61,7 @@ export async function transcribeAudio(
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     try {
-      const result = await transcribeWithWhisper(openaiKey, audioBuffer);
+      const result = await transcribeWithWhisper(openaiKey, audioBuffer, mimeType);
       return { text: result.text.trim(), provider: "openai", duration: result.duration };
     } catch (err) {
       console.error("[transcribe] OpenAI Whisper failed:", err);
@@ -116,6 +90,7 @@ async function transcribeWithGemini(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         contents: [
           {
@@ -149,13 +124,14 @@ async function transcribeWithGemini(
  */
 async function transcribeWithWhisper(
   apiKey: string,
-  audioBuffer: Buffer
+  audioBuffer: Buffer,
+  mimeType: string
 ): Promise<{ text: string; duration: number }> {
   const formData = new FormData();
   formData.append(
     "file",
-    new Blob([new Uint8Array(audioBuffer)], { type: "audio/webm" }),
-    "audio.webm"
+    new Blob([new Uint8Array(audioBuffer)], { type: mimeType }),
+    `audio.${audioExtension(mimeType)}`
   );
   formData.append("model", "whisper-1");
   formData.append("response_format", "verbose_json");
@@ -164,6 +140,7 @@ async function transcribeWithWhisper(
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {

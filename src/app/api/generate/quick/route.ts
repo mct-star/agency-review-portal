@@ -4,6 +4,7 @@ import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/pro
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
 import { routeImageStyle, getEffectiveProvider } from "@/lib/providers/image-routing";
 import { buildVoicePrompt } from "@/lib/voice-to-prompt";
+import { loadGenerationVoiceProfile } from "@/lib/generation/voice-profile";
 import {
   buildPreGenerationContext,
   runPostGenerationGates,
@@ -17,7 +18,8 @@ import { generateSceneQuote, getScenePrompt } from "@/lib/image/scene-quote";
 import { getEffectivePlan } from "@/lib/utils/get-effective-plan";
 import { checkPostLimit, isVisualStyleAllowed, isFaceMatchAllowed } from "@/lib/utils/plan-limits";
 import type { PlanTier } from "@/types/database";
-import { getPostType } from "@/lib/constants/post-types";
+import { getPostType, packOf } from "@/lib/constants/post-types";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { contentPrincipal } from "@/lib/ops-content/principal";
 
 /**
@@ -108,6 +110,12 @@ export async function POST(request: Request) {
   }
 
   const requestedType = getPostType(postTypeSlug);
+  if (requestedType && packOf(requestedType) === "hospitality") {
+    return NextResponse.json(
+      { error: `${requestedType.label} is part of the hospitality pack and is written from the hospitality Quick Post.` },
+      { status: 400 }
+    );
+  }
   if (requestedType?.medium === "video" && requestedType.production === "mac") {
     return NextResponse.json(
       {
@@ -121,6 +129,10 @@ export async function POST(request: Request) {
   const user = await requireCompanyUser(companyId);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  {
+    const refused = await refuseHospitality(user, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -186,10 +198,7 @@ export async function POST(request: Request) {
     }
 
     // ── Fetch voice profile for this spokesperson (or company default) ──
-    const voiceQuery = spokespersonId
-      ? supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).eq("spokesperson_id", spokespersonId).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single()
-      : supabase.from("company_voice_profiles").select("*").eq("company_id", companyId).is("spokesperson_id", null).eq("is_active", true).order("created_at", { ascending: false }).limit(1).single();
-    const { data: voiceProfile } = await voiceQuery;
+    const voiceProfile = await loadGenerationVoiceProfile(supabase, companyId, spokespersonId);
     const voicePromptText = buildVoicePrompt(voiceProfile);
 
     // Blog teasers use CTA URLs instead of sign-offs, and have no first comment.
@@ -733,7 +742,7 @@ export async function POST(request: Request) {
         const contentProviderData = await resolveProvider(companyId, "content_generation");
         const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
         const enhancedPrompt = claudeApiKey
-          ? await enhanceImagePrompt(rawPrompt, styleSlug, claudeApiKey)
+          ? await enhanceImagePrompt(rawPrompt, styleSlug, claudeApiKey, undefined, companyId)
           : rawPrompt;
 
         // Resolve dimensions: square for most styles, 4:3 for 3D/Pixar
@@ -813,6 +822,9 @@ export async function POST(request: Request) {
       carouselImageUrls,
       qualityGates,
       warnings,
+      // Admins only: which model family answered, so the API smoke test can
+      // fail when Claude is down and Gemini quietly wrote the post.
+      ...(user.role === "admin" ? { provider: contentResult.writer?.provider, model: contentResult.writer?.model } : {}),
     });
   } catch (err) {
     console.error("[quick] Generation failed:", err);

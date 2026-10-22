@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { packFieldsForIndustry } from "@/lib/hospitality/signup-pack";
 
 /**
  * POST /api/onboarding
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
   // Check if user already has a company
   const { data: existingProfile } = await supabase
-    .from("profiles")
+    .from("users")
     .select("company_id")
     .eq("id", user.id)
     .single();
@@ -55,9 +56,11 @@ export async function POST(request: Request) {
       name: companyName.trim(),
       website_url: websiteUrl?.trim() || null,
       industry: industry || null,
+      ...packFieldsForIndustry(industry),
       plan: "starter",
+      trial_plan: "pro",
       trial_started_at: new Date().toISOString(),
-      trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      trial_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select("id")
     .single();
@@ -70,10 +73,12 @@ export async function POST(request: Request) {
   }
 
   // Link user to company
-  await supabase
-    .from("profiles")
-    .update({ company_id: company.id, role: "client" })
-    .eq("id", user.id);
+  const { error: linkErr } = await supabase
+    .from("users")
+    .upsert({ id: user.id, email: user.email, company_id: company.id, role: "client" }, { onConflict: "id" });
+  if (linkErr) {
+    return NextResponse.json({ error: "The account could not be linked to the company" }, { status: 500 });
+  }
 
   // Create spokesperson if name provided
   let spokesperson = null;
@@ -98,11 +103,11 @@ export async function POST(request: Request) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://agency-review-portal.vercel.app";
     await sendEmail({
       to: user.email!,
-      subject: `Welcome to AGENCY — your ${7}-day Pro trial has started`,
+      subject: `Welcome to AGENCY, your 7-day Pro trial has started`,
       html: trialWelcomeEmailHtml({
         userName: spokespersonName?.trim() || user.email?.split("@")[0] || "there",
         companyName: companyName.trim(),
-        dashboardUrl: `${baseUrl}/dashboard`,
+        dashboardUrl: `${baseUrl}/home`,
         trialDays: 7,
       }),
     });
@@ -132,7 +137,7 @@ export async function POST(request: Request) {
         }),
       });
     } catch {
-      // Webhook is non-critical — don't block signup
+      // Webhook is non-critical, don't block signup
       console.warn("[onboarding] Webhook failed (non-critical)");
     }
   }

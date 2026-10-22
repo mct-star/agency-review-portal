@@ -671,7 +671,7 @@ export default function GeneratePage() {
       }
 
       if (piecesCreated === 0) {
-        setStatus({ phase: "error", current: 0, total, currentLabel: "", error: `Generation failed for all ${total} pieces. Check your Anthropic API key in Setup > API Keys.` });
+        setStatus({ phase: "error", current: 0, total, currentLabel: "", error: `Generation failed for all ${total} pieces. Check with AGENCY that your AI provider is set up.` });
         return;
       }
 

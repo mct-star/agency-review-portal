@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,12 +22,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { companyId, name, tagline, linkedinUrl, isPrimary, profilePictureUrl } = body;
   if (!companyId || !name) return NextResponse.json({ error: "companyId and name required" }, { status: 400 });
+
+  const user = await requireCompanyUser(companyId);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const supabase = await createAdminSupabaseClient();
 
@@ -79,14 +79,20 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { id, name, tagline, linkedinUrl, isPrimary, profilePictureUrl } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
+
+  // Load the row first: the caller must belong to the spokesperson's company.
+  const { data: existing } = await supabase
+    .from("company_spokespersons")
+    .select("company_id")
+    .eq("id", id)
+    .single();
+  const user = existing ? await requireCompanyUser(existing.company_id) : null;
+  if (!existing || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const update: Record<string, unknown> = {};
   if (name !== undefined) update.name = name;
@@ -97,10 +103,7 @@ export async function PUT(request: Request) {
     update.is_primary = isPrimary;
     // Unset other primaries
     if (isPrimary) {
-      const { data: person } = await supabase.from("company_spokespersons").select("company_id").eq("id", id).single();
-      if (person) {
-        await supabase.from("company_spokespersons").update({ is_primary: false }).eq("company_id", person.company_id);
-      }
+      await supabase.from("company_spokespersons").update({ is_primary: false }).eq("company_id", existing.company_id);
     }
   }
 
@@ -108,6 +111,7 @@ export async function PUT(request: Request) {
     .from("company_spokespersons")
     .update(update)
     .eq("id", id)
+    .eq("company_id", existing.company_id)
     .select()
     .single();
 
@@ -116,15 +120,26 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { id } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
-  const { error } = await supabase.from("company_spokespersons").update({ is_active: false }).eq("id", id);
+
+  // Load the row first: the caller must belong to the spokesperson's company.
+  const { data: existing } = await supabase
+    .from("company_spokespersons")
+    .select("company_id")
+    .eq("id", id)
+    .single();
+  const user = existing ? await requireCompanyUser(existing.company_id) : null;
+  if (!existing || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { error } = await supabase
+    .from("company_spokespersons")
+    .update({ is_active: false })
+    .eq("id", id)
+    .eq("company_id", existing.company_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

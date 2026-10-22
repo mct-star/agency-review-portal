@@ -1,3 +1,4 @@
+import type { TextConfig } from "../text-runtime";
 import type { AdaptationType, ContentType, DistributionPlatform } from "@/types/database";
 
 // ============================================================
@@ -49,24 +50,17 @@ export interface AdaptationStrategy {
 export async function resolveAdaptationStrategy(
   adaptationType: AdaptationType,
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): Promise<AdaptationStrategy> {
   switch (adaptationType) {
     case "thread_expand": {
       const { createThreadExpansionStrategy } = await import("./thread-expansion");
-      return createThreadExpansionStrategy(credentials, settings);
-    }
-    case "newsletter_format": {
-      const { createNewsletterFormatStrategy } = await import("./newsletter-format");
-      return createNewsletterFormatStrategy(credentials, settings);
-    }
-    case "article_syndicate": {
-      const { createArticleSyndicationStrategy } = await import("./article-syndication");
-      return createArticleSyndicationStrategy(credentials, settings);
+      return createThreadExpansionStrategy(credentials, settings, config);
     }
     case "video_metadata": {
       const { createVideoMetadataStrategy } = await import("./video-metadata");
-      return createVideoMetadataStrategy(credentials, settings);
+      return createVideoMetadataStrategy(credentials, settings, config);
     }
     case "copy_adapt":
     case "link_post":
@@ -74,7 +68,7 @@ export async function resolveAdaptationStrategy(
     case "caption_generate":
     default: {
       const { createSinglePostStrategy } = await import("./single-post");
-      return createSinglePostStrategy(credentials, settings);
+      return createSinglePostStrategy(credentials, settings, config);
     }
   }
 }

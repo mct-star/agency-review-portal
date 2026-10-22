@@ -5,9 +5,9 @@ import { useCallback } from "react";
 
 const FILTER_OPTIONS = [
   { label: "All", value: "" },
-  { label: "Pending", value: "pending" },
+  { label: "Awaiting review", value: "pending" },
   { label: "Approved", value: "approved" },
-  { label: "Changes Requested", value: "changes_requested" },
+  { label: "Changes requested", value: "changes_requested" },
 ] as const;
 
 export default function ReviewFilters() {
@@ -15,7 +15,8 @@ export default function ReviewFilters() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const currentFilter = searchParams.get("status") || "";
+  const requestedFilter = searchParams.get("status") || "";
+  const currentFilter = FILTER_OPTIONS.some(option => option.value === requestedFilter) ? requestedFilter : "";
   const currentSearch = searchParams.get("q") || "";
 
   const updateParams = useCallback(
@@ -32,9 +33,9 @@ export default function ReviewFilters() {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="workspace-panel flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
       {/* Search */}
-      <div className="relative">
+      <form className="relative w-full sm:max-w-xs" onSubmit={(e) => { e.preventDefault(); updateParams("q", new FormData(e.currentTarget).get("q") as string); }}>
         <svg
           className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
           fill="none"
@@ -49,30 +50,36 @@ export default function ReviewFilters() {
           />
         </svg>
         <input
-          type="text"
-          placeholder="Search weeks..."
+          key={currentSearch}
+          name="q"
+          type="search"
+          aria-label="Search weeks and recent posts"
+          placeholder="Search weeks and recent posts"
           defaultValue={currentSearch}
-          onChange={(e) => updateParams("q", e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          className="min-h-11 w-full rounded-lg border border-gray-200 bg-white py-2 pl-10 pr-16 text-base text-gray-900 placeholder-gray-500"
         />
-      </div>
+        <button type="submit" className="absolute right-1 top-0 min-h-11 px-2 text-xs font-medium text-gray-600">Search</button>
+      </form>
 
       {/* Filter buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1" aria-label="Filter by status">
         {FILTER_OPTIONS.map((option) => (
           <button
             key={option.value}
+            type="button"
+            aria-pressed={currentFilter === option.value}
             onClick={() => updateParams("status", option.value)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               currentFilter === option.value
-                ? "bg-emerald-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-violet-100 text-violet-900"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
           >
             {option.label}
           </button>
         ))}
       </div>
+      {(currentFilter || currentSearch) && <button type="button" className="workspace-button workspace-button-quiet" onClick={() => router.push(pathname)}>Clear filters</button>}
     </div>
   );
 }

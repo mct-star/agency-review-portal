@@ -71,3 +71,57 @@ describe("post type registry", () => {
     }
   });
 });
+
+describe("hospitality pack", () => {
+  const SLUGS = ["weather_of_the_day", "special_of_the_day", "whats_on_this_week", "live_scene", "event"];
+
+  it("has the five post types, all in the hospitality pack", async () => {
+    const { HOSPITALITY_POST_TYPES, postTypesForPack } = await import("./post-types");
+    expect(HOSPITALITY_POST_TYPES.map((p) => p.slug)).toEqual(SLUGS);
+    expect(postTypesForPack("hospitality").map((p) => p.slug)).toEqual(SLUGS);
+  });
+
+  it("keeps the two packs apart so a company only sees its own", async () => {
+    const { postTypesForPack, isPostTypeInPack } = await import("./post-types");
+    const b2b = postTypesForPack("b2b").map((p) => p.slug);
+    expect(b2b).toContain("insight");
+    for (const s of SLUGS) expect(b2b).not.toContain(s);
+    expect(postTypesForPack(undefined).map((p) => p.slug)).toEqual(b2b);
+    expect(isPostTypeInPack("event", "hospitality")).toBe(true);
+    expect(isPostTypeInPack("event", "b2b")).toBe(false);
+    expect(isPostTypeInPack("insight", "hospitality")).toBe(false);
+  });
+
+  it("gives each type word limits, a brief hint, image guidance and library photos only", async () => {
+    const { HOSPITALITY_POST_TYPES } = await import("./post-types");
+    for (const pt of HOSPITALITY_POST_TYPES) {
+      expect(pt.generation.minWords, pt.slug).toBeGreaterThan(0);
+      expect(pt.generation.maxWords, pt.slug).toBeGreaterThan(pt.generation.minWords!);
+      expect(pt.briefHint, pt.slug).toBeTruthy();
+      expect(pt.libraryQuery, pt.slug).toBeTruthy();
+      expect(pt.generation.imageStyle, pt.slug).toBe("SKIP");
+      expect(pt.archetype, pt.slug).toBe("library_photo");
+    }
+  });
+
+  it("only uses library tags from the fixed vocabulary", async () => {
+    const { HOSPITALITY_POST_TYPES } = await import("./post-types");
+    const { TAG_VOCABULARY } = await import("@/lib/media/vocabulary");
+    for (const pt of HOSPITALITY_POST_TYPES) {
+      for (const p of pt.libraryQuery?.place ?? []) expect(TAG_VOCABULARY.place as readonly string[], `${pt.slug} ${p}`).toContain(p);
+      for (const sj of pt.libraryQuery?.subject ?? []) expect(TAG_VOCABULARY.subject as readonly string[], `${pt.slug} ${sj}`).toContain(sj);
+    }
+  });
+
+  it("has template rows in migration 043, and unique slugs across both packs", async () => {
+    const { ALL_POST_TYPES } = await import("./post-types");
+    const sql = readFileSync(path.resolve(__dirname, "../../../supabase/migrations/043_hospitality_pack.sql"), "utf8");
+    for (const s of SLUGS) expect(sql).toContain(`'${s}'`);
+    expect(new Set(ALL_POST_TYPES.map((p) => p.slug)).size).toBe(ALL_POST_TYPES.length);
+  });
+
+  it("still resolves a hospitality slug through getPostType, and never confuses it for insight", async () => {
+    const { getPostType } = await import("./post-types");
+    expect(getPostType("event")?.pack).toBe("hospitality");
+  });
+});

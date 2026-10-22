@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 export const maxDuration = 120;
 
 /**
  * POST /api/generate/repurpose
  *
- * Takes long-form content and generates 7 derivative pieces using Claude.
+ * Takes long-form content and generates 7 derivative pieces.
  * Does NOT save to database -- the user reviews and selects which to keep.
  *
  * Body: { companyId: string, sourceText: string, spokespersonId?: string }
@@ -36,6 +36,10 @@ export async function POST(request: Request) {
   const user = await requireCompanyUser(companyId);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  {
+    const refused = await refuseHospitality(user, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -68,34 +72,11 @@ export async function POST(request: Request) {
     ? `\n\nVOICE: Match this tone and style: ${voiceProfile.voice_description}`
     : "";
 
-  // Resolve Claude API key
-  const resolved = await resolveProvider(companyId, "content_generation");
-  if (!resolved) {
-    // Fall back to platform-level key
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "No content generation provider configured. Add an API key in Settings." },
-        { status: 400 }
-      );
-    }
-    // Use platform key
-    return generateRepurposedContent(apiKey, sourceText, speakerName, voiceNote);
-  }
-
-  const apiKey = (resolved.credentials as Record<string, string>).apiKey || (resolved.credentials as Record<string, string>).api_key;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Content provider API key not found" },
-      { status: 500 }
-    );
-  }
-
-  return generateRepurposedContent(apiKey, sourceText, speakerName, voiceNote);
+  return generateRepurposedContent(companyId, sourceText, speakerName, voiceNote);
 }
 
 async function generateRepurposedContent(
-  apiKey: string,
+  companyId: string,
   sourceText: string,
   speakerName: string,
   voiceNote: string
@@ -124,7 +105,7 @@ SOURCE CONTENT:
 ${sourceText.substring(0, 12000)}`;
 
   try {
-    const raw = await callClaude(apiKey, "claude-sonnet-4-20250514", systemPrompt, userPrompt, 8192);
+    const raw = (await generateText({ companyId, systemPrompt, userPrompt, maxTokens: 8192 })).text;
 
     // Parse JSON -- handle potential markdown fences
     let cleaned = raw.trim();

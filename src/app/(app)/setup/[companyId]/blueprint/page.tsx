@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import AdminManagedGate from "@/components/setup/AdminManagedGate";
 
 interface Blueprint {
   id: string;
@@ -15,7 +16,7 @@ interface Blueprint {
   updated_at: string;
 }
 
-export default function BlueprintPage() {
+function BlueprintEditor() {
   const { companyId } = useParams<{ companyId: string }>();
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,5 +230,13 @@ export default function BlueprintPage() {
         <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
+  );
+}
+
+export default function BlueprintPage() {
+  return (
+    <AdminManagedGate>
+      <BlueprintEditor />
+    </AdminManagedGate>
   );
 }

@@ -18,7 +18,7 @@ import type { JobStatus } from "@/types/database";
  *   attachVideoToPiece) writes `file_url: null` deliberately, because a
  *   raw capture lives in the private `captures` bucket with no public
  *   URL. This is the one reliable signal that separates it from the
- *   legacy /admin/video page's own upload route
+ *   retired legacy admin video page's upload route
  *   (src/app/api/upload/video/route.ts), which writes the same
  *   asset_metadata.type "raw_video" but to the public `media` bucket
  *   with a real file_url and no `bucket` key. Treating that row as a
@@ -36,10 +36,10 @@ import type { JobStatus } from "@/types/database";
  *   trusting job_type alone.
  *
  * Deliberately not filtered: the piece list itself. A video_script
- * piece produced by the legacy /admin/video page (script + b-roll, no
+ * piece produced by the retired legacy admin video page (script + b-roll, no
  * phone capture) will still appear here with rawAsset null and
- * renders []. That page is left untouched and its retirement is a
- * later decision, so this reads every video_script piece rather than
+ * renders []. That page was retired in October 2026, but its pieces
+ * remain, so this reads every video_script piece rather than
  * guessing which ones "belong" to the phone-clip flow.
  */
 

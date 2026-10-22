@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { VIEW_AS_COOKIE, verifyViewAs, viewAsSecret } from "@/lib/view-as";
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
@@ -18,8 +19,8 @@ export async function createServerSupabaseClient() {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // The `setAll` method is called from a Server Component —
-            // this can be ignored if middleware refreshes sessions.
+            // Called from a Server Component. Safe to ignore when the
+            // middleware refreshes sessions.
           }
         },
       },
@@ -35,7 +36,17 @@ export async function getUser() {
   return user;
 }
 
-export async function getUserProfile() {
+/** Set on a profile while an admin is viewing the platform as a company. */
+export interface ViewingAs {
+  companyId: string;
+  companyName: string;
+}
+
+/**
+ * The real signed-in profile, with the company joined. Anything that must
+ * know who is really acting uses this (or the helpers in admin.ts).
+ */
+export async function getRealProfile() {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -50,4 +61,34 @@ export async function getUserProfile() {
     .single();
 
   return profile;
+}
+
+/**
+ * The profile the pages render for. Normally the real one. When an admin is
+ * viewing as a company (a valid signed cookie), it is that company's view:
+ * role client, that company, no publish right, and `viewing_as` set so the
+ * layout can show the banner. Only an admin's session can be re-pointed.
+ */
+export async function getUserProfile() {
+  const profile = await getRealProfile();
+  if (!profile || profile.role !== "admin") return profile;
+
+  const secret = viewAsSecret();
+  if (!secret) return profile;
+  const cookieStore = await cookies();
+  const viewedId = await verifyViewAs(cookieStore.get(VIEW_AS_COOKIE)?.value, secret);
+  if (!viewedId) return profile;
+
+  const supabase = await createServerSupabaseClient();
+  const { data: company } = await supabase.from("companies").select("*").eq("id", viewedId).maybeSingle();
+  if (!company) return profile;
+
+  return {
+    ...profile,
+    role: "client",
+    company_id: company.id,
+    company,
+    can_publish: false,
+    viewing_as: { companyId: company.id, companyName: company.name } as ViewingAs,
+  };
 }

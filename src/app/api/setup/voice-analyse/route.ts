@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * POST /api/setup/voice-analyse
@@ -39,6 +39,34 @@ Be generous with suggested topics — aim for 5-10 based on what they talk about
 For key vocabulary, capture distinctive words, phrases, or jargon they naturally use.
 For voice characteristics, base this on HOW they speak (sentence structure, word choice, enthusiasm level).`;
 
+const ANALYSIS_SCHEMA = {
+  type: "object",
+  properties: {
+    companyDescription: { type: ["string", "null"] },
+    differentiators: { type: "array", items: { type: "string" } },
+    targetAudience: { type: ["string", "null"] },
+    industry: { type: ["string", "null"] },
+    voiceCharacteristics: {
+      type: "object",
+      properties: {
+        formality: { type: ["string", "null"], enum: ["formal", "conversational", "casual", null] },
+        technicality: { type: ["string", "null"], enum: ["technical", "mixed", "plain", null] },
+        energy: { type: ["string", "null"], enum: ["energetic", "measured", "calm", null] },
+        notes: { type: ["string", "null"] },
+      },
+      required: ["formality", "technicality", "energy", "notes"],
+      additionalProperties: false,
+    },
+    suggestedTopics: { type: "array", items: { type: "string" } },
+    keyVocabulary: { type: "array", items: { type: "string" } },
+    companyName: { type: ["string", "null"] },
+    spokespersonName: { type: ["string", "null"] },
+    website: { type: ["string", "null"] },
+  },
+  required: ["companyDescription", "differentiators", "targetAudience", "industry", "voiceCharacteristics", "suggestedTopics", "keyVocabulary", "companyName", "spokespersonName", "website"],
+  additionalProperties: false,
+};
+
 export async function POST(request: Request) {
   const admin = await requireAdmin();
   if (!admin) {
@@ -63,37 +91,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Try to get the company's content generation provider (Claude/Anthropic)
-    const resolved = await resolveProvider(companyId, "content_generation");
-    let apiKey = (resolved?.credentials?.api_key as string) || "";
-    let provider = resolved?.provider || "";
-
-    // Determine which AI to call
-    // Priority: company's configured content_generation provider, then env vars
-    let aiResponse: string;
-
-    if (provider === "anthropic_claude" && apiKey) {
-      aiResponse = await callAnthropic(apiKey, transcript);
-    } else if (apiKey && provider.startsWith("openai")) {
-      aiResponse = await callOpenAI(apiKey, transcript);
-    } else if (process.env.ANTHROPIC_API_KEY) {
-      aiResponse = await callAnthropic(process.env.ANTHROPIC_API_KEY, transcript);
-    } else if (process.env.OPENAI_API_KEY) {
-      aiResponse = await callOpenAI(process.env.OPENAI_API_KEY, transcript);
-    } else {
-      // Fall back to Gemini via generateText
-      const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-      if (geminiKey) {
-        const { generateText } = await import("@/lib/providers/content-generation/generate-text");
-        const result = await generateText({ systemPrompt: "", userPrompt: transcript, maxTokens: 4096 });
-        aiResponse = result.text;
-      } else {
-        return NextResponse.json(
-          { error: "No AI provider configured. Set GOOGLE_GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY." },
-          { status: 500 }
-        );
-      }
-    }
+    const result = await generateText({
+      companyId,
+      systemPrompt: ANALYSIS_PROMPT,
+      userPrompt: `TRANSCRIPT:\n${transcript}`,
+      maxTokens: 2000,
+      jsonSchema: ANALYSIS_SCHEMA,
+    });
+    const aiResponse = result.text;
 
     // Parse the JSON response
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
@@ -109,60 +114,4 @@ export async function POST(request: Request) {
     console.error("Voice analysis error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-async function callAnthropic(apiKey: string, transcript: string): Promise<string> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `${ANALYSIS_PROMPT}\n\nTRANSCRIPT:\n${transcript}`,
-        },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Anthropic API error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
-}
-
-async function callOpenAI(apiKey: string, transcript: string): Promise<string> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: ANALYSIS_PROMPT },
-        { role: "user", content: `TRANSCRIPT:\n${transcript}` },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 2000,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenAI API error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
 }

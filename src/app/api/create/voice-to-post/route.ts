@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
 
 /**
@@ -11,7 +11,7 @@ import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
  *
  * Pipeline:
  *   1. Transcribe audio via Gemini (free) or OpenAI Whisper fallback (skipped if transcription provided)
- *   2. Generate LinkedIn post via Claude
+ *   2. Generate LinkedIn post via the configured text provider
  *
  * Returns: { postText, transcription, postType, imagePrompt }
  */
@@ -80,6 +80,19 @@ export async function POST(request: Request) {
       }
     }
 
+    // A hospitality company writes for Facebook and Instagram, not LinkedIn:
+    // it uses the weekly chat, so this route must not hand it a LinkedIn post.
+    {
+      const admin = await createAdminSupabaseClient();
+      const { data: packRow } = await admin.from("companies").select("post_pack").eq("id", companyId).maybeSingle();
+      if ((packRow as { post_pack?: string } | null)?.post_pack === "hospitality") {
+        return NextResponse.json(
+          { error: "This company writes for Facebook and Instagram. Use Talk through the week instead." },
+          { status: 400 }
+        );
+      }
+    }
+
     // ── Generate LinkedIn post via fallback chain ────────────────
 
     const { generateText } = await import("@/lib/providers/content-generation/generate-text");
@@ -104,7 +117,7 @@ Write the LinkedIn post:`;
     let postText: string;
     let provider: string;
     try {
-      const result = await generateText({ systemPrompt, userPrompt, maxTokens: 1024 });
+      const result = await generateText({ companyId, systemPrompt, userPrompt, maxTokens: 1024 });
       postText = result.text;
       provider = result.provider;
     } catch (err) {

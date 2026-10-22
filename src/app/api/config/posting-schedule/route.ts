@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/config/posting-schedule?companyId=uuid
@@ -53,12 +53,7 @@ export async function GET(request: Request) {
  * Body: { companyId, postTypeId, dayOfWeek, scheduledTime, slotLabel?, imageArchetype?, ctaUrl?, ctaLinkText? }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const {
     companyId,
     postTypeId,
@@ -75,6 +70,11 @@ export async function POST(request: Request) {
       { error: "companyId, postTypeId, dayOfWeek, and scheduledTime are required" },
       { status: 400 }
     );
+  }
+
+  const user = await requireCompanyUser(companyId);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -118,12 +118,7 @@ export async function POST(request: Request) {
  * Body: { id, ...fields to update }
  */
 export async function PUT(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { id, ...updates } = body;
 
   if (!id) {
@@ -131,6 +126,17 @@ export async function PUT(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
+
+  // Load the row first: the caller must belong to the slot's company.
+  const { data: existing } = await supabase
+    .from("posting_slots")
+    .select("company_id")
+    .eq("id", id)
+    .single();
+  const user = existing ? await requireCompanyUser(existing.company_id) : null;
+  if (!existing || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   // Map camelCase to snake_case
   const dbUpdates: Record<string, unknown> = {};
@@ -148,6 +154,7 @@ export async function PUT(request: Request) {
     .from("posting_slots")
     .update(dbUpdates)
     .eq("id", id)
+    .eq("company_id", existing.company_id)
     .select("*, post_types(*)")
     .single();
 
@@ -163,11 +170,6 @@ export async function PUT(request: Request) {
  * Delete a posting slot.
  */
 export async function DELETE(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
@@ -177,10 +179,22 @@ export async function DELETE(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
+  // Load the row first: the caller must belong to the slot's company.
+  const { data: existing } = await supabase
+    .from("posting_slots")
+    .select("company_id")
+    .eq("id", id)
+    .single();
+  const user = existing ? await requireCompanyUser(existing.company_id) : null;
+  if (!existing || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { error } = await supabase
     .from("posting_slots")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("company_id", existing.company_id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

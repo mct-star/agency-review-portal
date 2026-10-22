@@ -1,5 +1,6 @@
 import type { AdaptationStrategy, AdaptationInput, AdaptationOutput } from "./strategies";
-import { callClaude, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
+import type { TextConfig } from "../text-runtime";
+import { callText, parseClaudeJson, resolveClaudeConfig } from "./claude-util";
 
 const PLATFORM_RULES: Record<string, string> = {
   twitter: `Twitter/X rules:
@@ -53,18 +54,6 @@ const PLATFORM_RULES: Record<string, string> = {
 - Include company perspective
 - 3-5 hashtags
 - CTA to company resources`,
-
-  substack: `Substack rules:
-- Newsletter-style preview/teaser
-- Conversational, newsletter tone
-- Include a compelling reason to open
-- No hashtags needed`,
-
-  medium: `Medium rules:
-- Article preview teaser
-- Thoughtful, essay-like tone
-- Include a hook that makes readers want to click through
-- No hashtags`,
 };
 
 function buildPrompt(input: AdaptationInput): string {
@@ -118,14 +107,15 @@ interface SinglePostResponse {
 
 export function createSinglePostStrategy(
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): AdaptationStrategy {
   const { apiKey, model } = resolveClaudeConfig(credentials, settings);
 
   return {
     async adapt(input: AdaptationInput): Promise<AdaptationOutput> {
       const system = buildPrompt(input);
-      const text = await callClaude(apiKey, model, system, "Adapt the content now.", 2048);
+      const { text, ...writer } = await callText(apiKey, model, system, "Adapt the content now.", 2048, { config });
       const result = parseClaudeJson<SinglePostResponse>(text);
 
       return {
@@ -137,7 +127,7 @@ export function createSinglePostStrategy(
         threadParts: null,
         canonicalUrl: null,
         mediaUrls: null,
-        metadata: {},
+        metadata: { writer },
       };
     },
   };

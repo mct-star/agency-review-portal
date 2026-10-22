@@ -1,99 +1,43 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { encrypt } from "@/lib/crypto";
+import { requireCompanyUser } from "@/lib/supabase/admin";
+import { connectBlueskyAccount } from "@/lib/bluesky/connect";
+import { BLUESKY_NONCE_COOKIE, BLUESKY_OAUTH_SCOPE, blueskyOAuthConfig, createBlueskyOAuthClient, createBlueskyOAuthState, newBlueskyNonce } from "@/lib/bluesky/oauth";
 
-/**
- * POST /api/auth/bluesky
- *
- * Connects a Bluesky account using handle + app password.
- * Bluesky uses the AT Protocol which supports app passwords
- * (no OAuth needed). We validate the credentials by creating
- * a session, then store the access/refresh tokens.
- *
- * Body: { companyId, spokespersonId?, handle, appPassword }
- */
-export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { companyId, spokespersonId, handle, appPassword } = await request.json();
-
-  if (!companyId || !handle || !appPassword) {
-    return NextResponse.json(
-      { error: "companyId, handle, and appPassword are required" },
-      { status: 400 }
-    );
-  }
-
-  // Normalize handle (add .bsky.social if no domain)
-  const normalizedHandle = handle.includes(".") ? handle : `${handle}.bsky.social`;
-
+/** Starts signed Bluesky OAuth, or validates an explicit app-password pilot connection. */
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const companyId = url.searchParams.get("companyId");
+  const handle = url.searchParams.get("handle")?.trim().replace(/^@/, "");
+  if (!companyId || !handle) return NextResponse.json({ error: "companyId and handle are required." }, { status: 400 });
+  const profile = await requireCompanyUser(companyId);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (profile.role !== "admin") return NextResponse.json({ error: "Only an administrator can connect publishing accounts." }, { status: 403 });
+  if (!blueskyOAuthConfig()) return NextResponse.json({ error: "Bluesky OAuth is not configured." }, { status: 503 });
+  const nonce = newBlueskyNonce();
+  const state = createBlueskyOAuthState({ companyId, userId: profile.id, nonce, returnTo: url.searchParams.get("returnTo") === "publish" ? "publish" : "setup" });
   try {
-    // Validate credentials by creating a session with Bluesky
-    const sessionRes = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        identifier: normalizedHandle,
-        password: appPassword,
-      }),
-    });
+    const { client } = await createBlueskyOAuthClient({ companyId, userId: profile.id });
+    const identifier = handle.includes(".") ? handle : `${handle}.bsky.social`;
+    const authUrl = await client.authorize(identifier, { state, scope: BLUESKY_OAUTH_SCOPE });
+    const response = NextResponse.redirect(authUrl);
+    response.cookies.set(BLUESKY_NONCE_COOKIE, nonce, { httpOnly: true, secure: url.protocol === "https:", sameSite: "lax", path: "/api/auth/bluesky", maxAge: 600 });
+    return response;
+  } catch {
+    return NextResponse.json({ error: "Bluesky could not start account authorisation." }, { status: 502 });
+  }
+}
 
-    if (!sessionRes.ok) {
-      const errData = await sessionRes.json().catch(() => ({}));
-      const message = errData.message || `Authentication failed (${sessionRes.status})`;
-      return NextResponse.json({ error: message }, { status: 401 });
-    }
-
-    const session = await sessionRes.json();
-
-    // Store the connection
-    const supabase = await createAdminSupabaseClient();
-
-    const row = {
-      company_id: companyId,
-      spokesperson_id: spokespersonId || null,
-      platform: "bluesky" as const,
-      account_name: session.handle || normalizedHandle,
-      account_id: session.did,
-      access_token_encrypted: encrypt(session.accessJwt),
-      refresh_token_encrypted: session.refreshJwt ? encrypt(session.refreshJwt) : null,
-      // Bluesky sessions expire but can be refreshed
-      token_expires_at: null,
-      platform_metadata: {
-        did: session.did,
-        handle: session.handle,
-        email: session.email || null,
-        // Store the app password encrypted for re-authentication
-        app_password_encrypted: encrypt(appPassword),
-      },
-      is_active: true,
-    };
-
-    const { error: upsertErr } = await supabase
-      .from("company_social_accounts")
-      .upsert(row, {
-        onConflict: "company_id,platform,account_id",
-      });
-
-    if (upsertErr) {
-      console.error("Failed to store Bluesky account:", upsertErr);
-      return NextResponse.json(
-        { error: `Connection succeeded but storage failed: ${upsertErr.message}` },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      handle: session.handle,
-      did: session.did,
-    });
-  } catch (err) {
-    console.error("Bluesky auth error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Connection failed" },
-      { status: 502 }
-    );
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => null) as { companyId?: string; handle?: string; appPassword?: string } | null;
+  if (!body?.companyId || !body.handle || !body.appPassword) return NextResponse.json({ error: "companyId, handle and appPassword are required." }, { status: 400 });
+  const profile = await requireCompanyUser(body.companyId);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (profile.role !== "admin") return NextResponse.json({ error: "Only an administrator can connect publishing accounts." }, { status: 403 });
+  try {
+    const result = await connectBlueskyAccount(body.companyId, body.handle, body.appPassword);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json({ connected: true, accountName: result.handle, accountId: result.did, method: "app_password" });
+  } catch {
+    return NextResponse.json({ error: "Bluesky could not verify this handle and app password." }, { status: 400 });
   }
 }

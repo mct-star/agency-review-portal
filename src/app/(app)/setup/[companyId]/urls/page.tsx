@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import AdminManagedGate from "@/components/setup/AdminManagedGate";
 
 type CtaTier = "primary" | "secondary" | "tertiary";
 
@@ -19,7 +20,7 @@ const TIER_CONFIG: Record<CtaTier, { label: string; description: string; color: 
   tertiary: { label: "Tertiary", description: "Soft engagement (subscribe, follow, podcast)", color: "text-green-700", bgColor: "bg-green-50 border-green-200" },
 };
 
-export default function UrlsPage() {
+function UrlsEditor() {
   const { companyId } = useParams<{ companyId: string }>();
   const [urls, setUrls] = useState<CtaUrl[]>([]);
   const [newUrl, setNewUrl] = useState<CtaUrl>({ label: "", url: "", link_text: "", cta_tier: "secondary" });
@@ -179,5 +180,13 @@ export default function UrlsPage() {
         </p>
       )}
     </div>
+  );
+}
+
+export default function UrlsPage() {
+  return (
+    <AdminManagedGate>
+      <UrlsEditor />
+    </AdminManagedGate>
   );
 }

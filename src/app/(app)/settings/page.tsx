@@ -10,6 +10,9 @@ export default async function SettingsPage() {
   }
 
   if (profile.company_id) {
+    // A venue's brand and settings live on its own page.
+    const company = profile.company as { post_pack?: string | null } | null | undefined;
+    if (company?.post_pack === "hospitality") redirect(`/setup/${profile.company_id}/hospitality`);
     redirect(`/setup/${profile.company_id}`);
   }
 

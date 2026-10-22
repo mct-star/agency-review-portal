@@ -3,180 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isWeekBoardEnabled } from "@/lib/constants/week-board";
 import { useRouter } from "next/navigation";
 import type { User } from "@/types/database";
+import {
+  COMPLEXITY_RANK,
+  HOME_HREF,
+  PLAN_RANK,
+  sectionsFor,
+  type ComplexityLevel,
+  type PlanTier,
+} from "@/app/(app)/nav";
 
-interface SidebarProps {
+export interface SidebarProps {
   user: User;
   platformLogoUrl?: string | null;
   companyPlan?: string;
   complexity?: string;
-}
-
-type PlanTier = "free" | "starter" | "pro" | "agency";
-const PLAN_RANK: Record<PlanTier, number> = { free: 0, starter: 1, pro: 2, agency: 3 };
-
-type ComplexityLevel = "beginner" | "intermediate" | "advanced";
-const COMPLEXITY_RANK: Record<ComplexityLevel, number> = { beginner: 0, intermediate: 1, advanced: 2 };
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: string;
-  adminOnly?: boolean;
-  publisherOnly?: boolean;
-  highlight?: boolean;
-  minPlan?: PlanTier;
-  minComplexity?: ComplexityLevel;
-}
-
-interface NavSection {
-  title: string;
-  phase?: number; // 1-4 for journey phases, undefined for non-phase sections
-  items: NavItem[];
-}
-
-function buildSections(user: User): NavSection[] {
-  const isAdmin = user.role === "admin";
-  const cid = user.company_id;
-  const base = cid ? `/setup/${cid}` : "/setup";
-
-  if (isAdmin) {
-    return [
-      // Phase 1: Strategise
-      {
-        title: "Strategise",
-        phase: 1,
-        items: [
-          { href: "/strategy", label: "Strategy Interview", icon: "compass" },
-          { href: "/strategy/competitor", label: "Competitor Analysis", icon: "compass" },
-        ],
-      },
-      // Phase 2: Plan
-      {
-        title: "Plan",
-        phase: 2,
-        items: [
-          { href: "/calendar", label: "Content Calendar", icon: "calendarView" },
-          { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle" },
-          ...(isWeekBoardEnabled()
-            ? ([
-                { href: "/admin/calendar", label: "Source Calendar", icon: "calendarView", adminOnly: true },
-                { href: "/admin/plan/weekly", label: "Slot Planner", icon: "sparkle", adminOnly: true },
-              ] as NavItem[])
-            : []),
-        ],
-      },
-      // Phase 3: Create
-      {
-        title: "Create",
-        phase: 3,
-        items: [
-          ...(isWeekBoardEnabled()
-            ? ([
-                { href: "/admin/weeks", label: "Week Board", icon: "grid", adminOnly: true, highlight: true },
-                { href: "/admin/clips", label: "Clips", icon: "video", adminOnly: true },
-              ] as NavItem[])
-            : []),
-          { href: "/admin/bank", label: "Photo & Video Bank", icon: "video", adminOnly: true },
-          { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
-          { href: "/create/voice", label: "Voice to Post", icon: "mic" },
-          { href: "/generate", label: "Week Batch", icon: "sparkle" },
-          { href: "/create/article", label: "Blog / Article", icon: "quote" },
-          { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },
-          { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" as ComplexityLevel },
-        ],
-      },
-      // Phase 4: Review & Publish
-      {
-        title: "Review & Publish",
-        phase: 4,
-        items: [
-          { href: "/review", label: "Content Review", icon: "checkCircle" },
-          { href: "/compliance", label: "Compliance", icon: "shieldCheck" },
-          { href: "/publish", label: "Publish", icon: "send" },
-          { href: "/analytics", label: "Analytics", icon: "sparkle" },
-        ],
-      },
-      // Settings (non-phase)
-      ...(cid
-        ? [
-            {
-              title: "Settings",
-              items: [
-                { href: "/settings", label: "Brand & People", icon: "building" },
-                { href: `${base}/social`, label: "Connections", icon: "link" },
-              ] as NavItem[],
-            },
-          ]
-        : []),
-      // Admin (non-phase)
-      {
-        title: "Admin",
-        items: [
-          { href: "/setup", label: "Companies", icon: "building", adminOnly: true },
-          { href: "/admin", label: "Plans & Permissions", icon: "shield", adminOnly: true },
-          { href: "/admin/tickets", label: "Support Tickets", icon: "shield", adminOnly: true },
-          { href: "/users", label: "Users", icon: "users", adminOnly: true },
-        ],
-      },
-    ];
-  }
-
-  // Client sidebar, 4-phase journey
-  return [
-    // Phase 1: Strategise
-    {
-      title: "Strategise",
-      phase: 1,
-      items: [
-        { href: "/strategy", label: "Strategy Interview", icon: "compass" },
-        { href: "/strategy/competitor", label: "Competitor Analysis", icon: "compass" },
-      ],
-    },
-    // Phase 2: Plan
-    {
-      title: "Plan",
-      phase: 2,
-      items: [
-        { href: "/calendar", label: "Content Calendar", icon: "calendarView", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/plan/weekly", label: "Weekly Planner", icon: "sparkle", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-    // Phase 3: Create
-    {
-      title: "Create",
-      phase: 3,
-      items: [
-        { href: "/generate/quick", label: "Quick Post", icon: "zap", highlight: true },
-        { href: "/create/voice", label: "Voice to Post", icon: "mic" },
-        { href: "/generate", label: "Week Batch", icon: "sparkle", minPlan: "starter" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/create/article", label: "Blog / Article", icon: "quote", minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/create/repurpose", label: "Repurpose", icon: "sparkle", minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/create/month", label: "Fill Month", icon: "calendarView", minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-    // Phase 4: Review & Publish
-    {
-      title: "Review & Publish",
-      phase: 4,
-      items: [
-        { href: "/review", label: "Content Review", icon: "checkCircle" },
-        { href: "/compliance", label: "Compliance", icon: "shieldCheck", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/publish", label: "Publish", icon: "send", publisherOnly: true, minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-        { href: "/analytics", label: "Analytics", icon: "sparkle", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-    // Settings (non-phase)
-    {
-      title: "Settings",
-      items: [
-        { href: "/settings", label: "Brand & People", icon: "settings" },
-        { href: `${base}/social`, label: "Connections", icon: "link", minPlan: "pro" as PlanTier, minComplexity: "intermediate" as ComplexityLevel },
-      ],
-    },
-  ];
+  /** Which pack of post types the company writes. Hospitality gets a shorter, plainer menu. */
+  postPack?: string;
+  /** Drafts and photos waiting for approval, shown beside "Waiting for you". */
+  waitingCount?: number;
+  /** Replaces the default desktop layout classes (the phone drawer uses its own). */
+  className?: string;
 }
 
 // ── Phase colours ────────────────────────────────────────────
@@ -223,7 +71,7 @@ const icons: Record<string, string> = {
     "M4 6h11a1 1 0 0 1 1 1v3.5l4-2.5v8l-4-2.5V17a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z",
 };
 
-export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced" }: SidebarProps) {
+export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", complexity = "advanced", postPack, waitingCount = 0, className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isAdmin = user.role === "admin";
@@ -239,6 +87,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
 
   function isActive(href: string): boolean {
     if (pathname === href) return true;
+    if (href === "/setup" && /^\/setup\/[^/]+\/social(?:\/|$)/.test(pathname)) return false;
     if (href === "/generate" && pathname.startsWith("/generate/quick")) return false;
     if (pathname.startsWith(href + "/")) return true;
     if (href === "/review" && pathname.startsWith("/content/")) return true;
@@ -247,12 +96,12 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
     return false;
   }
 
-  const sections = buildSections(user);
+  const sections = sectionsFor(user, postPack);
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
+    <aside className={className ?? "flex h-screen w-[248px] flex-col border-r border-gray-200 bg-white"}>
       {/* Brand */}
-      <div className="border-b border-gray-200 px-4 py-3">
+      <div className="flex min-h-[96px] items-center border-b border-gray-200 px-5 py-5">
         {platformLogoUrl ? (
           <div>
             <img
@@ -263,12 +112,12 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            <p className="mt-0.5 text-[10px] text-gray-500">Content Platform</p>
+            <p className="mt-2 text-xs text-gray-500">Content Platform</p>
           </div>
         ) : (
           <div>
-            <h2 className="text-sm font-bold text-gray-900">AGENCY</h2>
-            <p className="text-[10px] text-gray-600">Content Platform</p>
+            <h2 className="text-xl font-semibold tracking-tight text-gray-900">AGENCY</h2>
+            <p className="mt-1 text-xs text-gray-600">Content Platform</p>
           </div>
         )}
       </div>
@@ -276,9 +125,10 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
       {/* Home */}
       <div className="px-2 pt-3 pb-1 space-y-0.5">
         <Link
-          href="/home"
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-            pathname === "/home"
+          href={HOME_HREF}
+          aria-current={pathname === HOME_HREF ? "page" : undefined}
+          className={`workspace-nav-link flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
+            pathname === HOME_HREF
               ? "bg-violet-50 text-violet-700"
               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
           }`}
@@ -291,12 +141,15 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
       </div>
 
       {/* Journey phases + settings */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
+      <nav aria-label="Main navigation" className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {sections.map((section) => {
           const visibleItems = section.items.filter(
             (item) =>
               (!item.adminOnly || isAdmin) &&
-              (!item.publisherOnly || canPublish || item.minPlan) &&
+              // A publisher-only item needs the publish right and a plan that
+              // includes it: it is hidden, not shown locked, otherwise.
+              (!item.publisherOnly ||
+                (canPublish && (isAdmin || !item.minPlan || planRank >= (PLAN_RANK[item.minPlan] ?? 0)))) &&
               (isAdmin || !item.minComplexity || complexityRank >= COMPLEXITY_RANK[item.minComplexity])
           );
           if (visibleItems.length === 0) return null;
@@ -309,9 +162,7 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                 {phaseColor && (
                   <div className={`h-1.5 w-1.5 rounded-full ${phaseColor.dot}`} />
                 )}
-                <p className={`text-[10px] font-semibold uppercase tracking-wider ${
-                  phaseColor ? phaseColor.label : "text-gray-500"
-                }`}>
+                <p className="text-xs font-medium text-gray-500">
                   {section.phase ? `${section.phase}. ${section.title}` : section.title}
                 </p>
               </div>
@@ -325,7 +176,8 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                       <Link
                         key={item.href}
                         href={`/upgrade?feature=${encodeURIComponent(item.label)}&plan=${item.minPlan || "pro"}`}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 cursor-pointer hover:bg-gray-50 hover:text-gray-500 transition-colors"
+                        aria-label={`${item.label}, upgrade required`}
+                        className="workspace-nav-link flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d={icons[item.icon]} />
@@ -346,7 +198,8 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      aria-current={active ? "page" : undefined}
+                      className={`workspace-nav-link flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${
                         active
                           ? activeClass
                           : item.highlight
@@ -357,7 +210,10 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d={icons[item.icon]} />
                       </svg>
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {item.href === "/approvals" && waitingCount > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900" aria-label={`${waitingCount} waiting`}>{waitingCount}</span>
+                      )}
                     </Link>
                   );
                 })}
@@ -368,24 +224,25 @@ export default function Sidebar({ user, platformLogoUrl, companyPlan = "free", c
       </nav>
 
       {/* User info + plan badge */}
-      <div className="border-t border-gray-200 px-4 py-3">
+      <div className="border-t border-gray-200 px-5 py-4">
         <div className="flex items-center justify-between">
           <p className="truncate text-sm font-medium text-gray-900">
             {user.full_name || user.email}
           </p>
-          <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+            isAdmin ? "bg-gray-900 text-white" :
             companyPlan === "agency" ? "bg-purple-100 text-purple-700" :
             companyPlan === "pro" ? "bg-violet-100 text-violet-700" :
             companyPlan === "starter" ? "bg-blue-100 text-blue-700" :
             "bg-gray-100 text-gray-500"
           }`}>
-            {(companyPlan || "free").charAt(0).toUpperCase() + (companyPlan || "free").slice(1)}
+            {isAdmin ? "Admin" : (companyPlan || "free").charAt(0).toUpperCase() + (companyPlan || "free").slice(1)}
           </span>
         </div>
         <p className="truncate text-xs text-gray-500">{user.email}</p>
         <button
           onClick={handleSignOut}
-          className="mt-2 text-xs text-gray-500 hover:text-gray-600"
+          className="mt-1 min-h-11 text-xs text-gray-500 hover:text-gray-600"
         >
           Sign out
         </button>

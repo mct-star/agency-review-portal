@@ -24,46 +24,21 @@ import type {
   PlatformAdaptationOutput,
 } from "../index";
 
-/**
- * Model routing by task complexity:
- * - OPUS: deep reasoning (strategy, voice extraction, blueprints) — one-time setup
- * - SONNET: creative writing (posts, blogs, compliance review) — per-generation
- * - HAIKU: simple classification (quality gates, hook extraction, prompt enhancement) — high volume
- */
-const MODEL_OPUS = "claude-opus-4-20250514";
-const MODEL_SONNET = "claude-sonnet-4-20250514";
-const MODEL_HAIKU = "claude-3-5-haiku-20241022";
-
-const DEFAULT_MODEL = MODEL_SONNET;
-const API_URL = "https://api.anthropic.com/v1/messages";
+import { callText, resolveClaudeConfig } from "../content-adaptation/claude-util";
+import { requestText, type TextConfig, type WriterIdentity } from "../text-runtime";
 
 interface AnthropicMessage {
   role: "user" | "assistant";
   content: string;
 }
 
-interface AnthropicResponse {
-  content: { type: string; text: string }[];
-  stop_reason: string;
-  usage: { input_tokens: number; output_tokens: number };
-}
-
-/**
- * Delegates to the shared 4-tier fallback callClaude in claude-util.
- * Signature-compatible wrapper: takes messages array (first message's content is the user prompt).
- * All content generation now flows through the fallback chain.
- */
-import { callClaude as callWithFallback } from "../content-adaptation/claude-util";
-
-async function callClaude(
-  apiKey: string,
-  model: string,
-  system: string,
-  messages: AnthropicMessage[],
-  maxTokens: number = 4096
-): Promise<string> {
-  const userMessage = messages.find((m) => m.role === "user")?.content || "Generate now.";
-  return callWithFallback(apiKey, model, system, userMessage, maxTokens);
+/** Deprecated: use the writer on the returned result. No process-global identity is stored. */
+export function lastWriterUsed(): WriterIdentity | null { return null; }
+async function callClaude(apiKey: string, model: string, system: string, messages: AnthropicMessage[], maxTokens = 4096, effort: "low" | "medium" = "low", config?: TextConfig) {
+  const userMessage = messages.find(m => m.role === "user")?.content || "Generate now.";
+  return config
+    ? requestText(config, { systemPrompt: system, userPrompt: userMessage, maxTokens, effort })
+    : callText(apiKey, model, system, userMessage, maxTokens, { effort });
 }
 
 // ── Content Type Instructions ───────────────────────────────
@@ -602,31 +577,27 @@ E. ECOSYSTEM
 
 export function createClaudeContentProvider(
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): ContentProvider {
-  const apiKey = credentials.api_key as string;
-  if (!apiKey) {
-    throw new Error(
-      "Anthropic provider requires an api_key in credentials"
-    );
-  }
-  const model = (settings.model as string) || DEFAULT_MODEL;
+  const { apiKey, model } = resolveClaudeConfig(credentials, settings);
 
   return {
     async generate(input: ContentGenerationInput): Promise<ContentGenerationOutput> {
       const system = buildContentPrompt(input);
 
-      // The local callClaude now delegates to the 4-tier fallback chain in claude-util
-      // (Claude → Gemini 2.5 Pro → Gemini 2.5 Flash → OpenAI GPT-4o).
+      // Shared prompts and parsers preserve voice and formatting for either API.
       const longForm = isLongForm(input.contentType);
-      const text = await callClaude(
+      const result = await callClaude(
         apiKey,
         model,
         system,
         [{ role: "user", content: "Generate the content now." }],
-        longForm ? 16384 : 8192
+        longForm ? 16384 : 8192,
+        "medium", config
       );
-      if (longForm) return parseLongFormOutput(text);
+      const { text, ...writer } = result;
+      if (longForm) return { ...parseLongFormOutput(text), writer };
 
       // Parse JSON response — strip any markdown fences if present
       const cleaned = text
@@ -640,10 +611,10 @@ export function createClaudeContentProvider(
         if (!parsed.imagePrompt) {
           parsed.imagePrompt = null;
         }
-        return parsed;
+        return { ...parsed, writer };
       } catch {
         throw new Error(
-          `Failed to parse LLM response as JSON. Raw output: ${text.substring(0, 500)}`
+          "The writing assistant returned an unreadable response. Please try again."
         );
       }
     },
@@ -660,7 +631,7 @@ export function createClaudeFixProvider(
 ) {
   const apiKey = credentials.api_key as string;
   if (!apiKey) throw new Error("Fix provider requires API key");
-  const model = (settings.model as string) || DEFAULT_MODEL;
+  const { model } = resolveClaudeConfig(credentials, settings);
 
   return {
     async fix(
@@ -720,7 +691,7 @@ RULES:
 - Keep the same image prompt and assets unless specifically flagged
 - If word count is wrong, trim or expand naturally (not with filler)`;
 
-      const text = await callClaude(
+      const { text, ...writer } = await callClaude(
         apiKey,
         model,
         system,
@@ -730,7 +701,7 @@ RULES:
       if (longForm) {
         try {
           const fixed = parseLongFormOutput(text);
-          return { ...fixed, title: fixed.title || content.title, postType: content.postType, imagePrompt: content.imagePrompt, assets: content.assets };
+          return { ...fixed, writer, title: fixed.title || content.title, postType: content.postType, imagePrompt: content.imagePrompt, assets: content.assets };
         } catch {
           return content; // a cut-off fix is worse than the original
         }
@@ -746,7 +717,7 @@ RULES:
         const parsed = JSON.parse(cleaned) as ContentGenerationOutput;
         if (!parsed.imagePrompt) parsed.imagePrompt = content.imagePrompt;
         if (!parsed.assets || parsed.assets.length === 0) parsed.assets = content.assets;
-        return parsed;
+        return { ...parsed, writer };
       } catch {
         // If parsing fails, return original content unchanged
         return content;
@@ -807,17 +778,10 @@ const PLATFORM_RULES: Record<string, string> = {
 
 export function createClaudePlatformAdaptationProvider(
   credentials: Record<string, unknown>,
-  settings: Record<string, unknown>
+  settings: Record<string, unknown>,
+  config?: TextConfig
 ): PlatformAdaptationProvider {
-  const apiKey = credentials.api_key as string;
-  // If no API key configured, we can still try if ANTHROPIC_API_KEY env is set
-  const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY;
-  if (!effectiveKey) {
-    throw new Error(
-      "Platform adaptation requires an Anthropic API key (either in provider config or ANTHROPIC_API_KEY env var)"
-    );
-  }
-  const model = (settings.model as string) || DEFAULT_MODEL;
+  const { apiKey: effectiveKey, model } = resolveClaudeConfig(credentials, settings);
 
   return {
     async adapt(input: PlatformAdaptationInput): Promise<PlatformAdaptationOutput> {
@@ -854,12 +818,12 @@ Adapt this content for ${input.platform}. Respond with JSON (no code fences):
   "characterCount": number
 }`;
 
-      const text = await callClaude(
+      const { text } = await callClaude(
         effectiveKey,
         model,
         system,
         [{ role: "user", content: "Adapt the content now." }],
-        2048
+        2048, "low", config
       );
 
       const cleaned = text
@@ -872,7 +836,7 @@ Adapt this content for ${input.platform}. Respond with JSON (no code fences):
         return JSON.parse(cleaned) as PlatformAdaptationOutput;
       } catch {
         throw new Error(
-          `Failed to parse adaptation response as JSON. Raw: ${text.substring(0, 500)}`
+          "The writing assistant returned an unreadable response. Please try again."
         );
       }
     },

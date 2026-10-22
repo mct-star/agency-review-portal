@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseBankItem } from "@/lib/media/access";
 import { CAPTURES_BUCKET } from "@/lib/upload/media-constants";
 
 /**
- * PATCH /api/bank/[id]  { tags?, scene_label?, notes?, shows_spokesperson?, text_space? }
+ * PATCH /api/bank/[id]  { tags?, scene_label?, notes?, shows_spokesperson?, text_space?, people_present? }
  * DELETE /api/bank/[id] removes the original from storage and the bank.
  * Copies already attached to posts are separate files and stay.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+  const access = await authoriseBankItem(id);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const body = await request.json().catch(() => ({}));
   const patch: Record<string, unknown> = {};
   if (Array.isArray(body.tags)) {
@@ -21,6 +22,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof body.notes === "string" || body.notes === null) patch.notes = body.notes ? String(body.notes).slice(0, 1000) : null;
   if (typeof body.shows_spokesperson === "boolean") patch.shows_spokesperson = body.shows_spokesperson;
   if (typeof body.text_space === "boolean") patch.text_space = body.text_space;
+  if (typeof body.people_present === "boolean") patch.people_present = body.people_present;
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
   patch.updated_at = new Date().toISOString();
 
@@ -32,14 +34,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+  const access = await authoriseBankItem(id);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const supabase = await createAdminSupabaseClient();
-  const { data: row } = await supabase.from("photo_inventory").select("bucket, storage_path").eq("id", id).maybeSingle();
+  const { data: row } = await supabase.from("photo_inventory").select("bucket, storage_path, thumb_path, poster_path").eq("id", id).maybeSingle();
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (row.bucket === CAPTURES_BUCKET && row.storage_path) {
-    const { error: rmErr } = await supabase.storage.from(CAPTURES_BUCKET).remove([row.storage_path]);
+    const { error: rmErr } = await supabase.storage.from(CAPTURES_BUCKET).remove([row.storage_path, row.thumb_path, row.poster_path].filter((p): p is string => !!p));
     if (rmErr) return NextResponse.json({ error: `Could not remove the file: ${rmErr.message}` }, { status: 500 });
   }
   const { error } = await supabase.from("photo_inventory").delete().eq("id", id);

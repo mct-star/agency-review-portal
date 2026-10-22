@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import AdminManagedGate from "@/components/setup/AdminManagedGate";
 import type { ServiceCategory } from "@/types/database";
 
 interface ApiConfig {
@@ -59,18 +60,6 @@ const SERVICE_CATEGORIES: {
     providers: ["openai_whisper", "deepgram", "assemblyai"],
   },
   {
-    value: "newsletter_publishing",
-    label: "Newsletter Publishing",
-    description: "Publish articles as newsletters (e.g. Substack)",
-    providers: ["substack"],
-  },
-  {
-    value: "content_syndication",
-    label: "Content Syndication",
-    description: "Cross-post articles to content platforms (e.g. Medium)",
-    providers: ["medium"],
-  },
-  {
     value: "video_hosting",
     label: "Video Hosting",
     description: "Upload and host videos on platforms (YouTube, TikTok, Instagram)",
@@ -84,7 +73,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   stability_ai: "Stability AI",
   ideogram: "Ideogram",
   anthropic_claude: "Anthropic Claude",
-  openai_gpt4: "OpenAI GPT-4",
+  openai_gpt4: "OpenAI GPT-6.1 Sol",
   wordpress: "WordPress",
   wix: "Wix",
   metricool: "Metricool",
@@ -95,14 +84,12 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai_whisper: "OpenAI Whisper",
   deepgram: "Deepgram",
   assemblyai: "AssemblyAI",
-  substack: "Substack",
-  medium: "Medium",
   youtube: "YouTube",
   tiktok: "TikTok",
   instagram_graph: "Instagram Graph API",
 };
 
-export default function ApiProvidersPage() {
+function ApiProvidersEditor() {
   const { companyId } = useParams<{ companyId: string }>();
   const [configs, setConfigs] = useState<ApiConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +100,8 @@ export default function ApiProvidersPage() {
   const [editCategory, setEditCategory] = useState<ServiceCategory | null>(null);
   const [editProvider, setEditProvider] = useState("");
   const [editApiKey, setEditApiKey] = useState("");
+  const [utilityTier, setUtilityTier] = useState("economy");
+  const [fallbackApproved, setFallbackApproved] = useState(false);
 
   useEffect(() => {
     fetchConfigs();
@@ -139,6 +128,7 @@ export default function ApiProvidersPage() {
         serviceCategory: editCategory,
         provider: editProvider,
         credentials: editApiKey ? { api_key: editApiKey } : undefined,
+        providerSettings: editCategory === "content_generation" ? { utility_tier: utilityTier, fallback_approved: fallbackApproved } : undefined,
       }),
     });
 
@@ -236,6 +226,8 @@ export default function ApiProvidersPage() {
                           setEditCategory(category.value);
                           setEditProvider(existing.provider);
                           setEditApiKey("");
+                          setUtilityTier(existing.provider_settings.utility_tier === "quality" ? "quality" : "economy");
+                          setFallbackApproved(existing.provider_settings.fallback_approved === true);
                         }}
                         className="text-xs text-sky-600 hover:text-sky-800"
                       >
@@ -260,7 +252,13 @@ export default function ApiProvidersPage() {
                     </label>
                     <select
                       value={editProvider}
-                      onChange={(e) => setEditProvider(e.target.value)}
+                      onChange={(e) => {
+                        const stored = configs.find(config => config.service_category === category.value && config.provider === e.target.value);
+                        setEditProvider(e.target.value);
+                        setEditApiKey("");
+                        setUtilityTier(stored?.provider_settings.utility_tier === "quality" ? "quality" : "economy");
+                        setFallbackApproved(stored?.provider_settings.fallback_approved === true);
+                      }}
                       className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     >
                       <option value="">Select provider...</option>
@@ -283,9 +281,23 @@ export default function ApiProvidersPage() {
                       className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Leave blank to keep existing credentials
+                      Leave blank to keep this company&apos;s saved key for the selected provider.
                     </p>
                   </div>
+                  {category.value === "content_generation" && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500">Writing uses {editProvider === "openai_gpt4" ? "GPT-6.1 Sol" : "Claude Sonnet 5.5"}. Company keys stay with this provider.</p>
+                      <label className="block text-xs font-medium text-gray-700" htmlFor="utility-tier">Classification and routing</label>
+                      <select id="utility-tier" value={utilityTier} onChange={e => setUtilityTier(e.target.value)} className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                        <option value="economy">Economy for short structured tasks</option>
+                        <option value="quality">Use the writing model for every task</option>
+                      </select>
+                      <label className="flex items-start gap-2 text-xs text-gray-700">
+                        <input type="checkbox" checked={fallbackApproved} onChange={event => setFallbackApproved(event.target.checked)} className="mt-0.5" />
+                        Use this company&apos;s other saved writing provider if this provider is unavailable or out of credits. Shared funding is never used.
+                      </label>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={handleSave}
@@ -325,5 +337,13 @@ export default function ApiProvidersPage() {
         <p className="text-center text-sm text-gray-500">Loading...</p>
       )}
     </div>
+  );
+}
+
+export default function ApiProvidersPage() {
+  return (
+    <AdminManagedGate>
+      <ApiProvidersEditor />
+    </AdminManagedGate>
   );
 }

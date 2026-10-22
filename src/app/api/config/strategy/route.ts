@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 
 /**
  * GET /api/config/strategy?companyId=...
@@ -61,12 +61,7 @@ export async function GET(request: Request) {
  * }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { companyId, format, content, strategyMode } = body;
 
   if (!companyId || !format || !content) {
@@ -74,6 +69,11 @@ export async function POST(request: Request) {
       { error: "companyId, format, and content are required" },
       { status: 400 }
     );
+  }
+
+  const user = await requireCompanyUser(companyId);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -228,24 +228,6 @@ async function handleMarkdownImport(
     is_active: true,
   });
 
-  // Try to extract structure using Claude
-  const resolved = await resolveProvider(companyId, "content_generation");
-
-  if (!resolved) {
-    // No AI provider — just store the blueprint, skip extraction
-    await supabase
-      .from("setup_progress")
-      .upsert({ company_id: companyId, step_strategy: true }, { onConflict: "company_id" });
-
-    return NextResponse.json({
-      themesCount: 0,
-      topicsCount: 0,
-      message: "Blueprint stored. Configure an AI provider to extract themes and topics automatically.",
-    });
-  }
-
-  const apiKey = resolved.credentials.api_key as string;
-
   try {
     const extractionPrompt = `Analyse this content strategy document and extract:
 1. Monthly or quarterly THEMES (e.g., "Why Is This Not Working?", "The Fourth Lever")
@@ -263,29 +245,12 @@ Return ONLY valid JSON:
 
 Extract as many themes and topics as you can find. Be specific, not generic.`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: (resolved.settings.model as string) || "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        messages: [
-          {
-            role: "user",
-            content: `${extractionPrompt}\n\n---\n\nDOCUMENT:\n\n${markdownContent.substring(0, 50000)}`,
-          },
-        ],
-      }),
-    });
-
-    if (!claudeRes.ok) throw new Error("Claude API error");
-
-    const claudeData = await claudeRes.json();
-    const responseText = claudeData.content?.[0]?.text || "";
+    const responseText = (await generateText({
+      companyId,
+      systemPrompt: "Return only the JSON object requested. No preamble.",
+      userPrompt: `${extractionPrompt}\n\n---\n\nDOCUMENT:\n\n${markdownContent.substring(0, 50000)}`,
+      maxTokens: 4000,
+    })).text;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON in response");
 

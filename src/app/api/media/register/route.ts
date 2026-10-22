@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { NextResponse, after } from "next/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseCompany } from "@/lib/media/access";
 import {
   CAPTURES_BUCKET,
   PUBLISHED_BUCKET,
@@ -9,6 +10,10 @@ import {
   type MediaKind,
 } from "@/lib/upload/media-constants";
 import { copyToPublishedBucket, nextImageSortOrder } from "@/lib/media/publish-copy";
+import { autoTagItem, findStoredObject, registerLibraryItem } from "@/lib/media/library";
+import { decodeJpegFrame } from "@/lib/media/derivatives";
+
+export const maxDuration = 60;
 
 /**
  * POST /api/media/register
@@ -55,6 +60,8 @@ interface RegisterBody {
   durationSeconds: number | null;
   weekNumber: number | null;
   target: RegisterTarget;
+  /** Up to three JPEG frames (data URLs) taken in the browser, for a video. */
+  frames: Buffer[];
 }
 
 class BadRequest extends Error {
@@ -172,30 +179,10 @@ function parseBody(raw: unknown): RegisterBody {
     durationSeconds: optionalNumber(body.durationSeconds, "durationSeconds"),
     weekNumber: optionalNumber(body.weekNumber, "weekNumber"),
     target: parseTarget(body.target),
+    frames: Array.isArray(body.frames)
+      ? (body.frames as unknown[]).slice(0, 3).map((f) => decodeJpegFrame(f)).filter((b): b is Buffer => b !== null)
+      : [],
   };
-}
-
-/**
- * The object is the only proof the browser upload succeeded, so it is
- * checked before anything is written. `list` is scoped to the parent
- * prefix and `search` is a prefix match rather than an exact one,
- * hence the explicit name comparison.
- */
-async function objectExists(
-  supabase: SupabaseAdmin,
-  bucket: string,
-  path: string
-): Promise<boolean> {
-  const lastSlash = path.lastIndexOf("/");
-  const prefix = lastSlash === -1 ? "" : path.slice(0, lastSlash);
-  const basename = path.slice(lastSlash + 1);
-
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .list(prefix, { limit: 100, search: basename });
-
-  if (error || !data) return false;
-  return data.some((entry) => entry.name === basename);
 }
 
 /**
@@ -231,49 +218,35 @@ async function registerPhotoInBank(supabase: SupabaseAdmin, body: RegisterBody) 
   if (body.target.type !== "photo_bank") throw new BadRequest("Unreachable target");
   // The bank holds photos and video footage alike.
 
-  const fileRef = body.sha256 ? `sha256:${body.sha256}` : body.path;
+  const result = await registerLibraryItem(supabase, {
+    companyId: body.companyId,
+    kind: body.kind,
+    path: body.path,
+    mimeType: body.mimeType,
+    sizeBytes: body.sizeBytes,
+    originalFilename: body.originalFilename,
+    sha256: body.sha256,
+    width: body.width,
+    height: body.height,
+    durationSeconds: body.durationSeconds,
+    source: body.target.source ?? "weekly_capture",
+    status: "approved",
+    sceneLabel: body.target.sceneLabel ?? null,
+    frames: body.frames,
+  });
 
-  const { data, error } = await supabase
-    .from("photo_inventory")
-    .insert({
-      company_id: body.companyId,
-      file_ref: fileRef,
-      scene_label: body.target.sceneLabel ?? null,
-      source: body.target.source ?? "weekly_capture",
-      storage_path: body.path,
-      bucket: body.bucket,
-      mime_type: body.mimeType,
-      width: body.width,
-      height: body.height,
-      size_bytes: body.sizeBytes,
-      original_filename: body.originalFilename,
-      kind: body.kind,
-      duration_seconds: body.durationSeconds,
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    // 23505 on (company_id, file_ref) means the content hash has been
-    // registered before. That is the dedupe doing its job, not a
-    // failure, so the caller gets the existing row and a 200.
-    if (error.code === "23505") {
-      const { data: existing } = await supabase
-        .from("photo_inventory")
-        .select("*")
-        .eq("company_id", body.companyId)
-        .eq("file_ref", fileRef)
-        .maybeSingle();
-
-      return NextResponse.json({ alreadyExists: true, photo: existing }, { status: 200 });
-    }
-    return NextResponse.json(
-      { error: `Could not register photo: ${error.message}` },
-      { status: 500 }
-    );
+  // Tagging happens after the response, so a big batch is not held up by
+  // one vision call per file. A failure is recorded on the row and can be
+  // retried from the library.
+  const row = result.photo as { id?: string } | null;
+  if (!result.alreadyExists && row?.id) {
+    const id = row.id;
+    after(async () => {
+      await autoTagItem(supabase, id, { visionImages: result.visionImages });
+    });
   }
 
-  return NextResponse.json({ alreadyExists: false, photo: data });
+  return NextResponse.json({ alreadyExists: result.alreadyExists, photo: result.photo });
 }
 
 async function attachPhotoToPiece(
@@ -459,11 +432,6 @@ async function createClipPiece(supabase: SupabaseAdmin, body: RegisterBody, week
 }
 
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   let body: RegisterBody;
   try {
     body = parseBody(await request.json());
@@ -474,13 +442,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
+  // An admin, or a member of this company. Not anyone signed in.
+  const access = await authoriseCompany(body.companyId);
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  // The object key must sit under the company's own prefix, so a member
+  // cannot register (and so read back) another company's upload.
+  if (!body.path.startsWith(`${body.companyId}/`)) {
+    return NextResponse.json(
+      { error: "path must sit under the company's own folder" },
+      { status: 400 }
+    );
+  }
+
   const supabase = await createAdminSupabaseClient();
 
-  if (!(await objectExists(supabase, body.bucket, body.path))) {
+  const stored = await findStoredObject(supabase, body.bucket, body.path);
+  if (!stored) {
     return NextResponse.json(
       { error: `No object at ${body.bucket}/${body.path}. The upload did not complete.` },
       { status: 404 }
     );
+  }
+  // What was actually stored is what counts, not what the browser declared.
+  if (stored.size !== null) {
+    if (stored.size > maxBytes(body.kind)) {
+      await supabase.storage.from(body.bucket).remove([body.path]);
+      return NextResponse.json({ error: `File exceeds the ${body.kind} size limit` }, { status: 413 });
+    }
+    body.sizeBytes = stored.size;
   }
 
   try {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 
 /**
@@ -25,6 +26,10 @@ export async function POST(request: Request) {
   const isAdmin = profile.role === "admin";
   if (!isAdmin && profile.company_id !== companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   const proxycurlKey = process.env.PROXYCURL_API_KEY;

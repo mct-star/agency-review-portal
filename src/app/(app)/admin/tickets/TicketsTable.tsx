@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 interface Ticket {
   id: string;
@@ -9,6 +10,8 @@ interface Ticket {
   category: string;
   priority: string;
   status: string;
+  company_id?: string | null;
+  company_name?: string | null;
   reporter_name: string | null;
   reporter_email: string | null;
   page_url: string | null;
@@ -56,9 +59,14 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
   const [tickets, setTickets] = useState(initialTickets);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function updateStatus(ticketId: string, newStatus: string) {
     setUpdating(ticketId);
+    setErrors((prev) => {
+      const { [ticketId]: _cleared, ...rest } = prev;
+      return rest;
+    });
     try {
       const res = await fetch("/api/support/tickets", {
         method: "PATCH",
@@ -73,7 +81,14 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
               : t
           )
         );
+      } else {
+        // The status shown is only changed after the save succeeds, so a
+        // failed save leaves the old status on screen and says why.
+        const d = await res.json().catch(() => ({}));
+        setErrors((prev) => ({ ...prev, [ticketId]: d.error || `The status was not saved (${res.status}).` }));
       }
+    } catch {
+      setErrors((prev) => ({ ...prev, [ticketId]: "The status was not saved. Check your connection and try again." }));
     } finally {
       setUpdating(null);
     }
@@ -88,13 +103,14 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-lg border border-gray-200">
+      <table className="w-full min-w-[960px] text-left text-sm">
         <thead className="border-b border-gray-200 bg-gray-50">
           <tr>
             <th className="px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
             <th className="px-4 py-3 text-xs font-semibold text-gray-500">Priority</th>
             <th className="px-4 py-3 text-xs font-semibold text-gray-500">Title</th>
+            <th className="px-4 py-3 text-xs font-semibold text-gray-500">Company</th>
             <th className="px-4 py-3 text-xs font-semibold text-gray-500">Reporter</th>
             <th className="px-4 py-3 text-xs font-semibold text-gray-500">Date</th>
             <th className="px-4 py-3 text-xs font-semibold text-gray-500">Page</th>
@@ -105,7 +121,7 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
             const isExpanded = expandedId === ticket.id;
             return (
               <tr key={ticket.id} className="group">
-                <td colSpan={6} className="p-0">
+                <td colSpan={7} className="p-0">
                   {/* Summary row */}
                   <button
                     type="button"
@@ -126,6 +142,9 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
                       {ticket.title}
                     </span>
                     <span className="px-4 py-3 w-[140px] text-gray-600 truncate">
+                      {ticket.company_name || "-"}
+                    </span>
+                    <span className="px-4 py-3 w-[140px] text-gray-600 truncate">
                       {ticket.reporter_name || ticket.reporter_email || "Unknown"}
                     </span>
                     <span className="px-4 py-3 w-[100px] text-gray-500 text-xs">
@@ -139,6 +158,14 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
                   {/* Expanded detail */}
                   {isExpanded && (
                     <div className="border-t border-gray-100 bg-gray-50 px-6 py-4 space-y-3">
+                      {ticket.company_id && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 mb-1">Company</h4>
+                          <Link href={`/setup/${ticket.company_id}`} className="text-sm text-sky-700 hover:underline">
+                            {ticket.company_name || "Open company"}
+                          </Link>
+                        </div>
+                      )}
                       <div>
                         <h4 className="text-xs font-semibold text-gray-500 mb-1">Description</h4>
                         <p className="text-sm text-gray-800 whitespace-pre-wrap">{ticket.description}</p>
@@ -182,7 +209,7 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
                       )}
 
                       {/* Quick actions */}
-                      <div className="flex gap-2 pt-2 border-t border-gray-200">
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
                         {ticket.status !== "investigating" && (
                           <button
                             onClick={() => updateStatus(ticket.id, "investigating")}
@@ -218,6 +245,9 @@ export default function TicketsTable({ tickets: initialTickets }: TicketsTablePr
                           >
                             Close
                           </button>
+                        )}
+                        {errors[ticket.id] && (
+                          <span role="alert" className="text-xs text-red-600">{errors[ticket.id]}</span>
                         )}
                       </div>
                     </div>

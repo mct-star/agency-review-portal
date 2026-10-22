@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getImageProvider, resolveProvider } from "@/lib/providers";
 import { enhanceImagePrompt } from "@/lib/providers/image-generation/prompt-enhancer";
@@ -37,6 +38,10 @@ export async function POST(request: Request) {
   const profile = await requireCompanyUser(companyId);
   if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -149,7 +154,7 @@ export async function POST(request: Request) {
     const contentProviderData = await resolveProvider(companyId, "content_generation");
     const claudeApiKey = contentProviderData?.credentials?.api_key as string | undefined;
     const enhancedPrompt = claudeApiKey
-      ? await enhanceImagePrompt(imagePrompt, archetype || "default", claudeApiKey)
+      ? await enhanceImagePrompt(imagePrompt, archetype || "default", claudeApiKey, undefined, companyId)
       : imagePrompt;
 
     const imgResult = await imgProvider.generate({

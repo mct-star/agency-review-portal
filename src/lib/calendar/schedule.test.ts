@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { dateInWeek, dayOfDate, isIsoDate, normDay, weekForDate } from "./schedule";
+import { plannedWeekId } from "./schedule";
+import { fakeSupabase } from "@/test/fake-supabase";
 
 describe("schedule", () => {
   it("reads a day in any case and refuses anything else", () => {
@@ -36,5 +38,28 @@ describe("schedule", () => {
   it("checks a date string", () => {
     expect(isIsoDate("2026-10-04")).toBe(true);
     expect(isIsoDate("4 Oct")).toBe(false);
+  });
+});
+
+describe("a future recurring slot's week", () => {
+  it("reuses an existing company/date week without changing its metadata", async () => {
+    const fake = fakeSupabase({ weeks: { data: { id: "existing" } } });
+    expect(await plannedWeekId(fake.client as unknown as Parameters<typeof plannedWeekId>[0], "company-b", "2027-01-01")).toBe("existing");
+    expect(fake.calls).toContainEqual({ table: "weeks", method: "eq", args: ["company_id", "company-b"] });
+    expect(fake.calls.some((call) => call.method === "upsert")).toBe(false);
+  });
+
+  it("uses the existing company/week/year unique key without overwriting a concurrent plan", async () => {
+    let created = false;
+    const fake = fakeSupabase({ weeks: (calls) => {
+      if (calls.some((call) => call.method === "upsert")) { created = true; return { data: null }; }
+      return { data: created ? { id: "future", date_start: "2026-12-28", date_end: "2027-01-03" } : null };
+    } });
+    expect(await plannedWeekId(fake.client as unknown as Parameters<typeof plannedWeekId>[0], "company-b", "2027-01-01")).toBe("future");
+    expect(fake.calls.find((call) => call.method === "upsert")?.args).toEqual([
+      { company_id: "company-b", week_number: 53, year: 2026, date_start: "2026-12-28", date_end: "2027-01-03", title: "Week 53", status: "draft" },
+      { onConflict: "company_id,week_number,year", ignoreDuplicates: true },
+    ]);
+    expect(fake.calls.filter((call) => call.method === "eq" && call.args[0] === "company_id")).toHaveLength(2);
   });
 });

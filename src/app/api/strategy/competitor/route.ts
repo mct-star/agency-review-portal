@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { generateText } from "@/lib/providers/content-generation/generate-text";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 export const maxDuration = 60;
 
@@ -32,6 +33,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
+  }
+
   // Extract LinkedIn slug
   const slugMatch = linkedInUrl.match(
     /linkedin\.com\/(in|company)\/([^/?#]+)/
@@ -42,7 +48,7 @@ export async function POST(request: Request) {
   try {
     const prompt = buildPrompt(linkedInSlug, profileType, linkedInUrl);
 
-    // Call AI provider with three-tier fallback (Claude → Gemini → OpenAI)
+    // Use the company's configured text provider.
     const aiResult = await generateText({
       systemPrompt: "You are a competitive content strategist. Return ONLY a valid JSON object, no surrounding text or markdown code fences.",
       userPrompt: prompt,

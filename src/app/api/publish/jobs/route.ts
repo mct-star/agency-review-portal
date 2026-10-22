@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * GET /api/publish/jobs?companyId=uuid&status=queued&limit=50
@@ -16,36 +16,57 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
  * }
  */
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
   const status = searchParams.get("status");
+  const pieceId = searchParams.get("pieceId");
   const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
+
+  const admin = await requireAdmin();
+  const profile = admin || (companyId ? await requireCompanyUser(companyId) : null);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (profile.role !== "admin" && (!companyId || !profile.can_publish)) {
+    return NextResponse.json({ error: "Your account cannot publish." }, { status: 403 });
+  }
+  if (!admin && profile.company_id !== companyId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!admin && !companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
 
   let query = supabase
     .from("publishing_jobs")
-    .select(
-      "*, company:companies(name), content_piece:content_pieces(title, content_type)"
-    )
+    .select("*, company:companies(name), content_piece:content_pieces(title, content_type), social_account:company_social_accounts(account_name)", { count: "exact" })
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (companyId) query = query.eq("company_id", companyId);
   if (status) query = query.eq("status", status);
+  if (pieceId) query = query.eq("content_piece_id", pieceId);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data: data || [] });
+  if (admin) return NextResponse.json({ data: data || [], count });
+  const safeData = (data || []).map((job) => ({
+    id: job.id,
+    company_id: job.company_id,
+    content_piece_id: job.content_piece_id,
+    target_platform: job.target_platform,
+    status: job.status,
+    scheduled_for: job.scheduled_for,
+    published_at: job.published_at,
+    external_url: job.external_url,
+    error_message: job.error_message,
+    created_at: job.created_at,
+    social_account_id: job.social_account_id,
+    needs_checking: !!(job.response_payload as { outcome_uncertain?: boolean } | null)?.outcome_uncertain,
+    content_piece: job.content_piece,
+    social_account: job.social_account,
+  }));
+  return NextResponse.json({ data: safeData, count });
 }
 
 export async function POST(request: Request) {

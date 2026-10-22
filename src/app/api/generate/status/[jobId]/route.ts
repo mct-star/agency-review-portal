@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAdminSupabaseClient, getSignedInProfile } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 
 /**
  * GET /api/generate/status/[jobId]
  * Poll the status of a generation job.
- * Accessible by both admin and client (for their company's jobs).
+ * Admins see any job; a company user sees only their own company's jobs.
  */
 export async function GET(
   _request: Request,
@@ -14,26 +13,8 @@ export async function GET(
 ) {
   const { jobId } = await params;
 
-  // Auth check (allow both admin and client)
-  const cookieStore = await cookies();
-  const authClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-
-  const {
-    data: { user: authUser },
-  } = await authClient.auth.getUser();
-
-  if (!authUser) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -52,13 +33,26 @@ export async function GET(
     );
   }
 
+  if (profile.role !== "admin" && !canAccessCompany(profile, job.company_id)) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  // Which provider ran, and the raw failure text, are for staff. A client
+  // gets a plain sentence; the details stay in the job row.
+  const isAdmin = profile.role === "admin";
+  const errorMessage = job.error_message
+    ? isAdmin
+      ? job.error_message
+      : "The job failed. AGENCY has the details."
+    : job.error_message;
+
   return NextResponse.json({
     id: job.id,
     jobType: job.job_type,
-    provider: job.provider,
+    ...(isAdmin ? { provider: job.provider } : {}),
     status: job.status,
     progress: job.progress,
-    errorMessage: job.error_message,
+    errorMessage,
     inputPayload: job.input_payload,
     outputPayload: job.output_payload,
     contentPieceId: job.content_piece_id,

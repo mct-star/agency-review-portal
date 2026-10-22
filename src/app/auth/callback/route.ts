@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { seedSampleContent } from "@/lib/utils/seed-sample-content";
+import { packFieldsForIndustry } from "@/lib/hospitality/signup-pack";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -50,9 +51,15 @@ export async function GET(request: Request) {
 
   // Token hash flow: verify OTP directly
   if (!code && token_hash && type) {
+    // Only the sign-in link types we send. "invite" is the link in a
+    // colleague's invitation email (see /api/company/invite).
+    const allowed = ["magiclink", "email", "invite"] as const;
+    if (!(allowed as readonly string[]).includes(type)) {
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent("That sign in link is not valid")}`);
+    }
     const { error } = await supabase.auth.verifyOtp({
       token_hash,
-      type: type as "magiclink" | "email",
+      type: type as (typeof allowed)[number],
     });
     if (!error) {
       redirectUrl = `${origin}/home`;
@@ -84,7 +91,7 @@ export async function GET(request: Request) {
           .single();
 
         if (!existingProfile) {
-          // New user — auto-provision from signup metadata
+          // New user, auto-provision from signup metadata
           const meta = authUser.user_metadata || {};
           const fullName = meta.full_name || meta.name || authUser.email?.split("@")[0] || "User";
           const companyName = meta.company_name;
@@ -112,6 +119,7 @@ export async function GET(request: Request) {
                 trial_expires_at: trialExpiresAt.toISOString(),
                 spokesperson_name: fullName,
                 ...(industry ? { industry } : {}),
+                ...packFieldsForIndustry(industry),
               })
               .select("id")
               .single();
@@ -143,34 +151,40 @@ export async function GET(request: Request) {
               // Fire signup webhook (Google Sheets, CRM, etc.)
               const webhookUrl = process.env.SIGNUP_WEBHOOK_URL;
               if (webhookUrl) {
-                fetch(webhookUrl, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    event: "signup",
-                    timestamp: new Date().toISOString(),
-                    user: {
-                      email: authUser.email,
-                      name: fullName,
-                      company: companyName,
-                    },
-                    trial: {
-                      plan: "pro",
-                      expires: trialExpiresAt.toISOString(),
-                    },
-                  }),
-                }).catch(() => {/* non-critical */});
+                // Awaited: on Vercel an unawaited fetch can be dropped when
+                // the response is sent. A failure never blocks the sign-in.
+                try {
+                  await fetch(webhookUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      event: "signup",
+                      timestamp: new Date().toISOString(),
+                      user: {
+                        email: authUser.email,
+                        name: fullName,
+                        company: companyName,
+                      },
+                      trial: {
+                        plan: "pro",
+                        expires: trialExpiresAt.toISOString(),
+                      },
+                    }),
+                  });
+                } catch {
+                  console.warn("[auth] Signup webhook failed (non-critical)");
+                }
               }
             }
           } else {
-            // No company name (existing login flow) — just create minimal profile
+            // No company name (existing login flow), just create minimal profile
             // They'll see the "Almost there" screen asking admin to set them up
             // This preserves backwards compatibility with admin-provisioned users
           }
         }
       }
     } catch (provisionErr) {
-      // Don't block auth on provisioning failure — user can still reach dashboard
+      // Don't block auth on provisioning failure, user can still reach dashboard
       // and the "Almost there" screen will guide them
       console.error("[auth] Auto-provisioning failed:", provisionErr);
     }

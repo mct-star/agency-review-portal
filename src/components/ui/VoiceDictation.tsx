@@ -1,15 +1,19 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { audioExtension, RECORDING_MIME_TYPES } from "@/lib/providers/transcription/audio-format";
 
 interface VoiceDictationProps {
   onTranscription: (text: string) => void;
   companyId?: string;
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+  ariaLabel?: string;
 }
 
-type DictationState = "idle" | "recording" | "transcribing" | "done";
+type DictationState = "idle" | "starting" | "recording" | "transcribing" | "done";
 
 const MAX_RECORDING_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -18,6 +22,9 @@ export default function VoiceDictation({
   companyId,
   className = "",
   placeholder = "Dictate your idea",
+  disabled = false,
+  onBusyChange,
+  ariaLabel = "Click to dictate",
 }: VoiceDictationProps) {
   const [state, setState] = useState<DictationState>("idle");
   const [duration, setDuration] = useState(0);
@@ -29,17 +36,51 @@ export default function VoiceDictation({
   const startTimeRef = useRef<number>(0);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+  const stateRef = useRef<DictationState>("idle");
+  const operationRef = useRef(0);
+  const callbacksRef = useRef({ onTranscription, onBusyChange });
+  callbacksRef.current = { onTranscription, onBusyChange };
+
+  const changeState = useCallback((next: DictationState) => {
+    if (!mountedRef.current) return;
+    const busy = (s: DictationState) => s === "starting" || s === "recording" || s === "transcribing";
+    const wasBusy = busy(stateRef.current);
+    stateRef.current = next;
+    setState(next);
+    if (wasBusy !== busy(next)) callbacksRef.current.onBusyChange?.(busy(next));
+  }, []);
+
+  const releaseResources = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
+    timerRef.current = null;
+    maxTimerRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
 
   // Clean up on unmount
   useEffect(() => {
+    mountedRef.current = true;
+    changeState("idle");
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+      mountedRef.current = false;
+      operationRef.current += 1;
+      const recorder = mediaRecorderRef.current;
+      if (recorder) {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        recorder.onerror = null;
+        if (recorder.state !== "inactive") recorder.stop();
       }
+      releaseResources();
+      requestRef.current?.abort();
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
     };
-  }, []);
+  }, [companyId, changeState, releaseResources]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -50,42 +91,36 @@ export default function VoiceDictation({
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
+      changeState("transcribing");
     }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (maxTimerRef.current) {
-      clearTimeout(maxTimerRef.current);
-      maxTimerRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }, []);
+    releaseResources();
+  }, [changeState, releaseResources]);
 
   const startRecording = useCallback(async () => {
     setError(null);
 
     // Check for MediaRecorder support
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError("Your browser does not support audio recording.");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("Your browser does not support audio recording. You can type instead.");
       return;
     }
 
+    changeState("starting");
+    const operation = ++operationRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mountedRef.current || operation !== operationRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
 
       // Pick a supported MIME type
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/mp4";
+      const mimeType = typeof MediaRecorder.isTypeSupported === "function"
+        ? RECORDING_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type))
+        : undefined;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32_000 });
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
 
@@ -96,24 +131,31 @@ export default function VoiceDictation({
       };
 
       recorder.onstop = async () => {
-        setState("transcribing");
+        if (!mountedRef.current || operation !== operationRef.current) return;
+        releaseResources();
+        changeState("transcribing");
 
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const actualMimeType = recorder.mimeType || chunksRef.current[0]?.type || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: actualMimeType });
 
         if (blob.size === 0) {
           setError("No audio recorded. Please try again.");
-          setState("idle");
+          changeState("idle");
           return;
         }
 
+        const controller = new AbortController();
+        requestRef.current = controller;
+        const timeout = setTimeout(() => controller.abort(), 110_000);
         try {
           const formData = new FormData();
-          formData.append("audio", blob, "recording.webm");
+          formData.append("audio", blob, `recording.${audioExtension(actualMimeType)}`);
 
           const queryParams = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
           const res = await fetch(`/api/generate/transcribe/voice${queryParams}`, {
             method: "POST",
             body: formData,
+            signal: controller.signal,
           });
 
           if (!res.ok) {
@@ -122,35 +164,44 @@ export default function VoiceDictation({
           }
 
           const data = await res.json();
+          if (!mountedRef.current || operation !== operationRef.current) return;
 
-          if (!data.text || data.text.trim() === "") {
+          if (typeof data.text !== "string" || data.text.trim() === "") {
             setError("No speech detected. Please try again.");
-            setState("idle");
+            changeState("idle");
             return;
           }
 
-          onTranscription(data.text);
-          setState("done");
+          callbacksRef.current.onTranscription(data.text);
+          changeState("done");
 
           // Return to idle after brief confirmation
-          setTimeout(() => setState("idle"), 1500);
+          doneTimerRef.current = setTimeout(() => changeState("idle"), 1500);
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Transcription failed");
-          setState("idle");
+          if (!mountedRef.current || operation !== operationRef.current) return;
+          setError(err instanceof Error && err.name === "AbortError"
+            ? "Transcription took too long. Please try again or type instead."
+            : err instanceof Error ? err.message : "Transcription failed. You can type instead.");
+          changeState("idle");
+        } finally {
+          clearTimeout(timeout);
+          if (operation === operationRef.current) requestRef.current = null;
         }
       };
 
       recorder.onerror = () => {
-        setError("Recording error. Please try again.");
-        setState("idle");
-        stopRecording();
+        recorder.onstop = null;
+        if (recorder.state !== "inactive") recorder.stop();
+        releaseResources();
+        setError("Recording error. Please try again or type instead.");
+        changeState("idle");
       };
 
       // Start recording
       recorder.start(1000); // collect data every second
       startTimeRef.current = Date.now();
       setDuration(0);
-      setState("recording");
+      changeState("recording");
 
       // Duration timer
       timerRef.current = setInterval(() => {
@@ -163,6 +214,8 @@ export default function VoiceDictation({
         stopRecording();
       }, MAX_RECORDING_MS);
     } catch (err) {
+      if (!mountedRef.current || operation !== operationRef.current) return;
+      releaseResources();
       if (err instanceof DOMException && err.name === "NotAllowedError") {
         setError("Microphone access denied. Please allow microphone access in your browser settings.");
       } else if (err instanceof DOMException && err.name === "NotFoundError") {
@@ -170,17 +223,20 @@ export default function VoiceDictation({
       } else {
         setError(err instanceof Error ? err.message : "Could not start recording");
       }
-      setState("idle");
+      changeState("idle");
     }
-  }, [companyId, onTranscription, stopRecording]);
+  }, [companyId, changeState, releaseResources, stopRecording]);
 
   const handleClick = useCallback(() => {
-    if (state === "idle") {
+    if (stateRef.current === "idle" && !disabled) {
       startRecording();
-    } else if (state === "recording") {
+    } else if (stateRef.current === "recording") {
       stopRecording();
+    } else if (stateRef.current === "starting") {
+      operationRef.current += 1;
+      changeState("idle");
     }
-  }, [state, startRecording, stopRecording]);
+  }, [disabled, changeState, startRecording, stopRecording]);
 
   // Compact mode when placeholder is empty (inline icon in textarea)
   const isCompact = !placeholder;
@@ -191,7 +247,7 @@ export default function VoiceDictation({
         <button
           type="button"
           onClick={handleClick}
-          disabled={state === "transcribing" || state === "done"}
+          disabled={disabled || state === "transcribing" || state === "done"}
           className={`
             inline-flex items-center gap-2 font-medium
             transition-all focus:outline-none focus:ring-2 focus:ring-offset-2
@@ -213,11 +269,13 @@ export default function VoiceDictation({
           aria-label={
             state === "recording"
               ? "Stop recording"
+              : state === "starting"
+              ? "Cancel microphone request"
               : state === "transcribing"
               ? "Transcribing audio"
               : state === "done"
               ? "Transcription complete"
-              : "Click to dictate"
+              : ariaLabel
           }
         >
           {state === "idle" && (
@@ -239,13 +297,13 @@ export default function VoiceDictation({
             </>
           )}
 
-          {state === "transcribing" && (
+          {(state === "starting" || state === "transcribing") && (
             <>
               <svg className={isCompact ? "h-5 w-5 animate-spin" : "h-4 w-4 animate-spin"} fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              {!isCompact && <span>Transcribing...</span>}
+              {!isCompact && <span>{state === "starting" ? "Cancel microphone request" : "Transcribing..."}</span>}
             </>
           )}
 

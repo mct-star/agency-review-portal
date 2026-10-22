@@ -48,6 +48,7 @@ export type ServiceCategory =
   | "social_scheduling"
   | "video_rendering"
   | "transcription"
+  // DEPRECATED: syndication is retired; kept so old config rows still type-check.
   | "newsletter_publishing"
   | "content_syndication"
   | "video_hosting";
@@ -63,7 +64,9 @@ export type DistributionPlatform =
   | "facebook"
   | "instagram"
   | "tiktok"
-  // Content/newsletter platforms
+  | "pinterest"
+  // Content/newsletter platforms. DEPRECATED: syndication is retired and
+  // nothing offers these any more. Kept only so old rows still type-check.
   | "substack"
   | "medium"
   // Video platforms
@@ -81,6 +84,7 @@ export type SocialPlatform = Extract<
   | "facebook"
   | "instagram"
   | "tiktok"
+  | "pinterest"
 >;
 
 export type ContentPlatform = Extract<DistributionPlatform, "substack" | "medium">;
@@ -224,6 +228,8 @@ export interface User {
   company_id: string | null;
   can_publish: boolean;
   created_at: string;
+  /** Set while an admin is viewing the platform as this company (src/lib/view-as.ts). */
+  viewing_as?: { companyId: string; companyName: string } | null;
 }
 
 export interface Week {

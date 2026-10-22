@@ -1,270 +1,148 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { decrypt } from "@/lib/crypto";
-import {
-  createPost,
-  createMultiImagePost,
-  addComment,
-  uploadImage,
-} from "@/lib/linkedin/client";
-import { toLinkedInText, escapeLittleText } from "@/lib/linkedin/post-text";
+import { requireCompanyUser, requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
+import { resolvePieceMedia } from "@/lib/content/piece-media";
+import { isOurStorageUrl } from "@/lib/media/our-storage-url";
+import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
+import { oauthStateSecret } from "@/lib/linkedin/oauth-state";
+import { directLinkedInJobId } from "@/lib/linkedin/direct-publish";
 
-/**
- * POST /api/publish/linkedin-direct
- *
- * Lightweight endpoint for posting directly to LinkedIn from Quick Generate.
- * Unlike /api/publish/linkedin, this doesn't require a saved content_piece —
- * it takes raw text and an optional image URL.
- *
- * Body: {
- *   companyId: string,
- *   text: string,
- *   firstComment?: string,
- *   imageUrl?: string,
- *   carouselImageUrls?: string[],  // For carousel/multi-image posts
- * }
- */
+/** Queue an approved LinkedIn post for one explicitly selected account. */
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { companyId, text, firstComment, imageUrl, carouselImageUrls } = body;
+  const body = await request.json().catch(() => null) as {
+    companyId?: string;
+    pieceId?: string;
+    socialAccountId?: string;
+    scheduledFor?: string | null;
+  } | null;
+  if (!body?.companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
 
-  if (!companyId || !text) {
-    return NextResponse.json(
-      { error: "companyId and text are required" },
-      { status: 400 }
-    );
+  const profile = await requireCompanyUser(body.companyId);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const refused = await refuseHospitality(profile, body.companyId);
+  if (refused) return refused;
+  if (profile.role !== "admin" && !profile.can_publish) {
+    return NextResponse.json({ error: "Your account cannot publish. Ask AGENCY to switch publishing on." }, { status: 403 });
+  }
+  if (!body.pieceId || !body.socialAccountId) {
+    return NextResponse.json({ error: "pieceId and socialAccountId are required" }, { status: 400 });
   }
 
-  // Auth: admin or company member
-  const profile = await requireCompanyUser(companyId);
-  if (!profile) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const scheduledFor = body.scheduledFor || null;
+  if (scheduledFor && (!Number.isFinite(Date.parse(scheduledFor)) || Date.parse(scheduledFor) <= Date.now())) {
+    return NextResponse.json({ error: "Choose a future date and time" }, { status: 400 });
   }
 
   const supabase = await createAdminSupabaseClient();
+  const [{ data: piece }, { data: account }] = await Promise.all([
+    supabase.from("content_pieces").select("id, company_id, approval_status, content_type, markdown_body, first_comment, title, cover_image_url")
+      .eq("id", body.pieceId).eq("company_id", body.companyId).maybeSingle(),
+    supabase.from("company_social_accounts").select("id, company_id, account_id, account_name, access_token_encrypted, token_expires_at")
+      .eq("id", body.socialAccountId).eq("company_id", body.companyId).eq("platform", "linkedin_personal").eq("is_active", true).maybeSingle(),
+  ]);
 
-  // Fetch the LinkedIn social account (no limit — check for duplicates)
-  const { data: accounts } = await supabase
-    .from("company_social_accounts")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("platform", "linkedin_personal")
-    .eq("is_active", true);
-
-  if (!accounts || accounts.length === 0) {
-    return NextResponse.json(
-      { error: "No active LinkedIn account connected. Set one up in your social accounts settings." },
-      { status: 404 }
-    );
+  if (!piece) return NextResponse.json({ error: "Approved content not found for this company" }, { status: 404 });
+  if (piece.approval_status !== "approved") return NextResponse.json({ error: "Approve the post before publishing it." }, { status: 400 });
+  if (piece.content_type !== "social_post") return NextResponse.json({ error: "Only approved social posts can be published in this pilot." }, { status: 422 });
+  if (!account) return NextResponse.json({ error: "Choose an active LinkedIn account connected to this company." }, { status: 404 });
+  const expiry = account.token_expires_at ? Date.parse(account.token_expires_at) : Number.NaN;
+  if (!account.account_id || !account.access_token_encrypted || !Number.isFinite(expiry) || expiry <= Date.now()) {
+    return NextResponse.json({ error: "This LinkedIn connection needs reconnecting before it can publish." }, { status: 409 });
   }
 
-  // Prefer a row that actually has a token (handles duplicate rows)
-  const accountWithToken = accounts.find((a: { access_token_encrypted: string | null }) => !!a.access_token_encrypted);
-  const account = accountWithToken || accounts[0];
-
-  if (!account.access_token_encrypted) {
-    return NextResponse.json(
-      { error: "LinkedIn account has no access token. Please re-authorize." },
-      { status: 400 }
-    );
+  const [{ data: images }, { data: assets }] = await Promise.all([
+    supabase.from("content_images").select("public_url, filename, sort_order, dimensions").eq("content_piece_id", piece.id),
+    supabase.from("content_assets").select("asset_type, file_url, text_content, asset_metadata").eq("content_piece_id", piece.id).not("file_url", "is", null),
+  ]);
+  const media = resolvePieceMedia(piece, images || [], assets || []);
+  if (media.shape === "video" || media.shape === "document") {
+    return NextResponse.json({ error: `Publishing ${media.shape}s is not available yet.` }, { status: 422 });
   }
+  const imageUrls = media.items.filter((item) => item.kind === "image").map((item) => item.url);
+  if (imageUrls.length > 1) return NextResponse.json({ error: "This pilot supports text and one image per post." }, { status: 422 });
+  if (imageUrls.some((url) => !isOurStorageUrl(url))) return NextResponse.json({ error: "The post contains an unsupported image location." }, { status: 400 });
 
-  // Check token expiry
-  if (account.token_expires_at) {
-    const expiresAt = new Date(account.token_expires_at);
-    if (expiresAt < new Date()) {
-      return NextResponse.json(
-        { error: "LinkedIn access token has expired. Please re-authorize." },
-        { status: 401 }
-      );
-    }
-  }
-
-  const accessToken = decrypt(account.access_token_encrypted);
-  const personUrn = account.account_id;
-
-  if (!personUrn) {
-    return NextResponse.json(
-      { error: "LinkedIn account missing person ID" },
-      { status: 400 }
-    );
-  }
-
-  // Prepare text
-  // Same text the preview shows, escaped for LinkedIn little text.
-  const postText = escapeLittleText(toLinkedInText(text));
-  console.log("[LinkedIn Direct] Text length:", text.length, "→ stripped:", postText.length, "First comment:", firstComment ? firstComment.length + " chars" : "none");
-
-  // Upload images and create the post
-  let postResult;
-
-  // Carousel: upload multiple images and create multi-image post
-  if (carouselImageUrls && Array.isArray(carouselImageUrls) && carouselImageUrls.length > 1) {
-    try {
-      const imageUrns: string[] = [];
-      for (let i = 0; i < carouselImageUrls.length; i++) {
-        const imgRes = await fetch(carouselImageUrls[i]);
-        if (imgRes.ok) {
-          const arrayBuffer = await imgRes.arrayBuffer();
-          const imageBuffer = Buffer.from(arrayBuffer);
-          const result = await uploadImage(
-            accessToken,
-            personUrn,
-            imageBuffer,
-            `carousel-slide-${i + 1}.png`
-          );
-          imageUrns.push(result.imageUrn);
-        }
-      }
-      postResult = await createMultiImagePost(accessToken, personUrn, postText, imageUrns);
-    } catch (postErr) {
-      return NextResponse.json(
-        { error: postErr instanceof Error ? postErr.message : "Carousel post creation failed" },
-        { status: 500 }
-      );
-    }
-  } else {
-    // Single image post (or text-only)
-    let imageUrn: string | undefined;
-    if (imageUrl) {
-      try {
-        const imgRes = await fetch(imageUrl);
-        if (imgRes.ok) {
-          const arrayBuffer = await imgRes.arrayBuffer();
-          const imageBuffer = Buffer.from(arrayBuffer);
-          const result = await uploadImage(
-            accessToken,
-            personUrn,
-            imageBuffer,
-            "quick-generate-image.png"
-          );
-          imageUrn = result.imageUrn;
-        }
-      } catch (imgErr) {
-        console.error("LinkedIn image upload failed (continuing without image):", imgErr);
-      }
-    }
-
-    try {
-      postResult = await createPost(accessToken, personUrn, postText, imageUrn);
-    } catch (postErr) {
-      return NextResponse.json(
-        { error: postErr instanceof Error ? postErr.message : "Post creation failed" },
-        { status: 500 }
-      );
-    }
-  }
-
-  // Add first comment if provided
-  let commentResult = null;
-  if (firstComment) {
-    try {
-      commentResult = await addComment(
-        accessToken,
-        postResult.postUrn,
-        personUrn,
-        firstComment
-      );
-    } catch (commentErr) {
-      const errMsg = commentErr instanceof Error ? commentErr.message : String(commentErr);
-      console.error("LinkedIn first comment failed:", errMsg);
-      console.error("LinkedIn first comment details - postUrn:", postResult.postUrn, "personUrn:", personUrn, "textLength:", firstComment.length);
-      return NextResponse.json({
-        success: true,
-        post: {
-          urn: postResult.postUrn,
-          url: postResult.postUrl,
-        },
-        comment: null,
-        commentError: errMsg,
-      });
-    }
-  }
-
-  return NextResponse.json({
-    success: true,
-    post: {
-      urn: postResult.postUrn,
-      url: postResult.postUrl,
+  const commentary = escapeLittleText(toLinkedInText(piece.markdown_body || "")).trim();
+  if (!commentary) return NextResponse.json({ error: "The post has no publishable text." }, { status: 400 });
+  const jobId = directLinkedInJobId(body.companyId, piece.id, account.id);
+  const queuedJob = {
+    id: jobId,
+    company_id: body.companyId,
+    content_piece_id: piece.id,
+    social_account_id: account.id,
+    target_platform: "linkedin_personal",
+    status: scheduledFor ? "scheduled" : "queued",
+    scheduled_for: scheduledFor,
+    triggered_by: profile.id,
+    publish_payload: {
+      provider: "linkedin-direct-v1",
+      commentary,
+      image_urls: imageUrls,
+      first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
     },
-    comment: commentResult ? { urn: commentResult.commentUrn } : null,
+  };
+  const { data: job, error } = await supabase.from("publishing_jobs").insert(queuedJob)
+    .select("id, status, scheduled_for, social_account_id").maybeSingle();
+
+  if (error?.code === "23505") {
+    const { data: existing } = await supabase.from("publishing_jobs").select("status, response_payload")
+      .eq("id", jobId).eq("company_id", body.companyId).maybeSingle();
+    const payload = existing?.response_payload as { outcome_uncertain?: boolean } | null;
+    return NextResponse.json({ error: payload?.outcome_uncertain
+      ? "LinkedIn may have accepted this post. Check the account before taking any further action."
+      : "This post has already been queued for that account. Check its current status in the queue before taking further action." }, { status: 409 });
+  }
+  if (error || !job) return NextResponse.json({ error: "Could not queue this LinkedIn post." }, { status: 500 });
+  return NextResponse.json({ data: job }, { status: 201 });
+}
+
+/** List safe account metadata for the signed-in company's publishing picker. */
+export async function GET(request: Request) {
+  const companyId = new URL(request.url).searchParams.get("companyId");
+  if (!companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
+  const profile = await requireCompanyUser(companyId);
+  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (profile.role !== "admin" && !profile.can_publish) {
+    return NextResponse.json({ error: "Your account cannot publish." }, { status: 403 });
+  }
+  const supabase = await createAdminSupabaseClient();
+  const { data, error } = await supabase.from("company_social_accounts")
+    .select("id, account_name, account_id, token_expires_at, access_token_encrypted, is_active")
+    .eq("company_id", companyId).eq("platform", "linkedin_personal").eq("is_active", true);
+  if (error) return NextResponse.json({ error: "Could not load LinkedIn accounts." }, { status: 500 });
+  const accounts = (data || []).map((account) => ({
+    id: account.id,
+    accountName: account.account_name || "LinkedIn profile",
+    accountId: account.account_id,
+    usable: !!account.account_id && !!account.access_token_encrypted && !!account.token_expires_at && Date.parse(account.token_expires_at) > Date.now(),
+    expiresAt: account.token_expires_at,
+  }));
+  const usable = accounts.find((account) => account.usable);
+  const first = accounts[0];
+  return NextResponse.json({
+    configured: !!process.env.LINKEDIN_CLIENT_ID && !!oauthStateSecret(),
+    accounts,
+    connected: !!usable,
+    accountName: usable?.accountName || first?.accountName || null,
+    expired: !!first && !!first.accountId && !first.usable && !!first.expiresAt,
+    noToken: !!first && !first.accountId,
   });
 }
 
-/**
- * GET /api/publish/linkedin-direct?companyId=xxx
- *
- * Check if a company has an active LinkedIn connection.
- */
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const companyId = searchParams.get("companyId");
 
-  if (!companyId) {
-    return NextResponse.json({ connected: false });
-  }
-
-  const profile = await requireCompanyUser(companyId);
-  if (!profile) {
-    return NextResponse.json({ connected: false });
-  }
-
+/** Administrators withdraw one company-owned LinkedIn grant without deleting publishing history. */
+export async function DELETE(request: Request) {
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json().catch(() => null) as { companyId?: string; socialAccountId?: string } | null;
+  if (!body?.companyId || !body.socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
   const supabase = await createAdminSupabaseClient();
-
-  // Fetch ALL linkedin_personal rows (not just limit 1) to check for duplicates
-  const { data: allAccounts } = await supabase
-    .from("company_social_accounts")
-    .select("id, account_name, account_id, token_expires_at, access_token_encrypted, is_active, spokesperson_id, created_at, updated_at")
-    .eq("company_id", companyId)
-    .eq("platform", "linkedin_personal");
-
-  console.log("[LinkedIn Status] All linkedin_personal rows for company:", companyId,
-    "count:", allAccounts?.length,
-    "rows:", allAccounts?.map(a => ({
-      id: a.id,
-      name: a.account_name,
-      account_id: a.account_id,
-      hasToken: !!a.access_token_encrypted,
-      isActive: a.is_active,
-      spokespersonId: a.spokesperson_id,
-      created: a.created_at,
-      updated: a.updated_at,
-    }))
-  );
-
-  // Filter to active rows
-  const accounts = (allAccounts || []).filter(a => a.is_active);
-
-  if (accounts.length === 0) {
-    return NextResponse.json({ connected: false });
-  }
-
-  // Prefer a row that actually has a token
-  const accountWithToken = accounts.find(a => !!a.access_token_encrypted);
-  const account = accountWithToken || accounts[0];
-
-  // Check if access token actually exists
-  if (!account.access_token_encrypted) {
-    return NextResponse.json({
-      connected: false,
-      expired: false,
-      noToken: true,
-      accountName: account.account_name,
-      debug: {
-        totalRows: allAccounts?.length,
-        activeRows: accounts.length,
-        rowsWithTokens: accounts.filter(a => !!a.access_token_encrypted).length,
-      },
-    });
-  }
-
-  // Check if token is expired
-  if (account.token_expires_at) {
-    const expiresAt = new Date(account.token_expires_at);
-    if (expiresAt < new Date()) {
-      return NextResponse.json({ connected: false, expired: true, accountName: account.account_name });
-    }
-  }
-
-  return NextResponse.json({ connected: true, accountName: account.account_name });
+  const { data: account } = await supabase.from("company_social_accounts").select("id")
+    .eq("id", body.socialAccountId).eq("company_id", body.companyId).eq("platform", "linkedin_personal").maybeSingle();
+  if (!account) return NextResponse.json({ error: "LinkedIn account not found." }, { status: 404 });
+  const { error } = await supabase.from("company_social_accounts")
+    .update({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null })
+    .eq("id", account.id).eq("company_id", body.companyId).eq("platform", "linkedin_personal");
+  if (error) return NextResponse.json({ error: "Could not disconnect this LinkedIn account." }, { status: 500 });
+  return NextResponse.json({ disconnected: true });
 }

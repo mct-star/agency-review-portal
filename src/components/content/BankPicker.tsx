@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { BankTile, type BankItem } from "@/components/admin/MediaBank";
 
 /**
- * "Choose from bank" on a post: pick a real photo or clip from the bank
+ * "Choose from library" on a post: pick a real photo or clip from the bank
  * and it goes on the post. The LinkedIn preview and publish read it through
  * the same media rule, so it shows exactly as it will post.
  */
@@ -22,7 +22,7 @@ export default function BankPicker({ pieceId, companyId }: { pieceId: string; co
     setMessage(null);
     const res = await fetch(`/api/bank?companyId=${encodeURIComponent(companyId)}`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setMessage(data.error || "Could not load the bank"); setItems([]); return; }
+    if (!res.ok) { setMessage(data.error || "Could not load the library"); setItems([]); return; }
     setItems(data.data || []);
   }
 
@@ -48,9 +48,9 @@ export default function BankPicker({ pieceId, companyId }: { pieceId: string; co
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Real photo or video</h3>
-          <p className="text-xs text-gray-500">Put a photo or clip from the bank on this post.</p>
+          <p className="text-xs text-gray-500">Put a photo or clip from the library on this post.</p>
         </div>
-        <button onClick={openPicker} className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700">Choose from bank</button>
+        <button onClick={openPicker} className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700">Choose from library</button>
       </div>
       {message && !open && <p className="mt-2 text-xs text-red-600">{message}</p>}
 
@@ -66,13 +66,13 @@ export default function BankPicker({ pieceId, companyId }: { pieceId: string; co
                 ))}
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <a href="/admin/bank" className="text-violet-700 hover:underline">Open the bank</a>
+                <a href="/library" className="text-violet-700 hover:underline">Open the library</a>
                 <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-gray-800">Close</button>
               </div>
             </div>
             {message && <p className="mb-2 rounded bg-red-50 px-3 py-2 text-xs text-red-700">{message}</p>}
             {items === null ? <p className="text-sm text-gray-500">Loading...</p> : shown.length === 0 ? (
-              <p className="rounded border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">The bank is empty. Add photos and clips in the Photo &amp; Video Bank.</p>
+              <p className="rounded border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">The library is empty. Add photos and clips in the Photo &amp; Video Library.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {shown.map((it) => (

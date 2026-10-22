@@ -79,6 +79,8 @@ export interface ContentGenerationOutput {
   }[];
   /** Anything the caller should tell the user (for example, metadata the writer did not return). */
   warnings?: string[];
+  /** Identity of the model that produced this specific result. */
+  writer?: import("./text-runtime").WriterIdentity;
 }
 
 export interface ContentProvider {
@@ -202,16 +204,26 @@ export async function resolveProvider(
   companyId: string,
   serviceCategory: ServiceCategory
 ): Promise<ResolvedProvider | null> {
+  return resolveProviderConfig(companyId, serviceCategory);
+}
+
+/** Read one company's retained alternate writer, even while it is inactive. */
+export async function resolveStoredWritingProvider(companyId: string, provider: "anthropic_claude" | "openai_gpt4"): Promise<ResolvedProvider | null> {
+  return resolveProviderConfig(companyId, "content_generation", provider);
+}
+
+async function resolveProviderConfig(companyId: string, serviceCategory: ServiceCategory, storedProvider?: string): Promise<ResolvedProvider | null> {
   const supabase = await createAdminSupabaseClient();
 
-  const { data: config } = await supabase
+  let query = supabase
     .from("company_api_configs")
     .select("*")
     .eq("company_id", companyId)
-    .eq("service_category", serviceCategory)
-    .eq("is_active", true)
-    .single();
+    .eq("service_category", serviceCategory);
+  query = storedProvider ? query.eq("provider", storedProvider) : query.eq("is_active", true);
+  const { data: config, error } = await query.maybeSingle();
 
+  if (error) throw new Error("Could not resolve the company provider configuration.");
   if (!config) return null;
 
   let credentials: Record<string, unknown> = {};
@@ -229,7 +241,7 @@ export async function resolveProvider(
   return {
     provider: config.provider,
     credentials,
-    settings: config.provider_settings || {},
+    settings: { ...(config.provider_settings || {}), provider: config.provider },
   };
 }
 
@@ -237,93 +249,38 @@ export async function resolveProvider(
 
 /**
  * Get the content generation provider for a company.
- * Falls back to a stub provider if none is configured.
+ * Uses shared server funding only when this company has no active configuration.
  */
-export async function getContentProvider(
-  companyId: string
-): Promise<{ provider: ContentProvider; providerName: string }> {
-  const content = contentPrincipal();
-  if (content) {
-    const { createClaudeContentProvider } = await import("./content-generation/anthropic");
-    const { BRAND_CONTEXT_COPY,CURRENT_CONTENT_OVERRIDES } = await import("@/lib/ops-content/brand-context");
-    const resolved=await resolveProvider(companyId,"content_generation");
-    const credentials=resolved?.provider==="anthropic_claude" ? resolved.credentials : {api_key:process.env.ANTHROPIC_API_KEY};
-    const engine=createClaudeContentProvider(credentials || {},{model:content.model});
-    return {providerName:"anthropic_claude",provider:{generate:input=>engine.generate({...input,additionalContext:[input.additionalContext,BRAND_CONTEXT_COPY,CURRENT_CONTENT_OVERRIDES].filter(Boolean).join("\n\n")})}};
-  }
-
-  const resolved = await resolveProvider(companyId, "content_generation");
-  if (!resolved) {
-    // No company-level provider configured — use env var fallback (Gemini → Claude → OpenAI)
-    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-
-    if (geminiKey || anthropicKey) {
-      // Use the Anthropic provider with env var key — it has built-in Gemini fallback
-      const { createClaudeContentProvider } = await import(
-        "./content-generation/anthropic"
-      );
-      return {
-        providerName: geminiKey ? "gemini_fallback" : "anthropic_env",
-        provider: createClaudeContentProvider(
-          { api_key: anthropicKey || "no-key-will-fall-through-to-gemini" },
-          {}
-        ),
-      };
-    }
-
+export async function getContentProvider(companyId: string): Promise<{ provider: ContentProvider; providerName: string }> {
+  const { resolveTextConfig } = await import("./text-runtime");
+  const config = await resolveTextConfig(companyId);
+  const { createClaudeContentProvider } = await import("./content-generation/anthropic");
+  const providerName = config.provider === "claude" ? "anthropic_claude" : "openai_gpt4";
+  const engine = createClaudeContentProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config);
+  // Ops content requests write as AGENCY, so they always carry the brand instructions.
+  if (contentPrincipal()) {
+    const { BRAND_CONTEXT_COPY, CURRENT_CONTENT_OVERRIDES } = await import("@/lib/ops-content/brand-context");
     return {
-      providerName: "none",
+      providerName,
       provider: {
-        async generate() {
-          throw new Error(
-            "No AI provider available. Configure GOOGLE_GEMINI_API_KEY or ANTHROPIC_API_KEY in Vercel environment variables, " +
-              "or set up a provider in Admin > Companies > [Company] > API Providers."
-          );
-        },
+        generate: input => engine.generate({
+          ...input,
+          additionalContext: [input.additionalContext, BRAND_CONTEXT_COPY, CURRENT_CONTENT_OVERRIDES].filter(Boolean).join("\n\n"),
+        }),
       },
     };
   }
-
-  // For now, all content generation goes through Claude (Anthropic API)
-  // Additional providers can be added here as switch cases
-  switch (resolved.provider) {
-    case "anthropic_claude":
-    default: {
-      const { createClaudeContentProvider } = await import(
-        "./content-generation/anthropic"
-      );
-      return {
-        providerName: resolved.provider,
-        provider: createClaudeContentProvider(
-          resolved.credentials,
-          resolved.settings
-        ),
-      };
-    }
-  }
+  return { providerName, provider: engine };
 }
 
-/**
- * Get the platform adaptation provider for a company.
- * Platform adaptation always uses Claude regardless of content_generation config.
- */
-export async function getPlatformAdaptationProvider(
-  companyId: string
-): Promise<{ provider: PlatformAdaptationProvider; providerName: string }> {
-  const resolved = await resolveProvider(companyId, "content_generation");
-
-  // Platform adaptation always uses Claude
-  const { createClaudePlatformAdaptationProvider } = await import(
-    "./content-generation/anthropic"
-  );
-
+/** Resolve adaptation through the same company policy as the content writer. */
+export async function getPlatformAdaptationProvider(companyId: string): Promise<{ provider: PlatformAdaptationProvider; providerName: string }> {
+  const { resolveTextConfig } = await import("./text-runtime");
+  const config = await resolveTextConfig(companyId);
+  const { createClaudePlatformAdaptationProvider } = await import("./content-generation/anthropic");
   return {
-    providerName: resolved?.provider || "anthropic_claude",
-    provider: createClaudePlatformAdaptationProvider(
-      resolved?.credentials || {},
-      resolved?.settings || {}
-    ),
+    providerName: config.provider === "claude" ? "anthropic_claude" : "openai_gpt4",
+    provider: createClaudePlatformAdaptationProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config),
   };
 }
 
@@ -389,18 +346,16 @@ export async function getImageProvider(
       };
     }
 
-    case "manus": {
-      const { createManusImageProvider } = await import(
-        "./image-generation/manus"
-      );
+    case "manus":
+      // Retired. A company config may still name it.
       return {
         providerName: resolved.provider,
-        provider: createManusImageProvider(
-          resolved.credentials,
-          resolved.settings
-        ),
+        provider: {
+          async generate() {
+            throw new Error("This image provider is retired. Ask AGENCY to switch it.");
+          },
+        },
       };
-    }
 
     case "gemini_imagen": {
       const { createGeminiImageProvider } = await import(
@@ -463,12 +418,6 @@ export const IMAGE_PROVIDER_OPTIONS = [
     label: "Google Gemini (Imagen 3)",
     description: "Photorealistic, editorial, healthcare scenes. Free with Google Workspace. Best for photography styles.",
     costTier: "free" as const,
-  },
-  {
-    value: "manus",
-    label: "Manus Agent",
-    description: "Autonomous agent generates images via its internal tools. Async, 1–4 min per image. Uses Manus credits (~150 credits/task).",
-    costTier: "high" as const,
   },
 ];
 

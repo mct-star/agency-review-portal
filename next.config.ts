@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   // (Vercel's tree-shaking won't include .ttf files automatically)
   outputFileTracingIncludes: {
     "/api/generate/overlay/*": ["./src/lib/image/fonts/**/*"],
+    "/api/admin/single-post": ["./src/lib/image/fonts/**/*"],
+    "/api/admin/weeks/*/run": ["./src/lib/image/fonts/**/*"],
+    "/api/cron/content-production": ["./src/lib/image/fonts/**/*"],
   },
 };
 

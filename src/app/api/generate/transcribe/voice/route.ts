@@ -1,106 +1,92 @@
 import { NextResponse } from "next/server";
+import { getSignedInProfile } from "@/lib/supabase/admin";
+import { transcribeAudio } from "@/lib/providers/transcription/transcribe";
+import { canAccessCompany } from "@/lib/auth/permissions";
+
+export const maxDuration = 120;
+const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
+const MAX_REQUEST_BYTES = MAX_AUDIO_BYTES + 64 * 1024;
+const AUDIO_TYPES = new Set(["audio/webm", "audio/mp4", "audio/ogg", "audio/mpeg", "audio/wav", "audio/x-wav"]);
 
 /**
  * POST /api/generate/transcribe/voice
  *
- * Transcribes audio using Gemini (free) or OpenAI Whisper (fallback).
+ * Transcribes a short dictation for the signed-in user (VoiceDictation).
+ * Runs on the platform's keys, so it needs a signed-in person: before
+ * 14 Oct 2026 anyone could call it. Goes through the shared transcription
+ * lib (Gemini Flash, then Whisper) and never returns vendor error text.
  */
 export async function POST(request: Request) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const selectedCompanyId = new URL(request.url).searchParams.get("companyId");
+  if (selectedCompanyId === "") return NextResponse.json({ error: "Choose a company before dictating." }, { status: 400 });
+  const companyId = selectedCompanyId ?? profile.company_id ?? undefined;
+  if (companyId && !canAccessCompany(profile, companyId)) {
+    return NextResponse.json({ error: "You cannot dictate for that company." }, { status: 403 });
+  }
+
+  const tooLarge = () => NextResponse.json({ error: "That recording is too large. Keep it under 4 MB or type instead." }, { status: 413 });
+  if (Number(request.headers.get("content-length")) > MAX_REQUEST_BYTES) return tooLarge();
+
   try {
-    const formData = await request.formData();
+    // Enforce the limit while reading, even without a Content-Length header.
+    if (!request.body) return NextResponse.json({ error: "No audio file provided." }, { status: 400 });
+    const reader = request.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    let uploadTimedOut = false;
+    const uploadTimeout = setTimeout(() => {
+      uploadTimedOut = true;
+      void reader.cancel();
+    }, 15_000);
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        size += chunk.value.byteLength;
+        if (size > MAX_REQUEST_BYTES) {
+          await reader.cancel();
+          return tooLarge();
+        }
+        chunks.push(chunk.value);
+      }
+    } finally {
+      clearTimeout(uploadTimeout);
+      reader.releaseLock();
+    }
+    if (uploadTimedOut) {
+      return NextResponse.json({ error: "The recording upload took too long. Please try again or type instead." }, { status: 408 });
+    }
+    const formData = await new Request(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: Buffer.concat(chunks),
+    }).formData();
     const audioFile = formData.get("audio");
 
     if (!audioFile || !(audioFile instanceof Blob)) {
       return NextResponse.json({ error: "No audio file provided." }, { status: 400 });
     }
 
+    if (audioFile.size > MAX_AUDIO_BYTES) return tooLarge();
+    if (audioFile.size === 0) return NextResponse.json({ error: "No audio recorded. Please try again or type instead." }, { status: 400 });
+
     const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-    const mimeType = audioFile.type || "audio/webm";
-    const errors: string[] = [];
-
-    // ── Try Gemini (free) ────────────────────────────────────
-    const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || "";
-
-    if (geminiKey) {
-      try {
-        const base64Audio = audioBuffer.toString("base64");
-
-        // Gemini prefers simpler MIME types
-        const cleanMime = mimeType.split(";")[0] || "audio/webm";
-
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: "Transcribe this audio recording exactly. Return only the transcription text, nothing else." },
-                  { inline_data: { mime_type: cleanMime, data: base64Audio } },
-                ],
-              }],
-              generationConfig: { temperature: 0 },
-            }),
-          }
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          if (text.trim()) {
-            return NextResponse.json({ text: text.trim(), provider: "gemini", duration: 0 });
-          }
-          errors.push("Gemini returned empty transcription");
-        } else {
-          const errText = await res.text();
-          errors.push(`Gemini API ${res.status}: ${errText.slice(0, 200)}`);
-        }
-      } catch (err) {
-        errors.push(`Gemini error: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    } else {
-      errors.push("No Gemini API key found");
+    const mimeType = (audioFile.type || "audio/webm").split(";")[0] || "audio/webm";
+    if (!AUDIO_TYPES.has(mimeType)) {
+      return NextResponse.json({ error: "That audio format is not supported. You can type instead." }, { status: 415 });
     }
-
-    // ── Try OpenAI Whisper (fallback) ─────────────────────────
-    const openaiKey = process.env.OPENAI_API_KEY || "";
-
-    if (openaiKey) {
-      try {
-        const whisperForm = new FormData();
-        whisperForm.append("file", new Blob([audioBuffer], { type: "audio/webm" }), "audio.webm");
-        whisperForm.append("model", "whisper-1");
-
-        const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${openaiKey}` },
-          body: whisperForm,
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          return NextResponse.json({ text: data.text || "", provider: "openai", duration: data.duration || 0 });
-        } else {
-          const errText = await res.text();
-          errors.push(`Whisper API ${res.status}: ${errText.slice(0, 200)}`);
-        }
-      } catch (err) {
-        errors.push(`Whisper error: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    } else {
-      errors.push("No OpenAI API key found");
-    }
-
-    // ── Both failed — return all errors for diagnosis ─────────
-    console.error("[voice] All providers failed:", errors);
-    return NextResponse.json(
-      { error: errors.join(" | ") },
-      { status: 500 }
-    );
+    const result = await transcribeAudio(audioBuffer, mimeType, companyId);
+    return NextResponse.json({ text: result.text, provider: result.provider, duration: result.duration ?? 0 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("Voice transcription error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[voice] transcription failed:", err instanceof Error ? err.message : err);
+    return NextResponse.json(
+      { error: "We could not transcribe that just now. You can type instead." },
+      { status: 502 }
+    );
   }
 }

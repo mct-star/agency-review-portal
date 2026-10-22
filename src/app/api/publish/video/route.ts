@@ -36,6 +36,15 @@ export async function POST(request: Request) {
     platformVariantId,
   } = body;
 
+  // YouTube uploads must enter through the approved social queue so consent,
+  // channel selection and the due-time fence are rechecked by the worker.
+  if (targetPlatform === "youtube" || targetPlatform === "youtube_shorts") {
+    return NextResponse.json(
+      { error: "Queue an approved rendered video for the selected YouTube channel." },
+      { status: 410 }
+    );
+  }
+
   if (!contentPieceId || !targetPlatform || !videoUrl) {
     return NextResponse.json(
       { error: "contentPieceId, targetPlatform, and videoUrl are required" },
@@ -43,7 +52,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const validPlatforms = ["youtube", "youtube_shorts", "tiktok", "instagram"];
+  const validPlatforms = ["tiktok", "instagram"];
   if (!validPlatforms.includes(targetPlatform)) {
     return NextResponse.json(
       { error: `targetPlatform must be one of: ${validPlatforms.join(", ")}` },
@@ -99,15 +108,7 @@ export async function POST(request: Request) {
 
   // Create the provider based on target platform
   let provider: PublishingProvider;
-  if (targetPlatform === "youtube" || targetPlatform === "youtube_shorts") {
-    const { createYouTubePublishingProvider } = await import(
-      "@/lib/providers/publishing/youtube"
-    );
-    provider = createYouTubePublishingProvider(
-      resolved.credentials,
-      resolved.settings
-    );
-  } else if (targetPlatform === "tiktok") {
+  if (targetPlatform === "tiktok") {
     const { createTikTokPublishingProvider } = await import(
       "@/lib/providers/publishing/tiktok"
     );

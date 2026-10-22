@@ -4,10 +4,17 @@ import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+/** A sign-in error in plain words: an old or used link, or anything else. */
+function plainSignInError(raw: string): string {
+  return /expired|invalid.*(link|token|otp|code)|otp_expired|access_denied|flow state/i.test(raw)
+    ? "That link has expired. Ask for a new one."
+    : "We could not sign you in. Check the address and try again.";
+}
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginMode, setLoginMode] = useState<"magic" | "password">("password");
+  const [loginMode, setLoginMode] = useState<"magic" | "password">("magic");
   const [sent, setSent] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,7 +24,7 @@ function LoginForm() {
   useEffect(() => {
     const authError = searchParams.get("error");
     if (authError) {
-      setError(`Login failed: ${authError}`);
+      setError(plainSignInError(authError));
     }
   }, [searchParams]);
 
@@ -34,10 +41,10 @@ function LoginForm() {
         password,
       });
       if (error) {
-        setError(error.message);
+        setError(plainSignInError(error.message));
         setLoading(false);
       } else {
-        window.location.href = "/dashboard";
+        window.location.href = "/home";
       }
     } else {
       const { error } = await supabase.auth.signInWithOtp({
@@ -47,7 +54,7 @@ function LoginForm() {
         },
       });
       if (error) {
-        setError(error.message);
+        setError(plainSignInError(error.message));
         setLoading(false);
       } else {
         setSent(true);

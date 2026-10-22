@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import WeekReviewTabs from "@/components/content/WeekReviewTabs";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
@@ -15,6 +15,10 @@ export default async function WeekReviewPage({ params }: PageProps) {
   const { weekId } = await params;
   const profile = await getUserProfile();
   if (!profile) return null;
+
+  // A venue has one week page of its own, with the download on it.
+  const venue = profile.company as { post_pack?: string | null } | null | undefined;
+  if (profile.role !== "admin" && venue?.post_pack === "hospitality") redirect("/review");
 
   const supabase = await createServerSupabaseClient();
 
@@ -113,7 +117,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
               <p className="mt-1 text-gray-600">{week.title}</p>
             )}
             <p className="mt-1 text-sm text-gray-500">
-              {week.date_start} — {week.date_end}
+              {new Date(week.date_start + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} to {new Date(week.date_end + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
               <span className="ml-2 text-gray-500">| {company.name}</span>
             </p>
             {week.pillar && (
@@ -199,21 +203,21 @@ export default async function WeekReviewPage({ params }: PageProps) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            {/* Metricool CSV */}
+            {/* Scheduling CSV */}
             {socialPieces.length > 0 && (
               <MetricoolExportButton weekId={weekId} draft={false} />
             )}
 
             {/* Direct LinkedIn publish */}
-            <Link
-              href={`/publish`}
+            {(profile.role === "admin" || profile.can_publish) && <Link
+              href={`/publish?companyId=${encodeURIComponent(company.id)}`}
               className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-3 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
               </svg>
-              Publish to LinkedIn
-            </Link>
+              Publishing options
+            </Link>}
 
             {/* Draft CSV for preview */}
             <a
@@ -223,7 +227,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
-              Download as Draft CSV
+              Download draft posts (CSV)
             </a>
           </div>
         </div>

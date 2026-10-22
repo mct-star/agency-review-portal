@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 import {
   buildRegulatoryContext,
   COUNTRY_PROFILES,
@@ -103,6 +103,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
+  if (profile) {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
+  }
 
   if (!weekId && (!pieceIds || pieceIds.length === 0)) {
     return NextResponse.json({ error: "weekId or pieceIds required" }, { status: 400 });
@@ -110,10 +114,13 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Fetch content pieces
+  // Fetch content pieces. Scoped to the company the caller was authorised
+  // for: before 14 Oct 2026 a weekId or pieceIds from another company were
+  // read and written back to.
   let query = supabase
     .from("content_pieces")
     .select("*")
+    .eq("company_id", companyId)
     .order("sort_order");
 
   if (weekId) {
@@ -138,14 +145,6 @@ export async function POST(request: Request) {
 
   const activeFramework = framework || company?.regulatory_framework || "general_healthcare";
   const frameworkLabel = FRAMEWORK_LABELS[activeFramework] || activeFramework;
-
-  // Resolve Claude API key
-  const provider = await resolveProvider(companyId, "content_generation");
-  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
-  const geminiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.Gemini || process.env.GEMINI_API_KEY;
-  if (apiKey === "no-anthropic-key-will-fallback-to-gemini" && !geminiKey) {
-    return NextResponse.json({ error: "No AI provider configured (need ANTHROPIC_API_KEY or GOOGLE_GEMINI_API_KEY)" }, { status: 400 });
-  }
 
   // Build the regulatory context
   const regulatoryContext = buildRegulatoryContext(targetCountries);
@@ -275,7 +274,12 @@ If the content appears compliant, return an empty issues array with overallScore
 
     let text: string;
     try {
-      text = await callClaude(apiKey, "claude-sonnet-4-20250514", system, "Perform the regulatory compliance review now.", 4096);
+      text = (await generateText({
+        companyId,
+        systemPrompt: system,
+        userPrompt: "Perform the regulatory compliance review now.",
+        maxTokens: 4096,
+      })).text;
     } catch (err) {
       console.error(`[regulatory-review] LLM error for piece ${piece.id}:`, err);
       results.push({
@@ -287,7 +291,7 @@ If the content appears compliant, return an empty issues array with overallScore
         framework: frameworkLabel,
         issues: [],
         passedChecks: [],
-        summary: `Review failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+        summary: "The review could not be completed. Try again shortly.",
       });
       continue;
     }

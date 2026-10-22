@@ -16,6 +16,7 @@ import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
+import ContentSourceReference from "@/components/content/ContentSourceReference";
 
 interface PageProps {
   params: Promise<{ pieceId: string }>;
@@ -110,31 +111,20 @@ export default async function ContentPiecePage({ params }: PageProps) {
   const articleDone = [1, 2, 3].filter(n => (images || []).some(i => i.archetype === `in_article_image_prompt_${n}`));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href="/review" className="hover:text-gray-700">
-          Weeks
-        </Link>
-        <span>/</span>
-        <Link
-          href={`/review/${piece.week_id}`}
-          className="hover:text-gray-700"
-        >
-          {formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}
-        </Link>
-        <span>/</span>
-        <span className="text-gray-900">{piece.title}</span>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <nav aria-label="Content breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+        <Link href="/review" className="flex min-h-11 items-center hover:text-gray-900">Content Review</Link>
+        {piece.week_id && <><span aria-hidden="true">/</span><Link href={`/review/${piece.week_id}`} className="flex min-h-11 items-center hover:text-gray-900">{formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}</Link></>}
+      </nav>
 
       {/* Header */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <div className="flex items-start justify-between">
+      <div className="workspace-panel p-5 sm:p-6">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
           <div>
-            <span className="text-xs font-medium uppercase text-gray-500">
+            <span className="workspace-eyebrow">
               {contentTypeLabels[piece.content_type]}
             </span>
-            <h1 className="mt-1 text-xl font-bold text-gray-900">
+            <h1 className="mt-3 text-gray-900 [overflow-wrap:anywhere]">
               {piece.title}
             </h1>
           </div>
@@ -162,11 +152,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
               Theme: {piece.audience_theme}
             </span>
           )}
-          {piece.topic_bank_ref && (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium">
-              {piece.topic_bank_ref}
-            </span>
-          )}
+          <ContentSourceReference reference={piece.topic_bank_ref} isAdmin={profile.role === "admin"} />
           {piece.post_type && (
             <span className="text-gray-500">{piece.post_type}</span>
           )}
@@ -174,7 +160,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
       </div>
 
       {(videoAssets || []).length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="workspace-panel p-5 sm:p-6">
           <h3 className="mb-3 text-sm font-semibold text-gray-900">Video</h3>
           <div className="grid gap-4 sm:grid-cols-2">
             {(videoAssets || []).map((v) => {
@@ -202,6 +188,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
         </div>
       )}
 
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0">
       {/* Content Body + LinkedIn Preview (tabbed) */}
       <ContentViewTabs
         markdownBody={piece.markdown_body}
@@ -218,9 +206,21 @@ export default async function ContentPiecePage({ params }: PageProps) {
         contentPieceId={piece.id}
       />
 
+        </div>
+        <aside className="xl:sticky xl:top-6" aria-label="Review decision">
+      {/* Approval Actions */}
+      <ApprovalButtons
+        pieceId={piece.id}
+        weekId={piece.week_id}
+        currentStatus={piece.approval_status}
+      />
+
+        </aside>
+      </div>
+
       {/* Images */}
       {(images || []).length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="workspace-panel p-5 sm:p-6">
           <h3 className="mb-3 text-sm font-semibold text-gray-900">
             Associated Images
           </h3>
@@ -268,10 +268,18 @@ export default async function ContentPiecePage({ params }: PageProps) {
         isAdmin={profile.role === "admin"}
       />
 
+      {(profile.role === "admin" || profile.can_publish) && piece.approval_status === "approved" && ["social_post", "video", "video_script"].includes(piece.content_type) && (
+        <div className="workspace-panel space-y-3 p-5">
+          <h2 className="text-lg font-semibold">Publish this content</h2>
+          <p className="text-sm text-gray-600">Choose a connected account and time, then confirm the publishing details.</p>
+          <Link href={`/publish?companyId=${encodeURIComponent(piece.company_id)}&pieceId=${encodeURIComponent(piece.id)}`} className="workspace-button">Choose destination and time</Link>
+        </div>
+      )}
+
       {/* Publishing always goes through the confirm step below, which shows
           the exact post; there is no one-click approve-and-publish. */}
-      {/* LinkedIn Publish (admin only, social posts only, already approved) */}
-      {profile.role === "admin" && (piece.content_type === "social_post" || piece.content_type === "meme") && (
+      {/* The Mac path handles memes and multi-image social posts; ordinary social posts use Publish. */}
+      {profile.role === "admin" && ["none", "image", "images"].includes(media.shape) && (piece.content_type === "meme" || (piece.content_type === "social_post" && media.shape === "images")) && (
         <LinkedInPublishButton
           pieceId={piece.id}
           companyId={piece.company_id}
@@ -294,13 +302,6 @@ export default async function ContentPiecePage({ params }: PageProps) {
         />
       )}
 
-      {/* Approval Actions */}
-      <ApprovalButtons
-        pieceId={piece.id}
-        weekId={piece.week_id}
-        currentStatus={piece.approval_status}
-      />
-
       {/* Delete (admin only) */}
       {profile.role === "admin" && (
         <DeletePieceButton
@@ -311,7 +312,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
       )}
 
       {/* Comments */}
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
+      <div className="workspace-panel p-5 sm:p-6">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">
           Comments ({(comments || []).length})
         </h3>

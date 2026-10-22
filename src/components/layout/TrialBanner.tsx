@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 interface TrialBannerProps {
   daysRemaining: number;
 }
@@ -11,7 +9,7 @@ export default function TrialBanner({ daysRemaining }: TrialBannerProps) {
 
   return (
     <div
-      className={`flex items-center justify-between px-6 py-2.5 text-sm ${
+      className={`flex items-center justify-between gap-3 px-4 py-2.5 text-sm md:px-6 ${
         urgency
           ? "bg-amber-50 border-b border-amber-200 text-amber-800"
           : "bg-violet-50 border-b border-violet-200 text-violet-800"
@@ -24,18 +22,18 @@ export default function TrialBanner({ daysRemaining }: TrialBannerProps) {
             : `${daysRemaining} days left`}
         </span>{" "}
         in your free trial.{" "}
-        {urgency && "Upgrade now to keep your Pro features."}
+        {urgency && "Talk to us to keep everything working."}
       </p>
-      <Link
-        href="/pricing"
-        className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+      <a
+        href="mailto:mct@agencybristol.com?subject=Content%20platform%20plan"
+        className={`inline-flex min-h-[44px] shrink-0 items-center rounded-md px-3 text-xs font-semibold transition-colors ${
           urgency
             ? "bg-amber-600 text-white hover:bg-amber-700"
             : "bg-violet-600 text-white hover:bg-violet-700"
         }`}
       >
-        Upgrade
-      </Link>
+        Talk to us about your plan
+      </a>
     </div>
   );
 }

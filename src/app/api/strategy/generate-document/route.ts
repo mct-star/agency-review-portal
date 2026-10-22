@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { generateText } from "@/lib/providers/content-generation/generate-text";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 // ── POST /api/strategy/generate-document ───────────────────
 // Loads a completed strategy session + related data, calls Claude to generate
@@ -31,6 +32,11 @@ export async function POST(request: Request) {
   // Non-admin users can only generate for their own company
   if (profile.role !== "admin" && profile.company_id !== companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  {
+    const refused = await refuseHospitality(profile, companyId);
+    if (refused) return refused;
   }
 
   const supabase = await createAdminSupabaseClient();
@@ -85,7 +91,7 @@ export async function POST(request: Request) {
     // Build the prompt
     const prompt = buildDocumentPrompt(company, session, audiences, positioning, narrativeArcs);
 
-    // Call AI provider with three-tier fallback (Claude → Gemini → OpenAI)
+    // Use the company's configured text provider.
     const aiResult = await generateText({
       systemPrompt: "You are a content strategist generating a comprehensive content strategy document. Return ONLY a valid JSON object, no surrounding text or markdown code fences.",
       userPrompt: prompt,
@@ -107,8 +113,10 @@ export async function POST(request: Request) {
 
     const nextVersion = existingDocs ? existingDocs.version + 1 : 1;
 
-    // Generate a short, URL-friendly share token
-    const shareToken = crypto.randomUUID().slice(0, 12);
+    // 192-bit share token, valid for 30 days, revocable. The old 12-hex
+    // token was about 44 bits with no expiry.
+    const shareToken = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
+    const shareExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     // Save the document
     const { data: document, error: insertErr } = await supabase
@@ -118,6 +126,7 @@ export async function POST(request: Request) {
         version: nextVersion,
         content: documentContent,
         share_token: shareToken,
+        share_expires_at: shareExpiresAt,
         generated_at: new Date().toISOString(),
       })
       .select("*")
@@ -125,8 +134,16 @@ export async function POST(request: Request) {
 
     if (insertErr) throw insertErr;
 
+    // A saved strategy document is what completes Strategise: /home stops
+    // asking for the strategy once this is true.
+    const { error: companyErr } = await supabase
+      .from("companies")
+      .update({ strategy_completed: true })
+      .eq("id", companyId);
+
     return NextResponse.json({
       document,
+      strategy_completed: !companyErr,
       provider: aiResult.provider,
       model: aiResult.model,
     });

@@ -1,10 +1,15 @@
 "use client";
 
+import { getPostType } from "@/lib/constants/post-types";
+import { calendarQuickCreateHref, readDraftPlan } from "@/lib/calendar/quick-create";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatWeekLabelShort } from "@/lib/utils/format-week-label";
 import PlanBoard from "./PlanBoard";
+import Badge from "@/components/ui/Badge";
+import type { ApprovalStatus } from "@/types/database";
 import {
   DndContext,
   DragOverlay,
@@ -71,6 +76,8 @@ interface DayCell {
 interface ContentCalendarProps {
   companies: CompanyOption[];
   showCompanyPicker?: boolean;
+  initialCompanyId?: string;
+  initialDate?: string;
 }
 
 type ViewMode = "plan" | "month" | "week" | "search" | "recent";
@@ -170,7 +177,7 @@ function getPostTypeLabel(slug: string | null): string {
     weekend_personal: "Personal", blog_article: "Blog",
     linkedin_article: "LI Article",
   };
-  return labels[slug] || slug.replace(/_/g, " ");
+  return labels[slug] || getPostType(slug)?.label || slug.replace(/_/g, " ");
 }
 
 function stripMarkdown(md: string): string {
@@ -343,10 +350,10 @@ function PiecePopover({
             {piece.title || "Untitled post"}
           </p>
           <div className="mt-1 flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${statusColor}`}>
+            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${statusColor}`}>
               {statusLabel}
             </span>
-            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
+            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
               {getPostTypeLabel(piece.post_type)}
             </span>
           </div>
@@ -419,7 +426,7 @@ function MorePiecesPopover({
             <DraggablePill piece={piece}>
               <button
                 onClick={() => setExpandedPieceId(expandedPieceId === piece.id ? null : piece.id)}
-                className={`w-full text-left rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate text-gray-900 ${statusBg}`}
+                className={`w-full text-left rounded px-1.5 py-0.5 text-xs font-medium leading-tight truncate text-gray-900 ${statusBg}`}
                 style={{ borderLeft: `3px solid ${colors.accent}` }}
                 title={piece.title}
               >
@@ -450,11 +457,14 @@ function MorePiecesPopover({
 export default function ContentCalendar({
   companies,
   showCompanyPicker = false,
+  initialCompanyId,
+  initialDate,
 }: ContentCalendarProps) {
   const router = useRouter();
-  const [selectedCompany, setSelectedCompany] = useState(companies[0]);
-  const [viewMode, setViewMode] = useState<ViewMode>("plan");
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedCompany, setSelectedCompany] = useState(() => companies.find((company) => company.id === initialCompanyId) || companies[0]);
+  const plannedDate = readDraftPlan(initialDate, null).date;
+  const [viewMode, setViewMode] = useState<ViewMode>(plannedDate ? "week" : "plan");
+  const [currentDate, setCurrentDate] = useState(() => plannedDate ? new Date(`${plannedDate}T12:00:00`) : new Date());
   const [weeks, setWeeks] = useState<CalendarWeek[]>([]);
   const [pieces, setPieces] = useState<CalendarPiece[]>([]);
   const [templateSlots, setTemplateSlots] = useState<TemplateSlot[]>([]);
@@ -757,15 +767,16 @@ export default function ContentCalendar({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="space-y-3">
+      <div className="workspace-panel workspace-calendar-toolbar space-y-4">
         {/* Row 1: Search bar + Recent button */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-md">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
+              aria-label="Search posts by title or content"
               placeholder="Search posts by title or content..."
               value={searchQuery}
               onChange={(e) => enterSearchMode(e.target.value)}
@@ -774,7 +785,7 @@ export default function ContentCalendar({
             {(viewMode === "search" || viewMode === "recent") && (
               <button
                 onClick={exitSearchMode}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
+                className="absolute right-0 top-1/2 flex w-11 -translate-y-1/2 items-center justify-center text-gray-500 hover:text-gray-600"
                 aria-label="Clear search"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -795,7 +806,7 @@ export default function ContentCalendar({
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Most Recent
+            Most recent
           </button>
 
           {pendingPieces > 0 && (
@@ -819,7 +830,7 @@ export default function ContentCalendar({
         {/* Row 2: Calendar navigation + view controls (hidden in search/recent mode) */}
         {viewMode !== "search" && viewMode !== "recent" && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               {/* Company picker */}
               {showCompanyPicker && (
                 <select
@@ -844,7 +855,7 @@ export default function ContentCalendar({
               <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white">
                 <button
                   onClick={() => navigate(-1)}
-                  className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="min-w-11 px-3 py-2 text-gray-500 hover:text-gray-700 transition-colors"
                   aria-label="Previous"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -859,7 +870,7 @@ export default function ContentCalendar({
                 </button>
                 <button
                   onClick={() => navigate(1)}
-                  className="px-2.5 py-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  className="min-w-11 px-3 py-2 text-gray-500 hover:text-gray-700 transition-colors"
                   aria-label="Next"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -877,10 +888,10 @@ export default function ContentCalendar({
               </>)}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {/* Show template toggle */}
               {viewMode !== "plan" && (
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex min-h-11 items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showTemplate}
@@ -896,6 +907,7 @@ export default function ContentCalendar({
                 {(["plan", "week", "month"] as const).map((mode) => (
                   <button
                     key={mode}
+                    aria-pressed={viewMode === mode}
                     onClick={() => setViewMode(mode)}
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       viewMode === mode
@@ -914,7 +926,7 @@ export default function ContentCalendar({
 
       {/* Summary stats */}
       {totalPieces > 0 && viewMode !== "plan" && (
-        <div className="flex items-center gap-6 rounded-lg border border-gray-200 bg-white px-5 py-3">
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-900">{totalPieces}</span>
             <span className="text-xs text-gray-500">posts</span>
@@ -958,13 +970,18 @@ export default function ContentCalendar({
       ) : viewMode === "plan" ? (
         <PlanBoard key={selectedCompany.id} companyId={selectedCompany.id} />
       ) : loading ? (
-        <div className="flex items-center justify-center py-16">
+        <div role="status" className="flex items-center justify-center gap-3 py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-200 border-t-violet-600" />
+          <span className="text-sm text-gray-500">Loading your calendar...</span>
         </div>
       ) : (
+        <>
+        <div className="sm:hidden"><CalendarAgenda companyId={selectedCompany.id} cells={viewMode === "month" ? getMonthGrid().flat().filter(cell => cell.isCurrentMonth) : getWeekGrid()} /></div>
+        <div className="hidden sm:block">
         <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           {viewMode === "month" ? (
             <MonthView
+              companyId={selectedCompany.id}
               grid={getMonthGrid()}
               expandedPieceId={expandedPieceId}
               setExpandedPieceId={setExpandedPieceId}
@@ -973,6 +990,7 @@ export default function ContentCalendar({
             />
           ) : (
             <WeekView
+              companyId={selectedCompany.id}
               cells={getWeekGrid()}
               expandedPieceId={expandedPieceId}
               setExpandedPieceId={setExpandedPieceId}
@@ -986,6 +1004,8 @@ export default function ContentCalendar({
             ) : null}
           </DragOverlay>
         </DndContext>
+        </div>
+        </>
       )}
 
       {/* Legend */}
@@ -995,7 +1015,7 @@ export default function ContentCalendar({
         {Object.entries(POST_TYPE_COLORS).slice(0, 8).map(([slug, colors]) => (
           <div key={slug} className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded" style={{ backgroundColor: colors.accent, border: `1px solid ${colors.accent}` }} />
-            <span className="text-[10px] text-gray-500">{getPostTypeLabel(slug)}</span>
+            <span className="text-xs text-gray-500">{getPostTypeLabel(slug)}</span>
           </div>
         ))}
         {showTemplate && (
@@ -1003,12 +1023,39 @@ export default function ContentCalendar({
             <div className="h-3 w-px bg-gray-200" />
             <div className="flex items-center gap-1.5">
               <div className="h-2.5 w-2.5 rounded border-2 border-dashed border-gray-300" />
-              <span className="text-[10px] text-gray-500">Scheduled (empty)</span>
+              <span className="text-xs text-gray-500">Scheduled (empty)</span>
             </div>
           </>
         )}
       </div>
       )}
+    </div>
+  );
+}
+
+/** On phones a date is a readable row, rather than one seventh of the screen. */
+function CalendarAgenda({ cells, companyId }: { cells: DayCell[]; companyId: string }) {
+  return (
+    <div className="space-y-3" aria-label="Calendar by day">
+      {cells.map(cell => (
+        <section key={formatDateKey(cell.date)} className={`workspace-panel p-4 ${cell.isToday ? "border-violet-300" : ""}`}>
+          <h3 className="mb-3 text-base font-medium"><time dateTime={formatDateKey(cell.date)}>{cell.date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}</time>{cell.isToday && <span className="ml-2 text-xs text-violet-800">Today</span>}</h3>
+          {cell.pieces.length ? <ul className="divide-y divide-gray-100">{cell.pieces.map(piece => (
+            <li key={piece.id}>
+              <Link href={`/content/${piece.id}`} className="flex min-h-11 items-start gap-3 py-3">
+                <span className="w-12 shrink-0 text-xs text-gray-500">{piece.scheduled_time ? formatTime(piece.scheduled_time) : "No time"}</span>
+                <div className="min-w-0 space-y-2"><p className="text-sm font-medium [overflow-wrap:anywhere]">{piece.title || getPostTypeLabel(piece.post_type)}</p><Badge status={piece.approval_status as ApprovalStatus} /></div>
+                <span aria-hidden="true" className="ml-auto text-gray-500">↗</span>
+              </Link>
+            </li>
+          ))}</ul> : <p className="text-sm text-gray-500">No posts scheduled.</p>}
+          {cell.templateSlots.length > 0 && <ul className="mt-3 space-y-2">{cell.templateSlots.map((slot) => <li key={slot.id}>
+            <Link href={calendarQuickCreateHref(companyId, formatDateKey(cell.date), slot.scheduled_time, slot.post_types?.slug || "")} className="flex min-h-11 items-center rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-violet-700">
+              Create {slot.post_types?.label || slot.slot_label || "post"} at {formatTime(slot.scheduled_time)}
+            </Link>
+          </li>)}</ul>}
+        </section>
+      ))}
     </div>
   );
 }
@@ -1023,7 +1070,7 @@ function DragOverlayPill({ piece }: { piece: CalendarPiece }) {
 
   return (
     <div
-      className={`rounded px-2 py-1 text-[11px] font-medium shadow-lg text-gray-900 ${statusBg}`}
+      className={`rounded px-2 py-1 text-xs font-medium shadow-lg text-gray-900 ${statusBg}`}
       style={{ borderLeft: `3px solid ${colors.accent}`, width: 160 }}
     >
       <div className="flex items-center gap-1">
@@ -1043,12 +1090,14 @@ function DragOverlayPill({ piece }: { piece: CalendarPiece }) {
 // ── Month View ───────────────────────────────────────────────
 
 function MonthView({
+  companyId,
   grid,
   expandedPieceId,
   setExpandedPieceId,
   expandedDayKey,
   setExpandedDayKey,
 }: {
+  companyId: string;
   grid: DayCell[][];
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1071,6 +1120,7 @@ function MonthView({
         <div key={rowIdx} className="grid grid-cols-7 border-b border-gray-100 last:border-b-0">
           {row.map((cell) => (
             <MonthDayCellView
+              companyId={companyId}
               key={formatDateKey(cell.date)}
               cell={cell}
               expandedPieceId={expandedPieceId}
@@ -1088,10 +1138,12 @@ function MonthView({
 // ── Week View ────────────────────────────────────────────────
 
 function WeekView({
+  companyId,
   cells,
   expandedPieceId,
   setExpandedPieceId,
 }: {
+  companyId: string;
   cells: DayCell[];
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1100,6 +1152,7 @@ function WeekView({
     <div className="grid grid-cols-7 gap-3">
       {cells.map((cell) => (
         <WeekDayCellView
+          companyId={companyId}
           key={formatDateKey(cell.date)}
           cell={cell}
           expandedPieceId={expandedPieceId}
@@ -1113,12 +1166,14 @@ function WeekView({
 // ── Month Day Cell ──────────────────────────────────────────
 
 function MonthDayCellView({
+  companyId,
   cell,
   expandedPieceId,
   setExpandedPieceId,
   expandedDayKey,
   setExpandedDayKey,
 }: {
+  companyId: string;
   cell: DayCell;
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1169,7 +1224,7 @@ function MonthDayCellView({
                 <DraggablePill piece={piece}>
                   <button
                     onClick={() => setExpandedPieceId(expandedPieceId === piece.id ? null : piece.id)}
-                    className={`w-full text-left block rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${statusBg} hover:opacity-80 transition-opacity`}
+                    className={`w-full text-left block rounded px-1.5 py-0.5 text-xs font-medium leading-tight truncate ${statusBg} hover:opacity-80 transition-opacity`}
                     style={{ borderLeft: `3px solid ${colors.accent}` }}
                     title={piece.title}
                   >
@@ -1223,9 +1278,9 @@ function MonthDayCellView({
               key={slot.id}
               onClick={() => {
                 const slug = slot.post_types?.slug || "";
-                router.push(`/generate/quick?postType=${slug}&day=${dayName}`);
+                router.push(calendarQuickCreateHref(companyId, dateKey, slot.scheduled_time, slug));
               }}
-              className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
+              className="w-full text-left rounded border border-dashed border-gray-200 px-1.5 py-0.5 text-xs text-gray-500 cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors group"
             >
               <div className="flex items-center gap-1">
                 <div className="h-1.5 w-1.5 rounded-full border border-gray-300 flex-shrink-0 group-hover:border-violet-400" />
@@ -1248,10 +1303,12 @@ function MonthDayCellView({
 // ── Week Day Cell ───────────────────────────────────────────
 
 function WeekDayCellView({
+  companyId,
   cell,
   expandedPieceId,
   setExpandedPieceId,
 }: {
+  companyId: string;
   cell: DayCell;
   expandedPieceId: string | null;
   setExpandedPieceId: (id: string | null) => void;
@@ -1283,7 +1340,7 @@ function WeekDayCellView({
             {week && (
               <Link
                 href={`/review/${week.id}`}
-                className="text-[10px] text-gray-500 hover:text-violet-600"
+                className="text-xs text-gray-500 hover:text-violet-600"
               >
                 {formatWeekLabelShort(week.date_start, week.week_number)}
               </Link>
@@ -1329,11 +1386,11 @@ function WeekDayCellView({
                       <LinkedInIcon className="h-3 w-3 text-[#0A66C2] flex-shrink-0 mt-0.5" />
                     </div>
                     {piece.scheduled_time && (
-                      <p className="mt-0.5 text-[10px] text-gray-500">
+                      <p className="mt-0.5 text-xs text-gray-500">
                         {formatTime(piece.scheduled_time)}
                       </p>
                     )}
-                    <p className="mt-1 text-[11px] text-gray-600 line-clamp-2 leading-tight">
+                    <p className="mt-1 text-xs text-gray-600 line-clamp-2 leading-tight">
                       {piece.title}
                     </p>
                   </button>
@@ -1351,7 +1408,7 @@ function WeekDayCellView({
               key={slot.id}
               onClick={() => {
                 const slug = slot.post_types?.slug || "";
-                router.push(`/generate/quick?postType=${slug}&day=${dayName}`);
+                router.push(calendarQuickCreateHref(companyId, dateKey, slot.scheduled_time, slug));
               }}
               className="w-full text-left rounded-lg border-2 border-dashed border-gray-200 p-2.5 transition-colors hover:border-violet-400 hover:bg-violet-50 cursor-pointer group"
             >
@@ -1363,11 +1420,11 @@ function WeekDayCellView({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </div>
-              <p className="mt-0.5 text-[10px] text-gray-500">
+              <p className="mt-0.5 text-xs text-gray-500">
                 {formatTime(slot.scheduled_time)}
                 {slot.image_archetype ? ` · ${slot.image_archetype.replace(/_/g, " ")}` : ""}
               </p>
-              <p className="mt-1 text-[10px] text-gray-500 italic">Not yet generated</p>
+              <p className="mt-1 text-xs text-gray-500 italic">Not yet generated</p>
             </button>
           ))}
         </div>
@@ -1378,7 +1435,7 @@ function WeekDayCellView({
 
 // ── Search / Recent Results View ──────────────────────────────
 
-function SearchResultsView({
+export function SearchResultsView({
   results,
   weeks,
   loading,
@@ -1448,7 +1505,7 @@ function SearchResultsView({
             <Link
               key={piece.id}
               href={`/content/${piece.id}`}
-              className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors"
+              className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 py-3 hover:bg-gray-50 transition-colors sm:flex-nowrap sm:gap-4"
             >
               {/* Status dot */}
               <div className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${status.dotColor}`} />
@@ -1464,15 +1521,15 @@ function SearchResultsView({
               )}
 
               {/* Post type badge */}
-              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border ${colors.bg} ${colors.text} ${colors.border} flex-shrink-0`}>
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border} flex-shrink-0`}>
                 {getPostTypeLabel(piece.post_type)}
               </span>
 
               {/* Title */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-900 truncate">{piece.title || "Untitled post"}</p>
+              <div className="order-first min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-auto">
+                <p className="text-sm text-gray-900 [overflow-wrap:anywhere] sm:truncate">{piece.title || "Untitled post"}</p>
                 {piece.markdown_body && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                  <p className="mt-0.5 line-clamp-2 text-xs text-gray-500 sm:line-clamp-1">
                     {piece.markdown_body.slice(0, 120).replace(/[#*_\n]/g, " ").trim()}
                   </p>
                 )}
@@ -1480,13 +1537,13 @@ function SearchResultsView({
 
               {/* Week info */}
               {week && (
-                <span className="text-[11px] text-gray-500 flex-shrink-0">
+                <span className="text-xs text-gray-500 flex-shrink-0">
                   {formatWeekLabelShort(week.date_start, week.week_number)}
                 </span>
               )}
 
               {/* Status label */}
-              <span className={`text-[11px] font-medium flex-shrink-0 ${
+              <span className={`text-xs font-medium flex-shrink-0 ${
                 piece.approval_status === "approved" ? "text-green-600" :
                 piece.approval_status === "changes_requested" ? "text-amber-600" :
                 "text-gray-500"

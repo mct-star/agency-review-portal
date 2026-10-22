@@ -90,8 +90,18 @@ export default function ContentAssets({ pieceId, isAdmin }: ContentAssetsProps) 
     setLoading(false);
   }
 
+  const internalTypes = ["api_generation_provenance", "api_generation_quality"];
+  const visibleAssets = assets.filter((asset) => !internalTypes.includes(String(asset.asset_metadata?.original_type || "")));
+  const quality = assets.find((asset) => asset.asset_metadata?.original_type === "api_generation_quality")?.asset_metadata;
+  const validation = quality?.validation as { allResults?: { passed: boolean; testName: string; message: string }[] } | undefined;
+  const gates = quality?.gates as { passed: boolean; gate: string; explanation: string }[] | undefined;
+  const checks = [
+    ...(validation?.allResults || []).filter((check) => !check.passed).map((check) => `${check.testName}: ${check.message}`),
+    ...(gates || []).filter((check) => !check.passed).map((check) => check.explanation || check.gate),
+  ];
+
   function getAssetsForType(assetType: AssetType): ContentAsset[] {
-    return assets.filter((a) => a.asset_type === assetType);
+    return visibleAssets.filter((a) => a.asset_type === assetType);
   }
 
   if (loading) {
@@ -102,7 +112,7 @@ export default function ContentAssets({ pieceId, isAdmin }: ContentAssetsProps) 
     );
   }
 
-  if (assets.length === 0) {
+  if (visibleAssets.length === 0 && checks.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="mb-2 text-sm font-semibold text-gray-900">
@@ -124,9 +134,17 @@ export default function ContentAssets({ pieceId, isAdmin }: ContentAssetsProps) 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">
-        Content Assets ({assets.length})
+        Content Assets ({visibleAssets.length})
       </h3>
 
+      {checks.length > 0 && (
+        <details className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <summary className="cursor-pointer font-medium">{checks.length} checks to review before approval</summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {checks.map((check, index) => <li key={index}>{check}</li>)}
+          </ul>
+        </details>
+      )}
       <div className="space-y-3">
         {populatedGroups.map((group) => {
           const groupAssets = group.types.flatMap((t) =>

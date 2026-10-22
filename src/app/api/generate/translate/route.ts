@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { resolveProvider } from "@/lib/providers";
-import { callClaude } from "@/lib/providers/content-adaptation/claude-util";
+import { generateText } from "@/lib/providers/content-generation/generate-text";
 import { SUPPORTED_LANGUAGES } from "@/lib/generation/regulatory-knowledge";
 
 export const maxDuration = 120;
@@ -61,10 +60,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No content pieces found" }, { status: 404 });
   }
 
-  // Resolve Claude API key
-  const provider = await resolveProvider(companyId, "content_generation");
-  const apiKey = (provider?.credentials?.api_key as string) || process.env.ANTHROPIC_API_KEY || "no-anthropic-key-will-fallback-to-gemini";
-
   const translations: {
     pieceId: string;
     originalTitle: string;
@@ -110,13 +105,12 @@ Respond with JSON (no code fences):
 
       let text: string;
       try {
-        text = await callClaude(
-          apiKey,
-          "claude-sonnet-4-20250514",
-          system,
-          `Translate this content into ${langConfig.nativeName}:\n\nTITLE: ${piece.title}\n\nBODY:\n${piece.markdown_body}\n\n${piece.first_comment ? `FIRST COMMENT:\n${piece.first_comment}` : "No first comment."}`,
-          8192
-        );
+        text = (await generateText({
+          companyId,
+          systemPrompt: system,
+          userPrompt: `Translate this content into ${langConfig.nativeName}:\n\nTITLE: ${piece.title}\n\nBODY:\n${piece.markdown_body}\n\n${piece.first_comment ? `FIRST COMMENT:\n${piece.first_comment}` : "No first comment."}`,
+          maxTokens: 8192,
+        })).text;
       } catch (err) {
         console.error(`[translate] LLM error for piece ${piece.id} → ${lang}:`, err);
         continue;

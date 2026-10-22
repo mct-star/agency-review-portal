@@ -19,7 +19,7 @@ export async function PATCH(request: Request) {
 
   // Whitelist allowed fields
   const allowed: Record<string, unknown> = {};
-  if (updates.plan && ["free", "pro", "agency"].includes(updates.plan)) {
+  if (updates.plan && ["free", "starter", "pro", "agency"].includes(updates.plan)) {
     allowed.plan = updates.plan;
   }
 

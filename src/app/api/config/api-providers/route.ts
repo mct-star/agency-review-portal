@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { encrypt, decrypt } from "@/lib/crypto";
+import { encryptJson } from "@/lib/crypto";
 
 /**
  * GET /api/config/api-providers?companyId=uuid
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     .order("service_category");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Could not update provider settings" }, { status: 500 });
   }
 
   // Mask credentials — never expose raw keys
@@ -54,7 +54,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { companyId, serviceCategory, provider, credentials, providerSettings } =
     body;
 
@@ -67,13 +68,39 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Encrypt credentials if provided
-  let credentialsEncrypted: string | null = null;
-  if (credentials && typeof credentials === "object") {
-    credentialsEncrypted = encrypt(JSON.stringify(credentials));
-  } else if (typeof credentials === "string" && credentials.length > 0) {
-    credentialsEncrypted = encrypt(credentials);
+  if (serviceCategory === "content_generation" && !["anthropic_claude", "openai_gpt4"].includes(provider)) {
+    return NextResponse.json({ error: "Unsupported writing provider" }, { status: 400 });
   }
+  if (credentials !== undefined && (!credentials || typeof credentials !== "object" || Array.isArray(credentials) || (serviceCategory === "content_generation" && typeof credentials.api_key !== "string"))) {
+    return NextResponse.json({ error: "A valid API key is required" }, { status: 400 });
+  }
+  if (providerSettings !== undefined && (!providerSettings || typeof providerSettings !== "object" || Array.isArray(providerSettings))) {
+    return NextResponse.json({ error: "Invalid provider settings" }, { status: 400 });
+  }
+  if (serviceCategory === "content_generation" && providerSettings?.utility_tier !== undefined && !["economy", "quality"].includes(providerSettings.utility_tier)) {
+    return NextResponse.json({ error: "Invalid utility tier" }, { status: 400 });
+  }
+  if (serviceCategory === "content_generation" && providerSettings?.fallback_approved !== undefined && typeof providerSettings.fallback_approved !== "boolean") {
+    return NextResponse.json({ error: "Invalid fallback approval" }, { status: 400 });
+  }
+  // Blank means retain this company's key for this exact provider, never reuse the old provider's key.
+  const { data: existing, error: lookupError } = await supabase.from("company_api_configs")
+    .select("credentials_encrypted, provider_settings").eq("company_id", companyId)
+    .eq("service_category", serviceCategory).eq("provider", provider).maybeSingle();
+  if (lookupError) return NextResponse.json({ error: "Could not load provider settings" }, { status: 500 });
+  const hasNewCredentials = serviceCategory === "content_generation" ? !!credentials?.api_key?.trim() : !!credentials;
+  if (serviceCategory === "content_generation" && !hasNewCredentials && !existing?.credentials_encrypted) {
+    return NextResponse.json({ error: "Enter a key for the selected writing provider" }, { status: 400 });
+  }
+  const credentialsEncrypted = hasNewCredentials ? encryptJson({ ...credentials, ...(typeof credentials.api_key === "string" ? { api_key: credentials.api_key.trim() } : {}) }) : existing?.credentials_encrypted ?? null;
+  const suppliedSettings = serviceCategory === "content_generation"
+    ? { ...(existing?.provider_settings ?? {}), ...(providerSettings ?? {}) }
+    : providerSettings ?? existing?.provider_settings ?? {};
+  const settings = serviceCategory === "content_generation"
+    ? { utility_tier: suppliedSettings.utility_tier === "quality" ? "quality" : "economy",
+      ...(typeof suppliedSettings.fallback_approved === "boolean" ? { fallback_approved: suppliedSettings.fallback_approved } : {}),
+    }
+    : suppliedSettings;
 
   // Upsert — unique on (company_id, service_category, provider)
   const { data, error } = await supabase
@@ -84,7 +111,7 @@ export async function POST(request: Request) {
         service_category: serviceCategory,
         provider,
         credentials_encrypted: credentialsEncrypted,
-        provider_settings: providerSettings || {},
+        provider_settings: settings,
         is_active: true,
       },
       {
@@ -95,7 +122,14 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Could not update provider settings" }, { status: 500 });
+  }
+
+  // Retain inactive keys for a later switch, but resolve only one active writer per company.
+  if (serviceCategory === "content_generation") {
+    const { error: activationError } = await supabase.from("company_api_configs").update({ is_active: false })
+      .eq("company_id", companyId).eq("service_category", serviceCategory).neq("provider", provider);
+    if (activationError) return NextResponse.json({ error: "Could not activate writing provider" }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -118,7 +152,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { id } = body;
 
   if (!id) {
@@ -132,7 +167,7 @@ export async function DELETE(request: Request) {
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Could not update provider settings" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

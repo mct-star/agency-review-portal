@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { POST_TYPES, WEEKLY_RHYTHMS } from "@/lib/constants/post-types";
 import type { StrategySession, StrategyAudience, StrategyPositioning } from "@/types/database";
+import VoiceDictation from "@/components/ui/VoiceDictation";
 import { setLastActivity } from "@/lib/utils/last-activity";
 
 // ────────────────────────────────────────────────────────────
@@ -122,6 +124,11 @@ export default function StrategyInterview({
     initialSession?.responses ?? {}
   );
   const [saving, setSaving] = useState(false);
+  const [dictationField, setDictationField] = useState<string | null>(null);
+  const dictationBusy = dictationField !== null;
+  const onDictationBusy = useCallback((field: string, busy: boolean) => {
+    setDictationField((active) => busy ? field : active === field ? null : active);
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
 
@@ -226,7 +233,8 @@ export default function StrategyInterview({
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [strategyCompleted, setStrategyCompleted] = useState(false);
 
   const stepRef = useRef<HTMLDivElement>(null);
 
@@ -256,7 +264,7 @@ export default function StrategyInterview({
 
   // ── Auto-save ──────────────────────────────────────────────
   const saveProgress = useCallback(
-    async (stepData: Record<string, unknown>, step: number) => {
+    async (stepData: Record<string, unknown>, step: number, status?: "completed"): Promise<boolean> => {
       setSaving(true);
       setError(null);
       try {
@@ -266,8 +274,9 @@ export default function StrategyInterview({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             companyId,
-            currentStep: step,
+            step,
             responses: merged,
+            ...(status ? { status } : {}),
           }),
         });
         if (!res.ok) {
@@ -275,8 +284,10 @@ export default function StrategyInterview({
           throw new Error(data.error || "Failed to save progress");
         }
         setResponses(merged);
+        return true;
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to save");
+        return false;
       } finally {
         setSaving(false);
       }
@@ -286,23 +297,34 @@ export default function StrategyInterview({
 
   // ── Navigation ─────────────────────────────────────────────
   const goNext = useCallback(async () => {
-    if (currentStep >= 8) return;
+    if (currentStep >= 8 || dictationBusy) return;
     const data = collectStepData();
     const nextStep = currentStep + 1;
     setDirection("forward");
     await saveProgress(data, nextStep);
     setCurrentStep(nextStep);
     setLastActivity({ type: "strategy", label: `Strategy Interview (Step ${nextStep}/8)`, href: "/strategy/interview" });
-  }, [currentStep, collectStepData, saveProgress]);
+  }, [currentStep, dictationBusy, collectStepData, saveProgress]);
 
   const goBack = useCallback(async () => {
-    if (currentStep <= 1) return;
+    if (currentStep <= 1 || dictationBusy) return;
     const data = collectStepData();
     const prevStep = currentStep - 1;
     setDirection("back");
     await saveProgress(data, prevStep);
     setCurrentStep(prevStep);
-  }, [currentStep, collectStepData, saveProgress]);
+  }, [currentStep, dictationBusy, collectStepData, saveProgress]);
+
+  // Warn before closing a tab while an answer is still being dictated.
+  useEffect(() => {
+    if (!dictationBusy) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [dictationBusy]);
 
   // Scroll to top on step change
   useEffect(() => {
@@ -357,8 +379,8 @@ export default function StrategyInterview({
           responses: { ...responses, ...collectStepData() },
         }),
       });
-      if (!res.ok) throw new Error("Failed to get suggestions");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "We could not suggest pillars just now. Add your own and carry on.");
       if (data.pillars && Array.isArray(data.pillars)) {
         const newPillars = data.pillars.slice(0, 5).map((p: { name?: string; description?: string; topics?: string[] }) => ({
           name: p.name ?? "",
@@ -367,8 +389,8 @@ export default function StrategyInterview({
         }));
         setPillars(newPillars.length >= 3 ? newPillars : [...newPillars, ...Array(3 - newPillars.length).fill({ name: "", description: "", topics: "" })]);
       }
-    } catch {
-      setError("Could not generate pillar suggestions. Try again or fill in manually.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "We could not suggest pillars just now. Add your own and carry on.");
     } finally {
       setSuggestingPillars(false);
     }
@@ -391,20 +413,28 @@ export default function StrategyInterview({
     setGenerating(true);
     setError(null);
     try {
-      const allData = { ...responses, ...collectStepData() };
-      await saveProgress(collectStepData(), 8);
-      const res = await fetch("/api/strategy/generate", {
+      // The document is written from the completed interview, so the
+      // session is saved as completed first; if that save fails, stop here
+      // (saveProgress has already shown why).
+      const saved = await saveProgress(collectStepData(), 8, "completed");
+      if (!saved) return;
+      const res = await fetch("/api/strategy/generate-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, responses: allData }),
+        body: JSON.stringify({ companyId }),
       });
-      if (!res.ok) throw new Error("Failed to generate strategy document");
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        document?: { share_token?: string | null };
+        strategy_completed?: boolean;
+      };
+      if (!res.ok) throw new Error(data.error || "Failed to generate strategy document. Please try again.");
       setGenerated(true);
-      setPdfUrl(data.pdfUrl ?? null);
-      setShareLink(data.shareLink ?? null);
-    } catch {
-      setError("Failed to generate strategy document. Please try again.");
+      setStrategyCompleted(data.strategy_completed === true);
+      const token = data.document?.share_token;
+      setShareLink(token ? `${window.location.origin}/strategy/${token}` : null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate strategy document. Please try again.");
     } finally {
       setGenerating(false);
     }
@@ -480,6 +510,15 @@ export default function StrategyInterview({
         </div>
       )}
 
+      <p className="mt-6 text-sm text-gray-500">
+        Type your answers or use the microphone beside each one. You can edit the words before continuing.
+      </p>
+      {dictationBusy && (
+        <p role="status" className="mt-2 text-sm text-violet-700">
+          Finish recording and wait for the words before changing steps or saving.
+        </p>
+      )}
+
       {/* ═══ Step Content ═══ */}
       <div
         className={`mt-8 transition-all duration-300 ${
@@ -492,18 +531,30 @@ export default function StrategyInterview({
           <StepCard number={1} title="Who Are You?" subtitle="Tell us about your company so we can tailor your strategy.">
             <div className="space-y-5">
               <Field label="Company name">
-                <input
-                  type="text"
+                <InterviewAnswer
+                  answerId="companyNameField"
+                  label="Company name"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
+                  as="input"
                   value={companyNameField}
-                  onChange={(e) => setCompanyNameField(e.target.value)}
+                  onChangeText={(value) => setCompanyNameField(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                   placeholder="Your company name"
                 />
               </Field>
               <Field label="What does your company do?" hint="2-3 sentences describing your core offering">
-                <textarea
+                <InterviewAnswer
+                  answerId="whatDo"
+                  label="What does your company do?"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
                   value={whatDo}
-                  onChange={(e) => setWhatDo(e.target.value)}
+                  onChangeText={(value) => setWhatDo(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
                   placeholder="We help healthcare companies..."
                 />
@@ -547,6 +598,7 @@ export default function StrategyInterview({
                   {personas.length > 1 && (
                     <button
                       onClick={() => removePersona(persona.id)}
+                      disabled={dictationBusy}
                       className="absolute top-3 right-3 p-1 rounded-md text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"
                       aria-label="Remove persona"
                     >
@@ -561,19 +613,31 @@ export default function StrategyInterview({
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="What do you call them?" compact>
-                        <input
-                          type="text"
+                        <InterviewAnswer
+                          answerId={`persona-${persona.id}-name`}
+                          label="Persona name"
+                          companyId={companyId}
+                          activeDictation={dictationField}
+                          onDictationBusy={onDictationBusy}
+                          dictationDisabled={saving || suggestingPillars}
+                          as="input"
                           value={persona.name}
-                          onChange={(e) => updatePersona(persona.id, "name", e.target.value)}
+                          onChangeText={(value) => updatePersona(persona.id, "name", value)}
                           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                           placeholder="e.g. Hotel procurement manager, NHS buyer, CFO"
                         />
                       </Field>
                       <Field label="Job title" compact>
-                        <input
-                          type="text"
+                        <InterviewAnswer
+                          answerId={`persona-${persona.id}-jobTitle`}
+                          label="Job title"
+                          companyId={companyId}
+                          activeDictation={dictationField}
+                          onDictationBusy={onDictationBusy}
+                          dictationDisabled={saving || suggestingPillars}
+                          as="input"
                           value={persona.jobTitle}
-                          onChange={(e) => updatePersona(persona.id, "jobTitle", e.target.value)}
+                          onChangeText={(value) => updatePersona(persona.id, "jobTitle", value)}
                           className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                           placeholder="e.g. Head of Procurement"
                         />
@@ -592,17 +656,29 @@ export default function StrategyInterview({
                       </select>
                     </Field>
                     <Field label="What keeps them up at night?" compact>
-                      <textarea
+                      <InterviewAnswer
+                        answerId={`persona-${persona.id}-primaryProblem`}
+                        label="What keeps them up at night?"
+                        companyId={companyId}
+                        activeDictation={dictationField}
+                        onDictationBusy={onDictationBusy}
+                        dictationDisabled={saving || suggestingPillars}
                         value={persona.primaryProblem}
-                        onChange={(e) => updatePersona(persona.id, "primaryProblem", e.target.value)}
+                        onChangeText={(value) => updatePersona(persona.id, "primaryProblem", value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[72px] resize-y"
                         placeholder="e.g. They can't find reliable suppliers who understand their industry"
                       />
                     </Field>
                     <Field label="What would they Google?" compact>
-                      <textarea
+                      <InterviewAnswer
+                        answerId={`persona-${persona.id}-searchTerms`}
+                        label="What would they Google?"
+                        companyId={companyId}
+                        activeDictation={dictationField}
+                        onDictationBusy={onDictationBusy}
+                        dictationDisabled={saving || suggestingPillars}
                         value={persona.searchTerms}
-                        onChange={(e) => updatePersona(persona.id, "searchTerms", e.target.value)}
+                        onChangeText={(value) => updatePersona(persona.id, "searchTerms", value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[72px] resize-y"
                         placeholder="e.g. best linen supplier UK, sustainable hotel textiles"
                       />
@@ -613,6 +689,7 @@ export default function StrategyInterview({
               {personas.length < 3 && (
                 <button
                   onClick={addPersona}
+                  disabled={dictationBusy}
                   className="w-full rounded-xl border-2 border-dashed border-gray-200 py-3 text-sm font-medium text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors"
                 >
                   + Add another persona
@@ -627,25 +704,43 @@ export default function StrategyInterview({
           <StepCard number={3} title="What Makes You Different?" subtitle="Your positioning is the foundation of every piece of content.">
             <div className="space-y-5">
               <Field label="What frustrates you about your competitors?">
-                <textarea
+                <InterviewAnswer
+                  answerId="competitorMistakes"
+                  label="What frustrates you about your competitors?"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
                   value={competitorMistakes}
-                  onChange={(e) => setCompetitorMistakes(e.target.value)}
+                  onChangeText={(value) => setCompetitorMistakes(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
                   placeholder="e.g. They all say the same thing, nobody actually delivers on sustainability claims"
                 />
               </Field>
               <Field label="What do you know that others don't?">
-                <textarea
+                <InterviewAnswer
+                  answerId="secretKnowledge"
+                  label="What do you know that others don't?"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
                   value={secretKnowledge}
-                  onChange={(e) => setSecretKnowledge(e.target.value)}
+                  onChangeText={(value) => setSecretKnowledge(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
                   placeholder="e.g. We know that 60% of hotel operators are planning to downsize in the next 3 years"
                 />
               </Field>
               <Field label="If a customer described you to a friend, what would they say?">
-                <textarea
+                <InterviewAnswer
+                  answerId="customerDescription"
+                  label="How would a customer describe you?"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
                   value={customerDescription}
-                  onChange={(e) => setCustomerDescription(e.target.value)}
+                  onChangeText={(value) => setCustomerDescription(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
                   placeholder="e.g. They actually care about the detail, not just the sale"
                 />
@@ -657,9 +752,15 @@ export default function StrategyInterview({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Before working with you, your customers...</span>
-                    <textarea
+                    <InterviewAnswer
+                      answerId="transformBefore"
+                      label="Before working with you"
+                      companyId={companyId}
+                      activeDictation={dictationField}
+                      onDictationBusy={onDictationBusy}
+                      dictationDisabled={saving || suggestingPillars}
                       value={transformBefore}
-                      onChange={(e) => setTransformBefore(e.target.value)}
+                      onChangeText={(value) => setTransformBefore(value)}
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 mt-1 min-h-[80px] resize-y"
                       placeholder="e.g. were struggling with inconsistent quality and unreliable delivery"
                     />
@@ -671,9 +772,15 @@ export default function StrategyInterview({
                       </svg>
                     </div>
                     <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">After working with you, your customers...</span>
-                    <textarea
+                    <InterviewAnswer
+                      answerId="transformAfter"
+                      label="After working with you"
+                      companyId={companyId}
+                      activeDictation={dictationField}
+                      onDictationBusy={onDictationBusy}
+                      dictationDisabled={saving || suggestingPillars}
                       value={transformAfter}
-                      onChange={(e) => setTransformAfter(e.target.value)}
+                      onChangeText={(value) => setTransformAfter(value)}
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 mt-1 min-h-[80px] resize-y"
                       placeholder="e.g. have a reliable partner they trust, with consistent quality every order"
                     />
@@ -729,29 +836,47 @@ export default function StrategyInterview({
               </div>
 
               <Field label="How would a colleague describe the way you communicate?">
-                <input
-                  type="text"
+                <InterviewAnswer
+                  answerId="toneWords"
+                  label="How you communicate"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
+                  as="input"
                   value={toneWords}
-                  onChange={(e) => setToneWords(e.target.value)}
+                  onChangeText={(value) => setToneWords(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                   placeholder="e.g. warm, knowledgeable, direct, honest, practical"
                 />
               </Field>
 
               <Field label="Words or phrases that make you cringe">
-                <input
-                  type="text"
+                <InterviewAnswer
+                  answerId="neverUse"
+                  label="Words or phrases to avoid"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
+                  as="input"
                   value={neverUse}
-                  onChange={(e) => setNeverUse(e.target.value)}
+                  onChangeText={(value) => setNeverUse(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                   placeholder="e.g. synergy, leverage, disrupt, game-changer, revolutionary"
                 />
               </Field>
 
               <Field label="Write a sentence the way YOU would say it" hint="(Imagine you're explaining what you do to someone at a conference)">
-                <textarea
+                <InterviewAnswer
+                  answerId="voiceSample"
+                  label="Your voice sample"
+                  companyId={companyId}
+                  activeDictation={dictationField}
+                  onDictationBusy={onDictationBusy}
+                  dictationDisabled={saving || suggestingPillars}
                   value={voiceSample}
-                  onChange={(e) => setVoiceSample(e.target.value)}
+                  onChangeText={(value) => setVoiceSample(value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[100px] resize-y"
                   placeholder="Write naturally, as if you're speaking to a potential customer for the first time..."
                 />
@@ -769,6 +894,7 @@ export default function StrategyInterview({
                   {pillars.length > 3 && (
                     <button
                       onClick={() => removePillar(idx)}
+                      disabled={dictationBusy}
                       className="absolute top-3 right-3 p-1 rounded-md text-gray-500 hover:text-red-500 hover:bg-red-50 transition-colors"
                       aria-label="Remove pillar"
                     >
@@ -782,27 +908,45 @@ export default function StrategyInterview({
                   </p>
                   <div className="space-y-3">
                     <Field label="Theme" compact>
-                      <input
-                        type="text"
+                      <InterviewAnswer
+                        answerId={`pillar-${idx}-name`}
+                        label="Pillar theme"
+                        companyId={companyId}
+                        activeDictation={dictationField}
+                        onDictationBusy={onDictationBusy}
+                        dictationDisabled={saving || suggestingPillars}
+                        as="input"
                         value={pillar.name}
-                        onChange={(e) => updatePillar(idx, "name", e.target.value)}
+                        onChangeText={(value) => updatePillar(idx, "name", value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                         placeholder="e.g. Sustainability in hospitality, Getting products to market, Patient access"
                       />
                     </Field>
                     <Field label="What you'd say about this" compact>
-                      <textarea
+                      <InterviewAnswer
+                        answerId={`pillar-${idx}-description`}
+                        label="What you would say about this pillar"
+                        companyId={companyId}
+                        activeDictation={dictationField}
+                        onDictationBusy={onDictationBusy}
+                        dictationDisabled={saving || suggestingPillars}
                         value={pillar.description}
-                        onChange={(e) => updatePillar(idx, "description", e.target.value)}
+                        onChangeText={(value) => updatePillar(idx, "description", value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 min-h-[72px] resize-y"
                         placeholder="e.g. Why most sustainability claims in hospitality are meaningless, and what actually works"
                       />
                     </Field>
                     <Field label="Topic ideas" hint="Comma-separated" compact>
-                      <input
-                        type="text"
+                      <InterviewAnswer
+                        answerId={`pillar-${idx}-topics`}
+                        label="Pillar topic ideas"
+                        companyId={companyId}
+                        activeDictation={dictationField}
+                        onDictationBusy={onDictationBusy}
+                        dictationDisabled={saving || suggestingPillars}
+                        as="input"
                         value={pillar.topics}
-                        onChange={(e) => updatePillar(idx, "topics", e.target.value)}
+                        onChangeText={(value) => updatePillar(idx, "topics", value)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                         placeholder="topic one, topic two, topic three"
                       />
@@ -815,6 +959,7 @@ export default function StrategyInterview({
                 {pillars.length < 5 && (
                   <button
                     onClick={addPillar}
+                    disabled={dictationBusy}
                     className="flex-1 rounded-xl border-2 border-dashed border-gray-200 py-3 text-sm font-medium text-gray-500 hover:border-violet-300 hover:text-violet-600 transition-colors"
                   >
                     + Add another pillar
@@ -822,7 +967,7 @@ export default function StrategyInterview({
                 )}
                 <button
                   onClick={suggestPillars}
-                  disabled={suggestingPillars}
+                  disabled={suggestingPillars || dictationBusy}
                   className="flex-1 rounded-xl border-2 border-violet-200 bg-violet-50 py-3 text-sm font-medium text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
                 >
                   {suggestingPillars ? (
@@ -939,12 +1084,18 @@ export default function StrategyInterview({
                             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                               Week {weekIdx + 1}
                             </label>
-                            <input
-                              type="text"
+                            <InterviewAnswer
+                              answerId={`week-${weekIdx}`}
+                              label="Weekly theme"
+                              companyId={companyId}
+                              activeDictation={dictationField}
+                              onDictationBusy={onDictationBusy}
+                              dictationDisabled={saving || suggestingPillars}
+                              as="input"
                               value={weekThemes[weekIdx]}
-                              onChange={(e) => {
+                              onChangeText={(value) => {
                                 const next = [...weekThemes];
-                                next[weekIdx] = e.target.value;
+                                next[weekIdx] = value;
                                 setWeekThemes(next);
                               }}
                               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 mt-1 text-sm"
@@ -1005,34 +1156,39 @@ export default function StrategyInterview({
                   </div>
                   <h3 className="text-lg font-bold text-emerald-900">Strategy document generated</h3>
                   <p className="text-sm text-emerald-700 mt-1">
-                    Your professional content strategy is ready.
+                    {strategyCompleted
+                      ? "Your content strategy is ready and Strategise is complete. Plan is next."
+                      : "Your content strategy is ready."}
                   </p>
                   <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                    {pdfUrl && (
-                      <a
-                        href={pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
-                      >
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download PDF
-                      </a>
-                    )}
+                    <Link href={`/calendar?companyId=${encodeURIComponent(companyId)}`} className="inline-flex min-h-11 items-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
+                      Plan your content
+                    </Link>
                     {shareLink && (
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(shareLink);
+                          navigator.clipboard.writeText(shareLink).then(
+                            () => setLinkCopied(true),
+                            () => setLinkCopied(false)
+                          );
                         }}
                         className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-5 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors"
                       >
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
-                        Copy share link
+                        {linkCopied ? "Link copied" : "Copy share link"}
                       </button>
+                    )}
+                    {shareLink && (
+                      <a
+                        href={shareLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+                      >
+                        Open the document
+                      </a>
                     )}
                   </div>
                 </div>
@@ -1048,18 +1204,19 @@ export default function StrategyInterview({
           <div className="flex items-center gap-4">
             <button
               onClick={async () => {
+                if (dictationBusy) return;
                 const data = collectStepData();
                 await saveProgress(data, currentStep);
                 router.push("/home");
               }}
-              disabled={saving}
+              disabled={saving || dictationBusy}
               className="text-sm text-gray-500 hover:text-gray-600 transition-colors disabled:opacity-50"
             >
               Save & continue later
             </button>
             <button
               onClick={goBack}
-              disabled={currentStep <= 1 || saving}
+              disabled={currentStep <= 1 || saving || dictationBusy}
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -1083,7 +1240,7 @@ export default function StrategyInterview({
           {currentStep < 8 ? (
             <button
               onClick={goNext}
-              disabled={saving}
+              disabled={saving || dictationBusy}
               className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow transition-all hover:bg-violet-700 hover:shadow-lg disabled:opacity-50"
             >
               Next
@@ -1160,5 +1317,50 @@ function Spinner() {
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
+  );
+}
+function InterviewAnswer({
+  answerId, label, companyId, activeDictation, onDictationBusy,
+  dictationDisabled, value, onChangeText, as = "textarea", className, placeholder,
+}: {
+  answerId: string;
+  label: string;
+  companyId: string;
+  activeDictation: string | null;
+  onDictationBusy: (field: string, busy: boolean) => void;
+  dictationDisabled: boolean;
+  value: string;
+  onChangeText: (value: string) => void;
+  as?: "input" | "textarea";
+  className: string;
+  placeholder: string;
+}) {
+  // Typing may continue while transcription runs. Append to the latest answer,
+  // rather than the value captured when the microphone was first opened.
+  const answerRef = useRef({ value, onChangeText });
+  answerRef.current = { value, onChangeText };
+  const Input = as;
+  return (
+    <div className="space-y-2">
+      <Input
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChangeText(event.target.value)}
+        className={className}
+        placeholder={placeholder}
+      />
+      <VoiceDictation
+        companyId={companyId}
+        placeholder="Dictate your answer"
+        ariaLabel={`Dictate ${label.toLowerCase()}`}
+        disabled={dictationDisabled || (activeDictation !== null && activeDictation !== answerId)}
+        onBusyChange={(busy) => onDictationBusy(answerId, busy)}
+        onTranscription={(text) => {
+          const current = answerRef.current;
+          const separator = current.value && !/\s$/.test(current.value) ? " " : "";
+          current.onChangeText(`${current.value}${separator}${text.trim()}`);
+        }}
+      />
+    </div>
   );
 }

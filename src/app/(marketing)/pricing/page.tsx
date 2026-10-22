@@ -131,7 +131,7 @@ export default function PricingPage() {
             <div>
               <h3 className="text-sm font-semibold text-gray-900">What happens after the trial?</h3>
               <p className="mt-2 text-sm text-gray-600">
-                After 7 days, your account moves to the Free plan. You keep all your content and settings.
+                After 7 days, your account moves to the Starter plan. You keep all your content and settings.
                 Pro features (compliance review, publishing, calendar) become locked until you upgrade.
               </p>
             </div>

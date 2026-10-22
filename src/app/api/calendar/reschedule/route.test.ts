@@ -71,4 +71,16 @@ describe("PATCH /api/calendar/reschedule", () => {
     expect((await PATCH(req({ pieceId: "p1", date: "2026-10-09" }))).status).toBe(403);
     expect((await PATCH(req({ pieceId: "p1", date: "9 Oct" }))).status).toBe(400);
   });
+
+  it("retains the exact date and time for an existing generated draft returned from Calendar", async () => {
+    const response = await PATCH(req({ pieceId: "p1", date: "2026-10-09", scheduledTime: "16:45", createPlannedWeek: true }));
+    expect(response.status).toBe(200);
+    expect(updates[0].patch).toEqual({ week_id: "w41", day_of_week: "friday", scheduled_date: "2026-10-09", scheduled_time: "16:45:00" });
+    expect(updates.some((entry) => entry.table === "publishing_jobs")).toBe(false);
+  });
+
+  it("refuses malformed calendar times without updating the draft", async () => {
+    expect((await PATCH(req({ pieceId: "p1", date: "2026-10-09", scheduledTime: "26:30" }))).status).toBe(400);
+    expect(updates).toEqual([]);
+  });
 });
