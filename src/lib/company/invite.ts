@@ -16,6 +16,7 @@ export interface InviteInput {
   fullName?: unknown;
   companyId?: unknown;
   canPublish?: unknown;
+  sendEmail?: unknown;
 }
 
 export interface ExistingUser {
@@ -31,6 +32,7 @@ export type InvitePlan =
       fullName: string | null;
       companyId: string;
       canPublish: boolean;
+      sendEmail: boolean;
       /** The email already has an account in this company: send a fresh link only. */
       resend: boolean;
     }
@@ -45,6 +47,13 @@ export function planInvite(
   existing: ExistingUser | null
 ): InvitePlan {
   if (!caller) return { ok: false, status: 401, error: "Unauthorized" };
+
+  if (input.sendEmail !== undefined && typeof input.sendEmail !== "boolean") {
+    return { ok: false, status: 400, error: "sendEmail must be a boolean" };
+  }
+  if (input.sendEmail === false && caller.role !== "admin") {
+    return { ok: false, status: 403, error: "Only an administrator can create an account without email" };
+  }
 
   const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
   if (!EMAIL_RE.test(email) || email.length > 254) {
@@ -89,6 +98,7 @@ export function planInvite(
     fullName,
     companyId,
     canPublish,
+    sendEmail: input.sendEmail !== false,
     resend: !!existing,
   };
 }
