@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { applyBrandOverlay } from "@/lib/image/brand-overlay";
 import sharp from "sharp";
 
@@ -14,17 +14,17 @@ import sharp from "sharp";
  * Returns: { url: "data:image/png;base64,..." }
  */
 export async function GET(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const companyId = searchParams.get("companyId");
   const spokespersonId = searchParams.get("spokespersonId"); // optional: show person-specific overlay
 
   if (!companyId) {
     return NextResponse.json({ error: "companyId required" }, { status: 400 });
+  }
+
+  const companyUser = await requireCompanyUser(companyId);
+  if (!companyUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createAdminSupabaseClient();
