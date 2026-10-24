@@ -290,6 +290,7 @@ export default function WeekReviewTabs({
                       >
                         {STATUS_LABELS[piece.approval_status] || piece.approval_status}
                       </span>
+                      <a href={`/content/${piece.id}`} className="text-xs font-medium text-violet-700 hover:underline">Open to approve</a>
                       <button
                         onClick={() => toggleExpand(piece.id)}
                         className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
