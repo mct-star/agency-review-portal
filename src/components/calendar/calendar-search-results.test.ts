@@ -17,7 +17,7 @@ const weeks = [{
 
 describe("calendar search and recent results", () => {
   it.each(["search", "recent"] as const)("retains the full post and metadata in %s navigation", (mode) => {
-    const html = renderToStaticMarkup(createElement(SearchResultsView, { results: [piece], weeks, loading: false, mode, query: "customer" }));
+    const html = renderToStaticMarkup(createElement(SearchResultsView, { results: [piece], weeks, loading: false, mode, query: "customer", companyName: "Example Company" }));
     expect(html).toContain('href="/content/example-post"');
     expect(html).toContain(piece.title);
     expect(html).toContain(piece.markdown_body);
@@ -28,7 +28,7 @@ describe("calendar search and recent results", () => {
 
   it("keeps every returned post linked, including one with no week metadata", () => {
     const results = Array.from({ length: 17 }, (_, index) => ({ ...piece, id: `example-${index}`, week_id: index === 16 ? "standalone-week" : piece.week_id }));
-    const html = renderToStaticMarkup(createElement(SearchResultsView, { results, weeks, loading: false, mode: "recent", query: "" }));
+    const html = renderToStaticMarkup(createElement(SearchResultsView, { results, weeks, loading: false, mode: "recent", query: "", companyName: "Example Company" }));
     expect(html.match(/href="\/content\/example-\d+"/g)).toHaveLength(17);
     expect(html).toContain('href="/content/example-16"');
   });
