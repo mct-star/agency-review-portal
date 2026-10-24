@@ -106,7 +106,8 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
 
   const allWeeks = (weeks || []) as Array<Week & { company?: Company }>;
 
-  const visibleWeeks = allWeeks.filter(w => matchesReviewFilter(w.status, [w.title, w.company?.name, w.pillar, w.theme, w.date_start, formatWeekLabel(w.date_start, w.week_number)].filter(Boolean).join(" "), filter, search));
+  const standaloneWeekIds = allWeeks.filter(w => w.week_number === 0).map(w => w.id);
+  const visibleWeeks = allWeeks.filter(w => w.week_number !== 0).filter(w => matchesReviewFilter(w.status, [w.title, w.company?.name, w.pillar, w.theme, w.date_start, formatWeekLabel(w.date_start, w.week_number)].filter(Boolean).join(" "), filter, search));
   const upcomingWeeks = visibleWeeks
     .filter((w) => w.date_start >= todayIso)
     .sort((a, b) => a.date_start.localeCompare(b.date_start)); // ascending: nearest first
@@ -136,11 +137,11 @@ export default async function WeeksPage({ searchParams }: { searchParams: Promis
     (p) => p.approval_status === "changes_requested"
   ).length;
 
-  // Individual posts (no week assignment)
+  // Standalone tray weeks are storage, not dated review batches. Include legacy unassigned posts too.
   let individualQuery = supabase
     .from("content_pieces")
     .select("id, title, post_type, approval_status, created_at, markdown_body, company_id")
-    .is("week_id", null)
+    .or(standaloneWeekIds.length ? `week_id.is.null,week_id.in.(${standaloneWeekIds.join(",")})` : "week_id.is.null")
     .in("approval_status", filter ? [filter] : ["pending", "changes_requested", "approved"])
     .order("created_at", { ascending: false })
     .limit(20);

@@ -238,7 +238,7 @@ export default function QuickGenerate({
 
   // Send to review: into Review and the planning board's Unscheduled tray
   const [sendingToReview, setSendingToReview] = useState(false);
-  const [sentToReview, setSentToReview] = useState(false);
+  const [reviewPieceId, setReviewPieceId] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   // Queued authoring already saved a piece; keep its id for edits.
   const [macPieceId, setMacPieceId] = useState<string | null>(null);
@@ -463,7 +463,7 @@ export default function QuickGenerate({
             setImagePrompt(null);
             setEditing(false);
             setMacPieceId(p.id);
-            setSentToReview(false);
+            setReviewPieceId(null);
             setSendError(null);
             setState("complete");
             setProgress("");
@@ -528,7 +528,7 @@ export default function QuickGenerate({
       setImagePrompt(data.imagePrompt || null);
       setEditing(false);
       setMacPieceId(null);
-      setSentToReview(false);
+      setReviewPieceId(null);
       setSendError(null);
       setState("complete");
       setLastActivity({ type: "post", label: topic.trim().slice(0, 40), href: "/generate/quick" });
@@ -611,6 +611,7 @@ export default function QuickGenerate({
           body: JSON.stringify({ pieceId: macPieceId, date: draftPlan.date, scheduledTime: draftPlan.time, ...(draftPlan.date ? { createPlannedWeek: true } : {}) }),
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not send it");
+        setReviewPieceId(macPieceId);
       } else {
         const res = await fetch("/api/content/pieces", {
           method: "POST",
@@ -631,9 +632,12 @@ export default function QuickGenerate({
             status: "draft",
           }),
         });
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not send it");
+        const saved = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(saved.error || "Could not send it");
+        if (typeof saved.id !== "string" || !saved.id) throw new Error("Could not confirm the saved post. Open Review to check it.");
+        setMacPieceId(saved.id);
+        setReviewPieceId(saved.id);
       }
-      setSentToReview(true);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Could not send it");
     } finally {
@@ -711,7 +715,7 @@ export default function QuickGenerate({
     setEditedFirstComment("");
     pollToken.current++;
     setMacPieceId(null);
-    setSentToReview(false);
+    setReviewPieceId(null);
     setSendError(null);
     setCarouselIndex(0);
     setOverlayError(null);
@@ -1283,7 +1287,7 @@ export default function QuickGenerate({
 
             {/* Group 4: Send to review */}
             <div className="flex items-center gap-1">
-              {!sentToReview ? (
+              {!reviewPieceId ? (
                 <button
                   onClick={handleSendToReview}
                   disabled={sendingToReview}
@@ -1300,7 +1304,7 @@ export default function QuickGenerate({
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                   In Review.{" "}
-                  <a href={calendarHref} className="underline">{draftPlan.date ? "View planned draft" : "Plan it"}</a>
+                  <a href={`/content/${reviewPieceId}`} className="underline">Open to approve</a>
                 </span>
               )}
             </div>
