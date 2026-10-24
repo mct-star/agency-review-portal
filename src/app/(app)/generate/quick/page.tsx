@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import QuickGenerate from "@/components/generate/QuickGenerate";
 import HospitalityQuickPost from "@/components/hospitality/HospitalityQuickPost";
 import { plannedDraftLabel, readDraftPlan } from "@/lib/calendar/quick-create";
@@ -54,7 +55,11 @@ export default async function QuickGeneratePage({
   type SpokespersonInfo = { id: string; company_id: string; name: string; tagline: string | null; profile_picture_url: string | null; is_primary: boolean };
   let spokespersons: SpokespersonInfo[] = [];
   if (companyIds.length > 0) {
-    const { data } = await supabase
+    // The client role has no direct SELECT policy on company_spokespersons in
+    // production. The company ids above are already scoped to this signed-in
+    // profile, so use the server client while retaining an explicit tenant filter.
+    const adminSupabase = await createAdminSupabaseClient();
+    const { data } = await adminSupabase
       .from("company_spokespersons")
       .select("id, company_id, name, tagline, profile_picture_url, is_primary")
       .in("company_id", companyIds)

@@ -4,9 +4,10 @@ import { fakeSupabase } from "@/test/fake-supabase";
 
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
-const state = vi.hoisted(() => ({ profile: { role: "admin", company_id: null } as { role: string; company_id: string | null }, fake: null as unknown as ReturnType<typeof fakeSupabase> }));
+const state = vi.hoisted(() => ({ profile: { role: "admin", company_id: null } as { role: string; company_id: string | null }, fake: null as unknown as ReturnType<typeof fakeSupabase>, adminFake: null as unknown as ReturnType<typeof fakeSupabase> }));
 vi.mock("@/lib/supabase/server", () => ({ getUserProfile: async () => state.profile, createServerSupabaseClient: async () => state.fake.client }));
-vi.mock("@/components/generate/QuickGenerate", () => ({ default: (props: { initialCompanyId?: string; initialScheduledDate?: string; initialScheduledTime?: string; initialPlanningError?: string }) => `Quick company ${props.initialCompanyId || "default"} date ${props.initialScheduledDate || "none"} time ${props.initialScheduledTime || "none"} error ${props.initialPlanningError || "none"}` }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminSupabaseClient: async () => state.adminFake.client }));
+vi.mock("@/components/generate/QuickGenerate", () => ({ default: (props: { initialCompanyId?: string; initialScheduledDate?: string; initialScheduledTime?: string; initialPlanningError?: string; spokespersons?: Array<{ name: string; isPrimary: boolean }> }) => `Quick company ${props.initialCompanyId || "default"} date ${props.initialScheduledDate || "none"} time ${props.initialScheduledTime || "none"} error ${props.initialPlanningError || "none"} people ${props.spokespersons?.map(p => `${p.name}${p.isPrimary ? " (Primary)" : ""}`).join(", ") || "none"}` }));
 vi.mock("@/components/hospitality/HospitalityQuickPost", () => ({ default: (props: { companyId: string; initialDate?: string; initialTime?: string }) => `Venue company ${props.companyId} date ${props.initialDate || "none"} time ${props.initialTime || "none"}` }));
 import QuickGeneratePage from "./page";
 
@@ -15,7 +16,8 @@ beforeEach(() => {
   state.fake = fakeSupabase({ companies: (calls) => {
     const pack = calls.some((call) => call.method === "select" && call.args[0] === "id, name, post_pack");
     return { data: pack ? [{ id: A, name: "Alphabetical first", post_pack: "b2b" }, { id: B, name: "Selected second", post_pack: "b2b" }] : [{ id: A, name: "Alphabetical first" }, { id: B, name: "Selected second" }] };
-  }, company_spokespersons: { data: [] } });
+  } });
+  state.adminFake = fakeSupabase({ company_spokespersons: { data: [] } });
 });
 
 describe("the setup to first-post handoff", () => {
@@ -43,6 +45,17 @@ describe("the setup to first-post handoff", () => {
     expect(html).not.toContain(B);
     expect(html).toContain("Quick company default");
     expect(state.fake.calls).toContainEqual({ table: "companies", method: "eq", args: ["id", A] });
+  });
+
+  it("loads the signed-in company's primary spokesperson through the tenant-scoped server client", async () => {
+    state.profile = { role: "client", company_id: A };
+    state.fake = fakeSupabase({ companies: (calls) => ({ data: calls.some((call) => call.method === "single") ? { id: A, name: "Own company" } : [{ id: A, name: "Own company", post_pack: "b2b" }] }) });
+    state.adminFake = fakeSupabase({ company_spokespersons: { data: [{ id: "andrew", company_id: A, name: "Andrew", tagline: null, profile_picture_url: null, is_primary: true }] } });
+
+    const html = renderToStaticMarkup(await QuickGeneratePage({ searchParams: Promise.resolve({}) }));
+
+    expect(html).toContain("Andrew (Primary)");
+    expect(state.adminFake.calls).toContainEqual({ table: "company_spokespersons", method: "in", args: ["company_id", [A]] });
   });
 
   it("passes the exact calendar date and time to the authorised company's writer", async () => {
