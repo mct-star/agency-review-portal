@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 import Badge from "@/components/ui/Badge";
 import ContentViewTabs from "@/components/content/ContentViewTabs";
 import ApprovalButtons from "@/components/content/ApprovalButtons";
@@ -45,7 +47,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .eq("id", pieceId)
     .single();
 
-  if (!piece) notFound();
+  if (!piece || !canAccessCompany(profile, piece.company_id)) notFound();
 
   const { data: images } = await supabase
     .from("content_images")
@@ -75,9 +77,9 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .single();
 
 
-  // Use this draft's chosen author, scoped to its company, before company defaults.
+  // People are admin-only under RLS. The piece company was authorised above.
   const { data: spokesperson } = piece.spokesperson_id
-    ? await supabase.from("company_spokespersons")
+    ? await (await createAdminSupabaseClient()).from("company_spokespersons")
         .select("name, tagline, profile_picture_url")
         .eq("id", piece.spokesperson_id)
         .eq("company_id", piece.company_id)
@@ -204,9 +206,9 @@ export default async function ContentPiecePage({ params }: PageProps) {
         markdownBody={piece.markdown_body}
         firstComment={piece.first_comment}
         contentType={piece.content_type}
-        authorName={spokesperson?.name || company?.spokesperson_name || "Author"}
-        authorAvatarUrl={spokesperson?.profile_picture_url || company?.profile_picture_url || undefined}
-        authorTagline={spokesperson?.tagline || company?.spokesperson_tagline || ""}
+        authorName={spokesperson ? spokesperson.name : company?.spokesperson_name || "Author"}
+        authorAvatarUrl={spokesperson ? spokesperson.profile_picture_url || undefined : company?.profile_picture_url || undefined}
+        authorTagline={spokesperson ? spokesperson.tagline || "" : company?.spokesperson_tagline || ""}
         brandColor={company?.brand_color || "#0a66c2"}
         postType={piece.post_type}
         imageUrl={previewImageUrl}
