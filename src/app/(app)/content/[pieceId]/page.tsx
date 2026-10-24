@@ -75,6 +75,15 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .single();
 
 
+  // Use this draft's chosen author, scoped to its company, before company defaults.
+  const { data: spokesperson } = piece.spokesperson_id
+    ? await supabase.from("company_spokespersons")
+        .select("name, tagline, profile_picture_url")
+        .eq("id", piece.spokesperson_id)
+        .eq("company_id", piece.company_id)
+        .maybeSingle()
+    : { data: null };
+
   // Find the first generated image for preview (if any)
   const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
 
@@ -114,7 +123,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
     <div className="mx-auto max-w-6xl space-y-6">
       <nav aria-label="Content breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
         <Link href="/review" className="flex min-h-11 items-center hover:text-gray-900">Content Review</Link>
-        {piece.week_id && <><span aria-hidden="true">/</span><Link href={`/review/${piece.week_id}`} className="flex min-h-11 items-center hover:text-gray-900">{formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}</Link></>}
+        {piece.week_id && (piece.week?.week_number ?? 0) > 0 && <><span aria-hidden="true">/</span><Link href={`/review/${piece.week_id}`} className="flex min-h-11 items-center hover:text-gray-900">{formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}</Link></>}
       </nav>
 
       {/* Header */}
@@ -195,9 +204,9 @@ export default async function ContentPiecePage({ params }: PageProps) {
         markdownBody={piece.markdown_body}
         firstComment={piece.first_comment}
         contentType={piece.content_type}
-        authorName={company?.spokesperson_name || "Author"}
-        authorAvatarUrl={company?.profile_picture_url || undefined}
-        authorTagline={company?.spokesperson_tagline || "Healthcare Demand Generation"}
+        authorName={spokesperson?.name || company?.spokesperson_name || "Author"}
+        authorAvatarUrl={spokesperson?.profile_picture_url || company?.profile_picture_url || undefined}
+        authorTagline={spokesperson?.tagline || company?.spokesperson_tagline || ""}
         brandColor={company?.brand_color || "#0a66c2"}
         postType={piece.post_type}
         imageUrl={previewImageUrl}
