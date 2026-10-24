@@ -41,6 +41,13 @@ describe("planInvite", () => {
     expect(byAdmin).toMatchObject({ ok: true, canPublish: true });
   });
 
+  it("defaults to email and restricts no-email setup to administrators", () => {
+    expect(planInvite(admin, { email: "x@example.com", companyId: A }, null)).toMatchObject({ ok: true, sendEmail: true });
+    expect(planInvite(admin, { email: "x@example.com", companyId: A, sendEmail: false }, null)).toMatchObject({ ok: true, sendEmail: false });
+    expect(planInvite(member, { email: "x@example.com", sendEmail: false }, null)).toMatchObject({ ok: false, status: 403 });
+    expect(planInvite(admin, { email: "x@example.com", companyId: A, sendEmail: "false" }, null)).toMatchObject({ ok: false, status: 400 });
+  });
+
   it("rejects a bad email", () => {
     expect(planInvite(admin, { email: "not-an-email", companyId: A }, null)).toMatchObject({ ok: false, status: 400 });
   });

@@ -7,7 +7,7 @@ import { sendEmail } from "@/lib/email/resend";
 /**
  * POST /api/company/invite
  *
- * Body: { email, fullName?, companyId?, canPublish? }
+ * Body: { email, fullName?, companyId?, canPublish?, sendEmail? }
  *
  * Adds a person to a company and emails them a one-time sign-in link.
  * An admin can invite into any company; a company member can invite
@@ -20,7 +20,7 @@ import { sendEmail } from "@/lib/email/resend";
  * goes straight to /auth/callback with the hashed token.
  *
  * Returns { ok, emailSent, signInUrl? }. signInUrl is returned only to
- * an admin and only when the email could not be sent, so it can be
+ * an admin when sendEmail is false or the email could not be sent, so it can be
  * passed on by hand.
  */
 export async function POST(request: Request) {
@@ -89,6 +89,13 @@ export async function POST(request: Request) {
   }
 
   const signInUrl = buildSignInUrl(baseUrl, link.data.properties.hashed_token, linkType);
+  if (!plan.sendEmail) {
+    return NextResponse.json(
+      { ok: true, emailSent: false, signInUrl },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   const mail = inviteEmail({
     userName: plan.fullName || plan.email.split("@")[0],
     companyName: company.name,
@@ -103,5 +110,5 @@ export async function POST(request: Request) {
     emailSent: sent.success,
     emailError: sent.success ? undefined : sent.error,
     ...(!sent.success && caller.role === "admin" ? { signInUrl } : {}),
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

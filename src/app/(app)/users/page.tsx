@@ -12,6 +12,9 @@ export default function UsersPage() {
   const [inviteCompanyId, setInviteCompanyId] = useState("");
   const [inviteRole, setInviteRole] = useState<"client" | "admin">("client");
   const [inviteCanPublish, setInviteCanPublish] = useState(false);
+  const [sendInviteEmail, setSendInviteEmail] = useState(true);
+  const [signInUrl, setSignInUrl] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -23,6 +26,12 @@ export default function UsersPage() {
 
   async function loadData() {
     const supabase = createClient();
+    setIsAdmin(false);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
+      setIsAdmin(profile?.role === "admin");
+    }
     const { data: usersData } = await supabase
       .from("users")
       .select("*, company:companies(*)")
@@ -78,10 +87,10 @@ export default function UsersPage() {
 
     setLoading(true);
     setMessage(null);
+    setSignInUrl(null);
 
     try {
-      // The server creates the account, links it to the company and sends
-      // the sign-in email. See /api/company/invite.
+      // The server validates account access and sends email only when requested.
       const res = await fetch("/api/company/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -90,12 +99,20 @@ export default function UsersPage() {
           fullName: inviteName || undefined,
           companyId: inviteCompanyId || undefined,
           canPublish: inviteCanPublish,
+          sendEmail: isAdmin ? sendInviteEmail : true,
         }),
       });
       const result = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setMessage({ text: result.error || "Failed to create invitation.", type: "error" });
+      } else if (!sendInviteEmail && isAdmin) {
+        setMessage({ text: `Account ready for ${inviteEmail}. No email was sent.`, type: "success" });
+        setSignInUrl(result.signInUrl || null);
+        setInviteEmail("");
+        setInviteName("");
+        setInviteCanPublish(false);
+        await loadData();
       } else if (result.emailSent) {
         setMessage({
           text: `Invitation sent to ${inviteEmail}. The sign-in link in the email works once.`,
@@ -192,13 +209,22 @@ export default function UsersPage() {
         </div>
       )}
 
+      {isAdmin && signInUrl && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm">
+          <label htmlFor="account-sign-in-link" className="block font-medium">One-time sign-in link</label>
+          <p className="my-2 text-gray-600">Keep this link private. It signs in as this person and works once.</p>
+          <input id="account-sign-in-link" readOnly value={signInUrl} onFocus={(e) => e.target.select()} className="w-full rounded border border-gray-300 p-2" />
+          <button type="button" onClick={() => setSignInUrl(null)} className="mt-2 text-sky-700">Dismiss link</button>
+        </div>
+      )}
+
       {/* Invite form */}
       <div className="rounded-lg border border-gray-200 bg-white p-6">
         <h2 className="mb-1 text-sm font-semibold text-gray-900">
           Invite New User
         </h2>
         <p className="mb-4 text-xs text-gray-500">
-          Add a user and send them a branded welcome email from mct@agencybristol.com. They sign in via magic link (no password needed).
+          Add a person to their company. Send an invitation email or, as an administrator, create their account without email.
         </p>
 
         <form onSubmit={handleInvite} className="space-y-3">
@@ -250,12 +276,18 @@ export default function UsersPage() {
               Can post to LinkedIn <span className="text-xs text-gray-500">(grants access to Post section)</span>
             </span>
           </label>
+          {isAdmin && (
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={sendInviteEmail} onChange={(e) => setSendInviteEmail(e.target.checked)} />
+              Send invitation email (untick to create account without email)
+            </label>
+          )}
           <button
             type="submit"
             disabled={loading}
             className="rounded-lg bg-sky-500 px-5 py-2 text-sm font-medium text-white hover:bg-sky-600 disabled:opacity-50"
           >
-            {loading ? "Sending Invite..." : "Add User & Send Welcome Email"}
+            {loading ? "Creating account..." : sendInviteEmail ? "Add User & Send Invitation Email" : "Create Account Without Email"}
           </button>
         </form>
       </div>
