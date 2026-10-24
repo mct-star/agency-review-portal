@@ -1,4 +1,6 @@
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ImageUploader from "./ImageUploader";
@@ -10,6 +12,7 @@ import QuickStrategySetup from "@/components/setup/QuickStrategySetup";
 import ComplexitySelector from "@/components/settings/ComplexitySelector";
 import CompanyDetailsEditor from "./CompanyDetailsEditor";
 import type { PlanTier } from "@/types/database";
+import { getSettingsPeople, getProductionWeekCount } from "@/lib/setup/company-settings-data";
 
 interface PageProps {
   params: Promise<{ companyId: string }>;
@@ -115,6 +118,7 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
   const { companyId } = await params;
   const supabase = await createServerSupabaseClient();
   const profile = await getUserProfile();
+  if (!canAccessCompany(profile, companyId)) notFound();
   const isAdmin = profile?.role === "admin";
 
   const { data: company } = await supabase
@@ -125,34 +129,38 @@ export default async function CompanyOverviewPage({ params }: PageProps) {
 
   if (!company) notFound();
 
+  // Client RLS currently grants spokesperson rows only to admins. Authorise
+  // the company above, then use an explicitly tenant-filtered privileged read.
+  const adminSupabase = await createAdminSupabaseClient();
+
   // Fetch people and completion status
   const [
-    { data: people },
+    peopleResult,
     { count: apiConfigCount },
     { count: socialCount },
     { count: blueprintCount },
     { count: topicCount },
-    { count: weekCount },
+    weekCount,
     { count: pieceCount },
     { count: signoffCount },
     { count: urlCount },
     { count: scheduleCount },
     { count: voiceCount },
-    { count: peopleCount },
   ] = await Promise.all([
-    supabase.from("company_spokespersons").select("*").eq("company_id", companyId).eq("is_active", true).order("sort_order"),
+    getSettingsPeople(adminSupabase, companyId),
     supabase.from("company_api_configs").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_social_accounts").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_blueprints").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
     supabase.from("topic_bank").select("*", { count: "exact", head: true }).eq("company_id", companyId),
-    supabase.from("weeks").select("*", { count: "exact", head: true }).eq("company_id", companyId),
+    getProductionWeekCount(supabase, companyId),
     supabase.from("content_pieces").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_signoffs").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("company_cta_urls").select("*", { count: "exact", head: true }).eq("company_id", companyId),
     supabase.from("posting_slots").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
     supabase.from("company_voice_profiles").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
-    supabase.from("company_spokespersons").select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true),
   ]);
+  const people = peopleResult.people;
+  const peopleCount = peopleResult.count;
 
   // Calculate step completion
   const stepStatus: Record<string, { done: boolean; detail: string }> = {
