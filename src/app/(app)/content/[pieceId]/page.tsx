@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 import Badge from "@/components/ui/Badge";
 import ContentViewTabs from "@/components/content/ContentViewTabs";
 import ApprovalButtons from "@/components/content/ApprovalButtons";
@@ -45,7 +47,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .eq("id", pieceId)
     .single();
 
-  if (!piece) notFound();
+  if (!piece || !canAccessCompany(profile, piece.company_id)) notFound();
 
   const { data: images } = await supabase
     .from("content_images")
@@ -74,6 +76,15 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .eq("id", piece.company_id)
     .single();
 
+
+  // People are admin-only under RLS. The piece company was authorised above.
+  const { data: spokesperson } = piece.spokesperson_id
+    ? await (await createAdminSupabaseClient()).from("company_spokespersons")
+        .select("name, tagline, profile_picture_url")
+        .eq("id", piece.spokesperson_id)
+        .eq("company_id", piece.company_id)
+        .maybeSingle()
+    : { data: null };
 
   // Find the first generated image for preview (if any)
   const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
@@ -114,7 +125,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
     <div className="mx-auto max-w-6xl space-y-6">
       <nav aria-label="Content breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
         <Link href="/review" className="flex min-h-11 items-center hover:text-gray-900">Content Review</Link>
-        {piece.week_id && <><span aria-hidden="true">/</span><Link href={`/review/${piece.week_id}`} className="flex min-h-11 items-center hover:text-gray-900">{formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}</Link></>}
+        {piece.week_id && (piece.week?.week_number ?? 0) > 0 && <><span aria-hidden="true">/</span><Link href={`/review/${piece.week_id}`} className="flex min-h-11 items-center hover:text-gray-900">{formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}</Link></>}
       </nav>
 
       {/* Header */}
@@ -195,9 +206,9 @@ export default async function ContentPiecePage({ params }: PageProps) {
         markdownBody={piece.markdown_body}
         firstComment={piece.first_comment}
         contentType={piece.content_type}
-        authorName={company?.spokesperson_name || "Author"}
-        authorAvatarUrl={company?.profile_picture_url || undefined}
-        authorTagline={company?.spokesperson_tagline || "Healthcare Demand Generation"}
+        authorName={spokesperson ? spokesperson.name : company?.spokesperson_name || "Author"}
+        authorAvatarUrl={spokesperson ? spokesperson.profile_picture_url || undefined : company?.profile_picture_url || undefined}
+        authorTagline={spokesperson ? spokesperson.tagline || "" : company?.spokesperson_tagline || ""}
         brandColor={company?.brand_color || "#0a66c2"}
         postType={piece.post_type}
         imageUrl={previewImageUrl}
