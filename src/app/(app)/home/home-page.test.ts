@@ -9,21 +9,29 @@ type Counts = Record<string, number>;
 let counts: Counts = {};
 let profile: Record<string, unknown> | null = null;
 let countsError = false;
+let pendingPieces: Array<{ id: string; week_id: string | null }> | null = null;
+let weeks: Array<{ id: string; company_id: string; week_number: number; date_start: string }> = [];
 
 function builder(table: string) {
   const filters: Record<string, unknown> = {};
   const answer = () => {
-    const n = counts[`${table}:${filters.status ?? filters.approval_status ?? ""}`] ?? 0;
+    const n = table === "content_pieces" && filters.approval_status === "pending" && pendingPieces
+      ? pendingPieces.length : counts[`${table}:${filters.status ?? filters.approval_status ?? ""}`] ?? 0;
     const mine = filters.company_id === COMPANY_ID;
+    if (table === "weeks") return {
+      data: mine ? weeks.filter(w => w.company_id === COMPANY_ID && (filters.ids as string[]).includes(w.id)) : [],
+      error: countsError ? { message: "Unavailable" } : null,
+    };
     const pieces = table === "content_pieces" && (filters.approval_status === "approved" || filters.approval_status === "pending")
-      ? Array.from({ length: mine ? n : 0 }, (_, index) => ({ id: `p-${index}`, week_id: null })) : [];
+      ? (mine && filters.approval_status === "pending" && pendingPieces
+        ? pendingPieces : Array.from({ length: mine ? n : 0 }, (_, index) => ({ id: `p-${index}`, week_id: null }))) : [];
     return { data: pieces, count: mine ? n : 0, error: countsError ? { message: "Unavailable" } : null };
   };
   const b: Record<string, unknown> = {
     select: () => b,
     eq: (col: string, val: unknown) => ((filters[col] = val), b),
     not: () => b,
-    in: () => b,
+    in: (col: string, vals: unknown[]) => { if (col === "id") filters.ids = vals; return b; },
     gte: () => b,
     order: () => b,
     limit: () => b,
@@ -68,6 +76,8 @@ beforeEach(() => {
   counts = {};
   profile = null;
   countsError = false;
+  pendingPieces = null;
+  weeks = [];
 });
 
 describe("the home page for a hospitality venue", () => {
@@ -208,6 +218,56 @@ describe("the home page for a business-to-business company", () => {
     expect(html).toContain("2 individual posts awaiting review.");
     expect(html).toContain("Review now");
     expect(html).not.toContain("Build your strategy");
+  });
+
+  it("counts each standalone draft individually and opens the pending individual review list", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, post_pack: "b2b" } };
+    pendingPieces = [{ id: "draft-a", week_id: "tray" }, { id: "draft-b", week_id: "tray" }];
+    weeks = [{ id: "tray", company_id: COMPANY_ID, week_number: 0, date_start: "2026-10-24" }];
+    const html = await render();
+    expect(html).toContain("2 individual posts awaiting review.");
+    expect(html).toContain("2 items are waiting for your review.");
+    expect(html).toMatch(/Awaiting review<\/dt><dd[^>]*>2<\/dd>/);
+    expect(hrefs(html)).toContain("/review?status=pending");
+    expect(html).not.toContain("w/c 24 Oct");
+  });
+
+  it("preserves real week labels and grouping beside standalone and legacy individual drafts", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, post_pack: "b2b" } };
+    pendingPieces = [
+      { id: "draft-a", week_id: "tray" }, { id: "draft-b", week_id: "tray" }, { id: "legacy", week_id: null },
+      { id: "planned-a", week_id: "planned" }, { id: "planned-b", week_id: "planned" },
+    ];
+    weeks = [
+      { id: "tray", company_id: COMPANY_ID, week_number: 0, date_start: "2026-10-24" },
+      { id: "planned", company_id: COMPANY_ID, week_number: 44, date_start: "2026-10-26" },
+      { id: "foreign", company_id: "another-company", week_number: 45, date_start: "2026-11-02" },
+    ];
+    const html = await render();
+    expect(html).toContain("3 individual posts and w/c 26 Oct awaiting review.");
+    expect(html).toMatch(/Awaiting review<\/dt><dd[^>]*>4<\/dd>/);
+    expect(html).not.toContain("w/c 24 Oct");
+    expect(html).not.toContain("w/c 2 Nov");
+  });
+
+  it("keeps the dated-week review action when only a real batch awaits review", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, post_pack: "b2b" } };
+    pendingPieces = [{ id: "planned-a", week_id: "planned" }, { id: "planned-b", week_id: "planned" }];
+    weeks = [{ id: "planned", company_id: COMPANY_ID, week_number: 44, date_start: "2026-10-26" }];
+    const html = await render();
+    expect(html).toContain("w/c 26 Oct awaiting review.");
+    expect(html).toMatch(/Awaiting review<\/dt><dd[^>]*>1<\/dd>/);
+    expect(hrefs(html)).not.toContain("/review?status=pending");
+  });
+
+  it("shows counts as unavailable if a referenced week cannot be resolved within the company", async () => {
+    profile = { id: "returning", role: "client", company_id: COMPANY_ID, company: { id: COMPANY_ID, post_pack: "b2b" } };
+    pendingPieces = [{ id: "draft-a", week_id: "foreign" }];
+    weeks = [{ id: "foreign", company_id: "another-company", week_number: 0, date_start: "2026-10-24" }];
+    const html = await render();
+    expect(html).toContain("Some content counts could not be checked.");
+    expect(html).not.toContain("w/c 24 Oct");
+    expect(html).not.toContain("All caught up");
   });
 
   it("does not invent a zero or claim readiness after a count failure", async () => {

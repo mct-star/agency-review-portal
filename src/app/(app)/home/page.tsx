@@ -80,7 +80,7 @@ export default async function HomePage() {
   let approvedNotPublished: number | null = 0;
   let thisWeekCount = 0;
 
-  // Review units: individual posts (no week) + distinct weeks with pending pieces
+  // Review units: individual posts (unassigned or in the standalone tray) + real weeks.
   let pendingSingles = 0;
   let pendingWeekCount = 0;
   let pendingWeekLabels: string[] = [];
@@ -101,18 +101,20 @@ export default async function HomePage() {
         pendingSingles = singles.length;
 
         const weekIds = [...new Set(pendingPieces.filter(p => p.week_id).map(p => p.week_id))];
-        pendingWeekCount = weekIds.length;
-
-        // Fetch week labels for the nudge
+        // Read every referenced week before counting: week 0 is storage for individual posts.
         if (weekIds.length > 0) {
-          const { data: weeks } = await supabase
+          const { data: weeks, error: weeksError } = await supabase
             .from("weeks")
-            .select("date_start")
+            .select("id, date_start, week_number")
             .eq("company_id", cid)
             .in("id", weekIds)
-            .order("date_start", { ascending: true })
-            .limit(3);
-          pendingWeekLabels = (weeks || []).map(w => {
+            .order("date_start", { ascending: true });
+          if (weeksError || (weeks || []).length !== weekIds.length) countsUnavailable = true;
+          const standaloneIds = new Set((weeks || []).filter(w => w.week_number === 0).map(w => w.id));
+          pendingSingles += pendingPieces.filter(p => standaloneIds.has(p.week_id)).length;
+          const realWeeks = (weeks || []).filter(w => w.week_number !== 0);
+          pendingWeekCount = realWeeks.length;
+          pendingWeekLabels = realWeeks.slice(0, 3).map(w => {
             const d = new Date(w.date_start + "T00:00:00");
             return `w/c ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
           });
@@ -165,7 +167,7 @@ export default async function HomePage() {
       }
     }
     nudgeText = `${parts.join(" and ")} awaiting review.`;
-    nudgeHref = "/review";
+    nudgeHref = pendingSingles > 0 ? "/review?status=pending" : "/review";
     nudgeLabel = "Review now";
   } else if (approvedNotPublished !== null && approvedNotPublished > 0) {
     nudgeText = `${approvedNotPublished} approved post${approvedNotPublished !== 1 ? "s" : ""} not yet queued.`;
