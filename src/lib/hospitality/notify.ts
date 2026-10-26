@@ -5,6 +5,12 @@ import { escapeHtml } from "@/lib/email/invite-email";
 type SupabaseAdmin = Awaited<ReturnType<typeof createAdminSupabaseClient>>;
 
 /**
+ * AGENCY's own viewer accounts on a venue (e.g. mct+lakeside@) see the
+ * in-app notice but never the venue's email: the email is for the venue.
+ */
+const isAgencyAddress = (email: string | null) => /@agencybristol\.com$/i.test(email || "");
+
+/**
  * Tell a company's people a draft is waiting: an in-app notification for each
  * person and one email each. The email carries the post itself and a link to
  * the page where it takes one tap to approve.
@@ -29,6 +35,7 @@ export async function notifyDraftReady(
       content_piece_id: args.pieceId,
       message: args.headline,
     });
+    if (isAgencyAddress(p.email)) continue;
     const sent = await sendEmail({
       to: p.email,
       subject: args.headline,

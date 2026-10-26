@@ -68,6 +68,18 @@ describe("notifyDraftReady", () => {
     expect(mail.html).toContain("Fine day &lt;b&gt;today&lt;/b&gt;");
     expect(mail.html).toContain("/approvals");
   });
+  it("gives AGENCY's viewer account the in-app notice but no email", async () => {
+    (sendEmail as ReturnType<typeof vi.fn>).mockClear();
+    const fake = fakeSupabase({
+      users: { data: [{ id: "u1", email: "mct+lakeside@agencybristol.com", full_name: "Michael (Lakeside view)" }, { id: "u2", email: "sam@example.com", full_name: "Sam" }] },
+      companies: { data: { name: "Lakeside" } },
+    });
+    const r = await notifyDraftReady(fake.client as never, { companyId: "co1", pieceId: "p1", headline: "h", preview: "p" });
+    expect(r).toEqual({ notified: 2, emailed: 1 });
+    expect(fake.calls.filter((c) => c.table === "notifications" && c.method === "insert")).toHaveLength(2);
+    const to = (sendEmail as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0].to);
+    expect(to).toEqual(["sam@example.com"]);
+  });
   it("does nothing when the company has no users yet", async () => {
     const fake = fakeSupabase({ users: { data: [] } });
     expect(await notifyDraftReady(fake.client as never, { companyId: "co1", pieceId: "p", headline: "h", preview: "p" })).toEqual({ notified: 0, emailed: 0 });
