@@ -3,6 +3,7 @@
 import { useState } from "react";
 import LinkedInPreview from "./LinkedInPreview";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
+import { basePostType, feedLabel, hasBothFeeds, pieceFeed } from "@/lib/content/feed";
 import MarkdownRenderer from "./MarkdownRenderer";
 import type { ContentPiece, ContentImage, ContentAsset } from "@/types/database";
 
@@ -22,6 +23,9 @@ interface WeekReviewTabsProps {
   authorTagline?: string;
   authorAvatarUrl?: string;
   brandColor?: string;
+  /** The company page posts as the company: its name and logo in the preview. */
+  companyName?: string;
+  companyLogoUrl?: string;
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -44,7 +48,8 @@ const POST_TYPE_LABELS: Record<string, string> = {
   data_insight: "Data Insight",
 };
 
-function getPostTypeLabel(slug: string | null): string {
+function getPostTypeLabel(postType: string | null): string {
+  const slug = basePostType(postType);
   if (!slug) return "";
   return POST_TYPE_LABELS[slug] || slug.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -70,7 +75,11 @@ export default function WeekReviewTabs({
   authorTagline,
   authorAvatarUrl,
   brandColor,
+  companyName,
+  companyLogoUrl,
 }: WeekReviewTabsProps) {
+  // A feed chip on every post only when the week holds both feeds.
+  const showFeedChips = hasBothFeeds(socialPieces);
   const [activeTab, setActiveTab] = useState<ReviewTab>("social");
   // Track which social posts are expanded (show full LinkedIn preview)
   const [expandedPieces, setExpandedPieces] = useState<Set<string>>(new Set());
@@ -226,6 +235,18 @@ export default function WeekReviewTabs({
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900">{piece.title}</h3>
                         <div className="flex items-center gap-2 mt-0.5">
+                          {showFeedChips && (
+                            <span
+                              data-feed={pieceFeed(piece.post_type)}
+                              className={
+                                pieceFeed(piece.post_type) === "company_page"
+                                  ? "rounded bg-gray-900 px-1.5 py-0.5 text-[10px] font-medium text-white"
+                                  : "rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700"
+                              }
+                            >
+                              {feedLabel(pieceFeed(piece.post_type), authorName)}
+                            </span>
+                          )}
                           {piece.post_type && (
                             <span className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-600">
                               {getPostTypeLabel(piece.post_type)}
@@ -314,12 +335,12 @@ export default function WeekReviewTabs({
                   {isExpanded && (
                     <div className="bg-gray-50 p-6">
                       <LinkedInPreview
-                        authorName={authorName}
-                        authorTagline={authorTagline}
-                        authorAvatarUrl={authorAvatarUrl}
+                        {...(pieceFeed(piece.post_type) === "company_page"
+                          ? { authorName: companyName || authorName, authorTagline: "Company page", authorAvatarUrl: companyLogoUrl || authorAvatarUrl }
+                          : { authorName, authorTagline, authorAvatarUrl })}
                         postText={piece.markdown_body}
                         firstComment={piece.first_comment}
-                        postType={piece.post_type}
+                        postType={basePostType(piece.post_type)}
                         imageUrl={previewImage}
                         media={media}
                         brandColor={brandColor}

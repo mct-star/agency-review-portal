@@ -243,6 +243,8 @@ export default async function WeekReviewPage({ params }: PageProps) {
         authorTagline={company.spokesperson_tagline || "Healthcare Demand Generation"}
         authorAvatarUrl={company.profile_picture_url || undefined}
         brandColor={company.brand_color || "#0a66c2"}
+        companyName={company.name}
+        companyLogoUrl={company.logo_url || undefined}
       />
     </div>
   );

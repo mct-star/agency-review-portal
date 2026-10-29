@@ -18,6 +18,7 @@ import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
+import { basePostType, pieceFeed } from "@/lib/content/feed";
 import ContentSourceReference from "@/components/content/ContentSourceReference";
 
 interface PageProps {
@@ -62,6 +63,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
     .eq("content_piece_id", pieceId)
     .not("file_url", "is", null);
   const media = resolvePieceMedia(piece, images || [], mediaAssets || []);
+  const isCompanyPagePiece = pieceFeed(piece.post_type) === "company_page";
 
   const { data: comments } = await supabase
     .from("comments")
@@ -72,7 +74,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
   // Fetch company data for LinkedIn preview (spokesperson name, brand color)
   const { data: company } = await supabase
     .from("companies")
-    .select("spokesperson_name, spokesperson_tagline, brand_color, profile_picture_url")
+    .select("name, logo_url, spokesperson_name, spokesperson_tagline, brand_color, profile_picture_url")
     .eq("id", piece.company_id)
     .single();
 
@@ -164,8 +166,13 @@ export default async function ContentPiecePage({ params }: PageProps) {
             </span>
           )}
           <ContentSourceReference reference={piece.topic_bank_ref} isAdmin={profile.role === "admin"} />
+          {pieceFeed(piece.post_type) === "company_page" && (
+            <span className="rounded bg-gray-900 px-1.5 py-0.5 text-xs font-medium text-white">
+              Company page
+            </span>
+          )}
           {piece.post_type && (
-            <span className="text-gray-500">{piece.post_type}</span>
+            <span className="text-gray-500">{basePostType(piece.post_type)}</span>
           )}
         </div>
       </div>
@@ -206,11 +213,15 @@ export default async function ContentPiecePage({ params }: PageProps) {
         markdownBody={piece.markdown_body}
         firstComment={piece.first_comment}
         contentType={piece.content_type}
-        authorName={spokesperson ? spokesperson.name : company?.spokesperson_name || "Author"}
-        authorAvatarUrl={spokesperson ? spokesperson.profile_picture_url || undefined : company?.profile_picture_url || undefined}
-        authorTagline={spokesperson ? spokesperson.tagline || "" : company?.spokesperson_tagline || ""}
+        {...(isCompanyPagePiece
+          ? { authorName: company?.name || "Company page", authorAvatarUrl: company?.logo_url || undefined, authorTagline: "Company page" }
+          : {
+              authorName: spokesperson ? spokesperson.name : company?.spokesperson_name || "Author",
+              authorAvatarUrl: spokesperson ? spokesperson.profile_picture_url || undefined : company?.profile_picture_url || undefined,
+              authorTagline: spokesperson ? spokesperson.tagline || "" : company?.spokesperson_tagline || "",
+            })}
         brandColor={company?.brand_color || "#0a66c2"}
-        postType={piece.post_type}
+        postType={basePostType(piece.post_type)}
         imageUrl={previewImageUrl}
         media={media}
         companyId={piece.company_id}
@@ -290,7 +301,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
       {/* Publishing always goes through the confirm step below, which shows
           the exact post; there is no one-click approve-and-publish. */}
       {/* The Mac path handles memes and multi-image social posts; ordinary social posts use Publish. */}
-      {profile.role === "admin" && ["none", "image", "images"].includes(media.shape) && (piece.content_type === "meme" || (piece.content_type === "social_post" && media.shape === "images")) && (
+      {/* Company page posts go out through the company page's own schedule, never the spokesperson's profile. */}
+      {profile.role === "admin" && !isCompanyPagePiece && ["none", "image", "images"].includes(media.shape) && (piece.content_type === "meme" || (piece.content_type === "social_post" && media.shape === "images")) && (
         <LinkedInPublishButton
           pieceId={piece.id}
           companyId={piece.company_id}
