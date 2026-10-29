@@ -4,7 +4,8 @@
  * Architecture:
  * 1. OAuth2 Authorization Code flow to get access tokens
  * 2. Image Upload: Register → PUT binary → get asset URN
- * 3. Post Creation: POST /rest/posts with text + optional image URN
+ *    Video Upload: Initialize → PUT each part → finalize → wait until AVAILABLE
+ * 3. Post Creation: POST /rest/posts with text + optional image or video URN
  * 4. First Comment: POST /rest/socialActions/{postUrn}/comments
  *
  * LinkedIn API versions:
@@ -53,6 +54,10 @@ export interface LinkedInCommentResult {
 
 export interface LinkedInImageUploadResult {
   imageUrn: string;
+}
+
+export interface LinkedInVideoUploadResult {
+  videoUrn: string;
 }
 
 // ============================================================
@@ -272,23 +277,133 @@ export async function uploadImage(
 }
 
 // ============================================================
+// Video Upload (multi-part, then processing)
+// ============================================================
+
+const LINKEDIN_VIDEO_PART_TIMEOUT_MS = 60_000;
+
+/**
+ * Upload an MP4 to LinkedIn for use in a post.
+ *
+ * Steps:
+ * 1. Initialize upload with the file size. LinkedIn returns the video URN, an
+ *    upload token and one upload URL per byte range (about 4 MB each).
+ * 2. PUT each byte range to its URL and keep the ETag LinkedIn returns.
+ * 3. Finalize with the ETags in order.
+ * 4. Wait until LinkedIn reports the video AVAILABLE, so the post that
+ *    references it is not rejected while the video is still processing.
+ */
+export async function uploadVideo(
+  accessToken: string,
+  personUrn: string,
+  videoBuffer: Buffer,
+  { pollIntervalMs = 3_000, maxWaitMs = 60_000 }: { pollIntervalMs?: number; maxWaitMs?: number } = {}
+): Promise<LinkedInVideoUploadResult> {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    "LinkedIn-Version": "202603",
+    "X-Restli-Protocol-Version": "2.0.0",
+  };
+
+  // Step 1: Initialize upload
+  const initRes = await fetch(`${LINKEDIN_API_BASE}/rest/videos?action=initializeUpload`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      initializeUploadRequest: {
+        owner: `urn:li:person:${personUrn}`,
+        fileSizeBytes: videoBuffer.byteLength,
+        uploadCaptions: false,
+        uploadThumbnail: false,
+      },
+    }),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+  });
+
+  if (!initRes.ok) {
+    const errorBody = await initRes.text();
+    throw new Error(`LinkedIn video init failed (${initRes.status}): ${errorBody}`);
+  }
+
+  const initData = await initRes.json();
+  const videoUrn: string | undefined = initData.value?.video;
+  const uploadToken: string = initData.value?.uploadToken ?? "";
+  const instructions: Array<{ uploadUrl: string; firstByte: number; lastByte: number }> =
+    initData.value?.uploadInstructions ?? [];
+  if (!videoUrn || instructions.length === 0) {
+    throw new Error("LinkedIn video init returned no upload instructions");
+  }
+
+  // Step 2: PUT each byte range. The upload URLs are pre-signed.
+  const uploadedPartIds: string[] = [];
+  for (const part of instructions) {
+    const partRes = await fetch(part.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: new Uint8Array(videoBuffer.subarray(part.firstByte, part.lastByte + 1)),
+      signal: AbortSignal.timeout(LINKEDIN_VIDEO_PART_TIMEOUT_MS),
+    });
+    if (!partRes.ok) {
+      const errorBody = await partRes.text();
+      throw new Error(`LinkedIn video upload failed (${partRes.status}): ${errorBody}`);
+    }
+    const etag = partRes.headers.get("etag");
+    if (!etag) throw new Error("LinkedIn video upload returned no part ID");
+    uploadedPartIds.push(etag);
+  }
+
+  // Step 3: Finalize
+  const finalizeRes = await fetch(`${LINKEDIN_API_BASE}/rest/videos?action=finalizeUpload`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ finalizeUploadRequest: { video: videoUrn, uploadToken, uploadedPartIds } }),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+  });
+  if (!finalizeRes.ok) {
+    const errorBody = await finalizeRes.text();
+    throw new Error(`LinkedIn video finalize failed (${finalizeRes.status}): ${errorBody}`);
+  }
+
+  // Step 4: Wait for processing
+  const deadline = Date.now() + maxWaitMs;
+  for (;;) {
+    const statusRes = await fetch(`${LINKEDIN_API_BASE}/rest/videos/${encodeURIComponent(videoUrn)}`, {
+      headers,
+      signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+    });
+    if (!statusRes.ok) {
+      const errorBody = await statusRes.text();
+      throw new Error(`LinkedIn video status failed (${statusRes.status}): ${errorBody}`);
+    }
+    const status = (await statusRes.json()).status;
+    if (status === "AVAILABLE") return { videoUrn };
+    if (status === "PROCESSING_FAILED") throw new Error("LinkedIn could not process the video");
+    if (Date.now() + pollIntervalMs > deadline) throw new Error("LinkedIn was still processing the video when the wait ran out");
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+}
+
+// ============================================================
 // Post Creation
 // ============================================================
 
 /**
- * Create a LinkedIn post (text-only or with an image).
+ * Create a LinkedIn post (text-only, with an image, or with a video).
  *
  * @param accessToken - OAuth access token
  * @param personUrn - The member's person ID (from profile.sub)
  * @param text - The post body text
- * @param imageUrn - Optional image URN from uploadImage()
+ * @param imageUrn - Optional image URN from uploadImage() or video URN from uploadVideo()
+ * @param mediaTitle - Title LinkedIn shows with the media (a video's title)
  * @returns The post URN and URL
  */
 export async function createPost(
   accessToken: string,
   personUrn: string,
   text: string,
-  imageUrn?: string
+  imageUrn?: string,
+  mediaTitle = "Post image"
 ): Promise<LinkedInPostResult> {
   const postBody: Record<string, unknown> = {
     author: `urn:li:person:${personUrn}`,
@@ -302,11 +417,11 @@ export async function createPost(
     lifecycleState: "PUBLISHED",
   };
 
-  // Add image content if provided
+  // Add image or video content if provided
   if (imageUrn) {
     postBody.content = {
       media: {
-        title: "Post image",
+        title: mediaTitle,
         id: imageUrn,
       },
     };

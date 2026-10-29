@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { processLinkedInDirectJob } from "@/lib/linkedin/direct-worker";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /** Dispatch due, explicitly tagged LinkedIn jobs; legacy Mac queue jobs are excluded. */
 export async function GET(request: Request) {

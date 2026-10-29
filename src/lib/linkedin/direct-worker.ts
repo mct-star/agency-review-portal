@@ -1,12 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/crypto";
-import { createPost, uploadImage, addComment } from "@/lib/linkedin/client";
-import { isOurStorageUrl } from "@/lib/media/our-storage-url";
-import { linkedinOutcomeMayBeUncertain } from "@/lib/linkedin/direct-publish";
+import { createPost, uploadImage, uploadVideo, addComment } from "@/lib/linkedin/client";
+import { LINKEDIN_VIDEO_MAX_BYTES, linkedInDirectMedia, linkedinOutcomeMayBeUncertain } from "@/lib/linkedin/direct-publish";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
 
-type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; first_comment?: string | null };
+type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; video_url?: string | null; first_comment?: string | null };
 type Job = { id: string; company_id: string; content_piece_id: string | null; social_account_id: string | null; triggered_by: string | null; publish_payload: PublishPayload };
 
 async function markFailure(supabase: SupabaseClient, job: Job, error: unknown, uncertain: boolean) {
@@ -46,22 +45,29 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     }
     const commentary = escapeLittleText(toLinkedInText(piece.markdown_body || "")).trim();
     if (!commentary) throw new Error("The post has no publishable text");
-    if (piece.content_type !== "social_post" || commentary !== job.publish_payload.commentary?.trim()) throw new Error("The approved post changed after it was queued");
+    if (commentary !== job.publish_payload.commentary?.trim()) throw new Error("The approved post changed after it was queued");
     const [{ data: images }, { data: assets }] = await Promise.all([
       supabase.from("content_images").select("public_url, filename, sort_order, dimensions").eq("content_piece_id", piece.id),
       supabase.from("content_assets").select("asset_type, file_url, text_content, asset_metadata").eq("content_piece_id", piece.id).not("file_url", "is", null),
     ]);
-    const currentMedia = resolvePieceMedia(piece, images || [], assets || []);
-    if (currentMedia.shape === "video" || currentMedia.shape === "document") throw new Error("This post format is not supported by LinkedIn publishing");
-    const currentImageUrls = currentMedia.items.filter((item) => item.kind === "image").map((item) => item.url);
+    const currentMedia = linkedInDirectMedia(piece.content_type, resolvePieceMedia(piece, images || [], assets || []));
+    if ("error" in currentMedia) throw new Error("This post format is not supported by LinkedIn publishing");
     const imageUrls = job.publish_payload.image_urls || [];
+    const videoUrl = job.publish_payload.video_url || null;
     const currentFirstComment = piece.first_comment ? toLinkedInText(piece.first_comment) : null;
-    if (JSON.stringify(currentImageUrls) !== JSON.stringify(imageUrls) || currentFirstComment !== (job.publish_payload.first_comment || null)) throw new Error("The approved post media or comment changed after it was queued");
-    if (imageUrls.length > 1 || imageUrls.some((url) => !isOurStorageUrl(url))) throw new Error("The post contains unsupported image media");
+    if (JSON.stringify(currentMedia.imageUrls) !== JSON.stringify(imageUrls) || currentMedia.videoUrl !== videoUrl || currentFirstComment !== (job.publish_payload.first_comment || null)) throw new Error("The approved post media or comment changed after it was queued");
 
     const accessToken = decrypt(account.access_token_encrypted);
     let imageUrn: string | undefined;
-    if (imageUrls.length === 1) {
+    let videoUrn: string | undefined;
+    if (videoUrl) {
+      const response = await fetch(videoUrl, { redirect: "error", signal: AbortSignal.timeout(60_000) });
+      if (!response.ok) throw new Error("The post video could not be downloaded");
+      if (response.headers.get("content-type")?.split(";")[0].trim() !== "video/mp4") throw new Error("LinkedIn publishing needs the video as an MP4");
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength > LINKEDIN_VIDEO_MAX_BYTES) throw new Error("The post video exceeds the upload limit");
+      videoUrn = (await uploadVideo(accessToken, account.account_id, Buffer.from(bytes))).videoUrn;
+    } else if (imageUrls.length === 1) {
       const response = await fetch(imageUrls[0], { redirect: "error", signal: AbortSignal.timeout(15_000) });
       if (!response.ok) throw new Error("The post image could not be downloaded");
       const bytes = await response.arrayBuffer();
@@ -72,7 +78,9 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     }
 
     createRequestStarted = true;
-    const posted = await createPost(accessToken, account.account_id, commentary, imageUrn);
+    const posted = videoUrn
+      ? await createPost(accessToken, account.account_id, commentary, videoUrn, piece.title || "Video")
+      : await createPost(accessToken, account.account_id, commentary, imageUrn);
     if (!posted.postUrn || !posted.postUrl || posted.postUrn.endsWith(":share:")) throw new Error("LinkedIn accepted a post request without returning its post ID");
     let commentError: string | null = null;
     if (job.publish_payload.first_comment) {

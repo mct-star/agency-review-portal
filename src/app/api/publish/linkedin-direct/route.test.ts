@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   tables: {} as Record<string, unknown>,
   updates: [] as Array<{ table: string; values: Record<string, unknown>; filters: Array<[string, unknown]> }>,
   inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
+  media: { shape: "none", items: [] } as { shape: string; items: Array<Record<string, unknown>> },
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -40,7 +41,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 vi.mock("@/lib/hospitality/pack-guard", () => ({ refuseHospitality: async () => null }));
-vi.mock("@/lib/content/piece-media", () => ({ resolvePieceMedia: () => ({ shape: "none", items: [] }) }));
+vi.mock("@/lib/content/piece-media", () => ({ resolvePieceMedia: () => state.media }));
 
 import { GET, POST, DELETE } from "./route";
 
@@ -51,6 +52,7 @@ beforeEach(() => {
   state.profile = { id: "user-1", role: "client", company_id: "company-1", can_publish: true };
   state.inserts = [];
   state.updates = [];
+  state.media = { shape: "none", items: [] };
   state.tables = {
     content_pieces: [{ id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved post", first_comment: null }],
     company_social_accounts: [{ id: "account-1", company_id: "company-1", platform: "linkedin_personal", account_id: "person-1", account_name: "Selected profile", access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 86400000).toISOString(), is_active: true }],
@@ -91,6 +93,18 @@ describe("POST /api/publish/linkedin-direct", () => {
     expect((await POST(request(input({ scheduledFor: new Date(Date.now() - 1000).toISOString() })))).status).toBe(400);
     state.tables.company_social_accounts = [{ ...(state.tables.company_social_accounts as Record<string, unknown>[])[0], token_expires_at: null }];
     expect((await POST(request(input()))).status).toBe(409);
+  });
+
+  it("queues one video from our storage and refuses a video from anywhere else", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
+    const url = "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4";
+    state.media = { shape: "video", items: [{ kind: "video", url, alt: "" }] };
+    expect((await POST(request(input()))).status).toBe(201);
+    expect(state.inserts[0].row.publish_payload).toMatchObject({ provider: "linkedin-direct-v1", image_urls: [], video_url: url });
+    state.tables.publishing_jobs = [];
+    state.media = { shape: "video", items: [{ kind: "video", url: "https://example.com/film.mp4", alt: "" }] };
+    expect((await POST(request(input()))).status).toBe(422);
+    vi.unstubAllEnvs();
   });
 
   it("uses deterministic identity to reject a duplicate queue request", async () => {

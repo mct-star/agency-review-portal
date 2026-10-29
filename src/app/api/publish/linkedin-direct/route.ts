@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { requireCompanyUser, requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
-import { isOurStorageUrl } from "@/lib/media/our-storage-url";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
 import { oauthStateSecret } from "@/lib/linkedin/oauth-state";
-import { directLinkedInJobId } from "@/lib/linkedin/direct-publish";
+import { directLinkedInJobId, linkedInDirectMedia } from "@/lib/linkedin/direct-publish";
 
 /** Queue an approved LinkedIn post for one explicitly selected account. */
 export async function POST(request: Request) {
@@ -43,7 +42,6 @@ export async function POST(request: Request) {
 
   if (!piece) return NextResponse.json({ error: "Approved content not found for this company" }, { status: 404 });
   if (piece.approval_status !== "approved") return NextResponse.json({ error: "Approve the post before publishing it." }, { status: 400 });
-  if (piece.content_type !== "social_post") return NextResponse.json({ error: "Only approved social posts can be published in this pilot." }, { status: 422 });
   if (!account) return NextResponse.json({ error: "Choose an active LinkedIn account connected to this company." }, { status: 404 });
   const expiry = account.token_expires_at ? Date.parse(account.token_expires_at) : Number.NaN;
   if (!account.account_id || !account.access_token_encrypted || !Number.isFinite(expiry) || expiry <= Date.now()) {
@@ -54,13 +52,8 @@ export async function POST(request: Request) {
     supabase.from("content_images").select("public_url, filename, sort_order, dimensions").eq("content_piece_id", piece.id),
     supabase.from("content_assets").select("asset_type, file_url, text_content, asset_metadata").eq("content_piece_id", piece.id).not("file_url", "is", null),
   ]);
-  const media = resolvePieceMedia(piece, images || [], assets || []);
-  if (media.shape === "video" || media.shape === "document") {
-    return NextResponse.json({ error: `Publishing ${media.shape}s is not available yet.` }, { status: 422 });
-  }
-  const imageUrls = media.items.filter((item) => item.kind === "image").map((item) => item.url);
-  if (imageUrls.length > 1) return NextResponse.json({ error: "This pilot supports text and one image per post." }, { status: 422 });
-  if (imageUrls.some((url) => !isOurStorageUrl(url))) return NextResponse.json({ error: "The post contains an unsupported image location." }, { status: 400 });
+  const media = linkedInDirectMedia(piece.content_type, resolvePieceMedia(piece, images || [], assets || []));
+  if ("error" in media) return NextResponse.json({ error: media.error }, { status: 422 });
 
   const commentary = escapeLittleText(toLinkedInText(piece.markdown_body || "")).trim();
   if (!commentary) return NextResponse.json({ error: "The post has no publishable text." }, { status: 400 });
@@ -77,7 +70,8 @@ export async function POST(request: Request) {
     publish_payload: {
       provider: "linkedin-direct-v1",
       commentary,
-      image_urls: imageUrls,
+      image_urls: media.imageUrls,
+      video_url: media.videoUrl,
       first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
     },
   };
