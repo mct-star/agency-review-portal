@@ -19,6 +19,14 @@ describe("publishing readiness", () => {
     expect(destinationIssue({ ...piece, content_type: "video_script", media: { shape: "video", items: [{ kind: "video", url: "video.mp4", alt: "" }] } }, { ...account, platform: "youtube" })).toBeNull();
     expect(destinationIssue({ ...piece, content_type: "blog_article" }, account)).toContain("social post");
   });
+  it("lets LinkedIn take one approved video on a social post or video piece", () => {
+    const media = { shape: "video" as const, items: [{ kind: "video" as const, url: "video.mp4", alt: "" }] };
+    expect(destinationIssue({ ...piece, media }, account)).toBeNull();
+    expect(destinationIssue({ ...piece, content_type: "video", media }, account)).toBeNull();
+    expect(destinationIssue({ ...piece, content_type: "video_script", media }, account)).toContain("one approved video");
+    expect(destinationIssue({ ...piece, media: { ...media, items: [] } }, account)).toContain("one approved video");
+    expect(destinationIssue({ ...piece, media }, { ...account, platform: "bluesky" })).toContain("text or one image");
+  });
   it("does not mislabel an active connection merely because nothing is selected", () => {
     expect(destinationIssue(undefined, account)).toBeNull();
   });

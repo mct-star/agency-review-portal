@@ -26,6 +26,11 @@ export function destinationIssue(piece: PublishingPiece | undefined, account: Pu
     if (piece.preview.social.length > 5000) return "The video description exceeds YouTube's 5,000 character limit.";
     return null;
   }
+  if (account.platform === "linkedin_personal" && piece.media.shape === "video") {
+    if (!["social_post", "video"].includes(piece.content_type) || piece.media.items.length !== 1 || piece.media.items[0].kind !== "video") return "A LinkedIn video post needs one approved video.";
+    if (!publishingText(piece, account.platform).trim()) return "The approved post has no publishable text.";
+    return null;
+  }
   if (piece.content_type !== "social_post") return "Choose an approved social post for this destination.";
   if (!["none", "image"].includes(piece.media.shape)) return "This destination supports text or one image. Open the content for other publishing options.";
   if (["instagram", "pinterest"].includes(account.platform) && piece.media.shape !== "image") return `${DESTINATION_LABELS[account.platform]} needs one image.`;

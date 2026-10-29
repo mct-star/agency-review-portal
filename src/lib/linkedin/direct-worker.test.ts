@@ -6,15 +6,17 @@ const state = vi.hoisted(() => ({
   company: {} as Record<string, unknown>,
   actor: {} as Record<string, unknown>,
   updates: [] as Array<Record<string, unknown>>,
+  assets: [] as Array<Record<string, unknown>>,
 }));
 vi.mock("@/lib/crypto", () => ({ decrypt: () => "access-token" }));
 vi.mock("@/lib/linkedin/client", () => ({
   createPost: vi.fn(async () => ({ postUrn: "urn:li:share:post-1", postUrl: "https://www.linkedin.com/feed/update/post-1/" })),
   uploadImage: vi.fn(),
+  uploadVideo: vi.fn(),
   addComment: vi.fn(),
 }));
 
-import { createPost, uploadImage } from "@/lib/linkedin/client";
+import { createPost, uploadImage, uploadVideo } from "@/lib/linkedin/client";
 import { processLinkedInDirectJob } from "./direct-worker";
 
 const job = {
@@ -33,7 +35,7 @@ function fakeSupabase() {
       chain.not = () => chain;
       chain.update = (patch: Record<string, unknown>) => { action = "update"; values = patch; state.updates.push(patch); return chain; };
       chain.maybeSingle = async () => ({ data: table === "content_pieces" ? state.piece : table === "company_social_accounts" ? state.account : table === "companies" ? state.company : state.actor, error: null });
-      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: [], error: null }).then(resolve);
+      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: table === "content_assets" ? state.assets : [], error: null }).then(resolve);
       return chain;
     },
   };
@@ -42,6 +44,7 @@ function fakeSupabase() {
 beforeEach(() => {
   vi.mocked(createPost).mockResolvedValue({ postUrn: "urn:li:share:post-1", postUrl: "https://www.linkedin.com/feed/update/post-1/" });
   state.updates = [];
+  state.assets = [];
   state.piece = { id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved text", first_comment: null, title: "Post", cover_image_url: null };
   state.account = { id: "account-1", company_id: "company-1", account_id: "person-1", access_token_encrypted: "cipher", token_expires_at: new Date(Date.now() + 60_000).toISOString(), is_active: true };
   state.company = { post_pack: "b2b", social_networks: [] };
@@ -93,6 +96,41 @@ describe("processLinkedInDirectJob", () => {
     expect(fetchImage).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: "error", signal: expect.any(AbortSignal) }));
     expect(uploadImage).toHaveBeenCalledWith("access-token", "person-1", expect.any(Buffer), "linkedin-post-image.png");
     expect(createPost).toHaveBeenCalledWith("access-token", "person-1", "Approved text", "urn:li:image:image-1");
+  });
+
+  describe("video posts", () => {
+    const url = "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4";
+    const withVideo = { ...job, publish_payload: { ...job.publish_payload, video_url: url } };
+    beforeEach(() => {
+      vi.mocked(createPost).mockClear();
+      vi.mocked(uploadVideo).mockReset().mockResolvedValue({ videoUrn: "urn:li:video:video-1" });
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
+      state.assets = [{ asset_type: "custom", file_url: url, text_content: "Film", asset_metadata: { type: "rendered_video" } }];
+    });
+
+    it("uploads the approved MP4 and posts it with the piece title", async () => {
+      const fetchVideo = vi.fn(async () => new Response(new Uint8Array([0, 0, 0, 24]), { headers: { "Content-Type": "video/mp4" } }));
+      vi.stubGlobal("fetch", fetchVideo);
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("published");
+      expect(fetchVideo).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: "error" }));
+      expect(uploadVideo).toHaveBeenCalledWith("access-token", "person-1", expect.any(Buffer));
+      expect(createPost).toHaveBeenCalledWith("access-token", "person-1", "Approved text", "urn:li:video:video-1", "Post");
+    });
+
+    it("refuses a non-MP4 file and a video swapped after queueing, before posting", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "video/quicktime" } })));
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
+      state.assets = [{ asset_type: "custom", file_url: url.replace("film", "other"), text_content: "", asset_metadata: { type: "rendered_video" } }];
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
+      expect(createPost).not.toHaveBeenCalled();
+    });
+
+    it("treats a failed upload as a definite failure, since nothing was posted", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "video/mp4" } })));
+      vi.mocked(uploadVideo).mockRejectedValue(new Error("LinkedIn video upload failed (500): busy"));
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
+      expect(state.updates.at(-1)).toMatchObject({ status: "failed", response_payload: { outcome_uncertain: false } });
+    });
   });
 
   it("fails closed when a token expiry is missing or invalid", async () => {
