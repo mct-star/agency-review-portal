@@ -54,7 +54,8 @@ export default function WeekExport({ weekLabel, weekStart, previousHref, nextHre
       for (const [i, weekId] of weekIds.entries()) {
         const res = await fetch(`/api/export/metricool?weekId=${encodeURIComponent(weekId)}&draft=false`);
         if (!res.ok) {
-          setError(res.status === 404 ? "There are no approved posts to download for this week yet." : "The download did not work. Try again in a moment.");
+          const reason = res.status === 422 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : null;
+          setError(res.status === 404 ? "There are no approved posts to download for this week yet." : reason || "The download did not work. Try again in a moment.");
           return;
         }
         const n = res.headers.get("X-Export-Notes");

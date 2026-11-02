@@ -102,6 +102,47 @@ describe("a hospitality company (Facebook and Instagram)", () => {
   });
 });
 
+describe("a video's thumbnail", () => {
+  const thumb = "https://cdn.example.com/a.jpg";
+  const args = { piece: { ...piece, title: "The clip" }, weekStart: "2026-10-12", isDraft: false, altTexts: ["Clip"] };
+
+  it("fills Video Thumbnail Url on a LinkedIn video and keeps the row", () => {
+    const r = buildMetricoolRow({ ...args, companyNetworks: null, media: { ...video, thumbnailUrl: thumb } });
+    expect(col(r.cells, "Video Thumbnail Url")).toBe(thumb);
+    expect(col(r.cells, "Picture Url 1")).toBe("https://cdn.example.com/a.mp4");
+    expect(r.blocked).toBe(false);
+    expect(r.notes).toEqual([]);
+  });
+  it("blocks a LinkedIn video with no thumbnail and says which post and why", () => {
+    const r = buildMetricoolRow({ ...args, companyNetworks: null, media: video });
+    expect(r.blocked).toBe(true);
+    expect(r.notes.join(" ")).toMatch(/The clip is a LinkedIn video with no thumbnail/);
+  });
+  it("blocks a draft row too: the rule is before the CSV, not before going live", () => {
+    expect(buildMetricoolRow({ ...args, isDraft: true, companyNetworks: null, media: video }).blocked).toBe(true);
+  });
+  it("blocks a video going to LinkedIn and another network", () => {
+    expect(buildMetricoolRow({ ...args, companyNetworks: ["facebook", "linkedin"], media: video }).blocked).toBe(true);
+  });
+  it("carries a thumbnail on a video that skips LinkedIn, and never blocks one without", () => {
+    const withThumb = buildMetricoolRow({ ...args, companyNetworks: ["facebook"], media: { ...video, thumbnailUrl: thumb } });
+    expect(col(withThumb.cells, "Video Thumbnail Url")).toBe(thumb);
+    const without = buildMetricoolRow({ ...args, companyNetworks: ["facebook"], media: video });
+    expect(without.blocked).toBe(false);
+    expect(col(without.cells, "Video Thumbnail Url")).toBe("");
+  });
+  it("leaves an image row unaffected", () => {
+    const r = buildMetricoolRow({ ...args, companyNetworks: null, media: one });
+    expect(r.blocked).toBe(false);
+    expect(r.notes).toEqual([]);
+    expect(col(r.cells, "Video Thumbnail Url")).toBe("");
+    expect(col(r.cells, "Picture Url 1")).toBe("https://cdn.example.com/a.jpg");
+  });
+  it("leaves a text-only row unaffected", () => {
+    expect(buildMetricoolRow({ ...args, companyNetworks: null, media: none }).blocked).toBe(false);
+  });
+});
+
 describe("networks", () => {
   it("defaults to LinkedIn", () => {
     expect(networksFor(undefined)).toEqual(["linkedin"]);

@@ -10,6 +10,7 @@ import {
 } from "@/lib/constants/week-board";
 import type { WeekBoardRow } from "@/lib/weeks/board-data";
 import SinglePostButton from "@/components/admin/SinglePostButton";
+import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
 import { PHOTO_MIME_TYPES, MAX_PHOTO_BYTES } from "@/lib/upload/media-constants";
 
@@ -319,12 +320,12 @@ function WeekCard({ week, pending, errorMessage, onAction, onRefresh }: WeekCard
           </button>
         )}
 
-        <a
-          href={`/api/export/metricool?weekId=${week.id}`}
-          className="ml-auto text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline"
-        >
-          Download CSV
-        </a>
+        <div className="ml-auto">
+          <MetricoolExportButton
+            weekId={week.id}
+            className="flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline"
+          />
+        </div>
       </div>
     </div>
   );
