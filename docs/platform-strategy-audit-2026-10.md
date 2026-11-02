@@ -272,3 +272,53 @@ Michael said "proceed with all phases" and took decisions 8, 9 and 10 as recomme
 **Known limits carried forward (each is in its PR's description):** the download cannot mark posts already downloaded (no export record); Move on the day list changes the day only; Sam cannot upload her own logo; the strategy document's audience section is empty until the interview's persona list is mapped to it; hospitality signups still get the business sample content; the Photos tab opens the library picker rather than the company.
 
 **Re-score.** With the six phases merged, the stages that scored 1 on C4 (truthful controls) and C5 (fences) in the audit are expected at 4: every route that failed on a retired model id now runs through one module, every fence is in the middleware, the admin has one home and can see what a client sees, and the client journey no longer offers a control that calls an admin-only route. Both platform checks (tenant isolation, provider truth) pass by test. The scorecard should be re-run as a read-only walk once the PRs are live; this document records the plan and the build, not a measured result.
+
+## Content process map and rule traceability (1 November 2026)
+
+Added by the Platty run for conductor job ad9cff21 (run c046fe98). It extends this audit; it is not a parallel document. Read-only: no deploy, merge, schedule, permission change or blueprint write. Full maps are in `content-process-maps.json` and `rule-traceability.json` in `~/Downloads/00_AGENCY_Workforce_Learning_2026-11/`. Tags: `local_code` (read in source), `deployed_verified` (source at the commit Vercel reports as the READY production deployment, here `55b9da1`, the same commit this section traced), `live_config_verified` (read-only counts and structure from the live database and launchd, no row content), `unverified`.
+
+### What really happens (macro map, corrected)
+The starting hypothesis (Brief and strategy, Plan, Evidence and assets, Produce, Review and revise, Approve, Publish or export, Measure, Learn) holds as a list but not as a flow. Five corrections:
+1. **Strategy and rules sit in three stores**: the Mac (Strategy v6.0, calendars, atoms and `markey.md` on Drive), the portal (pasted blueprint text, `strategy_*` tables) and the ops bridge (CTA catalogue in code). `local_code`.
+2. **Automated review happens inside Produce**: programmatic tests, a fix loop and model-judged gates run before a draft is saved (`validated-generator.ts:73-162`, `content-intelligence.ts:790-840`). Human review is a status word with no feedback text. `deployed_verified`.
+3. **Approve records nothing**: `content/approve` flips `approval_status`; no rules version, check result or text hash. Only the ops bridge snapshots a hash (`ops-content/review.ts:35-67`) and it has no live rows. `live_config_verified`.
+4. **Export has two builders**: the Mac builds CSVs from Drive files (`production_runner.py` never reads portal text), the portal builds one from portal text. A reviewer's edit reaches only the portal's CSV. `local_code`.
+5. **Learn does not exist as a step**: no path turns a ruling or an edit into a rule change. Proposed below.
+
+### Which paths use stored Source Context, which use hard-coded rules
+- **Stored Source Context** (`company_blueprints.derived_source_context`): `generate/week` (route.ts:79,128), `generate/blog` (:41,103), api-production (`context.ts:35,69`; refuses a post with no source context and no source notes, `generate.ts:182`). Brand context: blog, images, api-production. `generate/plan` only reports whether it exists. `generate/content` and `adapt` use blueprint text only. `generate/quick` reads a column that does not exist (`blueprint_text`, route.ts:177; confirmed absent live), so it never receives the blueprint.
+- **Live state**: only AGENCY Bristol has an active blueprint (version 5.2, updated 1 October 2026). Its `derived_source_context` is NULL and its `derived_brand_context` is present. Clearpath HealthTech, BCB Medical, Believe Digital, Star Linen UK, Quality Sweep Test Co and Lakeside Brasserie have none. Nothing in the code derives either field; only an API caller can supply them. `live_config_verified`.
+- **Hard-coded rules** (apply to every b2b company, not only AGENCY): the voice and checklist block in `anthropic.ts:427-575` (mandatory bracketed aside, "Blimey", Bristol weekend rule, healthcare checklist line), the word list, aside, first-word and healthcare tests in `quality-tests.ts:35-48,126,141,182,326-343`, and the day, healthcare and AI-voice rules in `content-intelligence.ts:73-149`. Company `banned_vocabulary` reaches the prompt but is never tested. Bible scope for these: `S0268` and `S0247` author_profile_michael, `S0261` company_profile healthcare, `S0302` company_profile agency, `S0297` channel_profile channel:mct_linkedin. A non-healthcare company fails `C4_healthcare` (high) and burns the fix loop. `deployed_verified`.
+- **Healthcare detectors disagree**: week and content routes pass `isHealthcareCompany: true`; quick matches `healthcare` or `pharma` exactly; blog uses `isHealthcareIndustry`; api-production uses `/health|medical|medtech/i`.
+- **Hospitality** (Lakeside) uses its own prompt and figure check and is unaffected by any of this. `deployed_verified`.
+
+### What carries a Bible edit into production
+Nothing. The master is copied to Drive by `sync_canon_copies.py` (run by hand; no schedule found), but the Mac runner reads the atoms, `00_SOURCE_CONTEXT.md`, `17_COMPLETE_RULE_REGISTRY.md` and `markey.md`, not the Bible copy. The portal never references the Bible. The one canon the portal does carry is `BRAND_CONTEXT_COPY` (`ops-content/brand-context.ts:2`), a pasted copy of `Brand_Context_Copy.md`; it is byte-identical today (sha256 prefix 5e69c36c4691) and has no sync. Missing connection: a versioned, scope-labelled rule set read by both the writer and the checks, with its version on each piece. `local_code`, `live_config_verified`.
+
+### Findings (full list F1 to F15 in the JSON)
+| # | Finding | Tag |
+|---|---|---|
+| F2 | Michael-specific and healthcare rules run for every company in the portal writer and its tests | deployed_verified |
+| F4 | Quick generation never gets the blueprint (missing column) | deployed_verified, live_config_verified |
+| F5 | Source Context empty live for the only company with a blueprint; nothing derives it | live_config_verified |
+| F6 | `load_markey` keeps 95,000 of 197,288 characters; 130 of 181 headings dropped, including Voice Rules | local_code |
+| F7 | Portal `ops_weekly_*` jobs have no consumer; the launchd worker points at a missing worktree (exit 78); worker only on unmerged branch `codex/native-content-workspace` | local_code, live_config_verified |
+| F8 | Hosted api-production has zero live jobs | live_config_verified |
+| F9 | No version, blueprint or rule column on `content_pieces` | live_config_verified |
+| F10 | Mac ships pending posts, overwrites portal edits and resets approval on re-run | local_code |
+| F12 | A second active blueprint is possible; seven readers use `.single()` | local_code |
+| F13 | Ops bridge interview call omits `companyId` (shared funding) | local_code |
+
+### Proposed (not built; each has a testable acceptance criterion)
+Reuse first: `company_blueprints` versions, the api-production provenance asset, the native worker's `canon_versions [{name, sha256}]` and "rules changed after approval" refusal, `sync_canon_copies.py --check`, `test_canon_drift.py`, `isHealthcareIndustry`, `company_voice_profiles`. Healthcare and Michael-specific rules become overlays selected by the company, author or channel profile; they are never defaults.
+- **P7 first (small fixes)**: select `blueprint_content` in quick; deactivate the old blueprint on import and add a partial unique index on active; pass `companyId` in the interview call. Accept: a typed query test fails on an unknown column; a second active blueprint fails at the database.
+- **P1 record the rule set on every piece**: extend the provenance asset with blueprint id, version, sha256, source and brand context hashes, voice profile id, a `code_rules_version` constant and canon hashes. Accept: a test per writer path finds the non-null fields; a test fails if the prompt block or test list changes without bumping the constant.
+- **P2 one rule resolver for writing and review**, scope filtered. Accept: for a company with null industry and no Michael voice markers, `runQualityTests` returns no `C4_healthcare` or aside result and uses the company's banned vocabulary; AGENCY Bristol's results are unchanged (snapshot); no second healthcare detector remains.
+- **P3 approval records version and check**: an `approval_record` asset with text hash and rules manifest hash. Accept: the hash equals sha256 of the body at approval and differs after a later edit.
+- **P4 affected-output detection**: compare each unpublished piece's manifest with the current one and show "Written under older rules" on /review. Accept: with a fake database, a piece written under blueprint v1 is listed after v2 activates; a published piece is not.
+- **P5 carry a canon edit to every reader**: add `Brand_Context_Copy.md` to the sync and drift test, load the portal's brand context from stored data, record canon hashes in the Mac job output, stop the `markey.md` truncation. Accept: a one-byte master edit fails the drift test until the copy changes; a test fails if `load_markey` drops the last heading; a Phase A job row carries hashes equal to the files on disk.
+- **P6 produce Source Context**: a "Derive context" action writing a new blueprint version with a visible diff, approval and hash. Accept: a test company gets a non-null hash used in its next generation; a company with no blueprint cannot start and sees why.
+- **P8 Mac and portal agree on approval and edits** and **P9 truthful worker state**: both are Michael's decisions (audit Decision 8 and the worker branch); criteria are in the JSON.
+
+### Not verified
+Production values of `CONTENT_WEEKLY_WORKER_ENABLED`, `CONTENT_DIRECT_RELEASE_ENABLED`, `NEXT_PUBLIC_WEEK_BOARD_ENABLED` and `AI_TEXT_FALLBACK_APPROVED`; the text of the live blueprint 5.2 and brand context (deliberately not read); whether the Phase A model reaches the dropped half of `markey.md` through other files; any off-box consumer of `ops_weekly_*` jobs; Metricool and publishing outcomes; whether `sync_canon_copies.py` runs from any schedule outside launchd and scheduled-tasks.
