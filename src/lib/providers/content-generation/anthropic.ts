@@ -1,3 +1,4 @@
+import { rulePrompt } from "@/lib/content-rules/resolve";
 /**
  * Anthropic Claude Content Generation Provider
  *
@@ -52,7 +53,7 @@ const CONTENT_TYPE_INSTRUCTIONS: Record<string, string> = {
 STRUCTURE:
 - A brilliant hook (first line that stops the scroll). MAXIMUM 10 WORDS. Punchy, provocative, specific. Sets up tension or contrast. No colons, hyphens, or em-dashes in hooks. Examples of good hooks: "Nobody talks about this." / "Your competitor just stole your best client." / "The meeting lasted 12 minutes." / "We got this completely wrong." / "Three words changed everything."
 - 3-6 short paragraphs. Each paragraph is 1-2 sentences MAX. Use line breaks between paragraphs.
-- At least one bracketed aside somewhere in the body (MANDATORY).
+- Apply bracketed asides only when the selected author policy requires them.
 - End with the EXACT sign-off from the blueprint (Section E3). Do not paraphrase it. Copy it verbatim.
 - Before the sign-off, include a context-appropriate engagement question related to the post topic.
 - HASHTAGS: none in the body copy. If the platform uses hashtags, put a maximum of 3 at the very end, after the sign-off. Never vanity tags (#Grateful, #ProudMoment, #Blessed, #Inspired).
@@ -80,7 +81,7 @@ STRUCTURE:
 - Sections with subheadings (use ## for subheadings), following the template instructions where given. Subheadings should be conversational, not corporate, with no colons or hyphens.
 - Each section should contain practical, specific takeaways grounded in the company's industry.
 - A conclusion that reflects rather than summarises. End with a thought, not a sales pitch.
-- Use the blueprint voice throughout: short sentences, hedging language, bracketed asides, UK spelling.
+- Use the selected company and author voice throughout; do not assume hedging, asides or a spelling convention.
 - Contractions are natural and welcome in every format.
 
 ALSO GENERATE THESE ASSETS:
@@ -426,7 +427,7 @@ The full article in markdown. Subheadings as ##. Write [[image: 1]], [[image: 2]
 
   return `You are a content ghostwriter. ${spokespersonClause} Your job is to produce content that is INDISTINGUISHABLE from the spokesperson's own writing. Not "inspired by" — identical in voice.
 
-The company's full blueprint is provided below. You MUST study and precisely follow every voice, style, and formatting rule it contains. These are not suggestions. Every rule is a hard constraint.
+The company's full blueprint is provided below. You MUST study and precisely follow every voice, style, and formatting rule it contains. These are not suggestions. Follow applicable approved rules above any conflicting legacy blueprint wording.
 
 ${"═".repeat(60)}
 VOICE ENFORCEMENT (NON-NEGOTIABLE RULES)
@@ -440,35 +441,11 @@ Read the blueprint carefully and follow these rules EXACTLY:
    and emotional register. The voice should match EXACTLY — not a generic
    professional voice, not a motivational speaker, not a consultant's blog.
 
-2. SIGNATURE DEVICES (Blueprint Section C3 "Signature Devices")
-   You MUST include at least ONE bracketed aside in every piece.
-   Examples: "(He wasn't wrong to be annoyed, to be fair.)"
-   "(Took us a while to figure that out.)" "(Ask me how I know.)"
-   Also use: question tags, British interjections ("Blimey...", "Right then...",
-   "Fair enough", "Mind you..."), understatement, hedging phrases
-   ("I think there's...", "Probably worth...", "Fair to say..."),
-   and self-deprecating asides. These are MANDATORY, not decorative.
-
-3. BANNED VOCABULARY (Blueprint Section C4 "Banned Words and Phrases")
-   Find that section. NEVER use ANY word or phrase listed there.
-   Common traps to avoid: leverage, optimise, comprehensive, robust, synergy,
-   ecosystem, best practices, impactful, game-changer, revolutionary, exciting,
-   resonates, crucial, spot on, nailed it, certainly, indeed, awesome,
-   I'm curious, best of luck, exciting times, we've all been there.
-   If you catch yourself reaching for any corporate, hype, or validation word
-   — find a different, more human way to say it.
-
-4. FORMATTING MANDATES (Blueprint Section C5 "Formatting Rules")
-   - UK spelling ALWAYS: organisation, recognise, colour, behaviour, centre, programme
-   ${longForm ? "- Paragraphs of up to four or five sentences, varied in length. Blank line between each." : "- 1-2 sentence paragraphs for social posts. Blank line between each."}
-   - NO em-dashes (—) or en-dashes (–) ANYWHERE. Use commas, full stops, or line breaks.
-   - NO exclamation marks. The voice is understated, not excitable.
-   - NO emoji in body copy. Ever.
-   - NEVER open with "I" as the first word of the post. Start with a scene, fact, or observation.
-   - Digits for stats (73%, 12 minutes). Words for small counts in prose (three things).
-   - Oxford comma: yes.
-   - NO colons or hyphens in titles or hooks.
-   - Contractions are natural and welcome in every format.
+2. APPLICABLE VOICE AND FORMATTING
+Follow the company's supplied voice profile and blueprint. Never assume a personal history, British interjections, bracketed humour, healthcare terminology, a geography or a spelling convention unless that company's applicable sources select it.
+${input.rules ? rulePrompt(input.rules) : "No approved canon bundle supplied. Use only this company's explicit voice and style choices."}
+${longForm ? "Paragraphs of up to four or five sentences." : "1-2 sentence paragraphs for social posts."}
+Contractions are natural and welcome.
 
 ${signoffSection}
 
@@ -525,11 +502,9 @@ ${input.blueprintContent}
 
 ${input.sourceContext ? `
 ${"═".repeat(60)}
-SOURCE CONTEXT — PRODUCTION RULES (AGENCY Copy Magic DNA)
+COMPANY SOURCE CONTEXT
 ${"═".repeat(60)}
-These are the battle-tested production rules that make content
-sound authentic. They override any conflicting generic guidance.
-Every rule here has been validated across 10+ weeks of live production.
+This is the company-supplied context. Approved scoped rules above take precedence over any stale policy copied into this context.
 
 ${input.sourceContext}
 ` : ""}
@@ -554,16 +529,11 @@ B. DAY-SPECIFIC RULES
 ${wordCountClause ? `   [ ] Word count is between ${wordMin} and ${wordMax}` : ""}
    [ ] If blog teaser: teases the blog, does NOT announce it
    [ ] If CTA post: standalone, does NOT reference other posts
-   [ ] If weekend personal: local/Bristol/timely, NOT business
+   [ ] Apply personal and local rules only when supplied for this author and channel
 
 C. VOICE & QUALITY
-   [ ] At least one bracketed aside is present
-   [ ] No banned vocabulary used
-   [ ] UK spelling throughout
-   [ ] No em-dashes, en-dashes, or exclamation marks
-   [ ] Does not open with "I"
-   [ ] Title has no colons or hyphens
-   [ ] Healthcare-specific scenario referenced (not generic B2B)
+   [ ] Follow the applicable source bundle and its check policy above
+   [ ] Use only the selected company and author voice, industry and facts
 
 D. ANCHOR CONTENT (blog/article only)
    [ ] Case study included (if required by template)
@@ -638,7 +608,7 @@ export function createClaudeFixProvider(
       content: ContentGenerationOutput,
       fixInstructions: string
     ): Promise<ContentGenerationOutput> {
-      const longForm = isLongForm(content.postType || undefined) || content.markdownBody.length > 6000;
+      const longForm = isLongForm(content.rules?.scope.contentType || content.postType || undefined) || content.markdownBody.length > 6000;
       const system = longForm
         ? `You are a content editor. Fix ONLY the specific issues identified below. Do NOT rewrite the article. Make minimal, targeted changes.
 
@@ -694,7 +664,7 @@ RULES:
       const { text, ...writer } = await callClaude(
         apiKey,
         model,
-        system,
+        [content.rules ? rulePrompt(content.rules) : '', system].filter(Boolean).join('\n\n'),
         [{ role: "user", content: "Fix the issues now." }],
         longForm ? 16384 : 8192
       );

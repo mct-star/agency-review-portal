@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
   const [companyRes, blueprintRes, typeRes, voiceRes, storiesRes, topicRes, weekRes] = await Promise.all([
     supabase.from("companies").select("*").eq("id", req.companyId).single(),
-    supabase.from("company_blueprints").select("blueprint_content, derived_source_context, derived_brand_context")
+    supabase.from("company_blueprints").select("id, version, blueprint_content, derived_source_context, derived_brand_context")
       .eq("company_id", req.companyId).eq("is_active", true).maybeSingle(),
     supabase.from("post_types").select("slug, label, template_instructions, word_count_min").eq("slug", "blog_article").maybeSingle(),
     supabase.from("company_voice_profiles").select("*").eq("company_id", req.companyId).eq("is_active", true)
@@ -100,6 +100,8 @@ export async function POST(request: Request) {
 
   const input: ContentGenerationInput = {
     blueprintContent: blueprintRes.data.blueprint_content,
+    blueprintId: blueprintRes.data.id,
+    blueprintVersion: blueprintRes.data.version,
     sourceContext: blueprintRes.data.derived_source_context || undefined,
     // The image brand context (Setup, Blueprint): governs the image prompts the writer returns.
     brandContext: blueprintRes.data.derived_brand_context || undefined,
@@ -123,7 +125,7 @@ export async function POST(request: Request) {
     signatureDevices: !voiceProfile?.structured_voice ? (voiceProfile?.signature_devices || undefined) : undefined,
     companyIndustry: company.industry || undefined,
     companyDescription: company.description || undefined,
-    preGenerationContext: buildPreGenerationContext({ postTypeSlug: "blog_article", weekNumber: 0, isHealthcareCompany: isHealthcareIndustry(company.industry), voiceProfile: voiceProfile || null }),
+    preGenerationContext: buildPreGenerationContext({ postTypeSlug: "blog_article", weekNumber: 0, isHealthcareCompany: isHealthcareIndustry(company.industry) }),
     additionalContext: context,
   };
 
@@ -138,6 +140,7 @@ export async function POST(request: Request) {
   let gates: GateResult[] = [];
   try {
     gates = await runPostGenerationGates({
+        rules: output.rules,
       postTypeSlug: "blog_article",
       content: output.markdownBody || "",
       // The opening line of the article, not a subheading.

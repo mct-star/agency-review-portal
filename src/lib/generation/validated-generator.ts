@@ -1,3 +1,4 @@
+import { attachRules } from "@/lib/content-rules/input";
 /**
  * Validated Content Generator
  *
@@ -81,7 +82,7 @@ export async function generateWithValidation(
 
   // Initial generation
   let output = await provider.generate(input);
-  output = applyDashAutofix(output);
+  if (!output.rules || output.rules.checks.noLongDashes) output = applyDashAutofix(output);
   let iteration = 1;
 
   // Run quality tests
@@ -91,6 +92,7 @@ export async function generateWithValidation(
     output.firstComment,
     {
       contentType: input.contentType,
+      rules: output.rules,
       signoffText: input.signoffText,
       ctaUrl: input.ctaUrl,
       wordCountMin: input.wordCountMin,
@@ -118,8 +120,9 @@ export async function generateWithValidation(
 
     try {
       // Send content back to Claude with specific fix instructions
-      output = await fixProvider.fix(output, validation.fixInstructions);
-      output = applyDashAutofix(output);
+      const rules = output.rules;
+      output = { ...await fixProvider.fix(output, validation.fixInstructions), rules };
+      if (!output.rules || output.rules.checks.noLongDashes) output = applyDashAutofix(output);
 
       // Re-test
       validation = runQualityTests(
@@ -128,6 +131,7 @@ export async function generateWithValidation(
         output.firstComment,
         {
           contentType: input.contentType,
+      rules: output.rules,
           signoffText: input.signoffText,
           ctaUrl: input.ctaUrl,
           wordCountMin: input.wordCountMin,
@@ -153,6 +157,7 @@ export async function generateWithValidation(
     }
   }
 
+  if (output.rules) output = attachRules(output, output.rules);
   return {
     output,
     validation,

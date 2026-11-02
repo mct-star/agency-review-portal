@@ -1,3 +1,4 @@
+import { isHealthcareIndustry } from "@/lib/utils/industry";
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider } from "@/lib/providers";
@@ -225,12 +226,16 @@ export async function POST(request: Request) {
     const preGenContext = buildPreGenerationContext({
       postTypeSlug: resolvedPostTypeSlug || contentType,
       weekNumber: weekRes.data.week_number,
-      isHealthcareCompany: true,
+      isHealthcareCompany: isHealthcareIndustry(companyRes.data?.industry),
     });
 
     // 6. Call the provider
     const input: ContentGenerationInput = {
-      blueprintContent: blueprintRes.data?.blueprint_content || "No blueprint configured.",
+      blueprintContent: blueprintRes.data?.blueprint_content || "",
+      blueprintId: blueprintRes.data?.id,
+      blueprintVersion: blueprintRes.data?.version,
+      sourceContext: blueprintRes.data?.derived_source_context || undefined,
+      authorId: spokespersonId || undefined,
       topicTitle: topic?.title || slotLabel || "Content piece",
       topicDescription: topic?.description || additionalContext || null,
       pillar: topic?.pillar || null,
@@ -266,12 +271,13 @@ export async function POST(request: Request) {
     let qualityGates: GateResult[] = [];
     try {
       qualityGates = await runPostGenerationGates({
+        rules: output.rules,
         postTypeSlug: resolvedPostTypeSlug || contentType,
         content: output.markdownBody || "",
         hookLine: (output.markdownBody || "").trim().split("\n")[0] || "",
         companyId,
         weekNumber: weekRes.data.week_number,
-        isHealthcareCompany: true,
+        isHealthcareCompany: isHealthcareIndustry(companyRes.data?.industry),
         contentType,
         signoffText: selectedSignoff?.signoff_text || undefined,
         firstComment: output.firstComment,

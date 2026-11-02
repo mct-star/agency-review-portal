@@ -1,3 +1,5 @@
+import { isHealthcareIndustry } from "@/lib/utils/industry";
+import { attachRules } from "@/lib/content-rules/input";
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
@@ -174,7 +176,7 @@ export async function POST(request: Request) {
 
     const { data: blueprint } = await supabase
       .from("company_blueprints")
-      .select("blueprint_text")
+      .select("id, version, blueprint_content, derived_source_context")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .single();
@@ -249,8 +251,7 @@ export async function POST(request: Request) {
     const preGenContext = buildPreGenerationContext({
       postTypeSlug,
       weekNumber: 0,
-      isHealthcareCompany: ["healthcare", "pharma"].includes((company as Record<string, unknown>)?.industry as string || ""),
-      voiceProfile: voiceProfile || null,
+      isHealthcareCompany: isHealthcareIndustry((company as Record<string, unknown>)?.industry as string),
     });
 
     const blogTeaserContext = isBlogTeaser
@@ -263,7 +264,12 @@ export async function POST(request: Request) {
       : "";
 
     const generateInput = {
-      blueprintContent: blueprint?.blueprint_text || "",
+      blueprintContent: blueprint?.blueprint_content || "",
+      blueprintId: blueprint?.id,
+      blueprintVersion: blueprint?.version,
+      sourceContext: blueprint?.derived_source_context || undefined,
+      authorId: spokespersonId || undefined,
+      channel: platform || "linkedin",
       topicTitle: topic,
       topicDescription: null,
       pillar: null,
@@ -300,12 +306,13 @@ export async function POST(request: Request) {
 
     try {
       qualityGates = await runPostGenerationGates({
+        rules: contentResult.rules,
         postTypeSlug,
         content: contentResult.markdownBody || "",
         hookLine: (contentResult.markdownBody || "").trim().split("\n")[0] || "",
         companyId,
         weekNumber: 0,
-        isHealthcareCompany: ["healthcare", "pharma"].includes((company as Record<string, unknown>)?.industry as string || ""),
+        isHealthcareCompany: isHealthcareIndustry((company as Record<string, unknown>)?.industry as string),
         contentType: "social_post",
         signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
         firstComment: contentResult.firstComment,
@@ -327,16 +334,19 @@ export async function POST(request: Request) {
             contentProviderData.credentials,
             contentProviderData.settings
           );
+          const rules = contentResult.rules;
           contentResult = await fixProvider.fix(contentResult, fixInstructions);
+          if (rules) contentResult = attachRules(contentResult, rules);
 
           // Re-run gates on fixed content
           qualityGates = await runPostGenerationGates({
+        rules: contentResult.rules,
             postTypeSlug,
             content: contentResult.markdownBody || "",
             hookLine: (contentResult.markdownBody || "").trim().split("\n")[0] || "",
             companyId,
             weekNumber: 0,
-            isHealthcareCompany: ["healthcare", "pharma"].includes((company as Record<string, unknown>)?.industry as string || ""),
+            isHealthcareCompany: isHealthcareIndustry((company as Record<string, unknown>)?.industry as string),
             contentType: "social_post",
             signoffText: isBlogTeaser ? undefined : (selectedSignoff?.signoff_text || undefined),
             firstComment: contentResult.firstComment,
@@ -815,6 +825,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       postText: contentResult.markdownBody || "",
+      rulesProvenance: contentResult.rules || null,
       firstComment: contentResult.firstComment || null,
       imageUrl,
       imagePending: isSkip && !imageUrl,

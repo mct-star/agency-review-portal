@@ -16,12 +16,19 @@
 
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { decryptJson } from "@/lib/crypto";
-import { contentPrincipal } from "@/lib/ops-content/principal";
 import type { ServiceCategory } from "@/types/database";
 
 // ── Provider interfaces ─────────────────────────────────────
 
 export interface ContentGenerationInput {
+  companyId?: string;
+  authorId?: string;
+  voiceProfileId?: string;
+  channel?: string;
+  postPack?: string;
+  rules?: import("@/lib/content-rules/resolve").ResolvedRules;
+  blueprintId?: string;
+  blueprintVersion?: string | number;
   blueprintContent: string;
   /** Full source context doc (production rules, voice DNA, quality tests) */
   sourceContext?: string;
@@ -67,6 +74,7 @@ export interface ContentGenerationInput {
 }
 
 export interface ContentGenerationOutput {
+  rules?: import("@/lib/content-rules/resolve").ResolvedRules;
   title: string;
   markdownBody: string;
   firstComment: string | null;
@@ -257,20 +265,32 @@ export async function getContentProvider(companyId: string): Promise<{ provider:
   const { createClaudeContentProvider } = await import("./content-generation/anthropic");
   const providerName = config.provider === "claude" ? "anthropic_claude" : "openai_gpt4";
   const engine = createClaudeContentProvider({ api_key: config.apiKey }, { ...config.settings, provider: config.provider }, config);
-  // Ops content requests write as AGENCY, so they always carry the brand instructions.
-  if (contentPrincipal()) {
-    const { BRAND_CONTEXT_COPY, CURRENT_CONTENT_OVERRIDES } = await import("@/lib/ops-content/brand-context");
-    return {
-      providerName,
-      provider: {
-        generate: input => engine.generate({
-          ...input,
-          additionalContext: [input.additionalContext, BRAND_CONTEXT_COPY, CURRENT_CONTENT_OVERRIDES].filter(Boolean).join("\n\n"),
-        }),
-      },
-    };
-  }
-  return { providerName, provider: engine };
+  const { resolveInputRules, attachRules } = await import("@/lib/content-rules/input");
+  return { providerName, provider: { generate: async input => {
+    const { defaultAuthorFor } = await import("@/lib/content-rules/resolve");
+    const personalDefault = !input.channel || ['linkedin', 'blog'].includes(input.channel);
+    const configuredAuthor = defaultAuthorFor(companyId);
+    const defaultNameMatches = !input.spokespersonName || input.spokespersonName === configuredAuthor?.name;
+    const defaultAuthor = !input.authorId && defaultNameMatches && personalDefault && (!input.postPack || input.postPack === 'b2b') ? configuredAuthor : undefined;
+    const authorToVerify = defaultAuthor || (input.authorId === configuredAuthor?.id ? configuredAuthor : undefined);
+    let authorVoice: Partial<ContentGenerationInput> = {};
+    if (authorToVerify) {
+      const db = await createAdminSupabaseClient();
+      const { data, error } = await db.from('company_spokespersons').select('id, voice_profile_id')
+        .eq('company_id', companyId).eq('id', authorToVerify.id).eq('is_active', true).maybeSingle();
+      if (error || !data || data.voice_profile_id !== authorToVerify.voiceProfileId) throw new Error('The approved default author is unavailable or its voice profile changed. Review the company source bundle.');
+      const { data: voice, error: voiceError } = await db.from('company_voice_profiles').select('*')
+        .eq('company_id', companyId).eq('id', authorToVerify.voiceProfileId).eq('is_active', true).maybeSingle();
+      if (voiceError || !voice) throw new Error('The approved author voice profile is unavailable. Review the company source bundle.');
+      const { buildVoicePrompt } = await import('@/lib/voice-to-prompt');
+      authorVoice = { voiceProfileId: voice.id, voicePrompt: buildVoicePrompt(voice) || undefined,
+        voiceDescription: voice.voice_description || undefined, bannedVocabulary: voice.banned_vocabulary || undefined,
+        signatureDevices: voice.signature_devices || undefined };
+    }
+    const scoped = resolveInputRules({ ...input, ...authorVoice, companyId, authorId: input.authorId || defaultAuthor?.id });
+    const output = await engine.generate(scoped);
+    return attachRules(output, scoped.rules!);
+  } } };
 }
 
 /** Resolve adaptation through the same company policy as the content writer. */
