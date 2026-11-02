@@ -152,6 +152,8 @@ export interface RowResult {
   notes: string[];
   /** Set when the post had no time and this default (HH:MM:SS) was used. */
   defaultedTime: string | null;
+  /** The row must stay out of the file; notes says why. */
+  blocked: boolean;
 }
 
 export function buildMetricoolRow(args: {
@@ -213,6 +215,11 @@ export function buildMetricoolRow(args: {
   if (flags.instagram) row[49] = isVideo ? "REEL" : "POST";
   if (flags.facebook) row[59] = isVideo ? "REEL" : "POST";
 
+  // Every LinkedIn video needs a thumbnail before it reaches the CSV (Michael, 2 Nov 2026).
+  if (isVideo && media.thumbnailUrl) row[36] = media.thumbnailUrl;
+  const blocked = isVideo && flags.linkedin && !media.thumbnailUrl;
+  if (blocked) notes.push(`${label} is a LinkedIn video with no thumbnail, so it was left out of this file. Add a thumbnail, then export again.`);
+
   if (flags.linkedin) {
     row[77] = "POST";
     row[84] = shouldShowLinkPreview(piece.post_type) ? "true" : "false";
@@ -222,5 +229,5 @@ export function buildMetricoolRow(args: {
     row[85] = "false";
   }
 
-  return { cells: row, notes, defaultedTime };
+  return { cells: row, notes, defaultedTime, blocked };
 }

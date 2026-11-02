@@ -161,6 +161,7 @@ export async function GET(request: Request) {
   // Build CSV rows
   const csvRows: string[] = [];
   const notes: string[] = [];
+  const blockedNotes: string[] = [];
   const defaultedTimes: string[] = [];
 
   // Header row
@@ -180,8 +181,17 @@ export async function GET(request: Request) {
       altTexts,
     });
     notes.push(...built.notes);
+    if (built.blocked) {
+      blockedNotes.push(...built.notes);
+      continue;
+    }
     if (built.defaultedTime) defaultedTimes.push(built.defaultedTime);
     csvRows.push(csvLine(built.cells));
+  }
+
+  // Every post was held back: say why rather than hand over a file of headers.
+  if (csvRows.length === 1) {
+    return NextResponse.json({ error: blockedNotes.join(" ") }, { status: 422 });
   }
 
   // Posts with no time set take the pipeline default for their kind.

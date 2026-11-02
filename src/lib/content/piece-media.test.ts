@@ -27,4 +27,37 @@ describe("resolvePieceMedia", () => {
     expect(resolvePieceMedia(piece, [], [{ asset_type: "pdf_file", file_url: "g.pdf" }]).shape).toBe("document");
     expect(resolvePieceMedia(piece)).toEqual({ shape: "none", items: [] });
   });
+
+  describe("a video's thumbnail", () => {
+    const clip = { asset_type: "custom", file_url: "https://cdn.test/clip.mp4", asset_metadata: { type: "rendered_video" } };
+
+    it("comes from the video asset's own metadata first (the Mac's render)", () => {
+      const m = resolvePieceMedia({ cover_image_url: "https://cdn.test/cover.jpg" }, [], [
+        { asset_type: "cover_image", file_url: "https://cdn.test/asset.jpg", asset_metadata: { type: "video_thumbnail" } },
+        { ...clip, asset_metadata: { type: "rendered_video", thumbnailUrl: "https://cdn.test/own.jpg" } },
+      ]);
+      expect(m.thumbnailUrl).toBe("https://cdn.test/own.jpg");
+    });
+    it("then from a video_thumbnail asset (the portal's render)", () => {
+      const m = resolvePieceMedia({ cover_image_url: "https://cdn.test/cover.jpg" }, [], [
+        clip,
+        { asset_type: "cover_image", file_url: "https://cdn.test/asset.jpg", asset_metadata: { type: "video_thumbnail" } },
+      ]);
+      expect(m.thumbnailUrl).toBe("https://cdn.test/asset.jpg");
+    });
+    it("then from the piece's cover image", () => {
+      expect(resolvePieceMedia({ cover_image_url: "https://cdn.test/cover.jpg" }, [], [clip]).thumbnailUrl).toBe("https://cdn.test/cover.jpg");
+    });
+    it("is not guessed from the post's other images", () => {
+      expect(resolvePieceMedia({}, [{ public_url: "https://cdn.test/a.png" }], [clip]).thumbnailUrl).toBeUndefined();
+    });
+    it("is refused when it is itself a video or not a web address", () => {
+      const asVideo = { ...clip, asset_metadata: { type: "rendered_video", thumbnailUrl: "https://cdn.test/still.mp4?t=1" } };
+      expect(resolvePieceMedia({}, [], [asVideo]).thumbnailUrl).toBeUndefined();
+      expect(resolvePieceMedia({ cover_image_url: "local/cover.jpg" }, [], [clip]).thumbnailUrl).toBeUndefined();
+    });
+    it("never appears on a post that is not a video", () => {
+      expect(resolvePieceMedia({ cover_image_url: "https://cdn.test/cover.jpg" }).thumbnailUrl).toBeUndefined();
+    });
+  });
 });

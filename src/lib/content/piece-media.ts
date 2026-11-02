@@ -26,6 +26,8 @@ export interface PieceMedia {
   /** What LinkedIn will receive: none, one image, several images, a video, or a document. */
   shape: "none" | "image" | "images" | "video" | "document";
   items: MediaItem[];
+  /** The still a video shows before it plays. Only a video post has one. */
+  thumbnailUrl?: string;
 }
 
 export interface MediaSourcePiece {
@@ -47,6 +49,28 @@ export interface MediaSourceAsset {
 
 const IMAGE_ASSET_TYPES = new Set(["featured_image", "social_share_image", "cover_image", "header_image", "in_article_image"]);
 
+/** A web address that can stand as a thumbnail: never another video file. */
+function thumbnailOrNull(url: unknown): string | null {
+  if (typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed) || /\.(mp4|mov|m4v|webm)(\?|#|$)|drive\.google\.com\/uc\?/i.test(trimmed)) return null;
+  return trimmed;
+}
+
+/**
+ * A video's thumbnail, from where each writer leaves it: the Mac's render on
+ * the video asset itself (asset_metadata.thumbnailUrl), the portal's render as
+ * its own asset (asset_metadata.type "video_thumbnail"), or the piece's cover
+ * image. Nothing else is guessed.
+ */
+function videoThumbnail(piece: MediaSourcePiece, video: MediaSourceAsset, assets: MediaSourceAsset[]): string | null {
+  return (
+    thumbnailOrNull(video.asset_metadata?.thumbnailUrl) ??
+    thumbnailOrNull(assets.find((a) => a.asset_metadata?.type === "video_thumbnail")?.file_url) ??
+    thumbnailOrNull(piece.cover_image_url)
+  );
+}
+
 export function resolvePieceMedia(
   piece: MediaSourcePiece,
   images: MediaSourceImage[] = [],
@@ -56,7 +80,9 @@ export function resolvePieceMedia(
 
   const video = assets.find((a) => a.file_url && a.asset_metadata?.type === "rendered_video");
   if (video?.file_url) {
-    return { shape: "video", items: [{ kind: "video", url: video.file_url, alt: video.text_content || alt }] };
+    const items: MediaItem[] = [{ kind: "video", url: video.file_url, alt: video.text_content || alt }];
+    const thumbnailUrl = videoThumbnail(piece, video, assets);
+    return thumbnailUrl ? { shape: "video", items, thumbnailUrl } : { shape: "video", items };
   }
 
   const ordered = [...images]
