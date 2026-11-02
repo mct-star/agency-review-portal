@@ -5,6 +5,7 @@ import { londonToday } from "@/lib/single-post/today";
 import { queueApiProductionJob, ApiProductionQueueError } from "@/lib/api-production/queue";
 import { runApiProductionJob } from "@/lib/api-production/runner";
 import { readDraftPlan } from "@/lib/calendar/quick-create";
+import { PRODUCTION_IMAGE_TYPES } from "@/lib/api-production/image-types";
 
 export const maxDuration = 300;
 
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ data: latest, today: londonToday() });
 }
 
-const DIRECT_TYPES = new Set(["story_video", "reaction_ranking", "meme", "mini_infographic"]);
+const DIRECT_TYPES = new Set<string>(["story_video", "reaction_ranking", ...PRODUCTION_IMAGE_TYPES]);
 
 async function enqueue(
   db: Awaited<ReturnType<typeof createAdminSupabaseClient>>,

@@ -677,6 +677,12 @@
         "content_type": "social_post"
       },
       {
+        "slug": "profile_statement",
+        "db_slug": "profile_statement",
+        "medium": "image",
+        "content_type": "social_post"
+      },
+      {
         "slug": "podcast_hook_clip",
         "db_slug": "podcast_hook_clip",
         "medium": "video",

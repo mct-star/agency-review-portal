@@ -27,9 +27,9 @@ export default function SinglePostButton({
   label?: string;
   compact?: boolean;
   /** What the slot produces; changes the wording, not the route. */
-  kind?: "post" | "video" | "meme" | "infographic";
+  kind?: "post" | "video" | "meme" | "infographic" | "profile";
 }) {
-  const noun = kind === "video" ? "video script" : kind === "meme" ? "meme" : kind === "infographic" ? "infographic" : "post";
+  const noun = kind === "video" ? "video script" : kind === "meme" ? "meme" : kind === "infographic" ? "infographic" : kind === "profile" ? "profile card" : "post";
   const [job, setJob] = useState<JobRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export default function SinglePostButton({
             : "rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
         }
       >
-        {busy ? "Queuing..." : active ? "In progress" : job?.status === "completed" ? "Ready to review" : label || (kind === "video" ? "Write this video script" : kind === "meme" ? "Write this meme" : kind === "infographic" ? "Make this infographic" : "Write this post")}
+        {busy ? "Queuing..." : active ? "In progress" : job?.status === "completed" ? "Ready to review" : label || (kind === "video" ? "Write this video script" : kind === "meme" ? "Write this meme" : kind === "infographic" ? "Make this infographic" : kind === "profile" ? "Make this profile card" : "Write this post")}
       </button>
       {(message || status) && (
         <p className={`text-xs ${job?.status === "failed" || message ? "text-red-700" : job?.status === "completed" ? "text-emerald-700" : "text-amber-800"}`}>

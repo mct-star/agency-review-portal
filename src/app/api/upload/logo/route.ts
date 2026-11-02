@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 /**
  * POST /api/upload/logo
@@ -10,18 +10,25 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
  * Accepts multipart/form-data with:
  * - file: the image
  * - companyId: string
- * - type: "logo" | "profile_picture" (default: "logo")
+ * - type: "logo" | "profile_picture" | "person_photo" (default: "logo")
+ * - spokespersonId: required for "person_photo"
+ *
+ * "person_photo" is one person's own photo: a company user may upload it, it
+ * gets its own path, and only the primary person's photo reaches the company
+ * record, which the brand overlays still read. Every other type stays admin-only.
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const companyId = formData.get("companyId") as string | null;
   const uploadType = (formData.get("type") as string) || "logo";
+
+  const caller = uploadType === "person_photo" && companyId
+    ? await requireCompanyUser(companyId)
+    : await requireAdmin();
+  if (!caller) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!file || !companyId) {
     return NextResponse.json({ error: "file and companyId required" }, { status: 400 });
@@ -58,6 +65,40 @@ export async function POST(request: Request) {
 
     const { data: urlData } = supabase.storage.from("media").getPublicUrl(refPath);
     return NextResponse.json({ url: urlData.publicUrl, storagePath: refPath });
+  }
+
+  if (uploadType === "person_photo") {
+    const spokespersonId = formData.get("spokespersonId") as string | null;
+    if (!spokespersonId) {
+      return NextResponse.json({ error: "spokespersonId required for a person's photo" }, { status: 400 });
+    }
+    const { data: person } = await supabase
+      .from("company_spokespersons")
+      .select("id, is_primary")
+      .eq("id", spokespersonId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!person) {
+      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    const personPath = `people/${companyId}/${spokespersonId}/profile_${Date.now()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage
+      .from("media")
+      .upload(personPath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
+    if (uploadErr) {
+      return NextResponse.json({ error: `Upload failed: ${uploadErr.message}` }, { status: 500 });
+    }
+    const { data: urlData } = supabase.storage.from("media").getPublicUrl(personPath);
+    if (person.is_primary) {
+      const { error: dbErr } = await supabase
+        .from("companies")
+        .update({ profile_picture_url: urlData.publicUrl })
+        .eq("id", companyId);
+      if (dbErr) {
+        return NextResponse.json({ error: `File uploaded but DB update failed: ${dbErr.message}` }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ url: urlData.publicUrl, storagePath: personPath });
   }
 
   const filenameMap: Record<string, string> = {

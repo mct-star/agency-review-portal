@@ -230,7 +230,8 @@ export default function PersonDetailPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("companyId", companyId);
-    formData.append("type", "profile_picture");
+    formData.append("type", "person_photo");
+    formData.append("spokespersonId", personId);
     try {
       const res = await fetch("/api/upload/logo", { method: "POST", body: formData });
       const data = await res.json();

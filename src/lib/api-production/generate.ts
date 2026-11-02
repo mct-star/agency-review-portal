@@ -8,6 +8,8 @@ import type { CalendarSlot, ContentType } from "@/types/database";
 import { loadProductionContext, isUnreadableLocalSourceReference } from "./context";
 import { productionId } from "./identity";
 import { renderProductionImage } from "./render";
+import { isProductionImageType } from "./image-types";
+import { requireProfileAuthor, type ProfileAuthor } from "./profile-author";
 import type { GeneratePlannedPieceArgs } from "./types";
 
 type SourceBrief = {
@@ -166,6 +168,7 @@ function contextualInstructions(source: SourceBrief, extra: string | null | unde
   ].filter(Boolean);
   if (imageType === "meme") lines.push(`IMAGE ASSET: return a valid JSON content asset called image_copy with {"title":"short setup or punchline","subtitle":"optional line"}; the combined on-image copy must stay under 20 words. Do not put unsupported facts in the graphic.`);
   if (imageType === "mini_infographic") lines.push(`IMAGE ASSET: return a valid JSON content asset called image_copy with {"title":"short heading","points":["point one","point two"]}; use 2 to 5 short points grounded only in the supplied source.`);
+  if (imageType === "profile_statement") lines.push(`IMAGE ASSET: return a valid JSON content asset called image_copy with {"statement":"...","proof":"...","payoff":"..."}. statement is one sentence of 6 to 16 words, a position the reader could disagree with. proof is two to four short sentences or imperatives, at most 25 words in total. payoff is one sentence of at most 10 words. The three beats total 25 to 45 words. No statistics unless they appear in the supplied source, no client names, no emojis, no hashtags, no em dashes, no absolute guarantees. The caption must add the reasoning or a specific example and must not repeat the card text.`);
   if (imageType === "video") lines.push("VIDEO LIMITATION: write the script and storyboard only. Do not claim a rendered video exists. Include a truthful script_text asset.");
   return lines.join("\n\n");
 }
@@ -199,7 +202,7 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
     if (checkpointMatchesPiece) {
       await saveGeneratedAssets(db, companyId, existing.id, checkpoint.output, assertOwnership);
       let imageUrl = existing.cover_image_url || undefined;
-      if (!imageUrl && (postType.slug === "meme" || postType.slug === "mini_infographic")) {
+      if (!imageUrl && isProductionImageType(postType.slug)) {
         imageUrl = await renderProductionImage({ db, company: context.company, pieceId: existing.id, postTypeSlug: postType.slug, output: checkpoint.output, assertOwnership });
       }
       return { pieceId: existing.id, ...(imageUrl ? { imageUrl } : {}), warnings: ["Existing generated content was resumed without another provider call."] };
@@ -212,7 +215,10 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
   let output: PersistableGenerationOutput | undefined = checkpoint?.output as PersistableGenerationOutput | undefined;
   let validation: ValidatedGenerationResult["validation"] | undefined;
   let gates: GateResult[] = [];
+  let profileAuthor: ProfileAuthor | undefined;
   if (!output) {
+    // A profile card needs the author's photo. Check it before the writing call so no spend is wasted.
+    if (postType.slug === "profile_statement") profileAuthor = await requireProfileAuthor(db, companyId);
     const input: ContentGenerationInput = {
       ...context.input,
       preGenerationContext: [context.input.preGenerationContext, `STRATEGY INTERVIEW CONTEXT:\n${context.strategyContext}`].filter(Boolean).join("\n\n"),
@@ -222,7 +228,7 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
       audienceTheme: slot?.theme || null,
       contentType: providerContentType(postType.contentType),
       weekNumber: slot?.week_number ?? isoWeek(source.date).week,
-      spokespersonName: context.company.spokesperson_name,
+      spokespersonName: profileAuthor?.name ?? context.company.spokesperson_name,
       postTypeSlug: postType.slug,
       postTypeLabel: postType.label,
       imageArchetype: postType.archetype,
@@ -282,8 +288,9 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
     pillar: source.pillar || null, audience_theme: slot?.theme || null,
     topic_bank_ref: slot?.source_anchor ? `SOURCE: ${slot.source_anchor}` : null,
     word_count: output.wordCount, post_type: postType.slug, sort_order: 0,
+    ...(profileAuthor?.spokespersonId ? { spokesperson_id: profileAuthor.spokespersonId } : {}),
     approval_status: "pending", generation_job_id: job.id,
-    image_generation_status: postType.slug === "meme" || postType.slug === "mini_infographic" ? "pending" : "skipped",
+    image_generation_status: isProductionImageType(postType.slug) ? "pending" : "skipped",
   };
   const { data: inserted, error: insertError } = await db.from("content_pieces").insert(piece).select("id").maybeSingle();
   if (insertError?.code === "23505") {
@@ -295,7 +302,7 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
   await saveGeneratedAssets(db, companyId, pieceId, output, assertOwnership);
 
   let imageUrl: string | undefined;
-  if (postType.slug === "meme" || postType.slug === "mini_infographic") {
+  if (isProductionImageType(postType.slug)) {
     imageUrl = await renderProductionImage({ db, company: context.company, pieceId, postTypeSlug: postType.slug, output, assertOwnership });
   }
   return { pieceId, ...(imageUrl ? { imageUrl } : {}), warnings: [...warnings, ...(output.warnings || [])] };
