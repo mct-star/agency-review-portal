@@ -1,3 +1,4 @@
+import { isHealthcareIndustry } from "@/lib/utils/industry";
 /** Creates one company-scoped draft from an anchored calendar slot or supplied brief. */
 import type { ContentGenerationInput, ContentGenerationOutput } from "@/lib/providers";
 import { getContentProvider } from "@/lib/providers";
@@ -251,10 +252,11 @@ export async function generatePlannedPiece({ db, job, workerId, slot, assertOwne
     validation = generated.validation;
     try {
       gates = await runPostGenerationGates({
+        rules: output.rules,
         postTypeSlug: postType.slug, content: output.markdownBody,
         hookLine: output.markdownBody.trim().split("\n")[0] || "", companyId,
         weekNumber: slot?.week_number ?? isoWeek(source.date).week,
-        isHealthcareCompany: /health|medical|medtech/i.test(context.company.industry || ""),
+        isHealthcareCompany: isHealthcareIndustry(context.company.industry),
         contentType: providerContentType(postType.contentType), signoffText: context.input.signoffText,
         firstComment: output.firstComment, title: output.title,
         wordCountMin: context.input.wordCountMin, wordCountMax: context.input.wordCountMax,

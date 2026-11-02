@@ -1,0 +1,220 @@
+[
+  {
+    "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+    "version": "agency-canon-2026-11-01",
+    "contextPolicy": {
+      "blueprintContent": "required",
+      "sourceContext": "optional",
+      "brandContext": "optional",
+      "voicePrompt": "optional"
+    },
+    "defaultAuthor": {
+      "name": "Michael Colling-Tuck",
+      "id": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+      "voiceProfileId": "4800fe91-6b0c-4c0b-a626-545284ef7691"
+    },
+    "approval": {
+      "reviewer": "Michael delegated adoption coordinator",
+      "approvedAt": "2026-11-01",
+      "reference": "content-bible-reconciliation.json; runtime bundle activation by PR review and merge",
+      "rulingsSha256": "9c343b7acb88a8ecd413715730f8d26d6aaba0632e042866b6f5fa4586b13e40",
+      "rulingIds": [
+        "D07",
+        "D08",
+        "D09",
+        "D10",
+        "D24",
+        "D25",
+        "D28"
+      ]
+    },
+    "requiredSourceIds": [
+      "bible-ai-tells",
+      "bible-source-authority",
+      "agency-formatting",
+      "agency-credibility"
+    ],
+    "scopedRequirements": [
+      {
+        "id": "michael-voice-4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "postPack": "b2b"
+      },
+      {
+        "id": "michael-formatting-4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "postPack": "b2b"
+      },
+      {
+        "id": "michael-linkedin-4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "channel": "linkedin",
+        "postPack": "b2b"
+      },
+      {
+        "id": "current-content-rulings",
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "channel": "linkedin",
+        "postPack": "b2b"
+      }
+    ],
+    "sources": [
+      {
+        "id": "bible-source-authority",
+        "version": "2026-11-01",
+        "owner": "company",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "text": "## Source Authority and Scope\n\nProposed 1 November 2026. Each kind of rule has one owner, and this document points at the others rather than copying them.\n\n| Owner | Holds | Where |\n|-------|-------|-------|\n| Content Bible (`content_bible`) | Shared production method: post type structures, quality tests, rhythm and AI detection, workflow | This document |\n| Strategy (`strategy`) | Objectives, audiences, positioning, pillars, planned content, calendars | MCT_Content_Strategy_2026_v6_0.md and the current quarterly calendar |\n| Company profile (`company_profile`) | A company's voice, approved claims, channels and cadence | COMPANY_BLUEPRINT files, one per company |\n| Author profile (`author_profile_michael` for Michael) | One author's voice, phrases and stories | michael-voice.md and michael-markers.md for Michael |\n| Channel profile (`channel_profile`) | Rules for one feed or format | markey.md tables for the MCT and AGENCY feeds, Metricool schema |\n| Specialist (`specialist`) | Rules owned by an agent or a code gate | markey.md, booksy.md, newsy.md, pdfy.md, validate_voice() |\n\n**Reading this document for another company or author.** These parts carry Michael's or AGENCY's values, and are examples of the method, never defaults: Part One (AGENCY strategy, kept for reference); day, time, sign-off and first comment rules in Part Two (MCT feed); Sections 3.1 to 3.6, 3.8, 3.11, 3.14 and 3.15 and Part Five (Michael's voice); Part Seven Verified Data (healthcare and AGENCY claims). Healthcare specificity rules apply to healthcare companies only.\n\n**Where a rule needs strategy context,** give one pointer to the document and section, and read it at run time. Do not restate pillars, segments, themes, metrics or calendars here.\n\n---\n\n---",
+        "sha256": "121af503cc871772e4c25c1465586f2c8b845f251cecea3e2e24d6e43256d1f4",
+        "checks": {},
+        "origin": {
+          "document": "Content_Bible.md",
+          "documentSha256": "e319a8c4e7345e9da84be877283b4f1460dc6079929d5d6c7723fe5e5f0d4056",
+          "heading": "## Source Authority and Scope"
+        }
+      },
+      {
+        "id": "bible-ai-tells",
+        "version": "2026-11-01",
+        "owner": "shared_method",
+        "text": "### AI Tells\n\n- Delve\n- Tapestry\n- Landscape\n- Navigate\n- Multifaceted\n- Moreover\n- Furthermore\n- Additionally\n- It's worth noting\n- It's important to\n- Let me explain\n- Here's the thing\n- Here's why this matters\n- It should be noted\n- What's interesting is\n- At its core\n- When it comes to\n- The reality is\n- The truth is\n- Let's dive in\n- In today's fast-paced world\n\n---",
+        "sha256": "24332ab77fe1a8836b44cdc62daa88bbfbac25020018097f44892458c09ee6d8",
+        "checks": {
+          "bannedVocabulary": [
+            "delve",
+            "tapestry",
+            "landscape",
+            "navigate",
+            "multifaceted",
+            "moreover",
+            "furthermore",
+            "additionally",
+            "it's worth noting",
+            "it's important to",
+            "let me explain",
+            "here's the thing",
+            "here's why this matters",
+            "it should be noted",
+            "what's interesting is",
+            "at its core",
+            "when it comes to",
+            "the reality is",
+            "the truth is",
+            "let's dive in",
+            "in today's fast-paced world"
+          ]
+        },
+        "origin": {
+          "document": "Content_Bible.md",
+          "documentSha256": "e319a8c4e7345e9da84be877283b4f1460dc6079929d5d6c7723fe5e5f0d4056",
+          "heading": "### AI Tells"
+        }
+      },
+      {
+        "id": "agency-formatting",
+        "version": "2026-11-01",
+        "owner": "company",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "text": "## Formatting rules\n- British English spelling. No em-dash or en-dash anywhere (see Non-negotiables). No colons or hyphens in titles or headings, use \"and\" or rewrite.\n- No exclamation marks in posts. No emojis. No hashtags in body copy.\n- Numbers: digits for statistics and data (73%, GBP 2 million, 36 minutes); words for small counts in prose (three things, five steps).\n- Sentences: keep most under about 25 words, and let one run longer when the explanation needs it. Vary length deliberately, short for punch, longer for explanation.\n- Paragraphs: posts run 1 to 3 sentences per paragraph, single-line paragraphs for emphasis used sparingly; articles up to 4 to 5 sentences.\n- Minimal bold, for genuine emphasis only. No section headers inside LinkedIn posts. No bold-subheading listicles.\n- First line of a LinkedIn post: make it a complete, self-contained scroll-stopper that works before any line break, the line that has to earn the tap. Leave whitespace and the see-more fold to the production template; do not insert blank lines into prose.",
+        "sha256": "fce02e2c450d38084d6cb1bda2bc32c12ac84b09a5f3c7f5c2f772dbbebb5ae7",
+        "checks": {
+          "noLongDashes": true,
+          "ukSpelling": true,
+          "titleFormat": true,
+          "exclamations": "blog_asides"
+        },
+        "origin": {
+          "document": "Brand_Context_Copy.md",
+          "documentSha256": "75b8dd9f2e18a47905f964fbf247e4a54a585aa770932178b5b7174db8bc33b7",
+          "heading": "## Formatting rules"
+        }
+      },
+      {
+        "id": "agency-credibility",
+        "version": "2026-11-01",
+        "owner": "company",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "text": "## Stay credible\n- Peer voice throughout: show the work, not the certificates. Never overclaim.\n- Anchor every example in a specific healthcare reality (a clinical champion, a procurement cycle, an 18-month buying decision), never generic prospects or sales teams.",
+        "sha256": "ee012a8bda5854244f0f0f12b59b7b50416691307ac336a64fef154f79539995",
+        "checks": {
+          "healthcare": true
+        },
+        "origin": {
+          "document": "Brand_Context_Copy.md",
+          "documentSha256": "75b8dd9f2e18a47905f964fbf247e4a54a585aa770932178b5b7174db8bc33b7",
+          "heading": "## Stay credible"
+        }
+      },
+      {
+        "id": "michael-voice-4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "version": "2026-11-01",
+        "owner": "author",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "text": "## Voice DNA, how AGENCY and Michael sound\n- Peer, not teacher or guru. Write as someone who has carried the bag and made the mistakes, sitting alongside the reader. Never award marks (\"you've nailed it\", \"spot on\"). Prefer \"there's something in that\", \"good to see this\", \"makes sense\".\n- Tentative, not declarative. Hedge: \"what I keep seeing is\", \"the pattern I've noticed\", \"probably worth\", \"fair to say\". One \"I think\" per written post. Self-deprecating hedges earn trust: \"(ask me how I know)\", \"(took us a while to figure that out)\".\n- British understatement and question tags. Downplay rather than oversell (\"that's not actually that easy\"). Soften with \"...isn't it?\", \"...doesn't it?\". Ground claims in observation, never announce them. Banned openers: \"Here is the truth:\", \"The key insight is\".\n- Stay in lane. Healthcare commercial only: demand generation, sales enablement, launches, messaging, stakeholder mapping, events, compliant marketing. Never generic business advice, never tell a clinician or finance lead how to do their job.\n- One dry bracketed aside per piece, minimum. Deadpan (\"(It won't.)\"), shared recognition (\"(We've all been there.)\"), or constraint (\"(Easier said than done when your boss wants the dashboard.)\").\n- Embrace the signatures: \"a demand problem disguised as a sales problem\", \"tactics are temporary, systems are permanent\", \"people are expensive\", \"the healthcare attention economy\", \"the decision-making web\", \"carrying the bag\", \"Same team. Different results.\"\n- Avoid the tells. Banned vocabulary: delve, tapestry, landscape, navigate, multifaceted, moreover, furthermore, additionally, \"it's worth noting\", \"here's the thing\", \"here's why this matters\". Banned jargon: leverage, optimise, robust, comprehensive, synergy, impactful, game-changer, revolutionary, resonates. No consultant validation (\"this really resonates\", \"such a powerful insight\"). No empty closers (\"exciting times\", \"let's connect\"). Maximum one tricolon and one \"it's not about X, it's about Y\" per piece. Never stack three short sentences in a row.",
+        "sha256": "64e8b6f85686b55430f27057e9d6b2ef30e9b9fb38a783def970f1a56ce4ef40",
+        "checks": {
+          "bracketedAsides": true
+        },
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "postPack": "b2b",
+        "origin": {
+          "document": "Brand_Context_Copy.md",
+          "documentSha256": "75b8dd9f2e18a47905f964fbf247e4a54a585aa770932178b5b7174db8bc33b7",
+          "heading": "## Voice DNA, how AGENCY and Michael sound"
+        }
+      },
+      {
+        "id": "michael-formatting-4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "version": "2026-11-01",
+        "owner": "author",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "text": "## Formatting rules\n- British English spelling. No em-dash or en-dash anywhere (see Non-negotiables). No colons or hyphens in titles or headings, use \"and\" or rewrite.\n- No exclamation marks in posts. No emojis. No hashtags in body copy.\n- Numbers: digits for statistics and data (73%, GBP 2 million, 36 minutes); words for small counts in prose (three things, five steps).\n- Sentences: keep most under about 25 words, and let one run longer when the explanation needs it. Vary length deliberately, short for punch, longer for explanation.\n- Paragraphs: posts run 1 to 3 sentences per paragraph, single-line paragraphs for emphasis used sparingly; articles up to 4 to 5 sentences.\n- Minimal bold, for genuine emphasis only. No section headers inside LinkedIn posts. No bold-subheading listicles.\n- Opening lines: never open with \"I\" as the first word, except Tuesday (launch story) and Friday (founder post). Begin with an observation or scene.\n- First line of a LinkedIn post: make it a complete, self-contained scroll-stopper that works before any line break, the line that has to earn the tap. Leave whitespace and the see-more fold to the production template; do not insert blank lines into prose.",
+        "sha256": "65dc3f863b2ef214dbd2b2143830f4e0890038285a41f824abd372b5690d6d8b",
+        "checks": {
+          "firstWordNotI": true
+        },
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "postPack": "b2b",
+        "origin": {
+          "document": "Brand_Context_Copy.md",
+          "documentSha256": "75b8dd9f2e18a47905f964fbf247e4a54a585aa770932178b5b7174db8bc33b7",
+          "heading": "## Formatting rules"
+        }
+      },
+      {
+        "id": "michael-linkedin-4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "version": "2026-11-01",
+        "owner": "channel",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "text": "## Structure essentials\nWord counts by post type:\n\n| Post type | Range |\n|---|---|\n| Monday problem post | 150 to 250 words |\n| Tuesday launch story | 200 to 350 words |\n| Wednesday \"If I Was\" | 200 to 300 words |\n| Thursday contrarian / tactical | 200 to 300 / 150 to 250 words |\n| Friday Founder Friday | 250 to 400 words |\n| Saturday weekend personal | 100 to 150 words |\n| Blog article | 1,800 to 2,500 words |\n| LinkedIn article | 1,000 to 1,300 words |\n\nThe live week is six posts, Monday to Saturday. The calendar's slot class decides what runs in each slot: Friday is life, not business, with no commercial resolve, and Saturday is Bristol or radar.\n\nMandatory sign-off, Monday and Thursday only, verbatim:\n\n> Enjoy this? Repost it to your network and follow Michael Colling-Tuck for more.\n>\n> Will you help your marketing team increase demand for your healthcare innovations?\n\nTuesday, Wednesday, Friday and Saturday end on one quiet line of their own, with no block.\n\n- First comment: every MCT post carries a first-comment CTA routing to one destination matched to the day (assessment, book, blog, or the free 60-minute triage call). Never leave it blank. On the MCT feed the URL never goes in the post body. On the AGENCY page it goes in the body, with the first comment as a secondary touch.\n- Standalone: never reference other posts. No \"as I mentioned on Monday\", no \"this morning's post\", no \"if that resonated\".",
+        "sha256": "30075a525ca91d93ebf42d6876124cb3739691fa625d6f09d2e09d92d0b31768",
+        "checks": {},
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "channel": "linkedin",
+        "postPack": "b2b",
+        "origin": {
+          "document": "Brand_Context_Copy.md",
+          "documentSha256": "75b8dd9f2e18a47905f964fbf247e4a54a585aa770932178b5b7174db8bc33b7",
+          "heading": "## Structure essentials"
+        }
+      },
+      {
+        "id": "current-content-rulings",
+        "version": "existing-runtime-rulings",
+        "owner": "channel",
+        "companyId": "d338c3ca-7f6b-4ea8-9fff-c052ba91bbdd",
+        "authorId": "4befbb9a-c4d5-4ad9-b5d5-8daf3ed3f7cb",
+        "channel": "linkedin",
+        "postPack": "b2b",
+        "text": "Latest Michael decisions override conflicting historical weekday instructions: current stories must come from dated sources for the selected week, never fictional or realistic personal experiences. Patient marketing is a primary healthcare focus. Never invent personal details, figures or client permission. Consider all three main magnets, select a canonical CTA only when relevant, with assessments hub occasional on other relevant posts and a matched diagnostic for focused assessment posts. No fixed daily CTA sequence. Only use the actual supplied evidence. Mechanical check notes are review metadata, never part of post copy. No em dashes or en dashes, no emojis.",
+        "sha256": "34013f696f2e68b9b347d11078da56705d5a5f12d1bb74ff1f1dea5abd467b7b",
+        "checks": {},
+        "origin": {
+          "document": "ops-content/brand-context.ts",
+          "documentSha256": "ebbdf33515758af54a63e50e53c04d689a340a5774089fd612b43679650428cc",
+          "heading": "CURRENT_CONTENT_OVERRIDES"
+        }
+      }
+    ]
+  }
+]

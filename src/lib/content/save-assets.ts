@@ -44,11 +44,12 @@ export function assetRowsFor(
     .filter(a => a && typeof a.textContent === "string" && a.textContent.trim())
     .map((a, i) => {
       const known = STORED_ASSET_TYPES.has(a.assetType);
+      const rulesMetadata = a.assetType === 'content_rules_provenance' ? JSON.parse(a.textContent) : null;
       return {
         content_piece_id: pieceId,
         asset_type: known ? a.assetType : "custom",
         text_content: a.textContent,
-        asset_metadata: known ? {} : { original_type: a.assetType },
+        asset_metadata: rulesMetadata ? { original_type: a.assetType, ...rulesMetadata } : known ? {} : { original_type: a.assetType },
         sort_order: i,
       };
     });

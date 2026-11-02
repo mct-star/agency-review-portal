@@ -322,3 +322,35 @@ Reuse first: `company_blueprints` versions, the api-production provenance asset,
 
 ### Not verified
 Production values of `CONTENT_WEEKLY_WORKER_ENABLED`, `CONTENT_DIRECT_RELEASE_ENABLED`, `NEXT_PUBLIC_WEEK_BOARD_ENABLED` and `AI_TEXT_FALLBACK_APPROVED`; the text of the live blueprint 5.2 and brand context (deliberately not read); whether the Phase A model reaches the dropped half of `markey.md` through other files; any off-box consumer of `ops_weekly_*` jobs; Metricool and publishing outcomes; whether `sync_canon_copies.py` runs from any schedule outside launchd and scheduled-tasks.
+
+## Canon integration | review candidate | 2 November 2026
+
+This branch implements the following subset of the 1 November P1 to P9 process map. It is local code awaiting PR review and merge, not a claim about the deployed portal or a live configuration change.
+
+| Item | Implemented here | Still outstanding |
+|---|---|---|
+| P1 | The shared hosted provider resolves a scoped source bundle and records its hash, source/document hashes, blueprint id/version, actual bound author voice profile id/hash and validation settings. Existing week, blog, content and API asset saves preserve that snapshot. Quick generation returns it. | Mac write-back, hospitality writers and propagation from the quick response into a subsequently saved piece. |
+| P2 | Shared method, company, author, channel and pack selection; source-backed prompt and deterministic checks; scoped semantic evaluation; review replay; explicit required source/context errors. Michael defaults bind only to the verified active author/profile for the exact platform company. | Mac validator integration and exhaustive conversion of every old prompt or content template into owned sources. |
+| P3 | Review displays the recorded rules hash and flags absent, invalid or stale provenance. | Approval records containing approver, text hash, rules hash and last check hash across single, bulk and hospitality decisions. Approval routes are unchanged. |
+| P4 | Review compares recorded canon/code hashes with the current approved manifest. | An inventory or queue of all affected historical pieces. |
+| P5 | A reviewable, scoped extract bundle includes exact source anchors, extract/document hashes and adopted ruling hashes. The stage/check command below detects source drift without production filesystem access. | Mac copy sync, complete reader reach evidence and Mac run provenance. |
+| P6 | Every hosted provider requires a company blueprint. The exact mapped author also requires its linked active voice profile. Optional source/brand context absence is recorded and warned; the pack is production policy, never a substitute for factual strategy or supplied evidence. | Derive-context editor, visible diff, approval and version-creation UI. No blueprint or live prompt was mutated. |
+| P7 | Quick reads the real blueprint column and records its version. All affected writers use the shared healthcare industry helper. | Active-blueprint uniqueness and the separately identified interview funding change. |
+| P8 | No changes. | Michael's Mac text/approval and write-back decision. |
+| P9 | No changes. | Native worker merge or retirement, heartbeat and launch-agent work. |
+
+The default company context policy is explicit in the bundle: blueprint required; derived source context, brand context and voice prompt optional. For the mapped active author, the resolved policy upgrades voice prompt to required. A supplied required source missing from its applicable scope is an error. Missing optional context stays visible in output provenance and review. The company blueprint is the declared strategy source; the source bundle contains production and voice policy. Hosted API production retains its additional requirement for readable company source context or supplied source notes.
+
+To stage the current adopted sources, from the repository root:
+
+```bash
+node scripts/stage-content-canon.mjs \
+  --bible "$HOME/Documents/AGENCY Brain/03_Methodology/Content_Bible.md" \
+  --brand "$HOME/Documents/AGENCY Brain/03_Methodology/Brand_Context_Copy.md" \
+  --rulings "$HOME/Downloads/00_AGENCY_Workforce_Learning_2026-11/content-bible-reconciliation.json" \
+  --out src/lib/content-rules/approved-bundles.json
+```
+
+Run the identical command with `--check` to verify freshness. It exits non-zero if any source document or required extract has changed. The executable staging contract test edits a required Bible section and proves that check fails. No command reads credentials, updates a company row or publishes a prompt. Vercel consumes the committed JSON bundle, never a local desktop path.
+
+A future Bible change follows this path: the owning source changes first; its owner runs stage and checks the scoped diff; prompt/check contracts, TypeScript and the full test suite run; a PR carries the rule and source changes for independent review; Michael approves and merges; the deployment and an authorised sample run then record which readers actually received the new bundle. A successful local test or a merged PR alone does not establish deployed or live reader reach. Company and author overlays remain separate. Do not copy the full Bible into a prompt.

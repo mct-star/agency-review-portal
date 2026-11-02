@@ -1,0 +1,14 @@
+{
+  "version": "scoped-canon-1",
+  "paths": [
+    "src/lib/providers/content-generation/anthropic.ts",
+    "src/lib/generation/quality-tests.ts",
+    "src/lib/generation/content-intelligence.ts",
+    "src/lib/content-rules/resolve.ts",
+    "src/lib/content-rules/input.ts",
+    "src/lib/providers/index.ts",
+    "src/lib/content-rules/review.ts",
+    "src/lib/generation/validated-generator.ts"
+  ],
+  "sha256": "9c4cdc35e80549f9d04c1a2ebe0479d5b61ee181929febf4cf9ff14703b93d61"
+}

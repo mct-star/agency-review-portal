@@ -1,3 +1,4 @@
+import { isHealthcareIndustry } from "@/lib/utils/industry";
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getContentProvider, getImageProvider, resolveProvider } from "@/lib/providers";
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     supabase.from("weeks").select("*").eq("id", weekId).single(),
     supabase
       .from("company_blueprints")
-      .select("blueprint_content, derived_source_context")
+      .select("id, version, blueprint_content, derived_source_context")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .single(),
@@ -230,13 +231,14 @@ export async function POST(request: Request) {
       const preGenContext = buildPreGenerationContext({
         postTypeSlug: assignment.postTypeSlug,
         weekNumber: week.week_number,
-        isHealthcareCompany: true,
-        voiceProfile: voiceProfile || null,
+        isHealthcareCompany: isHealthcareIndustry((company as unknown as { industry?: string }).industry),
       });
 
       // Build the generation input with full context
       const input: ContentGenerationInput = {
         blueprintContent,
+        blueprintId: blueprintRes.data?.id,
+        blueprintVersion: blueprintRes.data?.version,
         sourceContext,
         topicTitle: assignment.topicTitle,
         topicDescription: assignment.topicDescription,
@@ -307,12 +309,13 @@ export async function POST(request: Request) {
       let contentGates: GateResult[] = [];
       try {
         contentGates = await runPostGenerationGates({
+        rules: output.rules,
           postTypeSlug: assignment.postTypeSlug,
           content: output.markdownBody || "",
           hookLine: (output.markdownBody || "").trim().split("\n")[0] || "",
           companyId,
           weekNumber: week.week_number,
-          isHealthcareCompany: true,
+          isHealthcareCompany: isHealthcareIndustry((company as unknown as { industry?: string }).industry),
           contentType: input.contentType,
           signoffText: signoff?.signoff_text || undefined,
           firstComment: output.firstComment,

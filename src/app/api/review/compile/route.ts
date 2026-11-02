@@ -1,3 +1,5 @@
+import { reviewRules } from "@/lib/content-rules/review";
+import type { ResolvedRules } from "@/lib/content-rules/resolve";
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { runQualityTests } from "@/lib/generation/quality-tests";
@@ -19,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   const { weekId } = body;
   if (!weekId) {
     return NextResponse.json({ error: "weekId required" }, { status: 400 });
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
     .from("content_pieces")
     .select("*")
     .eq("week_id", weekId)
+    .eq("company_id", week.company_id)
     .order("sort_order");
 
   if (!pieces || pieces.length === 0) {
@@ -58,14 +61,23 @@ export async function POST(request: Request) {
     .limit(1)
     .single();
 
+  const { data: ruleAssets, error: ruleAssetError } = await supabase.from('content_assets')
+    .select('content_piece_id, asset_metadata').in('content_piece_id', pieces.map(piece => piece.id));
+  if (ruleAssetError) return NextResponse.json({ error: 'Could not load rules provenance for review.' }, { status: 500 });
+
   // Run quality tests on each piece
   const pieceReviews = (pieces as ContentPiece[]).map((piece) => {
+    const asset = ruleAssets?.find(asset => asset.content_piece_id === piece.id && asset.asset_metadata?.original_type === 'content_rules_provenance');
+    let policy: ReturnType<typeof reviewRules>;
+    try { policy = reviewRules(asset?.asset_metadata?.rules as ResolvedRules | undefined, week.company_id); }
+    catch { policy = { rules: undefined, status: 'missing', message: 'Rules provenance is invalid for this company. Explicit scoped review is required.' }; }
     const validation = runQualityTests(
       piece.markdown_body,
       piece.title,
       piece.first_comment,
       {
         contentType: piece.content_type,
+        rules: policy.rules,
         signoffText: signoff?.signoff_text || null,
         ctaUrl: null, // Can't check CTA location without slot data
         wordCountMin: null,
@@ -81,15 +93,18 @@ export async function POST(request: Request) {
       scheduledTime: piece.scheduled_time,
       wordCount: piece.word_count,
       approvalStatus: piece.approval_status,
-      qualityPassed: validation.allPassed,
-      testResults: validation.allResults.map((r) => ({
+      qualityPassed: policy.status === "current" && !!policy.rules && validation.allPassed,
+      rulesHash: policy.rules?.hash || null,
+      rulesStatus: policy.status,
+      rulesMessage: policy.message,
+      testResults: (policy.rules ? validation.allResults : []).map((r) => ({
         test: r.testName,
         passed: r.passed,
         message: r.message,
         severity: r.severity,
       })),
-      criticalIssues: validation.criticalFailures.map((r) => r.message),
-      highIssues: validation.highFailures.map((r) => r.message),
+      criticalIssues: policy.rules ? [...validation.criticalFailures.map((r) => r.message), ...(policy.status === "stale" ? [policy.message] : [])] : [policy.message],
+      highIssues: policy.rules ? validation.highFailures.map((r) => r.message) : [],
     };
   });
 
@@ -101,7 +116,7 @@ export async function POST(request: Request) {
   const highCount = pieceReviews.reduce((sum, p) => sum + p.highIssues.length, 0);
 
   const compiledContent = `# ${formatWeekLabel(week.date_start, week.week_number)} Review Document
-## ${company.name} | ${week.date_start} — ${week.date_end}
+## ${company.name} | ${week.date_start} | ${week.date_end}
 ${week.pillar ? `**Pillar:** ${week.pillar}` : ""}${week.theme ? ` | **Theme:** ${week.theme}` : ""}${week.subject ? ` | **Subject:** ${week.subject}` : ""}
 
 ---
@@ -122,7 +137,8 @@ ${week.pillar ? `**Pillar:** ${week.pillar}` : ""}${week.theme ? ` | **Theme:** 
 
 ${pieceReviews
   .map(
-    (p) => `### ${p.dayOfWeek || ""} ${p.scheduledTime || ""} — ${p.title}
+    (p) => `### ${p.dayOfWeek || ""} ${p.scheduledTime || ""} | ${p.title}
+**Rules:** ${p.rulesStatus} | ${p.rulesHash || "not recorded"} | ${p.rulesMessage}
 **Post Type:** ${p.postType || "N/A"} | **Words:** ${p.wordCount || "N/A"} | **Quality:** ${p.qualityPassed ? "PASS" : "FAIL"} | **Status:** ${p.approvalStatus}
 
 ${

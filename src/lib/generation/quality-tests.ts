@@ -1,3 +1,4 @@
+import type { ResolvedRules, RuleChecks } from "@/lib/content-rules/resolve";
 /**
  * Programmatic Quality Tests
  *
@@ -59,11 +60,11 @@ const BANNED_PATTERNS = [
 // Individual Tests
 // ============================================================
 
-function testBannedVocabulary(text: string): TestResult {
+function testBannedVocabulary(text: string, vocabulary: string[] = BANNED_WORDS): TestResult {
   const found: string[] = [];
   const lower = text.toLowerCase();
 
-  for (const word of BANNED_WORDS) {
+  for (const word of vocabulary) {
     if (lower.includes(word.toLowerCase())) {
       found.push(word);
     }
@@ -80,15 +81,20 @@ function testBannedVocabulary(text: string): TestResult {
   };
 }
 
-function testFormattingMarkers(text: string): TestResult {
+function testFormattingMarkers(text: string, checks?: RuleChecks, contentType?: string): TestResult {
   const issues: string[] = [];
 
-  if (/[—]/.test(text)) issues.push("em-dash (—) found");
-  if (/[–]/.test(text)) issues.push("en-dash (–) found");
+  if ((!checks || checks.noLongDashes) && /[—]/.test(text)) issues.push("em-dash (—) found");
+  if ((!checks || checks.noLongDashes) && /[–]/.test(text)) issues.push("en-dash (–) found");
 
   // Count exclamation marks (allow up to 1 in long-form for aside/self-deprecation)
   const exclamationCount = (text.match(/!/g) || []).length;
-  if (exclamationCount > 1) issues.push(`${exclamationCount} exclamation marks (max 1 allowed)`);
+  if (!checks && exclamationCount > 1) issues.push(`${exclamationCount} exclamation marks (max 1 allowed)`);
+  if (checks?.exclamations === 'none' && exclamationCount) issues.push('Exclamation marks are not allowed in this scope');
+  if (checks?.exclamations === 'blog_asides') {
+    const outsideAsides = text.replace(/\([^)]*\)/g, '');
+    if (contentType === 'blog_article' ? exclamationCount > 2 || outsideAsides.includes('!') : exclamationCount > 0) issues.push('Only up to two exclamation marks inside bracketed blog asides are allowed');
+  }
 
   return {
     testId: "C6_formatting",
@@ -313,6 +319,7 @@ export function runQualityTests(
   firstComment: string | null,
   options: {
     contentType: string;
+    rules?: ResolvedRules;
     signoffText?: string | null;
     ctaUrl?: string | null;
     wordCountMin?: number | null;
@@ -320,24 +327,26 @@ export function runQualityTests(
     postTypeSlug?: string | null;
   }
 ): ValidationResult {
+  if (options.rules?.validation) options = { ...options, ...options.rules.validation, contentType: options.rules.scope.contentType };
   const results: TestResult[] = [];
 
-  // Run all tests
-  results.push(testBannedVocabulary(markdownBody));
-  results.push(testFormattingMarkers(markdownBody));
+  const checks = options.rules?.checks;
+  // Unscoped calls retain legacy behaviour for existing imports only. Runtime writers pass rules.
+  results.push(testBannedVocabulary(markdownBody, checks?.bannedVocabulary));
+  results.push(testFormattingMarkers(markdownBody, checks, options.contentType));
   results.push(testSignoff(markdownBody, options.signoffText || null));
-  results.push(testFirstWordNotI(markdownBody));
-  results.push(testBracketedAside(markdownBody, options.contentType));
+  if ((!checks || (checks.firstWordNotI && options.contentType === "social_post")) && !["launch_story", "founder_friday"].includes(options.postTypeSlug || "")) results.push(testFirstWordNotI(markdownBody));
+  if (!checks || checks.bracketedAsides) results.push(testBracketedAside(markdownBody, options.contentType));
   results.push(testWordCount(markdownBody, options.wordCountMin || null, options.wordCountMax || null));
-  results.push(testHealthcareSpecificity(markdownBody));
-  results.push(testTitleFormat(title));
-  results.push(testUKSpelling(markdownBody));
+  if (!checks || checks.healthcare) results.push(testHealthcareSpecificity(markdownBody));
+  if (!checks || checks.titleFormat) results.push(testTitleFormat(title));
+  if (!checks || checks.ukSpelling) results.push(testUKSpelling(markdownBody));
   results.push(testCTANotInBody(markdownBody, options.ctaUrl || null));
   results.push(testStiltedExpansion(markdownBody));
 
   // Also check first comment for banned words
   if (firstComment) {
-    const fcBanned = testBannedVocabulary(firstComment);
+    const fcBanned = testBannedVocabulary(firstComment, checks?.bannedVocabulary);
     fcBanned.testId = "C5_first_comment_banned";
     fcBanned.testName = "First Comment Banned Vocab";
     results.push(fcBanned);

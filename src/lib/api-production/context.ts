@@ -8,6 +8,8 @@ import type { ProductionDb } from "./types";
 export type ProductionCompany = Company & { post_pack?: string; industry?: string | null; description?: string | null };
 
 interface Blueprint {
+  id?: string;
+  version?: string | number;
   blueprint_content: string;
   derived_source_context?: string | null;
   derived_brand_context?: string | null;
@@ -16,7 +18,7 @@ interface Blueprint {
 export interface ProductionContext {
   company: ProductionCompany;
   postType: PostTypeOption;
-  input: Pick<ContentGenerationInput, "blueprintContent" | "sourceContext" | "brandContext" | "voicePrompt" | "voiceDescription" | "bannedVocabulary" | "signatureDevices" | "companyIndustry" | "companyDescription" | "spokespersonName" | "signoffText" | "firstCommentTemplate" | "ctaUrl" | "ctaLinkText" | "templateInstructions" | "wordCountMin" | "wordCountMax" | "preGenerationContext">;
+  input: Pick<ContentGenerationInput, "blueprintId" | "blueprintVersion" | "blueprintContent" | "sourceContext" | "brandContext" | "voicePrompt" | "voiceDescription" | "bannedVocabulary" | "signatureDevices" | "companyIndustry" | "companyDescription" | "spokespersonName" | "signoffText" | "firstCommentTemplate" | "ctaUrl" | "ctaLinkText" | "templateInstructions" | "wordCountMin" | "wordCountMax" | "preGenerationContext">;
   strategyContext: string;
 }
 
@@ -32,7 +34,7 @@ export async function loadProductionContext(db: ProductionDb, companyId: string,
   if (!postType || postType.pack === "hospitality") throw new Error("Choose a supported business content format for this production job.");
   const queries = [
     ["company", db.from("companies").select("*").eq("id", companyId).maybeSingle()],
-    ["blueprint", db.from("company_blueprints").select("blueprint_content, derived_source_context, derived_brand_context").eq("company_id", companyId).eq("is_active", true).order("updated_at", { ascending: false }).limit(1).maybeSingle()],
+    ["blueprint", db.from("company_blueprints").select("id, version, blueprint_content, derived_source_context, derived_brand_context").eq("company_id", companyId).eq("is_active", true).order("updated_at", { ascending: false }).limit(1).maybeSingle()],
     ["voice", db.from("company_voice_profiles").select("*").eq("company_id", companyId).eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle()],
     ["audiences", db.from("strategy_audiences").select("persona_name, job_title, seniority, primary_problem, pain_points").eq("company_id", companyId).order("sort_order")],
     ["positioning", db.from("strategy_positioning").select("positioning_statement, differentiators, competitor_mistakes, transformation_before, transformation_after, storybrand_guide").eq("company_id", companyId).maybeSingle()],
@@ -66,6 +68,8 @@ export async function loadProductionContext(db: ProductionDb, companyId: string,
     company, postType, strategyContext,
     input: {
       blueprintContent: blueprint.blueprint_content,
+      blueprintId: blueprint.id,
+      blueprintVersion: blueprint.version,
       sourceContext: blueprint.derived_source_context || undefined,
       brandContext: blueprint.derived_brand_context || undefined,
       voicePrompt: buildVoicePrompt(voice) || undefined,
