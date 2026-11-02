@@ -99,6 +99,7 @@ const output = (postType: string): ContentGenerationOutput => ({
   title: `${postType} title`, markdownBody: "A draft grounded in the supplied notes.", firstComment: null,
   wordCount: 8, postType, imagePrompt: null,
   assets: postType === "meme" ? [{ assetType: "image_copy", textContent: JSON.stringify({ title: "Monday arrives again" }) }]
+    : postType === "profile_statement" ? [{ assetType: "image_copy", textContent: JSON.stringify({ statement: "Most marketing problems are not marketing problems.", proof: "They start earlier. In the product story. In who the buyer really is.", payoff: "Fix that first and the campaign gets easier." }) }]
     : postType === "mini_infographic" ? [{ assetType: "image_copy", textContent: JSON.stringify({ title: "A better handoff", points: ["Name the owner", "Agree the next step"] }) }]
       : [],
   writer: { provider: "openai", model: "gpt-test" },
@@ -273,3 +274,44 @@ describe("API production authoring", () => {
     expect(mocks.generate).not.toHaveBeenCalled();
   });
 });
+
+describe("profile statement authoring", () => {
+  const PHOTO = "https://proj.supabase.co/storage/v1/object/public/content-assets/images/company-a/people/a.png";
+  const direct = (id = "job-profile") => job({ id, input_payload: { kind: "direct", direct: { post_type_slug: "profile_statement", topic: "A source-backed topic", post_date: "2026-10-19", notes: "Supplied source facts." } } });
+  beforeEach(() => { vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://proj.supabase.co"); });
+
+  it("fails before any writing call when the author has no usable photo", async () => {
+    for (const people of [
+      [],
+      [{ id: "p1", company_id: company.id, name: "Alex", is_primary: true, profile_picture_url: null }],
+      [{ id: "p1", company_id: company.id, name: "Alex", is_primary: true, profile_picture_url: "https://media.licdn.com/expiring.jpg" }],
+    ]) {
+      vi.clearAllMocks();
+      const f = makeDb({ ...seed(), company_spokespersons: people });
+      await expect(author(f, direct())).rejects.toThrow("Setup, People");
+      expect(mocks.validated).not.toHaveBeenCalled();
+      expect(mocks.generate).not.toHaveBeenCalled();
+      expect(f.tables.content_pieces ?? []).toHaveLength(0);
+    }
+  });
+
+  it("does not use another company's spokesperson or photo", async () => {
+    const f = makeDb({ ...seed(), company_spokespersons: [{ id: "p-b", company_id: "company-b", name: "Bea", is_primary: true, profile_picture_url: PHOTO }] });
+    await expect(author(f, direct())).rejects.toThrow("Setup, People");
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(f.calls.filter(call => call.table === "company_spokespersons").every(call => call.filters.includes("company_id=company-a"))).toBe(true);
+  });
+
+  it("writes in the author's own name and records them on the piece", async () => {
+    const f = makeDb({ ...seed(), company_spokespersons: [
+      { id: "p-b", company_id: "company-b", name: "Bea", is_primary: true, profile_picture_url: PHOTO },
+      { id: "p-a", company_id: company.id, name: "Alex Author", is_primary: true, profile_picture_url: PHOTO },
+    ] });
+    const result = await author(f, direct());
+    expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({ spokespersonName: "Alex Author", postTypeSlug: "profile_statement" }));
+    expect(f.tables.content_pieces?.[0]).toMatchObject({ post_type: "profile_statement", spokesperson_id: "p-a", image_generation_status: "pending" });
+    expect(mocks.render).toHaveBeenCalledWith(expect.objectContaining({ postTypeSlug: "profile_statement", pieceId: result.pieceId }));
+    expect(f.calls.filter(call => call.table === "company_spokespersons").every(call => call.filters.includes("company_id=company-a"))).toBe(true);
+  });
+});
+

@@ -3,6 +3,7 @@ import { createAdminSupabaseClient, requireAdmin } from "@/lib/supabase/admin";
 import { encrypt } from "@/lib/crypto";
 import { exchangeCodeForTokens, getProfile } from "@/lib/linkedin/client";
 import { oauthStateSecret, verifyOAuthState } from "./oauth-state";
+import { saveLinkedInPhoto } from "./profile-photo";
 
 /**
  * The one LinkedIn OAuth callback, used by /api/auth/linkedin/callback and by
@@ -86,6 +87,9 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
       console.error("[LinkedIn OAuth] upsert failed:", upsertErr.message);
       return NextResponse.redirect(returnUrl(`linkedin_error=${encodeURIComponent("The connection could not be saved. Try again.")}`));
     }
+
+    // Best effort: keep a durable copy of the profile photo for the matching person. Never fails the connection.
+    await saveLinkedInPhoto(supabase, verified.companyId, { name: profile.name, picture: profile.picture });
 
     return NextResponse.redirect(returnUrl("linkedin_connected=1"));
   } catch (err) {
