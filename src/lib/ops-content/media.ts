@@ -1,11 +1,12 @@
 import { stableJSON } from "./json";
 import { POST as signUpload } from "@/app/api/upload/sign/route";
 import { sanitiseFilename } from "@/lib/upload/media-constants";
+import { videoThumbnail } from "@/lib/content/piece-media";
 import { ContentError } from "./auth";
 import { checked,db,id,pieceRecord,principal,sessionRecord,updateSession,weekRecord } from "./store";
 import type { ContentSource } from "./workflow";
 
-export interface ReviewMedia { id:string;kind:"image"|"video"|"document";role:"source"|"final";version:string;bucket?:string;storage_path?:string;url?:string;preview_url?:string;filename:string;week_id?:string|null;content_piece_id?:string|null;mime_type?:string;source_context?:string|null;rights?:{allowed:true;source:string}|null; }
+export interface ReviewMedia { id:string;kind:"image"|"video"|"document";role:"source"|"final";version:string;bucket?:string;storage_path?:string;url?:string;preview_url?:string;filename:string;week_id?:string|null;content_piece_id?:string|null;mime_type?:string;source_context?:string|null;rights?:{allowed:true;source:string}|null;thumbnail_url?:string; }
 export function ownedPath(path:unknown,companyId:string):string {
  if(typeof path!=="string" || !path.startsWith(`${companyId}/`) || path.includes("..") || path.includes("\\")) throw new ContentError("That media does not belong to this content account.",403);
  return path;
@@ -90,10 +91,13 @@ export async function mediaForPiece(piece:Record<string,unknown>):Promise<Review
  const assets=checked(a),images=checked(i);const media:ReviewMedia[]=[];
  for(const asset of [...(assets || [])].sort((a,b)=>Number(a.asset_metadata?.position ?? a.sort_order ?? 0)-Number(b.asset_metadata?.position ?? b.sort_order ?? 0))) {
   const meta=asset.asset_metadata || {};const kind=meta.type==="raw_video"||meta.type==="rendered_video"?"video":asset.asset_type==="pdf_file"?"document":(meta.type==="selected_photo" || ["image","featured_image","social_share_image","cover_image","header_image","in_article_image"].includes(asset.asset_type))?"image":null;
-  if(!kind) continue;
+  // A video's thumbnail is stored as a cover_image, but it is not a second piece of post media.
+  if(!kind || meta.type==="video_thumbnail") continue;
   const path=asset.storage_path || meta.storage_path; const bucket=meta.bucket;
   if(!asset.file_url && (!path||!bucket)) continue;
-  media.push({id:asset.id,kind,role:meta.type==="raw_video" || meta.role==="source"?"source":"final",version:meta.version || `${asset.id}:${path || asset.file_url}`,bucket,storage_path:path,url:asset.file_url || undefined,filename:asset.text_content || String(piece.title || "")});
+  // Left out, never undefined, when there is none: stableJSON hashes undefined as null.
+  const thumbnail=meta.type==="rendered_video"?videoThumbnail({title:String(piece.title || ""),cover_image_url:piece.cover_image_url as string|null|undefined},asset,assets || []):null;
+  media.push({id:asset.id,kind,role:meta.type==="raw_video" || meta.role==="source"?"source":"final",version:meta.version || `${asset.id}:${path || asset.file_url}`,bucket,storage_path:path,url:asset.file_url || undefined,filename:asset.text_content || String(piece.title || ""),...(thumbnail?{thumbnail_url:thumbnail}:{})});
  }
  for(const img of images || []) if(img.public_url) media.push({id:img.id,kind:"image",role:"final",version:`${img.id}:${img.public_url}`,url:img.public_url,filename:img.filename});
  if(!media.some(m=>m.role==="final") && typeof piece.cover_image_url==="string") media.push({id:"cover",kind:"image",role:"final",version:piece.cover_image_url,url:piece.cover_image_url,filename:String(piece.title||"")});

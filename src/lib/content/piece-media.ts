@@ -63,7 +63,7 @@ function thumbnailOrNull(url: unknown): string | null {
  * its own asset (asset_metadata.type "video_thumbnail"), or the piece's cover
  * image. Nothing else is guessed.
  */
-function videoThumbnail(piece: MediaSourcePiece, video: MediaSourceAsset, assets: MediaSourceAsset[]): string | null {
+export function videoThumbnail(piece: MediaSourcePiece, video: MediaSourceAsset, assets: MediaSourceAsset[]): string | null {
   return (
     thumbnailOrNull(video.asset_metadata?.thumbnailUrl) ??
     thumbnailOrNull(assets.find((a) => a.asset_metadata?.type === "video_thumbnail")?.file_url) ??

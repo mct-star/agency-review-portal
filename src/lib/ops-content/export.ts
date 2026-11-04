@@ -22,6 +22,9 @@ export function metricoolRow(s:PieceSnapshot,urls:string[]):string[] {
  const destination=String(s.metadata.destination);
  if(!["linkedin_personal","linkedin_company","facebook"].includes(destination)) throw new ContentError("This item needs a separate destination handoff.",422);
  if(s.media.some(m=>m.kind==="video") && (s.media.length!==1 || urls.length!==1)) throw new ContentError("Export a video with one final video asset.",409);
+ const video=s.media.find(m=>m.kind==="video");
+ // Every LinkedIn video needs a thumbnail before it reaches the CSV (Michael, 2 Nov 2026).
+ if(video && destination!=="facebook" && !video.thumbnail_url) throw new ContentError("This LinkedIn video has no thumbnail. Add one and approve the post again before exporting.",409);
  if(s.media.some(m=>m.kind==="document") && (s.media.length!==1 || urls.length!==1))throw new ContentError("Export a document with one final PDF asset and no mixed media.",409);
  if(s.media.length>10) throw new ContentError("The CSV supports up to ten media URLs per post.",409);
  const row=new Array(METRICOOL_HEADERS.length).fill("");row[0]=toLinkedInText(s.markdown_body);row[1]=s.scheduled_date;row[2]=s.scheduled_time.length===5?`${s.scheduled_time}:00`:s.scheduled_time;
@@ -29,6 +32,7 @@ export function metricoolRow(s:PieceSnapshot,urls:string[]):string[] {
  for(let i=4;i<14;i++) row[i]="false";
  row[destination==="facebook"?4:6]="true";
  urls.forEach((url,i)=>{row[14+i]=url;row[24+i]=s.media[i]?.filename || s.title;});
+ if(video?.thumbnail_url) row[36]=video.thumbnail_url;
  if(s.media.some(m=>m.kind==="document")) {if(destination==="facebook") throw new ContentError("Facebook document posts require a manual handoff.",422);row[34]=s.title.slice(0,58);}
  if(destination==="facebook") {row[59]="POST";row[60]=s.title;}
  row[61]=s.first_comment?toLinkedInText(s.first_comment):"";row[77]="POST";row[84]=s.media.length?"false":"true";row[85]=s.metadata.images_as_carousel===true?"true":"false";

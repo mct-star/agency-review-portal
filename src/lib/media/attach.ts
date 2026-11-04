@@ -11,6 +11,29 @@ export class AttachError extends Error {
 }
 
 /**
+ * Publish a clip's poster frame beside it, so the post has a thumbnail. Not
+ * every clip has a poster, and a failed copy must not lose the attach: the
+ * export holds back a LinkedIn video with no thumbnail, so nothing ships
+ * without one.
+ */
+async function publishPoster(
+  supabase: SupabaseAdmin,
+  item: { company_id: string; poster_path: string | null },
+  contentPieceId: string
+): Promise<string | null> {
+  if (!item.poster_path) return null;
+  const filename = item.poster_path.slice(item.poster_path.lastIndexOf("/") + 1);
+  const publishedPath = `images/${item.company_id}/${contentPieceId}/poster-${filename}`;
+  try {
+    await copyToPublishedBucket(supabase, item.poster_path, publishedPath, "image/jpeg");
+  } catch (err) {
+    console.error("[attach] poster copy failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
+  return supabase.storage.from(PUBLISHED_BUCKET).getPublicUrl(publishedPath).data.publicUrl;
+}
+
+/**
  * Put a library photo or clip on a post. This is the one place an original
  * is touched: it is copied into the public bucket (a post needs a permanent
  * URL) and recorded against the post. Used by "Choose from library" and by
@@ -25,7 +48,7 @@ export async function attachLibraryItemToPiece(
   const [{ data: item }, { data: piece }] = await Promise.all([
     supabase
       .from("photo_inventory")
-      .select("id, company_id, kind, bucket, storage_path, mime_type, width, height, duration_seconds, original_filename, scene_label, status, used_in_weeks")
+      .select("id, company_id, kind, bucket, storage_path, poster_path, mime_type, width, height, duration_seconds, original_filename, scene_label, status, used_in_weeks")
       .eq("id", itemId)
       .maybeSingle(),
     supabase.from("content_pieces").select("id, company_id").eq("id", contentPieceId).maybeSingle(),
@@ -47,13 +70,20 @@ export async function attachLibraryItemToPiece(
   const { data: urlData } = supabase.storage.from(PUBLISHED_BUCKET).getPublicUrl(publishedPath);
 
   if (item.kind === "video") {
+    const thumbnailUrl = await publishPoster(supabase, item, contentPieceId);
     const { error } = await supabase.from("content_assets").insert({
       content_piece_id: contentPieceId,
       asset_type: "custom",
       text_content: item.scene_label || item.original_filename,
       file_url: urlData.publicUrl,
       storage_path: publishedPath,
-      asset_metadata: { type: "rendered_video", source: "bank", bank_id: item.id, durationSeconds: item.duration_seconds },
+      asset_metadata: {
+        type: "rendered_video",
+        source: "bank",
+        bank_id: item.id,
+        durationSeconds: item.duration_seconds,
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
+      },
     });
     if (error) throw new AttachError(`Could not attach the clip: ${error.message}`, 500);
   } else {
