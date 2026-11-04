@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       commentary,
       image_urls: media.imageUrls,
       video_url: media.videoUrl,
+      thumbnail_url: media.thumbnailUrl,
       first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
     },
   };

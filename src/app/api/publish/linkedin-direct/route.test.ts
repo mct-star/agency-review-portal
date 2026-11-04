@@ -5,7 +5,7 @@ const state = vi.hoisted(() => ({
   tables: {} as Record<string, unknown>,
   updates: [] as Array<{ table: string; values: Record<string, unknown>; filters: Array<[string, unknown]> }>,
   inserts: [] as Array<{ table: string; row: Record<string, unknown> }>,
-  media: { shape: "none", items: [] } as { shape: string; items: Array<Record<string, unknown>> },
+  media: { shape: "none", items: [] } as { shape: string; items: Array<Record<string, unknown>>; thumbnailUrl?: string },
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -98,12 +98,23 @@ describe("POST /api/publish/linkedin-direct", () => {
   it("queues one video from our storage and refuses a video from anywhere else", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
     const url = "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4";
-    state.media = { shape: "video", items: [{ kind: "video", url, alt: "" }] };
+    const thumbnailUrl = url.replace("film.mp4", "still.jpg");
+    state.media = { shape: "video", items: [{ kind: "video", url, alt: "" }], thumbnailUrl };
     expect((await POST(request(input()))).status).toBe(201);
-    expect(state.inserts[0].row.publish_payload).toMatchObject({ provider: "linkedin-direct-v1", image_urls: [], video_url: url });
+    expect(state.inserts[0].row.publish_payload).toMatchObject({ provider: "linkedin-direct-v1", image_urls: [], video_url: url, thumbnail_url: thumbnailUrl });
     state.tables.publishing_jobs = [];
-    state.media = { shape: "video", items: [{ kind: "video", url: "https://example.com/film.mp4", alt: "" }] };
+    state.media = { shape: "video", items: [{ kind: "video", url: "https://example.com/film.mp4", alt: "" }], thumbnailUrl };
     expect((await POST(request(input()))).status).toBe(422);
+    vi.unstubAllEnvs();
+  });
+
+  it("will not queue a video with no thumbnail", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
+    state.media = { shape: "video", items: [{ kind: "video", url: "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4", alt: "" }] };
+    const response = await POST(request(input()));
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toContain("no thumbnail");
+    expect(state.inserts).toHaveLength(0);
     vi.unstubAllEnvs();
   });
 

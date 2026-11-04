@@ -100,33 +100,62 @@ describe("processLinkedInDirectJob", () => {
 
   describe("video posts", () => {
     const url = "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4";
-    const withVideo = { ...job, publish_payload: { ...job.publish_payload, video_url: url } };
+    const thumbnail = url.replace("film.mp4", "still.jpg");
+    const withVideo = { ...job, publish_payload: { ...job.publish_payload, video_url: url, thumbnail_url: thumbnail } };
+    const videoAsset = (fileUrl: string, thumbnailUrl?: string) => ({ asset_type: "custom", file_url: fileUrl, text_content: "Film", asset_metadata: { type: "rendered_video", thumbnailUrl } });
+    /** Serves the thumbnail and the video by address, each with its own media type. */
+    const serve = (videoType = "video/mp4", thumbnailType = "image/jpeg") => vi.fn(async (address: string) => address === thumbnail
+      ? new Response(new Uint8Array([255, 216]), { headers: { "Content-Type": thumbnailType } })
+      : new Response(new Uint8Array([0, 0, 0, 24]), { headers: { "Content-Type": videoType } }));
     beforeEach(() => {
       vi.mocked(createPost).mockClear();
       vi.mocked(uploadVideo).mockReset().mockResolvedValue({ videoUrn: "urn:li:video:video-1" });
       vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
-      state.assets = [{ asset_type: "custom", file_url: url, text_content: "Film", asset_metadata: { type: "rendered_video" } }];
+      state.assets = [videoAsset(url, thumbnail)];
     });
 
-    it("uploads the approved MP4 and posts it with the piece title", async () => {
-      const fetchVideo = vi.fn(async () => new Response(new Uint8Array([0, 0, 0, 24]), { headers: { "Content-Type": "video/mp4" } }));
-      vi.stubGlobal("fetch", fetchVideo);
+    it("uploads the approved MP4 with its thumbnail and posts it with the piece title", async () => {
+      const fetchMedia = serve();
+      vi.stubGlobal("fetch", fetchMedia);
       expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("published");
-      expect(fetchVideo).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: "error" }));
-      expect(uploadVideo).toHaveBeenCalledWith("access-token", "person-1", expect.any(Buffer));
+      expect(fetchMedia).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: "error" }));
+      expect(fetchMedia).toHaveBeenCalledWith(thumbnail, expect.objectContaining({ redirect: "error" }));
+      expect(uploadVideo).toHaveBeenCalledWith("access-token", "person-1", Buffer.from([0, 0, 0, 24]), Buffer.from([255, 216]));
       expect(createPost).toHaveBeenCalledWith("access-token", "person-1", "Approved text", "urn:li:video:video-1", "Post");
     });
 
     it("refuses a non-MP4 file and a video swapped after queueing, before posting", async () => {
-      vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "video/quicktime" } })));
+      vi.stubGlobal("fetch", serve("video/quicktime"));
       expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
-      state.assets = [{ asset_type: "custom", file_url: url.replace("film", "other"), text_content: "", asset_metadata: { type: "rendered_video" } }];
+      state.assets = [videoAsset(url.replace("film", "other"), thumbnail)];
       expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
+      expect(uploadVideo).not.toHaveBeenCalled();
       expect(createPost).not.toHaveBeenCalled();
     });
 
+    const thumbnailCases: Array<[string, () => void]> = [
+      ["removed", () => { state.assets = [videoAsset(url)]; }],
+      ["swapped", () => { state.assets = [videoAsset(url, thumbnail.replace("still", "other"))]; }],
+      ["in a format LinkedIn may not take", () => { vi.stubGlobal("fetch", serve("video/mp4", "image/webp")); }],
+    ];
+    it.each(thumbnailCases)("refuses a thumbnail %s after queueing, before contacting LinkedIn", async (_name, change) => {
+      vi.stubGlobal("fetch", serve());
+      change();
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
+      expect(uploadVideo).not.toHaveBeenCalled();
+      expect(createPost).not.toHaveBeenCalled();
+    });
+
+    it("refuses a job queued without a thumbnail", async () => {
+      vi.stubGlobal("fetch", serve());
+      state.assets = [videoAsset(url)];
+      const noThumbnail = { ...job, publish_payload: { ...job.publish_payload, video_url: url } };
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, noThumbnail)).toBe("failed");
+      expect(uploadVideo).not.toHaveBeenCalled();
+    });
+
     it("treats a failed upload as a definite failure, since nothing was posted", async () => {
-      vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "video/mp4" } })));
+      vi.stubGlobal("fetch", serve());
       vi.mocked(uploadVideo).mockRejectedValue(new Error("LinkedIn video upload failed (500): busy"));
       expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("failed");
       expect(state.updates.at(-1)).toMatchObject({ status: "failed", response_payload: { outcome_uncertain: false } });
