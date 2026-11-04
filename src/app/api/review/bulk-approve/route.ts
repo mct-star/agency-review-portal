@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { APPROVABLE_COLUMNS, recordDecisions, type ApprovablePiece } from "@/lib/content/version-hash";
 
 /**
  * POST /api/review/bulk-approve
  *
- * Approve all pending content pieces in a week at once.
+ * Approve all pending content pieces in a week at once. Each piece's
+ * approval is recorded in content_approvals (version hash, who, when)
+ * before its status changes (4 Nov 2026).
  *
  * Body: {
  *   weekId: string,
@@ -17,7 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { weekId, pieceIds } = body;
 
   if (!weekId) {
@@ -26,21 +29,39 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Build the update query
-  let query = supabase
+  // The pending pieces this approval covers, read with what their version
+  // hash needs.
+  let pendingQuery = supabase
     .from("content_pieces")
-    .update({
-      approval_status: "approved",
-      updated_at: new Date().toISOString(),
-    })
+    .select(APPROVABLE_COLUMNS)
     .eq("week_id", weekId)
     .eq("approval_status", "pending");
+  if (Array.isArray(pieceIds) && pieceIds.length > 0) {
+    pendingQuery = pendingQuery.in("id", pieceIds);
+  }
+  const { data: pending, error: readError } = await pendingQuery.returns<ApprovablePiece[]>();
+  if (readError) {
+    return NextResponse.json({ error: readError.message }, { status: 500 });
+  }
+  const covered = pending || [];
 
-  if (pieceIds && pieceIds.length > 0) {
-    query = query.in("id", pieceIds);
+  // Record first: an approved status never exists without its record.
+  const recordError = await recordDecisions(supabase, covered, "approved", String(admin.id), "bulk_review");
+  if (recordError) {
+    return NextResponse.json(
+      { error: `The approvals could not be recorded, so nothing changed: ${recordError}` },
+      { status: 500 }
+    );
   }
 
-  const { data, error, count } = await query.select("id");
+  const { data, error } = covered.length
+    ? await supabase
+        .from("content_pieces")
+        .update({ approval_status: "approved", updated_at: new Date().toISOString() })
+        .in("id", covered.map((p) => p.id))
+        .eq("approval_status", "pending")
+        .select("id")
+    : { data: [], error: null };
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -9,6 +9,7 @@ import { CTA_ASSETS } from "./catalog";
 import { checked,db,pieceRecord,principal,rpcRow } from "./store";
 import { DESTINATIONS } from "./workflow";
 import { mediaForPiece,promoteMedia,signedMedia,type ReviewMedia } from "./media";
+import { recordDecisions } from "@/lib/content/version-hash";
 
 export interface PieceSnapshot {piece_id:string;revision:number;title:string;content_type:string;markdown_body:string;first_comment:string|null;scheduled_date:string|null;scheduled_time:string|null;metadata:Record<string,unknown>;media:ReviewMedia[];delivery:{commentary:string;first_comment:string|null};hash:string;}
 export function snapshotHash(value:unknown) {return createHash("sha256").update(stableJSON(value)).digest("hex");}
@@ -62,7 +63,12 @@ export async function approvePiece(pieceId:string,body:Record<string,unknown>) {
  if(requiredMedia==="image" && !snapshot.media.some(m=>m.kind==="image")) throw new ContentError("The finished image is required before approval.",409);
  if(requiredMedia==="video" && !video) throw new ContentError("The finished video is required before approval.",409);
  if(video && body.watched!==true) throw new ContentError("Watch the whole final video with sound before approving it.",409);
- const d=await db();checked(await d.rpc("ops_content_approve_piece",{p_id:pieceId,p_company:principal().companyId,p_revision:snapshot.revision,p_snapshot:snapshot,p_actor:principal().id,p_watched:video}));
+ const d=await db();
+ // Recorded approval (4 Nov 2026): the same content_approvals row the
+ // portal's review routes write, so the Mac's B2 publish gate reads one table.
+ const recordError=await recordDecisions(d,[{id:piece.id,company_id:principal().companyId,title:piece.title,markdown_body:piece.markdown_body,first_comment:piece.first_comment}],"approved",principal().id,"ops_bridge");
+ if(recordError) throw new ContentError("The approval could not be recorded, so nothing changed. Try again.",503);
+ checked(await d.rpc("ops_content_approve_piece",{p_id:pieceId,p_company:principal().companyId,p_revision:snapshot.revision,p_snapshot:snapshot,p_actor:principal().id,p_watched:video}));
  return detailPiece(pieceId);
 }
 export async function approvedSnapshot(pieceId:string):Promise<PieceSnapshot> {

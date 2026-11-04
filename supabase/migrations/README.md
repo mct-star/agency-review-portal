@@ -17,6 +17,12 @@ permits YouTube and Pinterest in company network selections while preserving
 the eight existing values. Live migration version: `20261020100942`.
 Verified the constraint and AGENCY's enabled networks; other companies were unchanged.
 
+NOT YET APPLIED (4 November 2026): `20261104090000_content_approvals.sql`
+adds the append-only `content_approvals` table (piece, version hash, decision,
+who, when, how). Apply it BEFORE merging the code that writes it: until it
+exists, content/approve, review/bulk-approve and the Ops bridge approval
+return an error and change nothing, and the Mac's Phase B2 publish holds.
+
 `supabase/run_pending_migrations_018_to_022.sql` is an old catch-up script and
 stays where it is.
 
