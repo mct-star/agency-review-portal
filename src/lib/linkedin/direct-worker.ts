@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/crypto";
 import { createPost, uploadImage, uploadVideo, addComment } from "@/lib/linkedin/client";
-import { LINKEDIN_VIDEO_MAX_BYTES, linkedInDirectMedia, linkedinOutcomeMayBeUncertain } from "@/lib/linkedin/direct-publish";
+import { LINKEDIN_THUMBNAIL_MAX_BYTES, LINKEDIN_VIDEO_MAX_BYTES, linkedInDirectMedia, linkedinOutcomeMayBeUncertain } from "@/lib/linkedin/direct-publish";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
 
-type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; video_url?: string | null; first_comment?: string | null };
+type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; video_url?: string | null; thumbnail_url?: string | null; first_comment?: string | null };
 type Job = { id: string; company_id: string; content_piece_id: string | null; social_account_id: string | null; triggered_by: string | null; publish_payload: PublishPayload };
 
 async function markFailure(supabase: SupabaseClient, job: Job, error: unknown, uncertain: boolean) {
@@ -54,19 +54,27 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     if ("error" in currentMedia) throw new Error("This post format is not supported by LinkedIn publishing");
     const imageUrls = job.publish_payload.image_urls || [];
     const videoUrl = job.publish_payload.video_url || null;
+    const thumbnailUrl = job.publish_payload.thumbnail_url || null;
     const currentFirstComment = piece.first_comment ? toLinkedInText(piece.first_comment) : null;
-    if (JSON.stringify(currentMedia.imageUrls) !== JSON.stringify(imageUrls) || currentMedia.videoUrl !== videoUrl || currentFirstComment !== (job.publish_payload.first_comment || null)) throw new Error("The approved post media or comment changed after it was queued");
+    if (JSON.stringify(currentMedia.imageUrls) !== JSON.stringify(imageUrls) || currentMedia.videoUrl !== videoUrl || currentMedia.thumbnailUrl !== thumbnailUrl || currentFirstComment !== (job.publish_payload.first_comment || null)) throw new Error("The approved post media or comment changed after it was queued");
 
     const accessToken = decrypt(account.access_token_encrypted);
     let imageUrn: string | undefined;
     let videoUrn: string | undefined;
     if (videoUrl) {
+      if (!thumbnailUrl) throw new Error("The post video has no thumbnail");
+      const thumbnailResponse = await fetch(thumbnailUrl, { redirect: "error", signal: AbortSignal.timeout(15_000) });
+      if (!thumbnailResponse.ok) throw new Error("The post thumbnail could not be downloaded");
+      const thumbnailType = thumbnailResponse.headers.get("content-type")?.split(";")[0].trim();
+      if (thumbnailType !== "image/jpeg" && thumbnailType !== "image/png") throw new Error("LinkedIn publishing needs the thumbnail as a JPEG or PNG");
+      const thumbnailBytes = await thumbnailResponse.arrayBuffer();
+      if (thumbnailBytes.byteLength > LINKEDIN_THUMBNAIL_MAX_BYTES) throw new Error("The post thumbnail exceeds the upload limit");
       const response = await fetch(videoUrl, { redirect: "error", signal: AbortSignal.timeout(60_000) });
       if (!response.ok) throw new Error("The post video could not be downloaded");
       if (response.headers.get("content-type")?.split(";")[0].trim() !== "video/mp4") throw new Error("LinkedIn publishing needs the video as an MP4");
       const bytes = await response.arrayBuffer();
       if (bytes.byteLength > LINKEDIN_VIDEO_MAX_BYTES) throw new Error("The post video exceeds the upload limit");
-      videoUrn = (await uploadVideo(accessToken, account.account_id, Buffer.from(bytes))).videoUrn;
+      videoUrn = (await uploadVideo(accessToken, account.account_id, Buffer.from(bytes), Buffer.from(thumbnailBytes))).videoUrn;
     } else if (imageUrls.length === 1) {
       const response = await fetch(imageUrls[0], { redirect: "error", signal: AbortSignal.timeout(15_000) });
       if (!response.ok) throw new Error("The post image could not be downloaded");

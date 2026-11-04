@@ -3,13 +3,19 @@ import { directLinkedInJobId, linkedInDirectMedia, linkedinOutcomeMayBeUncertain
 
 describe("what a direct LinkedIn post may carry", () => {
   const ours = "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4";
-  const video = (url = ours) => ({ shape: "video" as const, items: [{ kind: "video" as const, url, alt: "" }] });
+  const thumbnail = ours.replace("film.mp4", "still.jpg");
+  const video = (url = ours, thumbnailUrl: string | undefined = thumbnail) => ({ shape: "video" as const, items: [{ kind: "video" as const, url, alt: "" }], thumbnailUrl });
   beforeEach(() => { vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co"); });
   afterEach(() => { vi.unstubAllEnvs(); });
 
   it("accepts one video from our storage on a social post or a video piece", () => {
-    expect(linkedInDirectMedia("social_post", video())).toEqual({ imageUrls: [], videoUrl: ours });
-    expect(linkedInDirectMedia("video", video())).toEqual({ imageUrls: [], videoUrl: ours });
+    expect(linkedInDirectMedia("social_post", video())).toEqual({ imageUrls: [], videoUrl: ours, thumbnailUrl: thumbnail });
+    expect(linkedInDirectMedia("video", video())).toEqual({ imageUrls: [], videoUrl: ours, thumbnailUrl: thumbnail });
+  });
+
+  it("refuses a video with no thumbnail, or one held outside our storage", () => {
+    expect(linkedInDirectMedia("social_post", { shape: "video", items: video().items })).toEqual({ error: "This video has no thumbnail. Add one before publishing to LinkedIn." });
+    expect(linkedInDirectMedia("video", video(ours, "https://example.com/still.jpg"))).toEqual({ error: "The post contains an unsupported thumbnail location." });
   });
 
   it("refuses a script, an outside address, a document, and a non-post without a video", () => {
@@ -20,9 +26,9 @@ describe("what a direct LinkedIn post may carry", () => {
   });
 
   it("keeps text and one image for social posts", () => {
-    expect(linkedInDirectMedia("social_post", { shape: "none", items: [] })).toEqual({ imageUrls: [], videoUrl: null });
+    expect(linkedInDirectMedia("social_post", { shape: "none", items: [] })).toEqual({ imageUrls: [], videoUrl: null, thumbnailUrl: null });
     const image = { kind: "image" as const, url: ours.replace("film.mp4", "a.png"), alt: "" };
-    expect(linkedInDirectMedia("social_post", { shape: "image", items: [image] })).toEqual({ imageUrls: [image.url], videoUrl: null });
+    expect(linkedInDirectMedia("social_post", { shape: "image", items: [image] })).toEqual({ imageUrls: [image.url], videoUrl: null, thumbnailUrl: null });
     expect(linkedInDirectMedia("social_post", { shape: "images", items: [image, image] })).toHaveProperty("error");
   });
 });

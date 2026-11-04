@@ -4,7 +4,7 @@
  * Architecture:
  * 1. OAuth2 Authorization Code flow to get access tokens
  * 2. Image Upload: Register → PUT binary → get asset URN
- *    Video Upload: Initialize → PUT each part → finalize → wait until AVAILABLE
+ *    Video Upload: Initialize → PUT each part → PUT thumbnail → finalize → wait until AVAILABLE
  * 3. Post Creation: POST /rest/posts with text + optional image or video URN
  * 4. First Comment: POST /rest/socialActions/{postUrn}/comments
  *
@@ -287,16 +287,19 @@ const LINKEDIN_VIDEO_PART_TIMEOUT_MS = 60_000;
  *
  * Steps:
  * 1. Initialize upload with the file size. LinkedIn returns the video URN, an
- *    upload token and one upload URL per byte range (about 4 MB each).
+ *    upload token, one upload URL per byte range (about 4 MB each) and a
+ *    thumbnail upload URL.
  * 2. PUT each byte range to its URL and keep the ETag LinkedIn returns.
- * 3. Finalize with the ETags in order.
- * 4. Wait until LinkedIn reports the video AVAILABLE, so the post that
+ * 3. PUT the thumbnail, so LinkedIn does not choose its own frame.
+ * 4. Finalize with the ETags in order.
+ * 5. Wait until LinkedIn reports the video AVAILABLE, so the post that
  *    references it is not rejected while the video is still processing.
  */
 export async function uploadVideo(
   accessToken: string,
   personUrn: string,
   videoBuffer: Buffer,
+  thumbnailBuffer: Buffer,
   { pollIntervalMs = 3_000, maxWaitMs = 60_000 }: { pollIntervalMs?: number; maxWaitMs?: number } = {}
 ): Promise<LinkedInVideoUploadResult> {
   const headers = {
@@ -315,7 +318,7 @@ export async function uploadVideo(
         owner: `urn:li:person:${personUrn}`,
         fileSizeBytes: videoBuffer.byteLength,
         uploadCaptions: false,
-        uploadThumbnail: false,
+        uploadThumbnail: true,
       },
     }),
     signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
@@ -334,6 +337,8 @@ export async function uploadVideo(
   if (!videoUrn || instructions.length === 0) {
     throw new Error("LinkedIn video init returned no upload instructions");
   }
+  const thumbnailUploadUrl: string | undefined = initData.value?.thumbnailUploadUrl;
+  if (!thumbnailUploadUrl) throw new Error("LinkedIn video init returned no thumbnail upload URL");
 
   // Step 2: PUT each byte range. The upload URLs are pre-signed.
   const uploadedPartIds: string[] = [];
@@ -353,7 +358,19 @@ export async function uploadVideo(
     uploadedPartIds.push(etag);
   }
 
-  // Step 3: Finalize
+  // Step 3: PUT the thumbnail. This URL is pre-signed too.
+  const thumbnailRes = await fetch(thumbnailUploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "application/octet-stream", "media-type-family": "STILLIMAGE" },
+    body: new Uint8Array(thumbnailBuffer),
+    signal: AbortSignal.timeout(LINKEDIN_VIDEO_PART_TIMEOUT_MS),
+  });
+  if (!thumbnailRes.ok) {
+    const errorBody = await thumbnailRes.text();
+    throw new Error(`LinkedIn video thumbnail upload failed (${thumbnailRes.status}): ${errorBody}`);
+  }
+
+  // Step 4: Finalize
   const finalizeRes = await fetch(`${LINKEDIN_API_BASE}/rest/videos?action=finalizeUpload`, {
     method: "POST",
     headers,
@@ -365,7 +382,7 @@ export async function uploadVideo(
     throw new Error(`LinkedIn video finalize failed (${finalizeRes.status}): ${errorBody}`);
   }
 
-  // Step 4: Wait for processing
+  // Step 5: Wait for processing
   const deadline = Date.now() + maxWaitMs;
   for (;;) {
     const statusRes = await fetch(`${LINKEDIN_API_BASE}/rest/videos/${encodeURIComponent(videoUrn)}`, {
