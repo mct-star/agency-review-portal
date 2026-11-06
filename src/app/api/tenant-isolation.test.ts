@@ -26,6 +26,10 @@ vi.mock("@/lib/supabase/server", () => ({
   getUser: async () => (state.user ? { id: state.user.id, email: "a@example.com" } : null),
   createServerSupabaseClient: async () => state.supabase.client,
 }));
+const connectBluesky = vi.hoisted(() => vi.fn(async () => ({ ok: true as const, handle: "h.bsky.social", did: "did:plc:x" })));
+vi.mock("@/lib/bluesky/connect", () => ({ connectBlueskyAccount: connectBluesky }));
+const linkedinExchange = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/linkedin/client", async (orig) => ({ ...(await orig<Record<string, unknown>>()), exchangeCodeForTokens: linkedinExchange }));
 vi.mock("@/lib/providers", () => ({ resolveProvider: async () => ({ provider: "anthropic_claude", credentials: { api_key: "k" }, settings: {} }) }));
 vi.mock("@/lib/providers/content-adaptation/claude-util", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -35,7 +39,13 @@ vi.mock("@/lib/providers/content-adaptation/claude-util", async (orig) => ({
 import { POST as regulatory } from "./review/regulatory/route";
 import { POST as overlay } from "./generate/overlay/route";
 import { GET as jobStatus } from "./generate/status/[jobId]/route";
-import { POST as linkedinDirect } from "./publish/linkedin-direct/route";
+import { POST as linkedinDirect, DELETE as linkedinDisconnect } from "./publish/linkedin-direct/route";
+import { DELETE as socialDisconnect } from "./publish/social/route";
+import { GET as linkedinStart } from "./auth/linkedin/route";
+import { GET as linkedinCallback } from "./auth/linkedin/callback/route";
+import { GET as blueskyStart, POST as blueskyConnect } from "./auth/bluesky/route";
+import { POST as blueskyAppPassword } from "./config/social-accounts/bluesky/route";
+import { signOAuthState } from "@/lib/linkedin/oauth-state";
 import { POST as bluesky } from "./publish/bluesky/route";
 import { GET as trialEmails } from "./cron/trial-emails/route";
 import { POST as voice } from "./generate/transcribe/voice/route";
@@ -105,6 +115,103 @@ describe("direct publishing", () => {
     expect(res.status).toBe(400);
     const res2 = await bluesky(post({ companyId: A, text: "hi", imageUrl: "https://evil.example/x.png" }));
     expect(res2.status).toBe(400);
+  });
+});
+
+/**
+ * Channel connections (LinkedIn and Bluesky): an admin may connect any
+ * company; a client only their own, and only with can_publish. A client in A
+ * can never start, complete, replace or disconnect a channel for B.
+ */
+describe("channel connections", () => {
+  const del = (body: Record<string, unknown>) =>
+    new Request("http://x/api", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const get = (path: string) => new Request(`https://portal.example${path}`);
+  const writes = () => state.supabase.calls.filter((c) => c.table === "company_social_accounts" && ["update", "upsert", "insert", "delete"].includes(c.method));
+  const asClient = (company: string, canPublish: boolean) => { state.user = { id: "u-a", role: "client", company_id: company, can_publish: canPublish }; };
+
+  beforeEach(() => {
+    process.env.LINKEDIN_CLIENT_ID = "id";
+    process.env.LINKEDIN_CLIENT_SECRET = "secret";
+    connectBluesky.mockClear();
+    linkedinExchange.mockReset();
+    asClient(A, true);
+    state.supabase = fakeSupabase({ company_social_accounts: { data: { id: "acc-1", platform: "bluesky" } } });
+  });
+
+  it("starts LinkedIn for a client's own company with a state bound to the user and the company", async () => {
+    const res = await linkedinStart(get(`/api/auth/linkedin?companyId=${A}`));
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location")!);
+    expect(location.hostname).toBe("www.linkedin.com");
+    const { verifyOAuthState } = await import("@/lib/linkedin/oauth-state");
+    expect(await verifyOAuthState(location.searchParams.get("state"), "secret")).toMatchObject({ companyId: A, userId: "u-a" });
+  });
+  it("refuses a client starting LinkedIn for another company with 403", async () => {
+    const res = await linkedinStart(get(`/api/auth/linkedin?companyId=${B}`));
+    expect(res.status).toBe(403);
+    expect(state.supabase.calls.filter((c) => c.table === "companies")).toHaveLength(0);
+  });
+  it("refuses a client without can_publish on every channel route, for their own company too", async () => {
+    asClient(A, false);
+    expect((await linkedinStart(get(`/api/auth/linkedin?companyId=${A}`))).status).toBe(403);
+    expect((await blueskyStart(get(`/api/auth/bluesky?companyId=${A}&handle=h.bsky.social`))).status).toBe(403);
+    expect((await blueskyConnect(post({ companyId: A, handle: "h.bsky.social", appPassword: "x" }))).status).toBe(403);
+    expect((await blueskyAppPassword(post({ companyId: A, handle: "h.bsky.social", appPassword: "x" }))).status).toBe(403);
+    expect((await linkedinDisconnect(del({ companyId: A, socialAccountId: "acc-1" }))).status).toBe(403);
+    expect((await socialDisconnect(del({ companyId: A, socialAccountId: "acc-1" }))).status).toBe(403);
+    expect(connectBluesky).not.toHaveBeenCalled();
+    expect(writes()).toHaveLength(0);
+  });
+  it("refuses a client completing a LinkedIn flow for another company, with no token exchange or write", async () => {
+    const forged = await signOAuthState({ companyId: B, userId: "u-a", returnTo: "setup" }, "secret");
+    const res = await linkedinCallback(get(`/api/auth/linkedin/callback?code=abc&state=${encodeURIComponent(forged)}`));
+    expect(res.headers.get("location")).toContain("linkedin_error=not_authorised");
+    expect(linkedinExchange).not.toHaveBeenCalled();
+    expect(writes()).toHaveLength(0);
+  });
+  it("refuses a client starting or replacing Bluesky for another company", async () => {
+    expect((await blueskyStart(get(`/api/auth/bluesky?companyId=${B}&handle=h.bsky.social`))).status).toBe(403);
+    expect((await blueskyConnect(post({ companyId: B, handle: "h.bsky.social", appPassword: "x" }))).status).toBe(403);
+    expect((await blueskyAppPassword(post({ companyId: B, handle: "h.bsky.social", appPassword: "x" }))).status).toBe(403);
+    expect(connectBluesky).not.toHaveBeenCalled();
+    expect(writes()).toHaveLength(0);
+  });
+  it("lets a client replace Bluesky for their own company", async () => {
+    const res = await blueskyAppPassword(post({ companyId: A, handle: "h.bsky.social", appPassword: "x" }));
+    expect(res.status).toBe(200);
+    expect(connectBluesky).toHaveBeenCalledWith(A, "h.bsky.social", "x");
+  });
+  it("refuses a client disconnecting another company's LinkedIn or Bluesky account", async () => {
+    expect((await linkedinDisconnect(del({ companyId: B, socialAccountId: "acc-1" }))).status).toBe(403);
+    expect((await socialDisconnect(del({ companyId: B, socialAccountId: "acc-1" }))).status).toBe(403);
+    expect(writes()).toHaveLength(0);
+  });
+  it("scopes a client's own disconnect to their company, whatever account id is named", async () => {
+    expect((await socialDisconnect(del({ companyId: A, socialAccountId: "acc-of-b" }))).status).toBe(200);
+    expect((await linkedinDisconnect(del({ companyId: A, socialAccountId: "acc-of-b" }))).status).toBe(200);
+    const eqs = eqCalls(state.supabase.calls, "company_social_accounts");
+    expect(eqs).toContainEqual(["company_id", A]);
+    expect(eqs.some((args) => args[0] === "company_id" && args[1] === B)).toBe(false);
+    expect(writes().length).toBeGreaterThan(0);
+  });
+  it("refuses a hospitality venue's client on the connect routes", async () => {
+    state.supabase = fakeSupabase({ companies: { data: { post_pack: "hospitality" } } });
+    expect((await linkedinStart(get(`/api/auth/linkedin?companyId=${A}`))).status).toBe(403);
+    expect((await blueskyStart(get(`/api/auth/bluesky?companyId=${A}&handle=h.bsky.social`))).status).toBe(403);
+    expect((await blueskyAppPassword(post({ companyId: A, handle: "h.bsky.social", appPassword: "x" }))).status).toBe(403);
+  });
+  it("needs a sign-in", async () => {
+    state.user = null;
+    expect((await linkedinStart(get(`/api/auth/linkedin?companyId=${A}`))).status).toBe(401);
+    expect((await socialDisconnect(del({ companyId: A, socialAccountId: "acc-1" }))).status).toBe(401);
+  });
+  it("keeps working for an admin on any company", async () => {
+    state.user = { id: "admin-1", role: "admin", company_id: null, can_publish: true };
+    expect((await linkedinStart(get(`/api/auth/linkedin?companyId=${B}`))).status).toBe(307);
+    expect((await blueskyAppPassword(post({ companyId: B, handle: "h.bsky.social", appPassword: "x" }))).status).toBe(200);
+    expect((await linkedinDisconnect(del({ companyId: B, socialAccountId: "acc-1" }))).status).toBe(200);
+    expect((await socialDisconnect(del({ companyId: B, socialAccountId: "acc-1" }))).status).toBe(200);
   });
 });
 

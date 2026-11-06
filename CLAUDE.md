@@ -43,8 +43,12 @@ Run `npx tsc --noEmit` and `npm test` after any non-trivial change.
 - **Publishing needs `can_publish`** (or admin). Server-side fetches of
   caller-supplied URLs go through `isOurStorageUrl`
   (`src/lib/media/our-storage-url.ts`).
-- **OAuth state is signed** (`src/lib/linkedin/oauth-state.ts`); the callback
-  requires the admin who started the flow.
+- **OAuth state is signed** (`src/lib/linkedin/oauth-state.ts`) and carries the
+  starting user and the target company. Connecting, replacing and disconnecting
+  LinkedIn or Bluesky goes through `authoriseChannelManager`
+  (`src/lib/auth/channel-manager.ts`): an admin for any company, or a client of
+  that company with `can_publish`; anyone else gets 403. The callback requires
+  the same user who started the flow and re-checks that right.
 - **Crons fail closed** on a missing `CRON_SECRET`.
 - **Hospitality fence.** `src/lib/hospitality/b2b-only.ts` names the B2B-only
   pages; `refuseHospitality` in `pack-guard.ts` goes in every client-callable

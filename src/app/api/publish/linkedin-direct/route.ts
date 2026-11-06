@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser, requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
@@ -125,12 +126,12 @@ export async function GET(request: Request) {
 }
 
 
-/** Administrators withdraw one company-owned LinkedIn grant without deleting publishing history. */
+/** An admin, or a client of the company with the publish right, withdraws one company-owned LinkedIn grant without deleting publishing history. */
 export async function DELETE(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => null) as { companyId?: string; socialAccountId?: string } | null;
   if (!body?.companyId || !body.socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
+  const auth = await authoriseChannelManager(body.companyId);
+  if (!auth.ok) return auth.response;
   const supabase = await createAdminSupabaseClient();
   const { data: account } = await supabase.from("company_social_accounts").select("id")
     .eq("id", body.socialAccountId).eq("company_id", body.companyId).eq("platform", "linkedin_personal").maybeSingle();

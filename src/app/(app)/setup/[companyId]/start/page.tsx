@@ -23,6 +23,6 @@ export default async function StartSetupPage({ params }: { params: Promise<{ com
   const initial = progressForCompany(user?.user_metadata, companyId, hospitality);
   return <WorkspaceSetup company={company} userId={profile.id} readiness={readiness}
     initialStep={initial?.step || nextSetupStep(readiness, hospitality)}
-    canConnect={profile.role === "admin"} canPublish={profile.role === "admin" || !!profile.can_publish}
+    canConnect={profile.role === "admin"} canSelfConnect={profile.role !== "admin" && !!profile.can_publish} canPublish={profile.role === "admin" || !!profile.can_publish}
     readOnly={!!profile.viewing_as} />;
 }

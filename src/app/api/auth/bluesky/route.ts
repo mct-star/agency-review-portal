@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser } from "@/lib/supabase/admin";
+import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { connectBlueskyAccount } from "@/lib/bluesky/connect";
 import { BLUESKY_NONCE_COOKIE, BLUESKY_OAUTH_SCOPE, blueskyOAuthConfig, createBlueskyOAuthClient, createBlueskyOAuthState, newBlueskyNonce } from "@/lib/bluesky/oauth";
 
@@ -9,9 +9,9 @@ export async function GET(request: Request) {
   const companyId = url.searchParams.get("companyId");
   const handle = url.searchParams.get("handle")?.trim().replace(/^@/, "");
   if (!companyId || !handle) return NextResponse.json({ error: "companyId and handle are required." }, { status: 400 });
-  const profile = await requireCompanyUser(companyId);
-  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (profile.role !== "admin") return NextResponse.json({ error: "Only an administrator can connect publishing accounts." }, { status: 403 });
+  const auth = await authoriseChannelManager(companyId, { fence: true });
+  if (!auth.ok) return auth.response;
+  const profile = auth.profile;
   if (!blueskyOAuthConfig()) return NextResponse.json({ error: "Bluesky OAuth is not configured." }, { status: 503 });
   const nonce = newBlueskyNonce();
   const state = createBlueskyOAuthState({ companyId, userId: profile.id, nonce, returnTo: url.searchParams.get("returnTo") === "publish" ? "publish" : "setup" });
@@ -30,9 +30,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { companyId?: string; handle?: string; appPassword?: string } | null;
   if (!body?.companyId || !body.handle || !body.appPassword) return NextResponse.json({ error: "companyId, handle and appPassword are required." }, { status: 400 });
-  const profile = await requireCompanyUser(body.companyId);
-  if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (profile.role !== "admin") return NextResponse.json({ error: "Only an administrator can connect publishing accounts." }, { status: 403 });
+  const auth = await authoriseChannelManager(body.companyId, { fence: true });
+  if (!auth.ok) return auth.response;
   try {
     const result = await connectBlueskyAccount(body.companyId, body.handle, body.appPassword);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

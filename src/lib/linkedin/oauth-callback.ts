@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabaseClient, requireAdmin } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { encrypt } from "@/lib/crypto";
 import { exchangeCodeForTokens, getProfile } from "@/lib/linkedin/client";
 import { oauthStateSecret, verifyOAuthState } from "./oauth-state";
@@ -10,8 +11,9 @@ import { saveLinkedInPhoto } from "./profile-photo";
  * the legacy branch of /api/auth/linkedin (whichever address LinkedIn is
  * registered to redirect to).
  *
- * The state must verify, the caller must be the signed-in admin who started
- * the flow, and the browser always returns to the (app) tree: the company's
+ * The state must verify, the caller must be the signed-in user who started
+ * the flow and must still be allowed to act for the company in the state (an
+ * admin, or a client of that company with the publish right), and the browser always returns to the (app) tree: the company's
  * Connections page, or /publish when it started there.
  */
 export async function handleLinkedInCallback(request: Request): Promise<NextResponse> {
@@ -33,8 +35,11 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
     return NextResponse.redirect(returnUrl("linkedin_error=invalid_state"));
   }
 
-  const admin = await requireAdmin();
-  if (!admin || admin.id !== verified.userId) {
+  const auth = await authoriseChannelManager(verified.companyId, { fence: true });
+  if (!auth.ok) {
+    return NextResponse.redirect(returnUrl(`linkedin_error=${auth.status === 401 ? "not_signed_in" : "not_authorised"}`));
+  }
+  if (auth.profile.id !== verified.userId) {
     return NextResponse.redirect(returnUrl("linkedin_error=not_signed_in"));
   }
 

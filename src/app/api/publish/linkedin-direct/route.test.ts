@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   requireAdmin: vi.fn(async () => state.profile?.role === "admin" ? state.profile : null),
+  getSignedInProfile: vi.fn(async () => state.profile),
   requireCompanyUser: vi.fn(async (companyId: string) => state.profile?.company_id === companyId || state.profile?.role === "admin" ? state.profile : null),
   createAdminSupabaseClient: async () => ({
     from: (table: string) => {
@@ -136,9 +137,16 @@ describe("LinkedIn connection metadata and withdrawal", () => {
     expect(body.accounts[0]).toMatchObject({ id: "account-1", usable: true });
     expect(JSON.stringify(body)).not.toContain("ciphertext");
   });
-  it("allows only administrators to withdraw grants", async () => {
+  it("lets a client with the publish right withdraw their own company's grant", async () => {
     const response = await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }));
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(200);
+    expect(state.updates).toHaveLength(1);
+  });
+  it("refuses a client without the publish right, and a client of another company", async () => {
+    state.profile = { id: "user-1", role: "client", company_id: "company-1", can_publish: false };
+    expect((await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }))).status).toBe(403);
+    state.profile = { id: "user-2", role: "client", company_id: "company-2", can_publish: true };
+    expect((await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }))).status).toBe(403);
     expect(state.updates).toHaveLength(0);
   });
   it("refuses an account outside the selected company and scopes every update", async () => {
