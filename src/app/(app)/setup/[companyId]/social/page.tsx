@@ -13,6 +13,6 @@ export default async function CompanySocialPage({ params }: { params: Promise<{ 
   const supabase = await createAdminSupabaseClient();
   const { data: company } = await supabase.from("companies").select("post_pack").eq("id", companyId).maybeSingle();
   return <Suspense fallback={<p className="text-sm text-gray-600">Loading connections...</p>}>
-    <CompanyConnections userId={profile.id} companyId={companyId} canPublish={profile.role === "admin" || !!profile.can_publish} canConnect={profile.role === "admin"} isHospitality={company?.post_pack === "hospitality"} />
+    <CompanyConnections userId={profile.id} companyId={companyId} canPublish={profile.role === "admin" || !!profile.can_publish} canConnect={profile.role === "admin"} canSelfConnect={profile.role !== "admin" && !!profile.can_publish} isHospitality={company?.post_pack === "hospitality"} />
   </Suspense>;
 }

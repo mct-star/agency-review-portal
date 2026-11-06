@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAccessCompany,
   canInvite,
+  canManageChannels,
   canSetPublishRight,
   companyIdFromCapturePath,
 } from "./permissions";
@@ -47,5 +48,27 @@ describe("companyIdFromCapturePath", () => {
   it("returns null for anything that is not a company-prefixed key", () => {
     expect(companyIdFromCapturePath("photos/x.jpg")).toBeNull();
     expect(companyIdFromCapturePath("")).toBeNull();
+  });
+});
+
+describe("canManageChannels", () => {
+  const client = (over: Record<string, unknown> = {}) => ({ id: "c", role: "client", company_id: A, can_publish: true, ...over });
+  it("admits an admin to any company", () => {
+    expect(canManageChannels({ id: "1", role: "admin", company_id: null }, A)).toBe(true);
+    expect(canManageChannels({ id: "1", role: "admin", company_id: null }, B)).toBe(true);
+  });
+  it("admits a client with the publish right to their own company only", () => {
+    expect(canManageChannels(client(), A)).toBe(true);
+    expect(canManageChannels(client(), B)).toBe(false);
+  });
+  it("refuses a client without the publish right, whether false, null or missing", () => {
+    expect(canManageChannels(client({ can_publish: false }), A)).toBe(false);
+    expect(canManageChannels(client({ can_publish: null }), A)).toBe(false);
+    expect(canManageChannels(client({ can_publish: undefined }), A)).toBe(false);
+  });
+  it("refuses a missing profile, a missing company and an unknown role", () => {
+    expect(canManageChannels(null, A)).toBe(false);
+    expect(canManageChannels(client(), null)).toBe(false);
+    expect(canManageChannels(client({ role: "viewer" }), A)).toBe(false);
   });
 });

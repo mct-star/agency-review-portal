@@ -37,6 +37,21 @@ export function canInvite(
   return canAccessCompany(profile, companyId);
 }
 
+/**
+ * Connecting, replacing and disconnecting a company's publishing channels
+ * (LinkedIn, Bluesky). An admin may do it for any company. A client may do it
+ * only for their own company and only with the publish right, which an admin
+ * switches on. Everything else is refused.
+ */
+export function canManageChannels(
+  profile: (AccessProfile & { can_publish?: boolean | null }) | null | undefined,
+  companyId: string | null | undefined
+): boolean {
+  if (!profile || !companyId) return false;
+  if (profile.role === "admin") return true;
+  return profile.role === "client" && profile.company_id === companyId && profile.can_publish === true;
+}
+
 export function canSetPublishRight(profile: AccessProfile | null | undefined): boolean {
   return !!profile && profile.role === "admin";
 }

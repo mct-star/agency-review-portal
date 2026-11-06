@@ -11,12 +11,13 @@ import { clearConnectionReturn } from "@/lib/connections/return-context";
 const labels: Record<SetupStep, string> = { brand: "Brand basics", voice: "Writing voice", connections: "Social accounts", create: "First post" };
 
 /** Resumable first setup; edits the same company settings and connections used after onboarding. */
-export default function WorkspaceSetup({ company, userId, initialStep, readiness, canConnect, canPublish, readOnly = false }: {
+export default function WorkspaceSetup({ company, userId, initialStep, readiness, canConnect, canSelfConnect = false, canPublish, readOnly = false }: {
   company: SetupCompany;
   userId: string;
   initialStep: SetupStep;
   readiness: SetupReadiness;
   canConnect: boolean;
+  canSelfConnect?: boolean;
   canPublish: boolean;
   readOnly?: boolean;
 }) {
@@ -142,7 +143,7 @@ export default function WorkspaceSetup({ company, userId, initialStep, readiness
     {step === "connections" && <section className="space-y-5" aria-labelledby="setup-connections">
       <div><h3 id="setup-connections" className="workspace-section-title">Connect where you want to publish</h3>
         <p className="mt-1 text-sm text-gray-600">Connect now or skip this step. Manage these accounts later in Settings, Connections.</p></div>
-      <CompanyConnections companyId={company.id} canConnect={canConnect && !readOnly} canPublish={canPublish && !readOnly} isHospitality={hospitality} userId={userId} returnTarget="setup" />
+      <CompanyConnections companyId={company.id} canConnect={canConnect && !readOnly} canSelfConnect={canSelfConnect && !readOnly} canPublish={canPublish && !readOnly} isHospitality={hospitality} userId={userId} returnTarget="setup" />
       <button type="button" disabled={busy} onClick={() => move("create")} className="workspace-button">Continue to your first post</button>
     </section>}
 

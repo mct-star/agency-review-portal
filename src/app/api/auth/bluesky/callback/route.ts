@@ -1,7 +1,8 @@
 import { socialOAuthReturnPath } from "@/lib/connections/state";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getSignedInProfile, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { BLUESKY_NONCE_COOKIE, blueskyOAuthConfig, createBlueskyOAuthClient, encodeBlueskySession, verifyBlueskyPendingState } from "@/lib/bluesky/oauth";
 
@@ -26,9 +27,8 @@ export async function GET(request: Request) {
   const verified = verifyBlueskyPendingState({ companyId: pending.company_id, userId: pending.user_id, appState: savedState.appState, expiresAt: pending.expires_at }, nonce);
   if (!verified) return fail("invalid_state");
   state = verified;
-  const profile = await getSignedInProfile();
-  const companyUser = await requireCompanyUser(state.companyId);
-  if (!profile || profile.id !== state.userId || profile.role !== "admin" || !companyUser || companyUser.role !== "admin") return fail("not_authorised");
+  const auth = await authoriseChannelManager(state.companyId, { fence: true });
+  if (!auth.ok || auth.profile.id !== state.userId) return fail("not_authorised");
   if (url.searchParams.has("error") || !url.searchParams.has("code")) return fail("grant_cancelled");
 
   try {

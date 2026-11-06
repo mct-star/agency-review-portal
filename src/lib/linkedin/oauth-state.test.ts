@@ -24,3 +24,30 @@ describe("LinkedIn OAuth state", () => {
     expect(await verifyOAuthState(state, "secret", t0 + (OAUTH_STATE_TTL_SECONDS + 1) * 1000)).toBeNull();
   });
 });
+
+describe("LinkedIn OAuth state binding", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const swap = (state: string, change: Record<string, unknown>) => {
+    const [p, exp, sig] = state.split(".");
+    const body = JSON.parse(Buffer.from(p, "base64url").toString("utf8"));
+    return `${Buffer.from(JSON.stringify({ ...body, ...change })).toString("base64url")}.${exp}.${sig}`;
+  };
+  it("carries the starting user and the target company", async () => {
+    const state = await signOAuthState({ companyId: A, userId: "u-a", returnTo: "setup" }, "secret");
+    const verified = await verifyOAuthState(state, "secret");
+    expect(verified).toMatchObject({ companyId: A, userId: "u-a" });
+  });
+  it("rejects a state whose user id is swapped for another user's", async () => {
+    const state = await signOAuthState({ companyId: A, userId: "u-a", returnTo: "setup" }, "secret");
+    expect(await verifyOAuthState(swap(state, { userId: "u-b" }), "secret")).toBeNull();
+  });
+  it("rejects a state whose company id is swapped for another company's", async () => {
+    const state = await signOAuthState({ companyId: A, userId: "u-a", returnTo: "setup" }, "secret");
+    expect(await verifyOAuthState(swap(state, { companyId: B }), "secret")).toBeNull();
+  });
+  it("rejects a state with no user id", async () => {
+    const state = await signOAuthState({ companyId: A, returnTo: "setup" } as never, "secret");
+    expect(await verifyOAuthState(state, "secret")).toBeNull();
+  });
+});

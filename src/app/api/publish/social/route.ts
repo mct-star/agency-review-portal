@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { decrypt } from "@/lib/crypto";
 import {
@@ -170,9 +171,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const body = await request.json().catch(() => null) as { companyId?: string; socialAccountId?: string } | null;
   if (!body?.companyId || !body.socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
-  const user = await requireCompanyUser(body.companyId);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "admin" && !user.can_publish) return NextResponse.json({ error: "Your account cannot manage publishing." }, { status: 403 });
+  const auth = await authoriseChannelManager(body.companyId);
+  if (!auth.ok) return auth.response;
   const supabase = await createAdminSupabaseClient();
   const { data: account } = await supabase.from("company_social_accounts").select("id,platform")
     .eq("id", body.socialAccountId).eq("company_id", body.companyId).in("platform", ["bluesky", "threads", "twitter", "pinterest", "youtube"]).maybeSingle();
