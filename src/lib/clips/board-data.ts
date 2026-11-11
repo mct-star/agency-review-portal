@@ -68,6 +68,8 @@ export interface ClipRenderVerify {
   failures: string[];
   caption_band?: unknown;
   bursts?: unknown;
+  captionStyle?: string;
+  effectiveStyle?: string;
 }
 
 export interface ClipRender {
