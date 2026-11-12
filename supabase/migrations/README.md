@@ -23,6 +23,11 @@ who, when, how). Apply it BEFORE merging the code that writes it: until it
 exists, content/approve, review/bulk-approve and the Ops bridge approval
 return an error and change nothing, and the Mac's Phase B2 publish holds.
 
+NOT YET APPLIED (12 November 2026): `20261112090000_review_notes.sql`
+adds `review_notes` (dictated notes on a piece, each anchored to the
+paragraph in view). Apply it before merging the code that reads it: until it
+exists, the dictate bar on /content/[pieceId] shows an error and saves nothing.
+
 `supabase/run_pending_migrations_018_to_022.sql` is an old catch-up script and
 stays where it is.
 

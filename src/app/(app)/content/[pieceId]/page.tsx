@@ -20,6 +20,7 @@ import type { Comment, ContentImage, User } from "@/types/database";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { basePostType, pieceFeed } from "@/lib/content/feed";
 import ContentSourceReference from "@/components/content/ContentSourceReference";
+import ReviewNotes from "@/components/content/ReviewNotes";
 
 interface PageProps {
   params: Promise<{ pieceId: string }>;
@@ -123,8 +124,11 @@ export default async function ContentPiecePage({ params }: PageProps) {
   });
   const articleDone = [1, 2, 3].filter(n => (images || []).some(i => i.archetype === `in_article_image_prompt_${n}`));
 
+  // Long-form reads get the dictate bar: notes spoken while scrolling, kept per paragraph.
+  const dictatedNotes = ["blog_article", "linkedin_article"].includes(piece.content_type);
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className={`mx-auto max-w-6xl space-y-6${dictatedNotes ? " pb-28" : ""}`}>
       <nav aria-label="Content breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
         <Link href="/review" className="flex min-h-11 items-center hover:text-gray-900">Content Review</Link>
         {piece.week_id && (piece.week?.week_number ?? 0) > 0 && <><span aria-hidden="true">/</span><Link href={`/review/${piece.week_id}`} className="flex min-h-11 items-center hover:text-gray-900">{formatWeekLabel(piece.week?.date_start, piece.week?.week_number ?? 0)}</Link></>}
@@ -239,6 +243,10 @@ export default async function ContentPiecePage({ params }: PageProps) {
 
         </aside>
       </div>
+
+      {dictatedNotes && (
+        <ReviewNotes pieceId={piece.id} companyId={piece.company_id} title={piece.title || ""} />
+      )}
 
       {/* Images */}
       {(images || []).length > 0 && (
