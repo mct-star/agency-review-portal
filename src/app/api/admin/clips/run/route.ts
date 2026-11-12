@@ -30,7 +30,9 @@ const VALID_CAPTION_STYLES = new Set(["auto", "editorial", "chest"]);
  * source, sourceAssetId, caption_style) without updating that handler
  * in lockstep. caption_style is sent only when the caller supplies it, in
  * snake_case only (the handler also reads captionStyle and refuses a
- * disagreement); when absent the handler defaults to auto.
+ * disagreement); when absent the handler defaults to auto. A camelCase
+ * captionStyle in the body is refused with 400, and so is a null
+ * caption_style (stricter than the handler, which treats null as auto).
  *
  * Deliberately NO weeks mirror: a per-clip render belongs to a week but
  * is not the week, so it must never touch weeks.run_state.
@@ -55,17 +57,6 @@ export async function POST(request: Request) {
     : ["9x16"];
   const variant = body?.variant ?? "clean";
 
-  const captionStyle = body?.caption_style;
-  if (
-    captionStyle !== undefined &&
-    (typeof captionStyle !== "string" || !VALID_CAPTION_STYLES.has(captionStyle))
-  ) {
-    return NextResponse.json(
-      { error: "caption_style must be one of auto, editorial, chest" },
-      { status: 400 }
-    );
-  }
-
   if (typeof contentPieceId !== "string" || !contentPieceId) {
     return NextResponse.json(
       { error: "contentPieceId is required" },
@@ -82,6 +73,23 @@ export async function POST(request: Request) {
   if (variant !== "clean") {
     return NextResponse.json(
       { error: 'variant must be "clean" (only value in v1)' },
+      { status: 400 }
+    );
+  }
+
+  const captionStyle = body?.caption_style;
+  if (body?.captionStyle !== undefined) {
+    return NextResponse.json(
+      { error: "Send caption_style, not captionStyle" },
+      { status: 400 }
+    );
+  }
+  if (
+    captionStyle !== undefined &&
+    (typeof captionStyle !== "string" || !VALID_CAPTION_STYLES.has(captionStyle))
+  ) {
+    return NextResponse.json(
+      { error: "caption_style must be one of auto, editorial, chest" },
       { status: 400 }
     );
   }

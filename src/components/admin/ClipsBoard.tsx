@@ -6,6 +6,7 @@ import type { ClipCard, SelectableWeek } from "@/lib/clips/board-data";
 import type { JobStatus } from "@/types/database";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
 import { VIDEO_MIME_TYPES, MAX_VIDEO_BYTES } from "@/lib/upload/media-constants";
+import { CAPTION_STYLE_OPTIONS, buildRunBody, captionStyleLabel, type CaptionStyle } from "@/lib/clips/caption-style";
 
 interface ClipsBoardProps {
   initialClips: ClipCard[];
@@ -33,23 +34,6 @@ const JOB_STATUS_META: Record<JobStatus, StatusMeta> = {
   failed: { label: "Failed", badgeClass: "bg-red-50 text-red-700", dotClass: "bg-red-500" },
   cancelled: { label: "Cancelled", badgeClass: "bg-gray-100 text-gray-500", dotClass: "bg-gray-400" },
 };
-
-type CaptionStyle = "auto" | "editorial" | "chest";
-
-const CAPTION_STYLE_OPTIONS: { value: CaptionStyle; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "editorial", label: "Editorial" },
-  { value: "chest", label: "Chest" },
-];
-
-function captionStyleLabel(verify: { captionStyle?: string; effectiveStyle?: string } | null): string | null {
-  if (!verify?.captionStyle) return null;
-  const chosen = CAPTION_STYLE_OPTIONS.find((o) => o.value === verify.captionStyle)?.label ?? verify.captionStyle;
-  const used = verify.effectiveStyle
-    ? CAPTION_STYLE_OPTIONS.find((o) => o.value === verify.effectiveStyle)?.label ?? verify.effectiveStyle
-    : null;
-  return used && used !== chosen ? `Captions: ${chosen} (used ${used})` : `Captions: ${chosen}`;
-}
 
 const NOT_PROCESSED_META: StatusMeta = {
   label: "Not processed",
@@ -140,11 +124,7 @@ export default function ClipsBoard({ initialClips, initialWeeks }: ClipsBoardPro
       const res = await fetch("/api/admin/clips/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          captionStyle === "auto"
-            ? { contentPieceId: pieceId }
-            : { contentPieceId: pieceId, caption_style: captionStyle }
-        ),
+        body: JSON.stringify(buildRunBody(pieceId, captionStyle)),
       });
       const json = await res.json();
 
@@ -356,28 +336,27 @@ function ClipCardView({ clip, pending, errorMessage, onProcess }: ClipCardViewPr
       <div className="flex items-center justify-between pt-1">
         <span className="text-[11px] text-gray-400">{formatTimestamp(latestJob?.updated_at ?? null)}</span>
         <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1 text-[11px] text-gray-500">
-          Captions
-          <select
-            value={captionStyle}
-            onChange={(e) => setCaptionStyle(e.target.value as CaptionStyle)}
+          <label className="flex items-center gap-1 text-[11px] text-gray-500">
+            Captions
+            <select
+              value={captionStyle}
+              onChange={(e) => setCaptionStyle(e.target.value as CaptionStyle)}
+              disabled={buttonDisabled}
+              className="rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700 disabled:opacity-50"
+            >
+              {CAPTION_STYLE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={() => onProcess(piece.id, captionStyle)}
             disabled={buttonDisabled}
-            aria-label="Caption style"
-            className="rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700 disabled:opacity-50"
+            title={!rawAsset ? "Upload a clip before processing" : undefined}
+            className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {CAPTION_STYLE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-        <button
-          onClick={() => onProcess(piece.id, captionStyle)}
-          disabled={buttonDisabled}
-          title={!rawAsset ? "Upload a clip before processing" : undefined}
-          className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {buttonLabel}
-        </button>
+            {buttonLabel}
+          </button>
         </div>
       </div>
     </div>

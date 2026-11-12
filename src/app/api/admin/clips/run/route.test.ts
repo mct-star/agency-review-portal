@@ -83,4 +83,15 @@ describe("POST /api/admin/clips/run caption_style", () => {
     expect(res.status).toBe(400);
     expect(state.inserted).toBeNull();
   });
+
+  it("returns 400 for camelCase captionStyle rather than ignoring it", async () => {
+    const res = await POST(request({ contentPieceId: "piece-a", captionStyle: "chest" }));
+    expect(res.status).toBe(400);
+    expect(state.inserted).toBeNull();
+  });
+
+  it("checks contentPieceId before caption_style", async () => {
+    const res = await POST(request({ caption_style: "bold" }));
+    expect((await res.json()).error).toBe("contentPieceId is required");
+  });
 });
