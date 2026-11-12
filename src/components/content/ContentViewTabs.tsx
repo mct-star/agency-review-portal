@@ -111,7 +111,7 @@ export default function ContentViewTabs({
 
       {/* Content view */}
       {activeTab === "content" && (
-        <div className="workspace-panel p-5 sm:p-7">
+        <div className="workspace-panel p-5 sm:p-7" data-review-body>
           <MarkdownRenderer content={markdownBody} />
         </div>
       )}
