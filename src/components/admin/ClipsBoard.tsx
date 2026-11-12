@@ -6,6 +6,7 @@ import type { ClipCard, SelectableWeek } from "@/lib/clips/board-data";
 import type { JobStatus } from "@/types/database";
 import { useDirectUpload } from "@/lib/upload/use-direct-upload";
 import { VIDEO_MIME_TYPES, MAX_VIDEO_BYTES } from "@/lib/upload/media-constants";
+import { CAPTION_STYLE_OPTIONS, buildRunBody, captionStyleLabel, type CaptionStyle } from "@/lib/clips/caption-style";
 
 interface ClipsBoardProps {
   initialClips: ClipCard[];
@@ -111,7 +112,7 @@ export default function ClipsBoard({ initialClips, initialWeeks }: ClipsBoardPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleProcess(pieceId: string) {
+  async function handleProcess(pieceId: string, captionStyle: CaptionStyle) {
     setPendingPieceId(pieceId);
     setCardErrors((prev) => {
       const next = { ...prev };
@@ -123,7 +124,7 @@ export default function ClipsBoard({ initialClips, initialWeeks }: ClipsBoardPro
       const res = await fetch("/api/admin/clips/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentPieceId: pieceId }),
+        body: JSON.stringify(buildRunBody(pieceId, captionStyle)),
       });
       const json = await res.json();
 
@@ -211,11 +212,12 @@ interface ClipCardViewProps {
   clip: ClipCard;
   pending: boolean;
   errorMessage?: string;
-  onProcess: (pieceId: string) => void;
+  onProcess: (pieceId: string, captionStyle: CaptionStyle) => void;
 }
 
 function ClipCardView({ clip, pending, errorMessage, onProcess }: ClipCardViewProps) {
   const { piece, rawAsset, latestJob, renders } = clip;
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyle>("auto");
   const isActive = Boolean(latestJob && ACTIVE_JOB_STATUSES.includes(latestJob.status));
   const meta = latestJob ? JOB_STATUS_META[latestJob.status] : NOT_PROCESSED_META;
   const primaryRender = renders.find((r) => r.aspect === "9x16") ?? renders[0] ?? null;
@@ -315,6 +317,9 @@ function ClipCardView({ clip, pending, errorMessage, onProcess }: ClipCardViewPr
                     </a>
                   </div>
                 </div>
+                {captionStyleLabel(r.verify) && (
+                  <p className="mt-1 text-[11px] text-gray-500">{captionStyleLabel(r.verify)}</p>
+                )}
                 {r.verify && !r.verify.passed && r.verify.failures.length > 0 && (
                   <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] text-red-600">
                     {r.verify.failures.map((failure, i) => (
@@ -330,14 +335,29 @@ function ClipCardView({ clip, pending, errorMessage, onProcess }: ClipCardViewPr
 
       <div className="flex items-center justify-between pt-1">
         <span className="text-[11px] text-gray-400">{formatTimestamp(latestJob?.updated_at ?? null)}</span>
-        <button
-          onClick={() => onProcess(piece.id)}
-          disabled={buttonDisabled}
-          title={!rawAsset ? "Upload a clip before processing" : undefined}
-          className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {buttonLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1 text-[11px] text-gray-500">
+            Captions
+            <select
+              value={captionStyle}
+              onChange={(e) => setCaptionStyle(e.target.value as CaptionStyle)}
+              disabled={buttonDisabled}
+              className="rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700 disabled:opacity-50"
+            >
+              {CAPTION_STYLE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={() => onProcess(piece.id, captionStyle)}
+            disabled={buttonDisabled}
+            title={!rawAsset ? "Upload a clip before processing" : undefined}
+            className="rounded-md bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {buttonLabel}
+          </button>
+        </div>
       </div>
     </div>
   );
