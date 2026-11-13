@@ -45,7 +45,7 @@ export async function seedSampleContent(supabase: SupabaseClient, companyId: str
       content_type: "social_post",
       day_of_week: "Wednesday",
       scheduled_time: "08:26",
-      approval_status: "approved",
+      approval_status: "pending",
       sort_order: 2,
     },
     {

@@ -8,9 +8,16 @@ const calls: string[] = [];
 const inserted: Array<Record<string, unknown>> = [];
 let updatedIds: string[] = [];
 let insertError: { message: string } | null = null;
+let caller: { id: string; role: string; company_id: string | null } | null = { id: "u-michael", role: "admin", company_id: null };
+const companyChecks: string[] = [];
 
 vi.mock("@/lib/supabase/admin", () => ({
-  requireAdmin: vi.fn(async () => ({ id: "u-michael", role: "admin" })),
+  // The same gate as single approval: an admin, or a member of the week's company.
+  requireCompanyUser: vi.fn(async (companyId: string) => {
+    companyChecks.push(companyId);
+    if (!caller) return null;
+    return caller.role === "admin" || caller.company_id === companyId ? caller : null;
+  }),
   createAdminSupabaseClient: async () => ({
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
@@ -24,6 +31,7 @@ vi.mock("@/lib/supabase/admin", () => ({
         return chain;
       };
       chain.eq = () => chain;
+      chain.single = async () => ({ data: table === "weeks" ? { id: "w1", company_id: "c1" } : null, error: null });
       chain.in = () => chain;
       chain.returns = async () => ({ data: pending, error: null });
       chain.insert = async (rows: Array<Record<string, unknown>>) => {
@@ -49,7 +57,7 @@ import { POST } from "./route";
 const req = (body: unknown) =>
   new Request("http://localhost/api/review/bulk-approve", { method: "POST", body: JSON.stringify(body) });
 
-beforeEach(() => { calls.length = 0; inserted.length = 0; updatedIds = []; insertError = null; });
+beforeEach(() => { caller = { id: "u-michael", role: "admin", company_id: null }; companyChecks.length = 0; calls.length = 0; inserted.length = 0; updatedIds = []; insertError = null; });
 
 describe("POST /api/review/bulk-approve", () => {
   it("records one approval per pending piece, then approves exactly those pieces", async () => {
@@ -66,5 +74,26 @@ describe("POST /api/review/bulk-approve", () => {
     const res = await POST(req({ weekId: "w1" }));
     expect(res.status).toBe(500);
     expect(calls).toEqual(["insert:content_approvals"]);
+  });
+
+  it("lets a member of the week's company approve it, recorded against them", async () => {
+    caller = { id: "u-client", role: "client", company_id: "c1" };
+    const res = await POST(req({ weekId: "w1" }));
+    expect(res.status).toBe(200);
+    expect(companyChecks).toEqual(["c1"]);
+    expect(inserted.every((r) => r.decided_by === "u-client" && r.version_hash)).toBe(true);
+  });
+
+  it("refuses a member of another company and writes nothing", async () => {
+    caller = { id: "u-other", role: "client", company_id: "c2" };
+    const res = await POST(req({ weekId: "w1" }));
+    expect(res.status).toBe(401);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a signed-out caller", async () => {
+    caller = null;
+    expect((await POST(req({ weekId: "w1" }))).status).toBe(401);
+    expect(calls).toEqual([]);
   });
 });
