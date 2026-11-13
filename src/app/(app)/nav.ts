@@ -242,6 +242,7 @@ export function sectionsFor(user: User, postPack?: string, opts: NavOptions = {}
 export const DETAIL_PAGES: string[] = [
   "/content/[pieceId]",
   "/review/[weekId]",
+  "/review/[weekId]/deploy",
   "/review/piece/[pieceId]",
   "/compliance/[pieceId]",
   "/setup/[companyId]",

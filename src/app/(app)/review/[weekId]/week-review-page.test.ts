@@ -75,6 +75,16 @@ describe("week review dates", () => {
     expect(await render()).toContain("APPROVE-WEEK:example-week:1");
   });
 
+  it("links to Deploy week for a publisher once every piece is approved, and not before", async () => {
+    dates.approved = true;
+    expect(await render()).not.toContain('href="/review/example-week/deploy"');
+    dates.canPublish = true;
+    expect(await render()).toContain('href="/review/example-week/deploy"');
+    dates.approved = false;
+    dates.pending = true;
+    expect(await render()).not.toContain('href="/review/example-week/deploy"');
+  });
+
   it("does not offer Approve week when every piece is already approved", async () => {
     dates.approved = true;
     expect(await render()).not.toContain("APPROVE-WEEK");

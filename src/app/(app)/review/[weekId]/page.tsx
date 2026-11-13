@@ -213,6 +213,13 @@ export default async function WeekReviewPage({ params }: PageProps) {
             </div>
           </div>
 
+          {/* Deploy week: one confirmed action that queues the week (13 Nov 2026) */}
+          {(profile.role === "admin" || profile.can_publish) && (
+            <Link href={`/review/${weekId}/deploy`} className="workspace-button mb-4 inline-block">
+              Deploy week
+            </Link>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-3">
             {/* Scheduling CSV */}
             {socialPieces.length > 0 && (
