@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { APPROVABLE_COLUMNS, recordDecisions, type ApprovablePiece } from "@/lib/content/version-hash";
 
 /**
  * POST /api/review/bulk-approve
  *
- * Approve all pending content pieces in a week at once. Each piece's
+ * Approve all pending content pieces in a week at once, for an admin or a
+ * member of the week's company (the same people who can approve one piece). Each piece's
  * approval is recorded in content_approvals (version hash, who, when)
  * before its status changes (4 Nov 2026).
  *
@@ -15,11 +16,6 @@ import { APPROVABLE_COLUMNS, recordDecisions, type ApprovablePiece } from "@/lib
  * }
  */
 export async function POST(request: Request) {
-  const admin = await requireAdmin();
-  if (!admin) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const { weekId, pieceIds } = body;
 
@@ -29,12 +25,26 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
+  // The same gate as approving one piece: an admin, or a member of the
+  // week's own company. Another company's week answers the same as a
+  // missing one.
+  const { data: week } = await supabase
+    .from("weeks")
+    .select("id, company_id")
+    .eq("id", weekId)
+    .single<{ id: string; company_id: string }>();
+  const admin = week ? await requireCompanyUser(week.company_id) : null;
+  if (!week || !admin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   // The pending pieces this approval covers, read with what their version
   // hash needs.
   let pendingQuery = supabase
     .from("content_pieces")
     .select(APPROVABLE_COLUMNS)
     .eq("week_id", weekId)
+    .eq("company_id", week.company_id)
     .eq("approval_status", "pending");
   if (Array.isArray(pieceIds) && pieceIds.length > 0) {
     pendingQuery = pendingQuery.in("id", pieceIds);
@@ -59,6 +69,7 @@ export async function POST(request: Request) {
         .from("content_pieces")
         .update({ approval_status: "approved", updated_at: new Date().toISOString() })
         .in("id", covered.map((p) => p.id))
+        .eq("company_id", week.company_id)
         .eq("approval_status", "pending")
         .select("id")
     : { data: [], error: null };

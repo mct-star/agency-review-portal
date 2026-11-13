@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import { notFound, redirect } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import WeekReviewTabs from "@/components/content/WeekReviewTabs";
+import ApproveWeekButton from "@/components/review/ApproveWeekButton";
 import MetricoolExportButton from "@/components/weeks/MetricoolExportButton";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
 import type { Company, ContentPiece, ContentImage, ContentAsset } from "@/types/database";
@@ -88,6 +89,9 @@ export default async function WeekReviewPage({ params }: PageProps) {
   // Progress stats
   const totalPieces = pieces.length;
   const approvedCount = pieces.filter((p) => p.approval_status === "approved").length;
+  // Approve week covers pieces awaiting a decision; one with changes
+  // requested stays out until it is revised.
+  const pendingCount = pieces.filter((p) => p.approval_status === "pending").length;
   const changesCount = pieces.filter((p) => p.approval_status === "changes_requested").length;
 
   return (
@@ -159,6 +163,13 @@ export default async function WeekReviewPage({ params }: PageProps) {
             )}
           </div>
         </div>
+
+        {/* Approve week: every piece not yet approved, recorded one by one */}
+        {pendingCount > 0 && (
+          <div className="mt-4">
+            <ApproveWeekButton weekId={weekId} unapprovedCount={pendingCount} />
+          </div>
+        )}
 
         {/* Progress bar */}
         {totalPieces > 0 && (

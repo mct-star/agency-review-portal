@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const dates = vi.hoisted(() => ({ start: "2026-10-26", end: "2026-11-01", approved: false, canPublish: false, role: "client" }));
+const dates = vi.hoisted(() => ({ start: "2026-10-26", end: "2026-11-01", approved: false, pending: false, canPublish: false, role: "client" }));
 
 vi.mock("@/lib/supabase/server", () => ({
   getUserProfile: async () => ({ role: dates.role, can_publish: dates.canPublish, company_id: "example-company", company: { post_pack: "b2b" } }),
@@ -12,7 +12,7 @@ vi.mock("@/lib/supabase/server", () => ({
           id: "example-week", week_number: 44, date_start: dates.start, date_end: dates.end,
           status: "pending", pillar: "P1", theme: "A", title: "Example week",
           company: { id: "example-company", name: "Example Company" },
-        } : table === "content_pieces" && dates.approved ? [{ id: "approved-piece", content_type: "social_post", approval_status: "approved" }] : [],
+        } : table === "content_pieces" && dates.approved ? [{ id: "approved-piece", content_type: "social_post", approval_status: "approved" }] : dates.pending ? [{ id: "a", content_type: "social_post", approval_status: "approved" }, { id: "b", content_type: "social_post", approval_status: "pending" }, { id: "c", content_type: "social_post", approval_status: "changes_requested" }] : [],
       };
       const query = {
         select: () => query,
@@ -28,12 +28,13 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/components/content/WeekReviewTabs", () => ({ default: () => null }));
 vi.mock("@/components/weeks/MetricoolExportButton", () => ({ default: () => null }));
+vi.mock("@/components/review/ApproveWeekButton", () => ({ default: (p: { weekId: string; unapprovedCount: number }) => `APPROVE-WEEK:${p.weekId}:${p.unapprovedCount}` }));
 
 import WeekReviewPage from "./page";
 const render = async () => renderToStaticMarkup(await WeekReviewPage({ params: Promise.resolve({ weekId: "example-week" }) }));
 
 describe("week review dates", () => {
-  beforeEach(() => { dates.start = "2026-10-26"; dates.end = "2026-11-01"; dates.approved = false; dates.canPublish = false; dates.role = "client"; });
+  beforeEach(() => { dates.start = "2026-10-26"; dates.end = "2026-11-01"; dates.approved = false; dates.pending = false; dates.canPublish = false; dates.role = "client"; });
 
   it("shows a human date range without replacing the stored pillar and theme", async () => {
     const html = await render();
@@ -65,5 +66,17 @@ describe("week review dates", () => {
     expect(await render()).not.toContain("Publishing options");
     dates.canPublish = true;
     expect(await render()).toContain('href="/publish?companyId=example-company"');
+  });
+
+  it("offers Approve week for the pieces awaiting a decision (not ones with changes requested), to a client as to an admin", async () => {
+    dates.pending = true;
+    expect(await render()).toContain("APPROVE-WEEK:example-week:1");
+    dates.role = "admin";
+    expect(await render()).toContain("APPROVE-WEEK:example-week:1");
+  });
+
+  it("does not offer Approve week when every piece is already approved", async () => {
+    dates.approved = true;
+    expect(await render()).not.toContain("APPROVE-WEEK");
   });
 });

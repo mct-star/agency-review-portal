@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { postDecision } from "@/lib/content/post-decision";
 import type { ApprovalStatus } from "@/types/database";
 
 interface ApprovalButtonsProps {
@@ -22,17 +23,13 @@ export default function ApprovalButtons({
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // A blocked update returns no error and changes nothing, so every write
-  // asks for the row back and treats "no row" as a failure.
-  async function setStatus(status: ApprovalStatus): Promise<boolean> {
-    const supabase = createClient();
-    const { data, error: updErr } = await supabase
-      .from("content_pieces")
-      .update({ approval_status: status })
-      .eq("id", pieceId)
-      .select("id");
-    if (updErr || !data || data.length === 0) {
-      setError(`Not saved: ${updErr?.message || "you do not have permission to change this piece"}. Nothing was approved.`);
+  // The decision goes through the route that records it (version hash, who,
+  // when) before the status changes. A refusal is shown, nothing is assumed.
+  async function setStatus(status: ApprovalStatus, note?: string): Promise<boolean> {
+    if (status !== "approved" && status !== "changes_requested") return false;
+    const out = await postDecision(pieceId, status, note);
+    if (!out.ok) {
+      setError(`Not saved: ${out.error}. Nothing was approved.`);
       return false;
     }
     return true;
@@ -79,7 +76,7 @@ export default function ApprovalButtons({
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    if (!(await setStatus("changes_requested"))) { setLoading(false); return; }
+    if (!(await setStatus("changes_requested", changeComment.trim()))) { setLoading(false); return; }
 
     // Update week status
     await supabase
