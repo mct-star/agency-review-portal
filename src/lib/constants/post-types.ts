@@ -21,6 +21,11 @@ export const POST_PACKS: Record<PostPack, { label: string; description: string }
 
 export type PostTypeMedium = "image" | "carousel" | "video" | "text";
 export type PostTypeProduction = "portal" | "api" | "mac" | "manual";
+/**
+ * Whether a piece needs a recording from a person: none, casual (a talk-through
+ * or walkthrough on a phone, low setup) or shoot (needs lead time).
+ */
+export type PostTypeCapture = "none" | "casual" | "shoot";
 export type SlotType = "thesis" | "doc" | "carousel" | "reactive" | "video" | "meme";
 export type PostTypeContentType =
   | "social_post"
@@ -82,6 +87,8 @@ export interface PostTypeOption {
   medium: PostTypeMedium;
   /** Where the asset is produced: on the platform, on the Mac (video pipeline), or fully manual. */
   production: PostTypeProduction;
+  /** Whether the piece needs a recording from a person, and how much setup. */
+  capture: PostTypeCapture;
   /** The calendar_slots.slot_type this post type maps to. */
   slotType: SlotType;
   /** The content_pieces.content_type this post type writes. */
@@ -106,6 +113,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Monday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "problem_post",
@@ -128,6 +136,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Tuesday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "doc",
     contentType: "social_post",
     dbSlug: "launch_story",
@@ -151,6 +160,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Wednesday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "if_i_was",
@@ -173,6 +183,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Thursday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "contrarian",
@@ -195,6 +206,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Thursday",
     medium: "carousel",
     production: "portal",
+    capture: "none",
     slotType: "carousel",
     contentType: "social_post",
     dbSlug: "tactical",
@@ -217,6 +229,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Friday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "doc",
     contentType: "social_post",
     dbSlug: "founder_friday",
@@ -240,6 +253,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Sunday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "blog_teaser",
@@ -262,6 +276,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Saturday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "doc",
     contentType: "social_post",
     dbSlug: "personal_update",
@@ -283,6 +298,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "Visual pattern interrupt. The image-first post that stops the scroll before the copy even loads.",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "scene_provocation",
@@ -305,6 +321,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Tuesday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "case_study",
@@ -327,6 +344,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Wednesday",
     medium: "text",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "poll_question",
@@ -348,6 +366,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Thursday",
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "data_point",
@@ -370,6 +389,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Saturday",
     medium: "image",
     production: "api",
+    capture: "none",
     slotType: "meme",
     contentType: "meme",
     dbSlug: "meme",
@@ -390,6 +410,7 @@ export const POST_TYPES: PostTypeOption[] = [
     weekdayHint: "Sunday",
     medium: "image",
     production: "api",
+    capture: "none",
     slotType: "meme",
     contentType: "social_post",
     dbSlug: "mini_infographic",
@@ -409,6 +430,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "Puts a position on the record in the author's own name. Short enough to take in at a glance, specific enough to be argued with.",
     medium: "image",
     production: "api",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "profile_statement",
@@ -429,6 +451,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "Turns a strong podcast moment into a scroll-stopping short clip.",
     medium: "video",
     production: "mac",
+    capture: "none",
     slotType: "video",
     contentType: "video",
     dbSlug: "podcast_hook_clip",
@@ -450,6 +473,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "A short, direct thought straight to camera. Builds familiarity between longer content beats.",
     medium: "video",
     production: "mac",
+    capture: "casual",
     slotType: "video",
     contentType: "video",
     dbSlug: "talking_head",
@@ -471,6 +495,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "Fast-cut B-roll story that carries one sourced number. High-attention pattern interrupt in the feed.",
     medium: "video",
     production: "api",
+    capture: "none",
     slotType: "video",
     contentType: "video",
     dbSlug: "story_video",
@@ -492,6 +517,7 @@ export const POST_TYPES: PostTypeOption[] = [
     ecosystemRole: "Reaction or ranking format for high-engagement, opinionated short-form video.",
     medium: "video",
     production: "api",
+    capture: "casual",
     slotType: "video",
     contentType: "video_script",
     dbSlug: "reaction_ranking",
@@ -532,6 +558,7 @@ export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
     libraryQuery: { matchWeather: true, place: ["deck", "lake", "garden", "exterior", "dining_room", "bar"], subject: ["empty_scene"], avoidPeople: true },
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "weather_of_the_day",
@@ -556,6 +583,7 @@ export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
     libraryQuery: { place: ["dining_room", "kitchen", "bar", "deck"], subject: ["food", "drink"], avoidPeople: true },
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "special_of_the_day",
@@ -580,6 +608,7 @@ export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
     libraryQuery: { place: ["deck", "bar", "dining_room", "exterior"], subject: ["event", "empty_scene", "drink"], avoidPeople: true },
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "whats_on_this_week",
@@ -603,6 +632,7 @@ export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
     libraryQuery: { place: ["garden", "deck", "bar", "dining_room"], subject: ["people", "empty_scene", "drink"], avoidPeople: false },
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "reactive",
     contentType: "social_post",
     dbSlug: "live_scene",
@@ -626,6 +656,7 @@ export const HOSPITALITY_POST_TYPES: PostTypeOption[] = [
     libraryQuery: { place: ["dining_room", "bar", "deck", "exterior"], subject: ["event", "drink", "food"], avoidPeople: true },
     medium: "image",
     production: "portal",
+    capture: "none",
     slotType: "thesis",
     contentType: "social_post",
     dbSlug: "event",

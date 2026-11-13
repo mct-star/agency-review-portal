@@ -127,3 +127,19 @@ describe("hospitality pack", () => {
     expect(getPostType("event")?.pack).toBe("hospitality");
   });
 });
+
+describe("capture kind", () => {
+  it("gives every post type, in every pack, a capture value of none, casual or shoot", async () => {
+    const { ALL_POST_TYPES } = await import("./post-types");
+    for (const pt of ALL_POST_TYPES) {
+      expect(["none", "casual", "shoot"], `${pt.slug} capture`).toContain((pt as { capture?: string }).capture);
+    }
+  });
+
+  it("only video types need a recording, and talking head is casual", () => {
+    for (const pt of POST_TYPES) {
+      if ((pt as { capture?: string }).capture !== "none") expect(pt.medium, pt.slug).toBe("video");
+    }
+    expect((getPostType("talking_head") as { capture?: string }).capture).toBe("casual");
+  });
+});

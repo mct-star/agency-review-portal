@@ -3,7 +3,9 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { companyForToken, checkAndRecordAttempt } from "@/lib/staff-upload/access";
 import { notifyStaffPhotosPending } from "@/lib/staff-upload/notify";
 import { autoTagItem, findStoredObject, registerLibraryItem } from "@/lib/media/library";
-import { CAPTURES_BUCKET, MAX_PHOTO_BYTES, PHOTO_MIME_TYPES } from "@/lib/upload/media-constants";
+import { resolveCaptureGrant } from "@/lib/staff-upload/capture";
+import { recordRawVideo } from "@/lib/media/raw-video";
+import { CAPTURES_BUCKET, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES, PHOTO_MIME_TYPES, VIDEO_MIME_TYPES } from "@/lib/upload/media-constants";
 
 export const maxDuration = 60;
 
@@ -25,6 +27,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
   const body = await request.json().catch(() => ({}));
   const path = typeof body.path === "string" ? body.path : "";
+
+  // A capture link: one video for one named piece of this company.
+  if (body.capture !== undefined && body.capture !== null) {
+    const resolved = await resolveCaptureGrant(supabase, company.id, body.capture);
+    if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    if (!path.startsWith(resolved.folder) || path.includes("..") || body.bucket !== CAPTURES_BUCKET) {
+      return NextResponse.json({ error: "That file does not belong to this link." }, { status: 400 });
+    }
+    const stored = await findStoredObject(supabase, CAPTURES_BUCKET, path);
+    if (!stored) return NextResponse.json({ error: "The upload did not finish. Please try that video again." }, { status: 404 });
+    const storedMime = (stored.mimetype || "").toLowerCase();
+    if ((stored.size !== null && stored.size > MAX_VIDEO_BYTES) || (storedMime && !VIDEO_MIME_TYPES.includes(storedMime))) {
+      await supabase.storage.from(CAPTURES_BUCKET).remove([path]);
+      return NextResponse.json({ error: "Only a video up to 2 GB can be added here." }, { status: 413 });
+    }
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const { data: asset, error } = await recordRawVideo(supabase, {
+      contentPieceId: resolved.pieceId,
+      bucket: CAPTURES_BUCKET,
+      path,
+      mimeType: storedMime || (typeof body.mimeType === "string" ? body.mimeType.split(";")[0].trim().toLowerCase() : "video/mp4"),
+      sizeBytes: stored.size ?? (num(body.sizeBytes) || 1),
+      originalFilename: typeof body.originalFilename === "string" ? body.originalFilename.slice(0, 200) : "video.mov",
+      durationSeconds: num(body.durationSeconds),
+    });
+    if (error) return NextResponse.json({ error: "Could not save the video. Please try again." }, { status: 500 });
+    return NextResponse.json({ ok: true, contentPieceId: resolved.pieceId, contentAssetId: (asset as { id?: string } | null)?.id ?? null });
+  }
   // Only keys this link's company could have been given, and never a path trick.
   if (!path.startsWith(`${company.id}/staff/`) || path.includes("..")) {
     return NextResponse.json({ error: "That file does not belong to this link." }, { status: 400 });
