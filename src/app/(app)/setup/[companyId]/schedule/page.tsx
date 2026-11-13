@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import CadenceSettings from "./CadenceSettings";
 import type { PostType, PostingSlotWithType } from "@/types/database";
 
 // ── Constants ────────────────────────────────────────────────
@@ -272,6 +273,8 @@ export default function PostingSchedulePage() {
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
+
+      <CadenceSettings companyId={companyId} />
 
       {/* Weekly Calendar Grid */}
       <div className="grid grid-cols-7 gap-3">
