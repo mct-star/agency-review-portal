@@ -21,6 +21,9 @@ import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { basePostType, pieceFeed } from "@/lib/content/feed";
 import ContentSourceReference from "@/components/content/ContentSourceReference";
 import ReviewNotes from "@/components/content/ReviewNotes";
+import NewsletterCopyPanel from "@/components/content/NewsletterCopyPanel";
+import { buildNewsletterCopy } from "@/lib/publishing/newsletter-copy";
+import { canManageChannels } from "@/lib/auth/permissions";
 
 interface PageProps {
   params: Promise<{ pieceId: string }>;
@@ -91,6 +94,25 @@ export default async function ContentPiecePage({ params }: PageProps) {
 
   // Find the first generated image for preview (if any)
   const previewImageUrl = (images && images.length > 0) ? images[0].public_url : null;
+
+  // A LinkedIn newsletter article is pasted by hand; this is what was recorded when it went out.
+  const newsletterCopy = piece.content_type === "linkedin_article"
+    ? buildNewsletterCopy({ title: piece.title, markdown_body: piece.markdown_body, imageUrl: null })
+    : null;
+  let newsletterPublished: { by: string | null; at: string } | null = null;
+  if (newsletterCopy) {
+    const adminDb = await createAdminSupabaseClient();
+    const { data: job } = await adminDb.from("publishing_jobs").select("published_at, triggered_by")
+      .eq("content_piece_id", pieceId).eq("company_id", piece.company_id)
+      .eq("target_platform", "linkedin_newsletter").eq("status", "published")
+      .order("published_at", { ascending: false }).limit(1).maybeSingle();
+    if (job?.published_at) {
+      const { data: by } = job.triggered_by
+        ? await adminDb.from("users").select("full_name, email").eq("id", job.triggered_by).maybeSingle()
+        : { data: null };
+      newsletterPublished = { by: by?.full_name || by?.email || null, at: job.published_at };
+    }
+  }
 
   // Rendered videos written back by the Mac (phone clips and podcast hook clips).
   const { data: videoAssets } = await supabase
@@ -315,6 +337,18 @@ export default async function ContentPiecePage({ params }: PageProps) {
           pieceId={piece.id}
           companyId={piece.company_id}
           isApproved={piece.approval_status === "approved"}
+        />
+      )}
+
+      {/* LinkedIn newsletter article: no integration, so a copy-ready page and a manual "Mark as published". */}
+      {piece.content_type === "linkedin_article" && (
+        <NewsletterCopyPanel
+          pieceId={piece.id}
+          {...newsletterCopy!}
+          imageUrl={previewImageUrl}
+          isApproved={piece.approval_status === "approved"}
+          canMarkPublished={canManageChannels(profile, piece.company_id)}
+          published={newsletterPublished}
         />
       )}
 
