@@ -11,6 +11,7 @@ import {
 } from "@/lib/upload/media-constants";
 import { copyToPublishedBucket, nextImageSortOrder } from "@/lib/media/publish-copy";
 import { autoTagItem, findStoredObject, registerLibraryItem } from "@/lib/media/library";
+import { recordRawVideo } from "@/lib/media/raw-video";
 import { decodeJpegFrame } from "@/lib/media/derivatives";
 
 export const maxDuration = 60;
@@ -350,25 +351,15 @@ async function attachVideoToPiece(
     }
   }
 
-  const { data: asset, error: assetErr } = await supabase
-    .from("content_assets")
-    .insert({
-      content_piece_id: contentPieceId,
-      asset_type: "custom",
-      file_url: null,
-      storage_path: body.path,
-      asset_metadata: {
-        type: "raw_video",
-        bucket: body.bucket,
-        mimeType: body.mimeType,
-        sizeBytes: body.sizeBytes,
-        originalFilename: body.originalFilename,
-        durationSeconds: body.durationSeconds,
-      },
-      sort_order: 0,
-    })
-    .select("*")
-    .single();
+  const { data: asset, error: assetErr } = await recordRawVideo(supabase, {
+    contentPieceId,
+    bucket: body.bucket,
+    path: body.path,
+    mimeType: body.mimeType,
+    sizeBytes: body.sizeBytes,
+    originalFilename: body.originalFilename,
+    durationSeconds: body.durationSeconds,
+  });
 
   if (assetErr) {
     return NextResponse.json(
