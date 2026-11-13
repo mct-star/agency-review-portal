@@ -149,4 +149,45 @@ describe("API production runner", () => {
     expect(tables.calendar_slots[0].status).toBe("written");
     expect(mocks.generate).not.toHaveBeenCalled();
   });
+
+  describe("week review state on completion", () => {
+    const weekJob = { ...job, id: "week-job", week_id: "week-a", status: "queued", input_payload: { kind: "week", week_id: "week-a", mode: "resume" }, output_payload: { slots: {} } };
+    const seedFor = (weekStatus: string, extra: Record<string, unknown> = {}) => ({
+      weeks: [{ id: "week-a", company_id: "company-a", date_start: "2026-10-19", date_end: "2026-10-25", current_job_id: "week-job", run_state: "queued", status: weekStatus, ...extra }],
+      calendar_slots: [{ id: "slot-a", company_id: "company-a", slot_date: "2026-10-20", status: "written", anchor_pending: false }],
+      content_generation_jobs: [weekJob],
+    });
+
+    it("moves a draft week to ready_for_review when the run completes", async () => {
+      const { db, tables, calls } = productionTestDb(seedFor("draft"));
+      mocks.createDb.mockResolvedValue(db);
+      await runApiProductionJob("week-job", "company-a");
+      expect(tables.weeks[0]).toMatchObject({ run_state: "complete", status: "ready_for_review" });
+      const write = calls.find((call) => call.table === "weeks" && call.values?.status === "ready_for_review");
+      expect(write?.filters).toEqual(expect.arrayContaining(["company_id=eq:company-a", "status=eq:draft"]));
+    });
+
+    it.each(["approved", "changes_requested", "ready_for_review"])("leaves a %s week's status alone on completion", async (status) => {
+      const { db, tables } = productionTestDb(seedFor(status));
+      mocks.createDb.mockResolvedValue(db);
+      await runApiProductionJob("week-job", "company-a");
+      expect(tables.weeks[0]).toMatchObject({ run_state: "complete", status });
+    });
+
+    it("does not mark a week ready when the run is only continuing", async () => {
+      const seed = seedFor("draft");
+      seed.calendar_slots = [{ id: "slot-a", company_id: "company-a", slot_date: "2026-10-20", status: "planned", anchor_pending: true } as never];
+      const { db, tables } = productionTestDb(seed);
+      mocks.createDb.mockResolvedValue(db);
+      await runApiProductionJob("week-job", "company-a");
+      expect(tables.weeks[0].status).toBe("draft");
+    });
+
+    it("does not touch a week whose current job has moved on", async () => {
+      const { db, tables } = productionTestDb(seedFor("draft", { current_job_id: "newer-job" }));
+      mocks.createDb.mockResolvedValue(db);
+      await runApiProductionJob("week-job", "company-a");
+      expect(tables.weeks[0]).toMatchObject({ status: "draft", run_state: "queued" });
+    });
+  });
 });
