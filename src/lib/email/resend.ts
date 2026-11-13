@@ -12,6 +12,7 @@
  */
 
 import { Resend } from "resend";
+import { DEFAULT_SENDER, formatFrom } from "./sender";
 
 // Lazy-initialized to avoid build-time crash when RESEND_API_KEY is missing
 let _resend: Resend | null = null;
@@ -22,7 +23,8 @@ function getResend(): Resend {
   return _resend;
 }
 
-const DEFAULT_FROM = "AGENCY Bristol <mct@agencybristol.com>";
+// Per-company senders are resolved in ./sender (resolveSender) and passed as `from`.
+const DEFAULT_FROM = formatFrom(DEFAULT_SENDER);
 const FALLBACK_FROM = "AGENCY Bristol <onboarding@resend.dev>"; // Resend sandbox
 
 // ─────────────────────────────────────────────
