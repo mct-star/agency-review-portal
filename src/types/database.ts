@@ -849,3 +849,48 @@ export interface PhotoInventory {
   added_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// Posting cadence and review reminders (migration 20261113090000)
+// ============================================================
+
+/** How often a company reviews and approves content. */
+export type CadenceMode = "weekly_batch" | "daily" | "posting_days";
+
+/**
+ * One row per company. The timezone is companies.timezone and the posting
+ * days are posting_slots; neither is repeated here. reminder_hour is the
+ * local hour (0 to 23). reminder_recipients are lower-case email addresses.
+ */
+export interface CompanyCadence {
+  company_id: string;
+  mode: CadenceMode;
+  reminder_hour: number;
+  reminder_recipients: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReminderKind =
+  | "week_ready"
+  | "deploy_week"
+  | "todays_post"
+  | "manual_publish"
+  | "capture_due";
+
+/**
+ * One reminder that was sent. (company_id, recipient, kind, subject_key,
+ * is_follow_up) is unique, so a repeat send cannot be recorded. subject_key
+ * is the piece id, the week id or the local date (YYYY-MM-DD).
+ */
+export interface ReminderLogEntry {
+  id: string;
+  company_id: string;
+  recipient: string;
+  kind: ReminderKind;
+  subject_key: string;
+  piece_id: string | null;
+  week_id: string | null;
+  is_follow_up: boolean;
+  sent_at: string;
+}
