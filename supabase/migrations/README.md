@@ -28,6 +28,12 @@ adds `review_notes` (dictated notes on a piece, each anchored to the
 paragraph in view). Apply it before merging the code that reads it: until it
 exists, the dictate bar on /content/[pieceId] shows an error and saves nothing.
 
+NOT YET APPLIED (13 November 2026): `20261113090000_posting_cadence_and_reminders.sql`
+adds `company_cadence` (weekly batch, daily or posting days, reminder hour and
+recipients) and `reminder_log` (one row per reminder sent, unique per
+recipient, kind, subject and follow-up flag). Data layer only: nothing reads
+either table yet, so it can be applied at any time before the reminder code lands.
+
 `supabase/run_pending_migrations_018_to_022.sql` is an old catch-up script and
 stays where it is.
 
