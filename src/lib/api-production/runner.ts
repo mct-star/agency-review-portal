@@ -72,6 +72,15 @@ async function saveState(db: ProductionDb, job: ApiProductionJob, output: ApiPro
   if (error) throw new Error("Could not save the API production checkpoint. Please retry.");
   if (!data) throw new LeaseLost();
   await mirrorWeek(db, job, { run_state: complete ? "complete" : "queued", current_phase: complete ? "API writing complete" : "API writing continuing", last_error: null });
+  if (complete) await markWeekReadyForReview(db, job);
+}
+
+/** A finished run hands a still-draft week to review. Approved, changes_requested and already-ready weeks are never overwritten. */
+async function markWeekReadyForReview(db: ProductionDb, job: ApiProductionJob) {
+  if (job.input_payload.kind !== "week" || !job.week_id) return;
+  const { error } = await db.from("weeks").update({ status: "ready_for_review", updated_at: new Date().toISOString() })
+    .eq("id", job.week_id).eq("company_id", job.company_id).eq("current_job_id", job.id).eq("status", "draft");
+  if (error) throw new Error("Could not update the week production status. Please retry.");
 }
 
 async function weekSlots(db: ProductionDb, job: ApiProductionJob): Promise<CalendarSlot[]> {
