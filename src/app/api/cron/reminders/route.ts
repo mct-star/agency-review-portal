@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { errorLogLine, summaryLogLine } from "@/lib/reminders/log-line";
 import { reminderMode, runReminders } from "@/lib/reminders/run";
 
 export const maxDuration = 120;
@@ -39,8 +40,11 @@ export async function GET(request: Request) {
   try {
     const supabase = await createAdminSupabaseClient();
     const summary = await runReminders(supabase, mode, new Date());
+    // One summary line per run, so a dry run can be read in the runtime logs.
+    console.log(summaryLogLine(summary));
     return NextResponse.json({ ok: summary.failures.length === 0, ...summary });
-  } catch {
+  } catch (e) {
+    console.error(errorLogLine(e));
     return NextResponse.json({ error: "Could not run the reminders. Please retry." }, { status: 500 });
   }
 }
