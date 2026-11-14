@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { canManageChannels } from "@/lib/auth/permissions";
+import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 
 /**
  * POST /api/publish/newsletter  { pieceId }
@@ -9,7 +10,10 @@ import { canManageChannels } from "@/lib/auth/permissions";
  * pasted into LinkedIn by hand (decision of 12 Nov 2026), so there is no
  * integration here: this only records that it went out, using the existing
  * publishing_jobs status model (status published, who, when). An approved
- * piece only, and never twice.
+ * piece only, and never twice: the check below gives the friendly message,
+ * and a partial unique index on publishing_jobs (migration
+ * 20261114100000) makes a double click that slips past it fail with 23505,
+ * which is answered as the same 409.
  */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
@@ -27,6 +31,8 @@ export async function POST(request: Request) {
   if (!canManageChannels(user, piece.company_id)) {
     return NextResponse.json({ error: "You need the publish right to mark an article as published." }, { status: 403 });
   }
+  const refused = await refuseHospitality(user, piece.company_id);
+  if (refused) return refused;
   if (piece.content_type !== "linkedin_article") {
     return NextResponse.json({ error: "Only a LinkedIn newsletter article can be marked as published here." }, { status: 422 });
   }
@@ -59,6 +65,11 @@ export async function POST(request: Request) {
     })
     .select("id, published_at, triggered_by")
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "This article is already marked as published." }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Could not record that the article was published. Please try again." }, { status: 500 });
+  }
   return NextResponse.json({ job });
 }
