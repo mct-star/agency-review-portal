@@ -209,6 +209,22 @@ export async function loadCompanyReminderData(
     if (date && need !== "none") captures.push({ id: p.id, date, capture: need });
   }
 
+  // A capture is done once raw footage is uploaded for it: recordRawVideo
+  // (src/lib/media/raw-video.ts) writes a content_assets row with
+  // asset_metadata.type "raw_video", keyed by content_piece_id (the table has
+  // no company_id). The piece ids asked for come only from pieceRows, which
+  // were loaded filtered on this company, so no other company's asset is read.
+  if (captures.length > 0) {
+    const { data: assets } = await supabase
+      .from("content_assets")
+      .select("content_piece_id")
+      .in("content_piece_id", captures.map((c) => c.id))
+      .eq("asset_type", "custom")
+      .filter("asset_metadata->>type", "eq", "raw_video");
+    const withFootage = new Set(((assets || []) as Array<{ content_piece_id: string }>).map((a) => a.content_piece_id));
+    for (const c of captures) c.captured = withFootage.has(c.id);
+  }
+
   const firstNames = new Map<string, string>();
   for (const u of (userRows || []) as Array<{ email: string | null; full_name: string | null }>) {
     const email = u.email?.trim().toLowerCase();
