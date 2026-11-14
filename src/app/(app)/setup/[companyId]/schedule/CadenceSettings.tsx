@@ -82,6 +82,7 @@ export default function CadenceSettings({ companyId }: { companyId: string }) {
       <p className="mt-1 text-xs text-gray-500">
         How often you sit down to review and approve content, and who is reminded. Times use the company timezone.
       </p>
+      <p className="mt-1 text-xs text-gray-500">Reminders start once AGENCY switches them on.</p>
 
       <fieldset className="mt-4 space-y-2" disabled={!loaded || saving}>
         <legend className="sr-only">Review rhythm</legend>
@@ -136,13 +137,15 @@ export default function CadenceSettings({ companyId }: { companyId: string }) {
             placeholder="name@company.com"
             className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm"
           />
-          <p className="mt-1 text-[11px] text-gray-500">Leave empty to send no reminders.</p>
+          <p className="mt-1 text-[11px] text-gray-500">
+            Each address must belong to someone with a login for this company. Leave empty to send no reminders.
+          </p>
         </div>
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-3">
         {message && (
-          <p role="status" className={`text-xs ${message.kind === "ok" ? "text-green-700" : "text-red-700"}`}>
+          <p role={message.kind === "error" ? "alert" : "status"} className={`text-xs ${message.kind === "ok" ? "text-green-700" : "text-red-700"}`}>
             {message.text}
           </p>
         )}
