@@ -66,6 +66,7 @@ stays where it is.
 
 The live tables `ops_content_operations`, `ops_content_workflows`,
 `ops_content_media` and `ops_content_reviews`, and the seven `CONTENT_*`
-Vercel variables, come from the unmerged branch `codex/native-content-engine`.
-No code on main reads them. Decide whether that branch is merged or the tables
-and variables are dropped.
+Vercel variables, came from the branch `codex/native-content-engine`. The
+signed Ops bridge on main reads them (`src/lib/ops-content/` and
+`/api/ops-content/*`), so do not drop them. Decide whether anything of that
+branch is still unmerged.

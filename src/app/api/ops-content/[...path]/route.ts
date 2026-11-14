@@ -10,6 +10,7 @@ import { saveInterview,interviewTurn,savePlan,approvePlan,queueWeek } from "@/li
 import { exportReadiness,exportWeek } from "@/lib/ops-content/export";
 import { workspace,listWeeks,weekDetail,listPieces,generatePost,retryJob } from "@/lib/ops-content/workspace";
 import { operation } from "@/lib/ops-content/operations";
+import { waiting } from "@/lib/ops-content/waiting";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -17,7 +18,7 @@ export const maxDuration=300;
 const headers={"Cache-Control":"no-store"};
 function permitted(method:string,path:string) {
  const routes:Record<string,RegExp>={
- GET:/^(workspace|weeks|weeks\/[a-f0-9-]{36}|weeks\/[a-f0-9-]{36}\/export|pieces|pieces\/[a-f0-9-]{36}|jobs\/[a-f0-9-]{36}|media\/view)$/i,
+ GET:/^(workspace|waiting|weeks|weeks\/[a-f0-9-]{36}|weeks\/[a-f0-9-]{36}\/export|pieces|pieces\/[a-f0-9-]{36}|jobs\/[a-f0-9-]{36}|media\/view)$/i,
  POST:/^(weeks|generate|transcribe|media\/(sign|register|assign)|weeks\/[a-f0-9-]{36}\/(interview-turn|plan|approve-plan|run|export)|pieces\/[a-f0-9-]{36}\/(approve|release)|jobs\/[a-f0-9-]{36}\/retry)$/i,
  PUT:/^weeks\/[a-f0-9-]{36}\/(interview|plan)$/i,PATCH:/^pieces\/[a-f0-9-]{36}$/i};return routes[method]?.test(path) || false;
 }
@@ -25,6 +26,7 @@ async function dispatch(method:string,path:string,body:Record<string,unknown>,ur
  const parts=path.split("/");
  if(method==="GET") {
   if(path==="workspace")return workspace();
+  if(path==="waiting")return waiting();
   if(path==="weeks")return listWeeks();
   if(parts[0]==="weeks")return parts[2]==="export"?exportReadiness(id(parts[1])):weekDetail(id(parts[1]));
   if(path==="pieces")return listPieces(url.searchParams.get("weekId") || undefined);

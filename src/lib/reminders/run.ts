@@ -28,6 +28,7 @@ import { formatFrom, resolveSender } from "@/lib/email/sender";
 import { longDateLabel, parseDate, todayIn } from "@/lib/hospitality/week";
 import type { ReminderKind } from "@/types/database";
 import { remindersDue, type DueReminder } from "./due";
+import { appBaseUrl, pieceUrl, weekDeployUrl, weekReviewUrl } from "./links";
 import { loadCompanyReminderData, type CadenceRow, type CompanyReminderData, type PieceRow, type SupabaseAdmin, type WeekRow } from "./load";
 
 export type ReminderMode = "off" | "dry_run" | "send";
@@ -127,9 +128,7 @@ function line(value: string | null | undefined): string | null {
 
 export type EmailInputResult = { input: ReminderEmailInput } | { skip: string };
 
-export function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://agency-review-portal.vercel.app")).replace(/\/+$/, "");
-}
+export { appBaseUrl };
 
 /**
  * The template input for a due reminder, with the real page paths:
@@ -148,7 +147,7 @@ export function emailInputFor(
   if (due.kind === "todays_post" || due.kind === "manual_publish") {
     const piece = data.piecesById.get(due.piece_id || "");
     if (!piece) return { skip: "the piece could not be found" };
-    const url = `${baseUrl}/content/${piece.id}`;
+    const url = pieceUrl(baseUrl, piece.id);
     const title = line(piece.title);
     if (due.kind === "manual_publish") {
       if (piece.content_type !== "linkedin_article") return { skip: "not a LinkedIn newsletter article" };
@@ -167,12 +166,12 @@ export function emailInputFor(
   // A plain range built from the week's own dates ("10 to 16 November"), not a "w/c" label.
   const label = weekLabel(week.date_start, week.date_end);
   if (due.kind === "deploy_week") {
-    return { input: { kind: "deploy_week", ...common, weekLabel: label, deployUrl: `${baseUrl}/review/${week.id}/deploy` } };
+    return { input: { kind: "deploy_week", ...common, weekLabel: label, deployUrl: weekDeployUrl(baseUrl, week.id) } };
   }
   const pieces = [...data.piecesById.values()].filter((p) => p.week_id === week.id);
   const counts = line(countsByType(pieces));
   if (!counts) return { skip: "the week has no pieces to count" };
-  const needRecording = data.input.captures.filter((c) => pieces.some((p) => p.id === c.id)).length;
+  const needRecording = data.input.captures.filter((c) => !c.captured && pieces.some((p) => p.id === c.id)).length;
   return {
     input: {
       kind: "week_ready",
@@ -180,7 +179,7 @@ export function emailInputFor(
       weekLabel: label,
       countsByType: counts,
       recordingsNeeded: needRecording > 0 ? `${needRecording} ${needRecording === 1 ? "piece needs" : "pieces need"} a recording from you.` : null,
-      reviewUrl: `${baseUrl}/review/${week.id}`,
+      reviewUrl: weekReviewUrl(baseUrl, week.id),
     },
   };
 }
