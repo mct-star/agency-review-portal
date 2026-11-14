@@ -6,6 +6,7 @@ import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
 import { oauthStateSecret } from "@/lib/linkedin/oauth-state";
 import { directLinkedInJobId, linkedInDirectMedia } from "@/lib/linkedin/direct-publish";
+import { recordedApprovalRefusal } from "@/lib/content/approval-gate";
 
 /** Queue an approved LinkedIn post for one explicitly selected account. */
 export async function POST(request: Request) {
@@ -43,6 +44,10 @@ export async function POST(request: Request) {
 
   if (!piece) return NextResponse.json({ error: "Approved content not found for this company" }, { status: 404 });
   if (piece.approval_status !== "approved") return NextResponse.json({ error: "Approve the post before publishing it." }, { status: 400 });
+  // Only the text someone approved is queued: the newest recorded approval
+  // must match the piece as it is now (Deploy week calls this route too).
+  const approvalRefused = await recordedApprovalRefusal(supabase, body.companyId, piece);
+  if (approvalRefused) return NextResponse.json({ error: approvalRefused, code: "approval_mismatch" }, { status: 409 });
   if (!account) return NextResponse.json({ error: "Choose an active LinkedIn account connected to this company." }, { status: 404 });
   const expiry = account.token_expires_at ? Date.parse(account.token_expires_at) : Number.NaN;
   if (!account.account_id || !account.access_token_encrypted || !Number.isFinite(expiry) || expiry <= Date.now()) {

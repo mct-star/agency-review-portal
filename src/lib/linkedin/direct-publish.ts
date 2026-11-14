@@ -8,6 +8,13 @@ export const LINKEDIN_VIDEO_MAX_BYTES = 200 * 1024 * 1024;
 /** LinkedIn's Videos API documents no thumbnail limit, so this is the same ceiling as a post image. */
 export const LINKEDIN_THUMBNAIL_MAX_BYTES = 10 * 1024 * 1024;
 
+/** The content types the direct LinkedIn queue takes. Deploy week plans with this list too. */
+export const LINKEDIN_DIRECT_TYPES = ["social_post", "video"] as const;
+
+export function isLinkedInDirectType(contentType: string): boolean {
+  return (LINKEDIN_DIRECT_TYPES as readonly string[]).includes(contentType);
+}
+
 export type LinkedInDirectMedia = { imageUrls: string[]; videoUrl: string | null; thumbnailUrl: string | null };
 
 /**
@@ -19,7 +26,7 @@ export type LinkedInDirectMedia = { imageUrls: string[]; videoUrl: string | null
 export function linkedInDirectMedia(contentType: string, media: PieceMedia): LinkedInDirectMedia | { error: string } {
   if (media.shape === "document") return { error: "Publishing documents to LinkedIn is not available yet." };
   if (media.shape === "video") {
-    if (contentType !== "social_post" && contentType !== "video") return { error: "Only approved social posts and videos can be published to LinkedIn." };
+    if (!isLinkedInDirectType(contentType)) return { error: "Only approved social posts and videos can be published to LinkedIn." };
     if (media.items.length !== 1 || media.items[0].kind !== "video") return { error: "A LinkedIn video post carries exactly one video." };
     if (!isOurStorageUrl(media.items[0].url)) return { error: "The post contains an unsupported video location." };
     if (!media.thumbnailUrl) return { error: "This video has no thumbnail. Add one before publishing to LinkedIn." };

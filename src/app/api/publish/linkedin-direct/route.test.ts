@@ -15,18 +15,22 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminSupabaseClient: async () => ({
     from: (table: string) => {
       let filters: Array<[string, unknown]> = [];
+      const inFilters: Array<[string, unknown[]]> = [];
       let inserted: Record<string, unknown> | null = null;
       let insertError: { code: string } | null = null;
       const chain: Record<string, any> = {};
       const rows = () => {
         const source = state.tables[table];
         const data = Array.isArray(source) ? source : source ? [source] : [];
-        return data.filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value));
+        return data.filter((row) => filters.every(([key, value]) => (row as Record<string, unknown>)[key] === value)
+          && inFilters.every(([key, values]) => values.includes((row as Record<string, unknown>)[key])));
       };
       chain.select = () => chain;
       chain.update = (values: Record<string, unknown>) => { state.updates.push({ table, values, filters }); return chain; };
       chain.eq = (key: string, value: unknown) => { filters.push([key, value]); return chain; };
       chain.not = () => chain;
+      chain.order = () => chain;
+      chain.in = (key: string, values: unknown[]) => { inFilters.push([key, values]); return chain; };
       chain.insert = (row: Record<string, unknown>) => {
         inserted = row;
         state.inserts.push({ table, row });
@@ -45,6 +49,12 @@ vi.mock("@/lib/hospitality/pack-guard", () => ({ refuseHospitality: async () => 
 vi.mock("@/lib/content/piece-media", () => ({ resolvePieceMedia: () => state.media }));
 
 import { GET, POST, DELETE } from "./route";
+import { pieceVersionHash } from "@/lib/content/version-hash";
+
+const approval = (extra: Record<string, unknown> = {}) => ({
+  piece_id: "piece-1", company_id: "company-1", decision: "approved", decided_at: "2026-11-10T09:00:00.000Z",
+  version_hash: pieceVersionHash({ markdown_body: "Approved post", first_comment: null }), ...extra,
+});
 
 const request = (body: unknown) => new Request("http://localhost/api/publish/linkedin-direct", { method: "POST", body: JSON.stringify(body) });
 const input = (extra: Record<string, unknown> = {}) => ({ companyId: "company-1", pieceId: "piece-1", socialAccountId: "account-1", ...extra });
@@ -58,7 +68,45 @@ beforeEach(() => {
     content_pieces: [{ id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved post", first_comment: null }],
     company_social_accounts: [{ id: "account-1", company_id: "company-1", platform: "linkedin_personal", account_id: "person-1", account_name: "Selected profile", access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 86400000).toISOString(), is_active: true }],
     content_images: [], content_assets: [], publishing_jobs: [],
+    content_approvals: [approval()],
   };
+});
+
+describe("POST /api/publish/linkedin-direct: recorded approval", () => {
+  const queueNow = () => POST(request(input({ scheduledFor: new Date(Date.now() + 3600000).toISOString() })));
+
+  it("refuses a piece edited after it was approved, and queues nothing", async () => {
+    state.tables.content_pieces = [{ ...(state.tables.content_pieces as Record<string, unknown>[])[0], markdown_body: "Edited after approval" }];
+    const res = await queueNow();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "approval_mismatch", error: expect.stringMatching(/edited after approval/i) });
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("refuses a piece with no recorded approval, and queues nothing", async () => {
+    state.tables.content_approvals = [];
+    const res = await queueNow();
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/no recorded approval/i);
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("refuses when the newest decision asked for changes, even after an earlier approval", async () => {
+    state.tables.content_approvals = [approval(), approval({ decision: "changes_requested", decided_at: "2026-11-11T09:00:00.000Z" })];
+    expect((await queueNow()).status).toBe(409);
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("uses the newest approval: an older one on different text does not matter", async () => {
+    state.tables.content_approvals = [approval({ version_hash: "0".repeat(64), decided_at: "2026-11-01T09:00:00.000Z" }), approval()];
+    expect((await queueNow()).status).toBe(201);
+  });
+
+  it("ignores another company's approval row for the same piece", async () => {
+    state.tables.content_approvals = [approval({ company_id: "company-2" })];
+    expect((await queueNow()).status).toBe(409);
+    expect(state.inserts).toHaveLength(0);
+  });
 });
 
 describe("POST /api/publish/linkedin-direct", () => {
