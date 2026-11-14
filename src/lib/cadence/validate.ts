@@ -43,3 +43,20 @@ export function parseCadenceInput(input: {
   }
   return { ok: true, value: { mode: mode as CadenceMode, reminder_hour: reminderHour, reminder_recipients: emails } };
 }
+
+/**
+ * The recipients that are not the email of a user in the company, in the
+ * order given. `companyEmails` are the company's users.email values; both
+ * sides are compared trimmed and lower-cased.
+ */
+export function recipientsOutsideCompany(recipients: string[], companyEmails: (string | null)[]): string[] {
+  const known = new Set(companyEmails.map((e) => (e ?? "").trim().toLowerCase()).filter(Boolean));
+  return recipients.filter((r) => !known.has(r.trim().toLowerCase()));
+}
+
+export function outsideRecipientsMessage(outside: string[]): string {
+  const list = outside.join(", ");
+  return outside.length === 1
+    ? `${list} is not a user in this company. Reminders can only go to people with a login for this company.`
+    : `${list} are not users in this company. Reminders can only go to people with a login for this company.`;
+}

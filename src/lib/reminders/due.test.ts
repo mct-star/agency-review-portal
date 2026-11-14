@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { remindersDue, zonedTime, type DueInput, type ReminderLogRow } from "./due";
+import { remindersDue, zonedTime, type DueInput, type DueReminder, type ReminderLogRow } from "./due";
 
 // Week of Monday 16 to Sunday 22 November 2026. London is on GMT, so local
 // time equals UTC in these tests unless a test says otherwise.
@@ -161,7 +161,7 @@ describe("todays_post and the three modes", () => {
   const base = (mode: "weekly_batch" | "daily" | "posting_days", extra: Partial<DueInput> = {}) =>
     input({
       cadence: { mode, reminder_hour: 8, reminder_recipients: ["owner@example.com"] },
-      weeks: [week("draft")],
+      weeks: [week("ready_for_review")],
       pieces: [piece("p1", today, "12:00")],
       now: at(`${today}T08:30:00Z`),
       ...extra,
@@ -223,7 +223,7 @@ describe("timezone and daylight saving", () => {
       input({
         cadence: { mode: "daily", reminder_hour: 8, reminder_recipients: ["owner@example.com"] },
         timeZone,
-        weeks: [week("draft")],
+        weeks: [week("ready_for_review")],
         pieces: [piece("p1", date, "12:00")],
         now: at(now),
       }),
@@ -250,7 +250,7 @@ describe("timezone and daylight saving", () => {
       remindersDue(
         input({
           cadence: { mode: "daily", reminder_hour: 8, reminder_recipients: ["owner@example.com"] },
-          weeks: [week("draft")],
+          weeks: [week("ready_for_review")],
           pieces: [piece("p1", "2027-03-29", "12:00")],
           log,
           now: at(now),
@@ -276,7 +276,7 @@ describe("timezone and daylight saving", () => {
         cadence: { mode: "posting_days", reminder_hour: 8, reminder_recipients: ["owner@example.com"] },
         timeZone: "Asia/Tokyo",
         slots: [{ day_of_week: 3, scheduled_time: "12:00", is_active: true }],
-        weeks: [week("draft")],
+        weeks: [week("ready_for_review")],
         pieces: [piece("p1", "2026-11-18", "12:00")],
         now: at("2026-11-17T23:30:00Z"),
       }),
@@ -384,5 +384,234 @@ describe("purity", () => {
     const b = remindersDue(i);
     expect(a).toEqual(b);
     expect(JSON.parse(JSON.stringify(i))).toEqual(copy);
+  });
+});
+
+// ------------------------------------------------------------------
+// The fixes from the review of 14 November 2026, one block per point.
+// ------------------------------------------------------------------
+
+const owner = "owner@example.com";
+const weekReminder = (kind: "week_ready" | "deploy_week", is_follow_up: boolean): DueReminder => ({
+  kind,
+  recipient: owner,
+  subject_key: "week-1",
+  is_follow_up,
+  piece_id: null,
+  week_id: "week-1",
+});
+const ofKind = (due: DueReminder[], kind: DueReminder["kind"]) => due.filter((r) => r.kind === kind);
+
+describe("1. bounds: nothing from the past, week reminders close at the first post", () => {
+  it("a week ready for review dated last year returns nothing", () => {
+    const due = remindersDue(input({ weeks: [week("ready_for_review")], pieces: [piece("p1", "2025-11-17", "09:00")] }));
+    expect(due).toEqual([]);
+  });
+
+  it("an approved, undeployed week dated last year returns nothing", () => {
+    const due = remindersDue(input({ weeks: [week("approved")], pieces: [piece("p1", "2025-11-17", "09:00", "approved")] }));
+    expect(due).toEqual([]);
+  });
+
+  it("an unpublished article dated last year returns nothing", () => {
+    const article = { ...piece("news-1", "2025-11-19", "10:00", "approved"), manual_publish: true, published: false };
+    expect(remindersDue(input({ weeks: [week("approved", true)], pieces: [article] }))).toEqual([]);
+  });
+
+  it("week_ready stops at the first post, first send or follow-up", () => {
+    const base = { weeks: [week("ready_for_review")], pieces: [piece("p1", "2026-11-16", "09:00")] };
+    expect(remindersDue(input({ ...base, now: at("2026-11-16T08:59:00Z") }))).toEqual([weekReminder("week_ready", false)]);
+    expect(remindersDue(input({ ...base, now: at("2026-11-16T09:00:00Z") }))).toEqual([]);
+    const log = [sent({ kind: "week_ready", subject_key: "week-1", is_follow_up: false, sent_at: "2026-11-13T08:00:00Z" })];
+    expect(remindersDue(input({ ...base, log, now: at("2026-11-16T09:00:00Z") }))).toEqual([]);
+  });
+
+  it("deploy_week stops at the first post, first send or follow-up", () => {
+    const base = { weeks: [week("approved")], pieces: [piece("p1", "2026-11-16", "09:00", "approved")] };
+    expect(remindersDue(input({ ...base, now: at("2026-11-16T08:30:00Z") }))).toEqual([weekReminder("deploy_week", false)]);
+    expect(remindersDue(input({ ...base, now: at("2026-11-16T09:00:00Z") }))).toEqual([]);
+    const log = [sent({ kind: "deploy_week", subject_key: "week-1", is_follow_up: false, sent_at: "2026-11-13T09:00:00Z" })];
+    expect(remindersDue(input({ ...base, log, now: at("2026-11-16T08:30:00Z") }))).toEqual([weekReminder("deploy_week", true)]);
+    expect(remindersDue(input({ ...base, log, now: at("2026-11-16T09:00:00Z") }))).toEqual([]);
+    expect(remindersDue(input({ ...base, log, now: at("2026-11-17T08:00:00Z") }))).toEqual([]);
+  });
+
+  it("a week with no dated piece gets no week reminder", () => {
+    expect(remindersDue(input({ weeks: [week("ready_for_review")], pieces: [piece("p1", null, null)] }))).toEqual([]);
+    expect(remindersDue(input({ weeks: [week("approved")], pieces: [piece("p1", null, null, "approved")] }))).toEqual([]);
+  });
+
+  it("manual_publish closes at the end of the day after it is due", () => {
+    const article = { ...piece("news-1", "2026-11-19", "10:00", "approved"), manual_publish: true, published: false };
+    const run = (now: string, log: ReminderLogRow[] = []) =>
+      ofKind(remindersDue(input({ weeks: [week("approved", true)], pieces: [article], log, now: at(now) })), "manual_publish");
+    expect(run("2026-11-20T23:00:00Z")).toHaveLength(1); // first send still open late the next day
+    expect(run("2026-11-21T00:00:00Z")).toEqual([]);
+    const first = sent({ kind: "manual_publish", subject_key: "news-1", is_follow_up: false, sent_at: "2026-11-19T08:00:00Z" });
+    expect(run("2026-11-20T23:00:00Z", [first])).toHaveLength(1);
+    expect(run("2026-11-21T08:00:00Z", [first])).toEqual([]);
+  });
+});
+
+describe("2. gap: a follow-up never comes soon after a late first send", () => {
+  const base = { weeks: [week("ready_for_review")], pieces: [piece("p1", "2026-11-16", "09:00")] };
+  // The follow-up time is Sunday 15th 09:00; the first send went out at 08:00, one hour before it.
+  const late = [sent({ kind: "week_ready", subject_key: "week-1", is_follow_up: false, sent_at: "2026-11-15T08:00:00Z" })];
+
+  it("a first send one hour before the follow-up time is not followed up within 12 hours", () => {
+    expect(remindersDue(input({ ...base, log: late, now: at("2026-11-15T09:00:00Z") }))).toEqual([]);
+    expect(remindersDue(input({ ...base, log: late, now: at("2026-11-15T19:00:00Z") }))).toEqual([]);
+  });
+
+  it("then waits for the daytime window and goes before the first post", () => {
+    expect(remindersDue(input({ ...base, log: late, now: at("2026-11-15T20:00:00Z") }))).toEqual([]); // 12h, but evening
+    expect(remindersDue(input({ ...base, log: late, now: at("2026-11-16T03:00:00Z") }))).toEqual([]); // night
+    expect(remindersDue(input({ ...base, log: late, now: at("2026-11-16T08:00:00Z") }))).toEqual([weekReminder("week_ready", true)]);
+  });
+
+  it("todays_post waits two hours after a late first send", () => {
+    const first = sent({ kind: "todays_post", subject_key: "p1", is_follow_up: false, sent_at: "2026-11-18T09:30:00Z" });
+    const run = (now: string) =>
+      ofKind(
+        remindersDue(
+          input({
+            cadence: { mode: "daily", reminder_hour: 8, reminder_recipients: [owner] },
+            weeks: [week("ready_for_review")],
+            pieces: [piece("p1", "2026-11-18", "12:00")],
+            log: [first],
+            now: at(now),
+          }),
+        ),
+        "todays_post",
+      );
+    expect(run("2026-11-18T10:00:00Z")).toEqual([]);
+    expect(run("2026-11-18T11:29:00Z")).toEqual([]);
+    expect(run("2026-11-18T11:30:00Z")).toHaveLength(1);
+  });
+});
+
+describe("3. early slot: a post before the reminder hour is still reminded", () => {
+  const run = (now: string) =>
+    ofKind(
+      remindersDue(
+        input({
+          cadence: { mode: "daily", reminder_hour: 10, reminder_recipients: [owner] },
+          weeks: [week("ready_for_review")],
+          pieces: [piece("p1", "2026-11-18", "08:26")],
+          now: at(now),
+        }),
+      ),
+      "todays_post",
+    );
+
+  it("opens two hours before an 08:26 slot when the reminder hour is 10:00", () => {
+    expect(run("2026-11-18T06:00:00Z")).toEqual([]);
+    expect(run("2026-11-18T07:00:00Z")).toEqual([
+      { kind: "todays_post", recipient: owner, subject_key: "p1", is_follow_up: false, piece_id: "p1", week_id: "week-1" },
+    ]);
+    expect(run("2026-11-18T08:26:00Z")).toEqual([]);
+  });
+});
+
+describe("4. status: deploy_week needs an approved week", () => {
+  const approvedPieces = [piece("p1", "2026-11-16", "09:00", "approved")];
+
+  it("is not due while the week is ready for review or has changes requested, even with every piece approved", () => {
+    expect(remindersDue(input({ weeks: [week("ready_for_review")], pieces: approvedPieces }))).toEqual([]);
+    expect(remindersDue(input({ weeks: [week("changes_requested")], pieces: approvedPieces }))).toEqual([]);
+    expect(remindersDue(input({ weeks: [week("draft")], pieces: approvedPieces }))).toEqual([]);
+    expect(remindersDue(input({ weeks: [week("approved")], pieces: approvedPieces }))).toEqual([weekReminder("deploy_week", false)]);
+  });
+
+  it("a piece approved between the reminder and the follow-up closes the follow-up", () => {
+    const log = [sent({ kind: "week_ready", subject_key: "week-1", is_follow_up: false, sent_at: "2026-11-13T08:00:00Z" })];
+    // All pieces approved since; the week itself is not approved yet, so neither reminder fires.
+    expect(remindersDue(input({ weeks: [week("ready_for_review")], pieces: approvedPieces, log, now: at("2026-11-15T09:00:00Z") }))).toEqual([]);
+  });
+});
+
+describe("5. modes", () => {
+  const dated = [piece("p1", "2026-11-16", "09:00")];
+  const approved = [piece("p1", "2026-11-16", "09:00", "approved")];
+
+  it("week_ready and deploy_week go to weekly_batch companies only", () => {
+    for (const mode of ["daily", "posting_days"] as const) {
+      const cadence = { mode, reminder_hour: 8, reminder_recipients: [owner] };
+      expect(remindersDue(input({ cadence, weeks: [week("ready_for_review")], pieces: dated }))).toEqual([]);
+      expect(remindersDue(input({ cadence, weeks: [week("approved")], pieces: approved }))).toEqual([]);
+    }
+  });
+
+  it("todays_post needs the piece's week to be ready for review or approved, never draft", () => {
+    const run = (status: "draft" | "ready_for_review" | "approved" | "changes_requested" | null) =>
+      ofKind(
+        remindersDue(
+          input({
+            cadence: { mode: "daily", reminder_hour: 8, reminder_recipients: [owner] },
+            weeks: status ? [week(status)] : [],
+            pieces: [piece("p1", "2026-11-18", "12:00")],
+            now: at("2026-11-18T08:30:00Z"),
+          }),
+        ),
+        "todays_post",
+      );
+    expect(run("draft")).toEqual([]);
+    expect(run("changes_requested")).toEqual([]);
+    expect(run(null)).toEqual([]); // week not loaded: treated as not ready
+    expect(run("ready_for_review")).toHaveLength(1);
+    expect(run("approved")).toHaveLength(1);
+  });
+});
+
+describe("6. capture_due closes once captured", () => {
+  const run = (captures: DueInput["captures"]) =>
+    ofKind(remindersDue(input({ captures, now: at("2026-11-13T08:00:00Z") })), "capture_due");
+
+  it("skips a date once everything on it is captured", () => {
+    expect(
+      run([
+        { id: "c1", date: "2026-11-20", capture: "shoot", captured: true },
+        { id: "c2", date: "2026-11-20", capture: "casual", captured: true },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("still reminds while anything on the date is outstanding", () => {
+    expect(
+      run([
+        { id: "c1", date: "2026-11-20", capture: "shoot", captured: true },
+        { id: "c2", date: "2026-11-20", capture: "casual", captured: false },
+      ]),
+    ).toHaveLength(1);
+  });
+
+  it("with the field absent, behaves as before", () => {
+    expect(run([{ id: "c1", date: "2026-11-20", capture: "shoot" }])).toHaveLength(1);
+  });
+});
+
+describe("7. week reminders keep to the daytime window", () => {
+  const base = { weeks: [week("ready_for_review")], pieces: [piece("p1", "2026-11-18", "09:00")] };
+
+  it("a week made ready late in the evening is reminded the next morning, not at 23:00", () => {
+    expect(remindersDue(input({ ...base, now: at("2026-11-13T19:59:00Z") }))).toEqual([weekReminder("week_ready", false)]);
+    expect(remindersDue(input({ ...base, now: at("2026-11-13T20:00:00Z") }))).toEqual([]);
+    expect(remindersDue(input({ ...base, now: at("2026-11-13T23:00:00Z") }))).toEqual([]);
+    expect(remindersDue(input({ ...base, now: at("2026-11-14T02:00:00Z") }))).toEqual([]);
+    expect(remindersDue(input({ ...base, now: at("2026-11-14T08:00:00Z") }))).toEqual([weekReminder("week_ready", false)]);
+  });
+
+  it("a reminder hour after 20:00 still gets its one hour", () => {
+    const cadence = { mode: "weekly_batch" as const, reminder_hour: 22, reminder_recipients: [owner] };
+    expect(remindersDue(input({ ...base, cadence, now: at("2026-11-13T22:00:00Z") }))).toEqual([weekReminder("week_ready", false)]);
+    expect(remindersDue(input({ ...base, cadence, now: at("2026-11-13T23:00:00Z") }))).toEqual([]);
+  });
+
+  it("the window is in local time across the clock change (BST)", () => {
+    const bst = { weeks: [week("ready_for_review")], pieces: [piece("p1", "2027-04-05", "09:00")] };
+    expect(remindersDue(input({ ...bst, now: at("2027-03-29T06:59:00Z") }))).toEqual([]); // 07:59 BST
+    expect(remindersDue(input({ ...bst, now: at("2027-03-29T07:00:00Z") }))).toHaveLength(1); // 08:00 BST
+    expect(remindersDue(input({ ...bst, now: at("2027-03-29T18:59:00Z") }))).toHaveLength(1); // 19:59 BST
+    expect(remindersDue(input({ ...bst, now: at("2027-03-29T19:00:00Z") }))).toEqual([]); // 20:00 BST
   });
 });

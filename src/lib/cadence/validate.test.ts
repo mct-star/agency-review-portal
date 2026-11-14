@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCadenceInput, MAX_REMINDER_RECIPIENTS, CADENCE_MODES } from "./validate";
+import { parseCadenceInput, MAX_REMINDER_RECIPIENTS, CADENCE_MODES, recipientsOutsideCompany, outsideRecipientsMessage } from "./validate";
 
 const ok = { mode: "daily", reminderHour: 8, reminderRecipients: ["A@Example.com"] };
 
@@ -36,5 +36,18 @@ describe("parseCadenceInput", () => {
   });
   it("refuses a non-array recipients value", () => {
     expect(parseCadenceInput({ ...ok, reminderRecipients: "a@b.com" }).ok).toBe(false);
+  });
+});
+
+describe("recipientsOutsideCompany", () => {
+  it("returns the addresses that are not a company user, ignoring case and blanks", () => {
+    expect(recipientsOutsideCompany(["a@x.com", "b@y.com"], ["A@X.com ", null, ""])).toEqual(["b@y.com"]);
+    expect(recipientsOutsideCompany(["a@x.com"], ["a@x.com"])).toEqual([]);
+  });
+  it("names every refused address in plain words", () => {
+    expect(outsideRecipientsMessage(["b@y.com"])).toBe(
+      "b@y.com is not a user in this company. Reminders can only go to people with a login for this company.",
+    );
+    expect(outsideRecipientsMessage(["b@y.com", "c@z.com"])).toMatch(/^b@y\.com, c@z\.com are not users/);
   });
 });

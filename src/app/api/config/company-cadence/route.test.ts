@@ -65,6 +65,21 @@ describe("GET company-cadence", () => {
   });
 });
 
+// The users table answers by the company_id the query filtered on, so a
+// route that forgot the filter would see every company's users.
+const USERS = [
+  { company_id: A, email: "Maria@Example.com" },
+  { company_id: A, email: "colleague@example.com" },
+  { company_id: B, email: "rival@other.com" },
+];
+const usersTable = (recorded: RecordedCall[]) => {
+  const eq = recorded.find((c) => c.method === "eq" && c.args[0] === "company_id");
+  const rows = eq ? USERS.filter((u) => u.company_id === eq.args[1]) : USERS;
+  return { data: rows.map((u) => ({ email: u.email })) };
+};
+const withUsers = (cadence: Record<string, unknown> = { data: { company_id: A } }) =>
+  fakeSupabase({ users: usersTable, company_cadence: cadence });
+
 describe("PUT company-cadence", () => {
   it("refuses another company's id outright and writes nothing", async () => {
     const res = await PUT(put({ companyId: B, ...valid }));
@@ -77,7 +92,7 @@ describe("PUT company-cadence", () => {
     expect((await PUT(put({ companyId: B, ...valid }))).status).toBe(200);
   });
   it("saves validated, lower-cased values keyed on the caller's company", async () => {
-    state.supabase = fakeSupabase({ company_cadence: { data: { company_id: A } } });
+    state.supabase = withUsers();
     const res = await PUT(put({ companyId: A, ...valid }));
     expect(res.status).toBe(200);
     const [upsert] = calls("company_cadence", "upsert");
@@ -100,8 +115,52 @@ describe("PUT company-cadence", () => {
     expect(calls("company_cadence", "upsert")).toHaveLength(0);
   });
   it("ignores a company_id smuggled into the values", async () => {
-    state.supabase = fakeSupabase({ company_cadence: { data: { company_id: A } } });
+    state.supabase = withUsers();
     await PUT(put({ companyId: A, ...valid, company_id: B }));
     expect((calls("company_cadence", "upsert")[0].args[0] as { company_id: string }).company_id).toBe(A);
+  });
+
+  describe("recipients must be users of the company", () => {
+    it("refuses a client adding an outside address, names it, and writes nothing", async () => {
+      state.supabase = withUsers();
+      const res = await PUT(put({ companyId: A, ...valid, reminderRecipients: ["maria@example.com", "Someone@Gmail.com"] }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toContain("someone@gmail.com");
+      expect(calls("company_cadence", "upsert")).toHaveLength(0);
+      expect(calls("users", "eq").map((c) => c.args)).toContainEqual(["company_id", A]);
+    });
+
+    it("lets a client add a colleague in the same company", async () => {
+      state.supabase = withUsers();
+      const res = await PUT(put({ companyId: A, ...valid, reminderRecipients: ["maria@example.com", "Colleague@Example.com"] }));
+      expect(res.status).toBe(200);
+      expect((calls("company_cadence", "upsert")[0].args[0] as { reminder_recipients: string[] }).reminder_recipients).toEqual([
+        "maria@example.com",
+        "colleague@example.com",
+      ]);
+    });
+
+    it("refuses the address of a user in another company", async () => {
+      state.supabase = withUsers();
+      const res = await PUT(put({ companyId: A, ...valid, reminderRecipients: ["rival@other.com"] }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toContain("rival@other.com");
+      expect(calls("company_cadence", "upsert")).toHaveLength(0);
+    });
+
+    it("lets an admin add an outside address without a users lookup", async () => {
+      state.user = { id: "root", role: "admin", company_id: null };
+      state.supabase = withUsers();
+      const res = await PUT(put({ companyId: A, ...valid, reminderRecipients: ["someone@gmail.com"] }));
+      expect(res.status).toBe(200);
+      expect(calls("users", "select")).toHaveLength(0);
+      expect(calls("company_cadence", "upsert")).toHaveLength(1);
+    });
+
+    it("needs no lookup to clear the list", async () => {
+      state.supabase = withUsers();
+      expect((await PUT(put({ companyId: A, ...valid, reminderRecipients: [] }))).status).toBe(200);
+      expect(calls("users", "select")).toHaveLength(0);
+    });
   });
 });
