@@ -43,11 +43,34 @@ export interface WeekReadyInput extends Common {
   countsByType: string;
   /** First send only. Blank renders nothing. */
   recordingsNeeded?: string | null;
+  /**
+   * Follow-up only: the earliest post date in the week as a plain date, for
+   * example "10 November", with no hyphens, dashes or colons. Blank or missing
+   * leaves out the sentence that names it.
+   */
+  firstPostDate?: string | null;
   reviewUrl: string;
 }
 
+/** The steps Deploy week leaves to a person. Anything else is not mentioned. */
+export type DeployManualStep = "blog" | "scheduler" | "newsletter";
+
+const MANUAL_STEP_ORDER: readonly DeployManualStep[] = ["blog", "scheduler", "newsletter"];
+
+const MANUAL_STEP_LABEL: Record<DeployManualStep, string> = {
+  blog: "Publishing the blog post",
+  scheduler: "Uploading the scheduling file",
+  newsletter: "Publishing the newsletter",
+};
+
 export interface DeployWeekInput extends Common {
   weekLabel: string;
+  /**
+   * The manual steps this week really has, built by the caller from the facts
+   * the deploy page uses. Order and repeats do not matter. Empty leaves the
+   * list (first email) and the sentence (follow-up) out.
+   */
+  manualSteps: readonly DeployManualStep[];
   deployUrl: string;
 }
 
@@ -109,6 +132,29 @@ function nonBlank(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+/** A required text field: trimmed, whitespace collapsed, and never blank. */
+function requiredText(value: string | null | undefined, what: string): string {
+  const text = nonBlank(value);
+  if (!text) throw new Error(`Reminder email needs ${what}`);
+  return text;
+}
+
+/** One paragraph block, or none when the text is blank, so no empty paragraph is ever rendered. */
+function paragraph(value: string | null | undefined): Block[] {
+  const text = nonBlank(value);
+  return text ? [{ type: "p", text }] : [];
+}
+
+/** The chosen manual steps in their fixed order, each once. */
+function orderedSteps(steps: readonly DeployManualStep[]): DeployManualStep[] {
+  return MANUAL_STEP_ORDER.filter((step) => steps.includes(step));
+}
+
+function joinWords(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 function checkedUrl(url: string): string {
   let parsed: URL;
   try {
@@ -146,6 +192,9 @@ function toText(spec: Spec): string {
   return parts.join("\n\n");
 }
 
+/** White text on this button colour has a contrast ratio of 5.9 to 1. */
+export const BUTTON_COLOUR = "#0369a1";
+
 const P_STYLE = "margin:0 0 16px;color:#4b5563;font-size:15px;line-height:1.6;";
 
 function toHtml(spec: Spec): string {
@@ -171,19 +220,12 @@ function toHtml(spec: Spec): string {
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
           <tr>
-            <td style="background:linear-gradient(135deg,#0ea5e9,#8b5cf6);padding:24px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">
-                AGENCY Content Platform
-              </h1>
-            </td>
-          </tr>
-          <tr>
             <td style="padding:40px;">
               <p style="${P_STYLE}">${escapeHtml(greeting(spec.firstName))}</p>
               ${body}
               <table cellpadding="0" cellspacing="0" style="margin:16px 0 0;">
                 <tr>
-                  <td style="background-color:#0ea5e9;border-radius:8px;padding:14px 28px;">
+                  <td style="background-color:${BUTTON_COLOUR};border-radius:8px;padding:14px 28px;">
                     <a href="${escapeHtml(spec.buttonUrl)}" style="color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;display:block;">
                       ${escapeHtml(spec.buttonLabel)}
                     </a>
@@ -220,32 +262,33 @@ const LAST_REMINDER = "This is the last reminder we will send.";
 export function renderWeekReady(input: WeekReadyInput): RenderedReminderEmail {
   const week = tidyLabel(input.weekLabel);
   const buttonUrl = checkedUrl(input.reviewUrl);
-  const counts: Block = { type: "p", text: input.countsByType };
+  const counts = paragraph(input.countsByType);
 
   if (input.isFollowUp) {
+    const firstPost = nonBlank(input.firstPostDate ? tidyLabel(input.firstPostDate) : null);
+    const closing = `${firstPost ? `Your first post is due on ${firstPost}. ` : ""}Nothing is published without your approval, so anything not approved will wait.`;
     return render({
       subject: `Reminder about ${week}`,
       preview: "Nothing goes out without your approval.",
       firstName: input.firstName,
       blocks: [
         { type: "p", text: `Your content for ${week} is still waiting for review. ${LAST_REMINDER}` },
-        counts,
-        { type: "p", text: "Nothing is published without your approval, so the timing is yours." },
+        ...counts,
+        { type: "p", text: closing },
       ],
       buttonLabel: "Review the week",
       buttonUrl,
     });
   }
 
-  const recordings = nonBlank(input.recordingsNeeded);
   return render({
     subject: `Your content for ${week} is ready`,
     preview: "Review, adjust and approve in one sitting.",
     firstName: input.firstName,
     blocks: [
       { type: "p", text: `Your content for ${week} is made and ready to review.` },
-      counts,
-      ...(recordings ? [{ type: "p", text: recordings } as Block] : []),
+      ...counts,
+      ...paragraph(input.recordingsNeeded),
       { type: "p", text: "Read each piece, change what you want and approve it when you are happy. It should take one sitting." },
     ],
     buttonLabel: "Review the week",
@@ -256,18 +299,17 @@ export function renderWeekReady(input: WeekReadyInput): RenderedReminderEmail {
 export function renderDeployWeek(input: DeployWeekInput): RenderedReminderEmail {
   const week = tidyLabel(input.weekLabel);
   const buttonUrl = checkedUrl(input.deployUrl);
+  const steps = orderedSteps(input.manualSteps);
 
   if (input.isFollowUp) {
+    const remaining = joinWords(steps.map((step) => MANUAL_STEP_LABEL[step].replace(/^./, (c) => c.toLowerCase())));
     return render({
       subject: `Reminder to deploy ${week}`,
       preview: "Your approved content is ready when you are.",
       firstName: input.firstName,
       blocks: [
         { type: "p", text: `Your approved content for ${week} has not been deployed yet. ${LAST_REMINDER}` },
-        {
-          type: "p",
-          text: "Once you deploy, the manual steps remain: publishing the blog post, uploading the scheduling file and publishing the newsletter.",
-        },
+        ...paragraph(steps.length ? `Once you deploy, the manual steps remain: ${remaining}.` : null),
       ],
       buttonLabel: "Open the deploy page",
       buttonUrl,
@@ -275,16 +317,12 @@ export function renderDeployWeek(input: DeployWeekInput): RenderedReminderEmail 
   }
 
   return render({
-    subject: `${week} is approved and ready to deploy`,
+    subject: `Your content for ${week} is approved and ready to deploy`,
     preview: "Everything is approved. Deploy when you are ready.",
     firstName: input.firstName,
     blocks: [
       { type: "p", text: `Everything for ${week} is approved. The button opens the deploy page, where you can deploy the week.` },
-      {
-        type: "list",
-        lead: "Three steps stay manual:",
-        items: ["Publishing the blog post", "Uploading the scheduling file", "Publishing the newsletter"],
-      },
+      ...(steps.length ? [{ type: "list", lead: "These steps stay manual:", items: steps.map((step) => MANUAL_STEP_LABEL[step]) } as Block] : []),
     ],
     buttonLabel: "Open the deploy page",
     buttonUrl,
@@ -292,18 +330,19 @@ export function renderDeployWeek(input: DeployWeekInput): RenderedReminderEmail 
 }
 
 export function renderTodaysPost(input: TodaysPostInput): RenderedReminderEmail {
-  const title = tidyLabel(input.postTitle);
+  const title = requiredText(tidyLabel(input.postTitle), "a post title");
+  const postDate = requiredText(input.postDate, "a post date");
   const buttonUrl = checkedUrl(input.postUrl);
-  const preview: Block = { type: "p", text: capWords(input.postPreview) };
+  const preview = paragraph(capWords(input.postPreview));
 
   if (input.isFollowUp) {
     return render({
-      subject: `Reminder about your post for ${input.postDate}`,
+      subject: `Reminder about your post for ${postDate}`,
       preview: title,
       firstName: input.firstName,
       blocks: [
-        { type: "p", text: `Your post for ${input.postDate} is still waiting. ${LAST_REMINDER}` },
-        preview,
+        { type: "p", text: `Your post for ${postDate} is still waiting. ${LAST_REMINDER}` },
+        ...preview,
         { type: "p", text: "It will not go out without your approval." },
       ],
       buttonLabel: "Review today's post",
@@ -316,9 +355,9 @@ export function renderTodaysPost(input: TodaysPostInput): RenderedReminderEmail 
     preview: title,
     firstName: input.firstName,
     blocks: [
-      { type: "p", text: `Your post for ${input.postDate} is ready.` },
-      preview,
-      { type: "p", text: "The link opens the post, where you can edit it and approve it." },
+      { type: "p", text: `Your post for ${postDate} is ready.` },
+      ...preview,
+      { type: "p", text: "The button opens the post, where you can edit and approve it." },
     ],
     buttonLabel: "Review today's post",
     buttonUrl,
@@ -326,6 +365,7 @@ export function renderTodaysPost(input: TodaysPostInput): RenderedReminderEmail 
 }
 
 export function renderManualPublish(input: ManualPublishInput): RenderedReminderEmail {
+  const newsletterTitle = requiredText(input.newsletterTitle, "a newsletter title");
   const buttonUrl = checkedUrl(input.publishUrl);
 
   if (input.isFollowUp) {
@@ -334,7 +374,7 @@ export function renderManualPublish(input: ManualPublishInput): RenderedReminder
       preview: "Copy it across and mark it as published.",
       firstName: input.firstName,
       blocks: [
-        { type: "p", text: `${input.newsletterTitle} has not been marked as published. ${LAST_REMINDER}` },
+        { type: "p", text: `${newsletterTitle} has not been marked as published. ${LAST_REMINDER}` },
         {
           type: "p",
           text: 'The copy-ready page is still there. When the newsletter is out, select "Mark as published" on that page.',
@@ -350,7 +390,7 @@ export function renderManualPublish(input: ManualPublishInput): RenderedReminder
     preview: "The copy is laid out and ready to paste.",
     firstName: input.firstName,
     blocks: [
-      { type: "p", text: `${input.newsletterTitle} is due to be published today.` },
+      { type: "p", text: `${newsletterTitle} is due to be published today.` },
       {
         type: "p",
         text: 'The page has the subject line and text laid out ready to copy. Once it is out, use "Mark as published" on that page so your week stays accurate.',

@@ -22,7 +22,8 @@
  * Nothing is read or written for a company other than the one being
  * processed. A failure in one company is reported and does not stop the rest.
  */
-import { renderReminderEmail, REMINDER_EMAIL_KINDS, capWords, type ReminderEmailInput, type ReminderEmailKind } from "@/lib/email/reminders/render";
+import { renderReminderEmail, REMINDER_EMAIL_KINDS, capWords, type DeployManualStep, type ReminderEmailInput, type ReminderEmailKind } from "@/lib/email/reminders/render";
+import { planWeekDeploy, type DeployPiece } from "@/lib/publishing/deploy-week";
 import { sendEmail } from "@/lib/email/resend";
 import { formatFrom, resolveSender } from "@/lib/email/sender";
 import { longDateLabel, parseDate, todayIn } from "@/lib/hospitality/week";
@@ -92,6 +93,28 @@ export function weekLabel(start: string, end: string): string {
   return sameMonth
     ? `${s.getUTCDate()} to ${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`
     : `${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]} to ${e.getUTCDate()} ${MONTHS[e.getUTCMonth()]}`;
+}
+
+/** "10 November": a calendar date as a plain day and month, with no weekday, year, hyphen or colon. */
+export function dayMonthLabel(date: string): string {
+  const d = parseDate(date);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+/**
+ * The steps Deploy week leaves by hand, from the same facts the deploy page
+ * lists under "What stays manual" (planWeekDeploy over the week's pieces): the
+ * blog when the week has an approved blog, the newsletter when it has an
+ * approved newsletter article, and the scheduler export, which that page
+ * offers for every week. No other step is named.
+ */
+export function manualStepsFor(pieces: PieceRow[], weekStart: string): DeployManualStep[] {
+  const plan = planWeekDeploy(pieces as DeployPiece[], weekStart);
+  const steps: DeployManualStep[] = [];
+  if (plan.blogs.length > 0) steps.push("blog");
+  steps.push("scheduler");
+  if (plan.newsletters.length > 0) steps.push("newsletter");
+  return steps;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -165,19 +188,27 @@ export function emailInputFor(
   if (!week) return { skip: "the week could not be found" };
   // A plain range built from the week's own dates ("10 to 16 November"), not a "w/c" label.
   const label = weekLabel(week.date_start, week.date_end);
-  if (due.kind === "deploy_week") {
-    return { input: { kind: "deploy_week", ...common, weekLabel: label, deployUrl: weekDeployUrl(baseUrl, week.id) } };
-  }
   const pieces = [...data.piecesById.values()].filter((p) => p.week_id === week.id);
+  if (due.kind === "deploy_week") {
+    return {
+      input: { kind: "deploy_week", ...common, weekLabel: label, manualSteps: manualStepsFor(pieces, week.date_start), deployUrl: weekDeployUrl(baseUrl, week.id) },
+    };
+  }
   const counts = line(countsByType(pieces));
   if (!counts) return { skip: "the week has no pieces to count" };
   const needRecording = data.input.captures.filter((c) => !c.captured && pieces.some((p) => p.id === c.id)).length;
+  // The earliest post date in this week, from the dates the due rules use.
+  const firstDate = data.input.pieces
+    .filter((p) => p.week_id === week.id && p.date)
+    .map((p) => p.date as string)
+    .sort()[0];
   return {
     input: {
       kind: "week_ready",
       ...common,
       weekLabel: label,
       countsByType: counts,
+      firstPostDate: firstDate ? dayMonthLabel(firstDate) : null,
       recordingsNeeded: needRecording > 0 ? `${needRecording} ${needRecording === 1 ? "piece needs" : "pieces need"} a recording from you.` : null,
       reviewUrl: weekReviewUrl(baseUrl, week.id),
     },

@@ -8,6 +8,8 @@ import {
   renderTodaysPost,
   renderWeekReady,
   tidyLabel,
+  BUTTON_COLOUR,
+  type DeployManualStep,
 } from "./render";
 import type { ReminderKind } from "@/types/database";
 
@@ -15,6 +17,18 @@ const URL_ = "https://app.example.com/page";
 // Built from the code point so this file never contains the character itself.
 const EM_DASH = new RegExp(String.fromCharCode(0x2014));
 const EN_DASH = String.fromCharCode(0x2013);
+
+const ALL_STEPS: DeployManualStep[] = ["blog", "scheduler", "newsletter"];
+
+/** WCAG relative luminance contrast ratio of white text on a hex background. */
+function whiteContrast(hex: string): number {
+  const channel = (i: number) => {
+    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+  return 1.05 / (luminance + 0.05);
+}
 
 const week = {
   firstName: "Sam",
@@ -59,7 +73,7 @@ describe("week_ready", () => {
   });
 
   it("follow-up matches the approved copy and leaves out the recordings line", () => {
-    const e = renderWeekReady({ ...week, isFollowUp: true });
+    const e = renderWeekReady({ ...week, firstPostDate: "10 November", isFollowUp: true });
     expect(e.subject).toBe("Reminder about 10 to 16 November");
     expect(e.preview).toBe("Nothing goes out without your approval.");
     expect(e.buttonLabel).toBe("Review the week");
@@ -71,13 +85,45 @@ describe("week_ready", () => {
         "",
         "5 LinkedIn posts and 2 videos",
         "",
-        "Nothing is published without your approval, so the timing is yours.",
+        "Your first post is due on 10 November. Nothing is published without your approval, so anything not approved will wait.",
         "",
         "Review the week",
         "https://app.example.com/weeks/abc",
       ].join("\n"),
     );
     expect(e.text).not.toContain("recording");
+    expect(e.text).not.toContain("the timing is yours");
+    expect(e.html).toContain("Your first post is due on 10 November. Nothing is published without your approval, so anything not approved will wait.");
+  });
+
+  it("follow-up keeps only the second sentence when the first post date is unknown", () => {
+    for (const unknown of [undefined, null, "", "   "]) {
+      const e = renderWeekReady({ ...week, firstPostDate: unknown, isFollowUp: true });
+      expect(e.text).toContain("\n\nNothing is published without your approval, so anything not approved will wait.\n\n");
+      expect(e.text).not.toContain("Your first post is due");
+      expect(e.html).not.toContain("Your first post is due");
+    }
+  });
+
+  it("follow-up renders the first post date with no hyphens, dashes or colons", () => {
+    const e = renderWeekReady({ ...week, firstPostDate: `10${EN_DASH}11 November`, isFollowUp: true });
+    expect(e.text).toContain("Your first post is due on 10 to 11 November. ");
+  });
+
+  it("the first send never names a first post date", () => {
+    const e = renderWeekReady({ ...week, firstPostDate: "10 November", isFollowUp: false });
+    expect(e.text).not.toContain("Your first post is due");
+  });
+
+  it("drops a blank counts line with no empty paragraph or double gap", () => {
+    for (const blank of ["", "   ", "\n\t"]) {
+      for (const isFollowUp of [false, true]) {
+        const e = renderWeekReady({ ...week, countsByType: blank, firstPostDate: "10 November", isFollowUp });
+        expect(e.text).not.toContain("\n\n\n");
+        expect(e.html).not.toMatch(/<p[^>]*>\s*<\/p>/);
+        expect(e.text).not.toContain("5 LinkedIn");
+      }
+    }
   });
 
   it("renders no recordings line, and no blank gap, when it is empty", () => {
@@ -103,11 +149,11 @@ describe("week_ready", () => {
 });
 
 describe("deploy_week", () => {
-  const input = { firstName: "Sam", weekLabel: "10 to 16 November", deployUrl: "https://app.example.com/deploy" };
+  const input = { firstName: "Sam", weekLabel: "10 to 16 November", manualSteps: ALL_STEPS, deployUrl: "https://app.example.com/deploy" };
 
-  it("first send matches the approved copy", () => {
+  it("first send matches the approved copy with all three steps", () => {
     const e = renderDeployWeek({ ...input, isFollowUp: false });
-    expect(e.subject).toBe("10 to 16 November is approved and ready to deploy");
+    expect(e.subject).toBe("Your content for 10 to 16 November is approved and ready to deploy");
     expect(e.preview).toBe("Everything is approved. Deploy when you are ready.");
     expect(e.buttonLabel).toBe("Open the deploy page");
     expect(e.text).toBe(
@@ -116,7 +162,7 @@ describe("deploy_week", () => {
         "",
         "Everything for 10 to 16 November is approved. The button opens the deploy page, where you can deploy the week.",
         "",
-        "Three steps stay manual:",
+        "These steps stay manual:",
         "- Publishing the blog post",
         "- Uploading the scheduling file",
         "- Publishing the newsletter",
@@ -126,9 +172,41 @@ describe("deploy_week", () => {
       ].join("\n"),
     );
     expect(e.html.match(/<li/g)).toHaveLength(3);
+    expect(e.text).not.toContain("Three steps");
   });
 
-  it("follow-up matches the approved copy", () => {
+  it("first send lists one step only", () => {
+    const e = renderDeployWeek({ ...input, manualSteps: ["scheduler"], isFollowUp: false });
+    expect(e.text).toContain("These steps stay manual:\n- Uploading the scheduling file\n\nOpen the deploy page");
+    expect(e.text).not.toContain("blog");
+    expect(e.text).not.toContain("newsletter");
+    expect(e.html.match(/<li/g)).toHaveLength(1);
+  });
+
+  it("first send lists two steps in the fixed order, once each, whatever order they arrive in", () => {
+    const e = renderDeployWeek({ ...input, manualSteps: ["newsletter", "blog", "newsletter"], isFollowUp: false });
+    expect(e.text).toContain("These steps stay manual:\n- Publishing the blog post\n- Publishing the newsletter\n\n");
+    expect(e.html.match(/<li/g)).toHaveLength(2);
+  });
+
+  it("first send leaves out the lead and the list when there are no steps", () => {
+    const e = renderDeployWeek({ ...input, manualSteps: [], isFollowUp: false });
+    expect(e.text).toBe(
+      [
+        "Hi Sam,",
+        "",
+        "Everything for 10 to 16 November is approved. The button opens the deploy page, where you can deploy the week.",
+        "",
+        "Open the deploy page",
+        "https://app.example.com/deploy",
+      ].join("\n"),
+    );
+    expect(e.text).not.toContain("stay manual");
+    expect(e.html).not.toContain("<ul");
+    expect(e.html).not.toContain("stay manual");
+  });
+
+  it("follow-up matches the approved copy with all three steps", () => {
     const e = renderDeployWeek({ ...input, isFollowUp: true });
     expect(e.subject).toBe("Reminder to deploy 10 to 16 November");
     expect(e.preview).toBe("Your approved content is ready when you are.");
@@ -144,6 +222,26 @@ describe("deploy_week", () => {
         "https://app.example.com/deploy",
       ].join("\n"),
     );
+  });
+
+  it("follow-up names one step, two steps, and leaves the sentence out for none", () => {
+    const one = renderDeployWeek({ ...input, manualSteps: ["newsletter"], isFollowUp: true });
+    expect(one.text).toContain("Once you deploy, the manual steps remain: publishing the newsletter.");
+    const two = renderDeployWeek({ ...input, manualSteps: ["blog", "scheduler"], isFollowUp: true });
+    expect(two.text).toContain("Once you deploy, the manual steps remain: publishing the blog post and uploading the scheduling file.");
+    const none = renderDeployWeek({ ...input, manualSteps: [], isFollowUp: true });
+    expect(none.text).toBe(
+      [
+        "Hi Sam,",
+        "",
+        "Your approved content for 10 to 16 November has not been deployed yet. This is the last reminder we will send.",
+        "",
+        "Open the deploy page",
+        "https://app.example.com/deploy",
+      ].join("\n"),
+    );
+    expect(none.text).not.toContain("manual steps");
+    expect(none.html).not.toMatch(/<p[^>]*>\s*<\/p>/);
   });
 });
 
@@ -169,7 +267,7 @@ describe("todays_post", () => {
         "",
         "A short preview of the post.",
         "",
-        "The link opens the post, where you can edit it and approve it.",
+        "The button opens the post, where you can edit and approve it.",
         "",
         "Review today's post",
         "https://app.example.com/posts/1",
@@ -208,6 +306,36 @@ describe("todays_post", () => {
     const e = renderTodaysPost({ ...input, postTitle: `Pricing: the long-term view ${EN_DASH} part 2`, isFollowUp: false });
     expect(e.preview).not.toMatch(/[-:‐-―]/);
     expect(e.preview).toBe("Pricing the long term view part 2");
+  });
+
+  it("drops a blank preview with no empty paragraph or double gap", () => {
+    for (const blank of ["", "   ", "\n\t"]) {
+      for (const isFollowUp of [false, true]) {
+        const e = renderTodaysPost({ ...input, postPreview: blank, isFollowUp });
+        expect(e.text).not.toContain("\n\n\n");
+        expect(e.html).not.toMatch(/<p[^>]*>\s*<\/p>/);
+        expect(e.text).not.toContain("A short preview");
+      }
+    }
+  });
+
+  it("throws on a blank post title, so no empty preview line is sent", () => {
+    for (const blank of ["", "   ", "\n", "-", ": -"]) {
+      expect(() => renderTodaysPost({ ...input, postTitle: blank, isFollowUp: false })).toThrow(/post title/);
+      expect(() => renderTodaysPost({ ...input, postTitle: blank, isFollowUp: true })).toThrow(/post title/);
+    }
+  });
+
+  it("trims and collapses the post date before it goes in a subject, and throws when blank", () => {
+    const e = renderTodaysPost({ ...input, postDate: "  Friday \n  14   November ", isFollowUp: true });
+    expect(e.subject).toBe("Reminder about your post for Friday 14 November");
+    expect(e.text).toContain("Your post for Friday 14 November is still waiting.");
+    const first = renderTodaysPost({ ...input, postDate: "  Friday  14 November  ", isFollowUp: false });
+    expect(first.text).toContain("Your post for Friday 14 November is ready.");
+    for (const blank of ["", "   ", "\t\n"]) {
+      expect(() => renderTodaysPost({ ...input, postDate: blank, isFollowUp: true })).toThrow(/post date/);
+      expect(() => renderTodaysPost({ ...input, postDate: blank, isFollowUp: false })).toThrow(/post date/);
+    }
   });
 });
 
@@ -249,6 +377,18 @@ describe("manual_publish", () => {
         "https://app.example.com/newsletter/1",
       ].join("\n"),
     );
+  });
+
+  it("throws on a blank newsletter title, so no sentence starts with a space", () => {
+    for (const blank of ["", "   ", "\n\t"]) {
+      expect(() => renderManualPublish({ ...input, newsletterTitle: blank, isFollowUp: false })).toThrow(/newsletter title/);
+      expect(() => renderManualPublish({ ...input, newsletterTitle: blank, isFollowUp: true })).toThrow(/newsletter title/);
+    }
+  });
+
+  it("trims and collapses the newsletter title", () => {
+    const e = renderManualPublish({ ...input, newsletterTitle: "  The  November \n note ", isFollowUp: false });
+    expect(e.text).toContain("\n\nThe November note is due to be published today.\n\n");
   });
 });
 
@@ -310,7 +450,7 @@ describe("template rules", () => {
     expect(p.html).not.toContain("<script>");
     const m = renderManualPublish({ firstName: evil, newsletterTitle: evil, publishUrl: URL_, isFollowUp: true });
     expect(m.html).not.toContain("<script>");
-    const d = renderDeployWeek({ firstName: evil, weekLabel: evil, deployUrl: URL_, isFollowUp: true });
+    const d = renderDeployWeek({ firstName: evil, weekLabel: evil, manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: true });
     expect(d.html).not.toContain("<script>");
   });
 
@@ -323,8 +463,8 @@ describe("template rules", () => {
     const all = [
       renderWeekReady({ ...week, isFollowUp: false }),
       renderWeekReady({ ...week, isFollowUp: true }),
-      renderDeployWeek({ firstName: "S", weekLabel: "W", deployUrl: URL_, isFollowUp: false }),
-      renderDeployWeek({ firstName: "S", weekLabel: "W", deployUrl: URL_, isFollowUp: true }),
+      renderDeployWeek({ firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: false }),
+      renderDeployWeek({ firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: true }),
       renderTodaysPost({ firstName: "S", postDate: "D", postTitle: "T", postPreview: "P", postUrl: URL_, isFollowUp: false }),
       renderTodaysPost({ firstName: "S", postDate: "D", postTitle: "T", postPreview: "P", postUrl: URL_, isFollowUp: true }),
       renderManualPublish({ firstName: "S", newsletterTitle: "N", publishUrl: URL_, isFollowUp: false }),
@@ -337,10 +477,40 @@ describe("template rules", () => {
   });
 });
 
+describe("HTML presentation", () => {
+  const all = () => [
+    renderWeekReady({ ...week, firstPostDate: "10 November", isFollowUp: false }),
+    renderWeekReady({ ...week, firstPostDate: "10 November", isFollowUp: true }),
+    renderDeployWeek({ firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: false }),
+    renderDeployWeek({ firstName: "S", weekLabel: "W", manualSteps: [], deployUrl: URL_, isFollowUp: true }),
+    renderTodaysPost({ firstName: "S", postDate: "D", postTitle: "T", postPreview: "P", postUrl: URL_, isFollowUp: false }),
+    renderManualPublish({ firstName: "S", newsletterTitle: "N", publishUrl: URL_, isFollowUp: true }),
+  ];
+
+  it("has no AGENCY Content Platform header wording or gradient band", () => {
+    for (const e of all()) {
+      expect(e.html).not.toContain("AGENCY Content Platform");
+      expect(e.html).not.toContain("AGENCY");
+      expect(e.html).not.toContain("<h1");
+      expect(e.html).not.toContain("gradient");
+      expect(e.text).not.toContain("AGENCY Content Platform");
+    }
+  });
+
+  it("gives the button white text with a contrast ratio of at least 4.5 to 1", () => {
+    expect(whiteContrast(BUTTON_COLOUR)).toBeGreaterThanOrEqual(4.5);
+    expect(whiteContrast("#0ea5e9")).toBeLessThan(4.5);
+    for (const e of all()) {
+      expect(e.html).toContain(`background-color:${BUTTON_COLOUR}`);
+      expect(e.html).not.toContain("#0ea5e9");
+    }
+  });
+});
+
 describe("renderReminderEmail", () => {
   it("dispatches on kind for all four kinds", () => {
     expect(renderReminderEmail({ kind: "week_ready", ...week, isFollowUp: false }).subject).toContain("is ready");
-    expect(renderReminderEmail({ kind: "deploy_week", firstName: "S", weekLabel: "W", deployUrl: URL_, isFollowUp: false }).subject).toContain("ready to deploy");
+    expect(renderReminderEmail({ kind: "deploy_week", firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: false }).subject).toContain("ready to deploy");
     expect(
       renderReminderEmail({ kind: "todays_post", firstName: "S", postDate: "D", postTitle: "T", postPreview: "P", postUrl: URL_, isFollowUp: false }).subject,
     ).toBe("Today's post is waiting for you");
@@ -350,7 +520,7 @@ describe("renderReminderEmail", () => {
   });
 
   it("does not approve, deploy or mark anything: the button is a plain link", () => {
-    const e = renderReminderEmail({ kind: "deploy_week", firstName: "S", weekLabel: "W", deployUrl: "https://app.example.com/deploy", isFollowUp: false });
+    const e = renderReminderEmail({ kind: "deploy_week", firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: "https://app.example.com/deploy", isFollowUp: false });
     expect(e.html).not.toMatch(/<form|<button|method="post"/i);
     expect(e.html.match(/href="/g)).toHaveLength(1);
   });
