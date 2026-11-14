@@ -98,6 +98,9 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const SECRET = "s3cret";
 
+let logSpy: ReturnType<typeof vi.spyOn>;
+let errorSpy: ReturnType<typeof vi.spyOn>;
+
 const req = () => new Request("http://x/api/cron/reminders", { headers: { authorization: `Bearer ${SECRET}` } });
 const at = (iso: string) => vi.setSystemTime(new Date(iso));
 const writes = () => h.state.calls.filter((c) => c.op === "insert" || c.op === "delete");
@@ -128,8 +131,10 @@ beforeEach(() => {
   h.state.sendResult = { success: true };
   h.state.deleteError = false;
   h.state.nextId = 1;
+  logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("GET /api/cron/reminders: secret", () => {
   it("refuses to run when CRON_SECRET is not set", async () => {
@@ -440,5 +445,86 @@ describe("GET /api/cron/reminders: old data is never reminded about", () => {
     ]);
     await GET(req());
     expect(logRows().map((r) => r.subject_key)).toEqual(["yest"]);
+  });
+});
+
+describe("GET /api/cron/reminders: the summary log line", () => {
+  const lines = () => logSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+
+  it("writes exactly one line in dry_run, the prefix then compact JSON", async () => {
+    vi.stubEnv("REMINDERS_MODE", "dry_run");
+    seedCompany(A, "a@x.com", "w1", "p1");
+    await GET(req());
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0]).toBe(
+      'reminders: {"mode":"dry_run","companies":1,"totals":{"due":1,"skippedInvalid":0,"wouldSend":1,"sent":0,"alreadySent":0,"heldByDailyLimit":0,"noTemplate":0,"failed":0},"dueByKind":{"week_ready":1},"skippedByReason":{},"failures":[]}',
+    );
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("writes exactly one line in send, and it parses as JSON after the prefix", async () => {
+    seedCompany(A, "a@x.com", "w1", "p1");
+    await GET(req());
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0].startsWith("reminders: ")).toBe(true);
+    const entry = JSON.parse(lines()[0].slice("reminders: ".length));
+    expect(entry).toMatchObject({ mode: "send", companies: 1, totals: { due: 1, sent: 1, failed: 0 }, dueByKind: { week_ready: 1 }, failures: [] });
+  });
+
+  it.each([undefined, "", "off", "SEND"])("writes nothing when the switch is %s", async (value) => {
+    if (value === undefined) vi.stubEnv("REMINDERS_MODE", undefined as unknown as string);
+    else vi.stubEnv("REMINDERS_MODE", value);
+    seedCompany(A, "a@x.com", "w1", "p1");
+    await GET(req());
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing for a bad or missing secret", async () => {
+    await GET(new Request("http://x/api/cron/reminders"));
+    vi.stubEnv("CRON_SECRET", "");
+    await GET(req());
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("counts skipped reminders by reason", async () => {
+    vi.stubEnv("REMINDERS_MODE", "dry_run");
+    seedDeployedWeek([{ id: "news", title: "   ", content_type: "linkedin_article", scheduled_date: "2026-11-16" }]);
+    await GET(req());
+    const entry = JSON.parse(lines()[0].slice("reminders: ".length));
+    expect(entry.skippedByReason).toEqual({ "the newsletter has no title": 1 });
+    expect(entry.dueByKind).toEqual({ manual_publish: 1 });
+  });
+
+  it("carries no address, first name, title, link, company name or environment value, even when a failed send echoes an address", async () => {
+    seedDeployedWeek([{ id: "news", title: "Zebra Quarterly Letter", content_type: "linkedin_article", scheduled_date: "2026-11-16" }]);
+    h.state.tables.users = [{ company_id: A, email: "a@x.com", full_name: "Sam Jones" }];
+    h.state.tables.companies[0].name = "Acme Holdings";
+    h.state.sendResult = { success: false, error: "Rejected a@x.com, see https://api.provider.example/err/123 for details" };
+    const res = await GET(req());
+    expect(h.state.sends).toHaveLength(1); // it did build and try a real email with those values
+    expect(h.state.sends[0].html).toContain("Zebra Quarterly Letter");
+    expect(res.status).toBe(200);
+
+    expect(lines()).toHaveLength(1);
+    const line = lines()[0];
+    const entry = JSON.parse(line.slice("reminders: ".length));
+    expect(entry.failures).toEqual([{ companyId: A, kind: "manual_publish", error: "Rejected [removed] see [removed] for details" }]);
+    expect(line).not.toContain("@");
+    for (const secret of ["a@x.com", "x.com", "Sam", "Jones", "Zebra", "Quarterly", "Acme", "portal.example", "provider.example", SECRET, "http"]) {
+      expect(line).not.toContain(secret);
+    }
+    // Company ids appear only inside the failure entries.
+    expect(JSON.stringify({ ...entry, failures: [] })).not.toContain(A);
+  });
+
+  it("writes one error line, with the prefix and the cleaned message only, when the run throws", async () => {
+    vi.spyOn(h.client, "from").mockImplementation(() => { throw new Error("database down for a@x.com"); });
+    const res = await GET(req());
+    expect(res.status).toBe(500);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0]).toEqual(["reminders: database down for [removed]"]);
   });
 });

@@ -74,6 +74,8 @@ export interface RunSummary {
   companies: CompanySummary[];
   failures: ReminderFailure[];
   skipped: SkippedReminder[];
+  /** Due reminders by kind, for companies that finished. Counts only, so it can be logged. */
+  dueByKind: Partial<Record<ReminderKind, number>>;
   totals: { due: number; skippedInvalid: number; wouldSend: number; sent: number; alreadySent: number; heldByDailyLimit: number; noTemplate: number; failed: number };
 }
 
@@ -230,6 +232,7 @@ async function runCompany(
   now: Date,
   failures: ReminderFailure[],
   skipped: SkippedReminder[],
+  dueByKind: RunSummary["dueByKind"],
 ): Promise<CompanySummary> {
   const companyId = cadence.company_id;
   const summary: CompanySummary = { companyId, due: 0, wouldSend: 0, sent: 0, alreadySent: 0, heldByDailyLimit: 0, noTemplate: 0, skippedInvalid: 0 };
@@ -316,6 +319,8 @@ async function runCompany(
     failures.push(failure);
   }
 
+  // Counted last, so a company that threw part-way is not counted here but is in failures.
+  for (const item of due) dueByKind[item.kind] = (dueByKind[item.kind] || 0) + 1;
   return summary;
 }
 
@@ -323,6 +328,7 @@ export async function runReminders(supabase: SupabaseAdmin, mode: "dry_run" | "s
   const failures: ReminderFailure[] = [];
   const skipped: SkippedReminder[] = [];
   const companies: CompanySummary[] = [];
+  const dueByKind: RunSummary["dueByKind"] = {};
 
   // The one read that is not scoped to a company: the list of companies that
   // have a cadence. Everything after it is filtered on that company's id.
@@ -333,7 +339,7 @@ export async function runReminders(supabase: SupabaseAdmin, mode: "dry_run" | "s
 
   for (const cadence of (cadences || []) as CadenceRow[]) {
     try {
-      companies.push(await runCompany(supabase, cadence, mode, now, failures, skipped));
+      companies.push(await runCompany(supabase, cadence, mode, now, failures, skipped, dueByKind));
     } catch (e) {
       companies.push({ companyId: cadence.company_id, skipped: "error", due: 0, wouldSend: 0, sent: 0, alreadySent: 0, heldByDailyLimit: 0, noTemplate: 0, skippedInvalid: 0 });
       failures.push({ companyId: cadence.company_id, recipient: "", kind: "week_ready", subject_key: "", error: e instanceof Error ? e.message : String(e) });
@@ -346,6 +352,7 @@ export async function runReminders(supabase: SupabaseAdmin, mode: "dry_run" | "s
     companies,
     failures,
     skipped,
+    dueByKind,
     totals: {
       due: sum("due"), skippedInvalid: sum("skippedInvalid"), wouldSend: sum("wouldSend"), sent: sum("sent"), alreadySent: sum("alreadySent"),
       heldByDailyLimit: sum("heldByDailyLimit"), noTemplate: sum("noTemplate"), failed: failures.length,
