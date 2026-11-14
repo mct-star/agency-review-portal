@@ -140,7 +140,6 @@ describe("waiting states", () => {
       { kind: "todays_post", count: 1, label: "1 post to approve today", href: `https://portal.test/content/${id(102)}` },
       { kind: "manual_publish", count: 1, label: "1 newsletter to publish", href: `https://portal.test/content/${id(105)}` },
     ]);
-    console.log(JSON.stringify(out, null, 2));
   });
   it("pluralises and links the earliest of several", async () => {
     state.tables.content_pieces.push(piece(107, A, 1, "2026-11-17", { title: "Second today" }));
