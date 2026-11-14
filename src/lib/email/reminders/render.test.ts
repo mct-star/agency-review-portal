@@ -497,6 +497,24 @@ describe("HTML presentation", () => {
     }
   });
 
+  it("keeps the approved step wording in the deploy HTML", () => {
+    const first = renderDeployWeek({ firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: false });
+    expect(first.html).toContain("These steps stay manual:");
+    const followUp = renderDeployWeek({ firstName: "S", weekLabel: "W", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp: true });
+    expect(followUp.html).toContain("Once you deploy, the manual steps remain:");
+  });
+
+  it("has no colon or hyphen in any subject across all eight variants", () => {
+    const subjects = [false, true].flatMap((isFollowUp) => [
+      renderWeekReady({ ...week, isFollowUp }).subject,
+      renderDeployWeek({ firstName: "S", weekLabel: "10-16 November", manualSteps: ALL_STEPS, deployUrl: URL_, isFollowUp }).subject,
+      renderTodaysPost({ firstName: "S", postDate: "Friday 14 November", postTitle: "T", postPreview: "P", postUrl: URL_, isFollowUp }).subject,
+      renderManualPublish({ firstName: "S", newsletterTitle: "N", publishUrl: URL_, isFollowUp }).subject,
+    ]);
+    expect(subjects).toHaveLength(8);
+    for (const subject of subjects) expect(subject).not.toMatch(/[-:]/);
+  });
+
   it("gives the button white text with a contrast ratio of at least 4.5 to 1", () => {
     expect(whiteContrast(BUTTON_COLOUR)).toBeGreaterThanOrEqual(4.5);
     expect(whiteContrast("#0ea5e9")).toBeLessThan(4.5);

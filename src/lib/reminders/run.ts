@@ -22,7 +22,7 @@
  * Nothing is read or written for a company other than the one being
  * processed. A failure in one company is reported and does not stop the rest.
  */
-import { renderReminderEmail, REMINDER_EMAIL_KINDS, capWords, type DeployManualStep, type ReminderEmailInput, type ReminderEmailKind } from "@/lib/email/reminders/render";
+import { renderReminderEmail, REMINDER_EMAIL_KINDS, capWords, tidyLabel, type DeployManualStep, type ReminderEmailInput, type ReminderEmailKind } from "@/lib/email/reminders/render";
 import { planWeekDeploy, type DeployPiece } from "@/lib/publishing/deploy-week";
 import { sendEmail } from "@/lib/email/resend";
 import { formatFrom, resolveSender } from "@/lib/email/sender";
@@ -172,6 +172,8 @@ export function emailInputFor(
     if (!piece) return { skip: "the piece could not be found" };
     const url = pieceUrl(baseUrl, piece.id);
     const title = line(piece.title);
+    // The post template tidies its title (no hyphens, dashes or colons) and refuses a blank one, so check after the same tidying.
+    const tidyTitle = line(tidyLabel(piece.title ?? ""));
     if (due.kind === "manual_publish") {
       if (piece.content_type !== "linkedin_article") return { skip: "not a LinkedIn newsletter article" };
       if (!title) return { skip: "the newsletter has no title" };
@@ -180,7 +182,7 @@ export function emailInputFor(
     const date = data.input.pieces.find((p) => p.id === piece.id)?.date;
     if (!date) return { skip: "the post has no date" };
     const preview = line(plainPreview(piece.markdown_body));
-    if (!title) return { skip: "the post has no title" };
+    if (!title || !tidyTitle) return { skip: "the post has no title" };
     if (!preview) return { skip: "the post has no text to preview" };
     return { input: { kind: "todays_post", ...common, postDate: longDateLabel(date), postTitle: title, postPreview: preview, postUrl: url } };
   }

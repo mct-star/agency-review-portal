@@ -129,3 +129,22 @@ describe("emailInputFor, inputs the templates would refuse are skipped", () => {
     expect(emailInputFor(due("manual_publish", { piece_id: "n" }), data([news]), BASE)).toHaveProperty("skip");
   });
 });
+
+describe("emailInputFor, punctuation-only titles", () => {
+  it("skips a post whose title is blank once hyphens, dashes and colons are removed, and never throws", () => {
+    for (const title of ["-", ": -", "\u2013", " - : "]) {
+      for (const isFollowUp of [false, true]) {
+        const post = piece({ id: "p", title });
+        const built = emailInputFor(due("todays_post", { piece_id: "p", is_follow_up: isFollowUp }), data([post], { p: "2026-11-09" }), BASE);
+        expect(built).toEqual({ skip: "the post has no title" });
+      }
+    }
+  });
+
+  it("does not skip a newsletter with a punctuation-only title, because its template does not tidy the title, so it cannot throw", () => {
+    const news = piece({ id: "n", content_type: "linkedin_article", title: "-" });
+    const built = emailInputFor(due("manual_publish", { piece_id: "n" }), data([news]), BASE);
+    if (!("input" in built)) throw new Error("expected an input");
+    expect(() => renderReminderEmail(built.input)).not.toThrow();
+  });
+});
