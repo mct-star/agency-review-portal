@@ -158,7 +158,24 @@ export async function loadCompanyReminderData(
     jobRows.filter((j) => j.target_platform === "linkedin_newsletter" && j.status === "published").map((j) => j.content_piece_id),
   );
 
-  const reminderWeeks: ReminderWeek[] = weeks.map((w) => ({
+  // THE DATE BOUND (a guard that stays even once due.ts bounds these itself).
+  // remindersDue puts no lower date limit on week_ready, deploy_week or
+  // manual_publish, so a leftover week or article from long ago would be
+  // reminded about now. So only these go in:
+  //   - weeks with at least one piece scheduled today or later (company-local);
+  //   - manual_publish for a newsletter due today or yesterday (company-local).
+  const dateOf = new Map<string, string | null>();
+  for (const p of pieceRows) {
+    const week = weeksById.get(p.week_id);
+    dateOf.set(p.id, week ? pieceDate(p, week.date_start) : null);
+  }
+  const yesterday = addDays(today, -1);
+  const liveWeeks = weeks.filter((w) =>
+    pieceRows.some((p) => p.week_id === w.id && (dateOf.get(p.id) ?? "") >= today && dateOf.get(p.id) !== null),
+  );
+  const liveWeekIds = new Set(liveWeeks.map((w) => w.id));
+
+  const reminderWeeks: ReminderWeek[] = liveWeeks.map((w) => ({
     id: w.id,
     status: w.status,
     deployed: pieceRows.some((p) => p.week_id === w.id && deployedPieces.has(p.id)),
@@ -167,12 +184,18 @@ export async function loadCompanyReminderData(
   const reminderPieces: ReminderPiece[] = [];
   const captures: ReminderCapture[] = [];
   for (const p of pieceRows) {
-    const week = weeksById.get(p.week_id);
-    if (!week) continue;
-    const date = pieceDate(p, week.date_start);
-    // The newsletter route only lets an approved article be marked published,
-    // so only an approved one is something to remind about.
-    const manual = p.content_type === "linkedin_article" && p.approval_status === "approved";
+    if (!liveWeekIds.has(p.week_id)) continue;
+    const date = dateOf.get(p.id) ?? null;
+    // Only a LinkedIn newsletter article is published by hand with a reminder
+    // (the email is newsletter-only): never a blog or any other piece. The
+    // newsletter route only lets an approved article be marked published, so
+    // only an approved one counts. And only one due today or yesterday.
+    const manual =
+      p.content_type === "linkedin_article" &&
+      p.approval_status === "approved" &&
+      date !== null &&
+      date >= yesterday &&
+      date <= today;
     reminderPieces.push({
       id: p.id,
       week_id: p.week_id,

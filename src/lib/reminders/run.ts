@@ -56,13 +56,23 @@ export interface CompanySummary {
   alreadySent: number;
   heldByDailyLimit: number;
   noTemplate: number;
+  skippedInvalid: number;
+}
+
+export interface SkippedReminder {
+  companyId: string;
+  recipient: string;
+  kind: ReminderKind;
+  subject_key: string;
+  reason: string;
 }
 
 export interface RunSummary {
   mode: Exclude<ReminderMode, "off">;
   companies: CompanySummary[];
   failures: ReminderFailure[];
-  totals: { due: number; wouldSend: number; sent: number; alreadySent: number; heldByDailyLimit: number; noTemplate: number; failed: number };
+  skipped: SkippedReminder[];
+  totals: { due: number; skippedInvalid: number; wouldSend: number; sent: number; alreadySent: number; heldByDailyLimit: number; noTemplate: number; failed: number };
 }
 
 const isEmailKind = (kind: ReminderKind): kind is ReminderEmailKind => (REMINDER_EMAIL_KINDS as readonly string[]).includes(kind);
@@ -109,50 +119,69 @@ function plainPreview(markdown: string | null): string {
   return capWords((markdown || "").replace(/[#*_`>~]/g, " ").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"));
 }
 
+/** A trimmed, single-line string, or null when nothing is left. Templates are never given a blank. */
+function line(value: string | null | undefined): string | null {
+  const clean = (value ?? "").replace(/\s+/g, " ").trim();
+  return clean || null;
+}
+
+export type EmailInputResult = { input: ReminderEmailInput } | { skip: string };
+
 export function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://agency-review-portal.vercel.app")).replace(/\/+$/, "");
 }
 
-/** The template input for a due reminder, with the real page paths: /review/[weekId], /review/[weekId]/deploy, /content/[pieceId]. */
+/**
+ * The template input for a due reminder, with the real page paths:
+ * /review/[weekId], /review/[weekId]/deploy, /content/[pieceId]. Every text
+ * field is non-blank, trimmed and single-line; when one cannot be built the
+ * reminder is skipped with the reason, never sent with a blank or a made-up
+ * stand-in.
+ */
 export function emailInputFor(
   due: DueReminder & { kind: ReminderEmailKind },
   data: CompanyReminderData,
   baseUrl: string,
-): ReminderEmailInput | null {
+): EmailInputResult {
   const firstName = data.firstNames.get(due.recipient) ?? null;
   const common = { firstName, isFollowUp: due.is_follow_up };
   if (due.kind === "todays_post" || due.kind === "manual_publish") {
     const piece = data.piecesById.get(due.piece_id || "");
-    if (!piece) return null;
+    if (!piece) return { skip: "the piece could not be found" };
     const url = `${baseUrl}/content/${piece.id}`;
+    const title = line(piece.title);
     if (due.kind === "manual_publish") {
-      return { kind: "manual_publish", ...common, newsletterTitle: piece.title?.trim() || "Untitled", publishUrl: url };
+      if (piece.content_type !== "linkedin_article") return { skip: "not a LinkedIn newsletter article" };
+      if (!title) return { skip: "the newsletter has no title" };
+      return { input: { kind: "manual_publish", ...common, newsletterTitle: title, publishUrl: url } };
     }
-    const date = piece.scheduled_date?.slice(0, 10) || data.input.pieces.find((p) => p.id === piece.id)?.date || todayIn(data.input.timeZone, data.input.now);
-    return {
-      kind: "todays_post",
-      ...common,
-      postDate: longDateLabel(date),
-      postTitle: piece.title?.trim() || "Untitled",
-      postPreview: plainPreview(piece.markdown_body),
-      postUrl: url,
-    };
+    const date = data.input.pieces.find((p) => p.id === piece.id)?.date;
+    if (!date) return { skip: "the post has no date" };
+    const preview = line(plainPreview(piece.markdown_body));
+    if (!title) return { skip: "the post has no title" };
+    if (!preview) return { skip: "the post has no text to preview" };
+    return { input: { kind: "todays_post", ...common, postDate: longDateLabel(date), postTitle: title, postPreview: preview, postUrl: url } };
   }
   const week: WeekRow | undefined = data.weeksById.get(due.week_id || "");
-  if (!week) return null;
+  if (!week) return { skip: "the week could not be found" };
+  // A plain range built from the week's own dates ("10 to 16 November"), not a "w/c" label.
   const label = weekLabel(week.date_start, week.date_end);
   if (due.kind === "deploy_week") {
-    return { kind: "deploy_week", ...common, weekLabel: label, deployUrl: `${baseUrl}/review/${week.id}/deploy` };
+    return { input: { kind: "deploy_week", ...common, weekLabel: label, deployUrl: `${baseUrl}/review/${week.id}/deploy` } };
   }
   const pieces = [...data.piecesById.values()].filter((p) => p.week_id === week.id);
+  const counts = line(countsByType(pieces));
+  if (!counts) return { skip: "the week has no pieces to count" };
   const needRecording = data.input.captures.filter((c) => pieces.some((p) => p.id === c.id)).length;
   return {
-    kind: "week_ready",
-    ...common,
-    weekLabel: label,
-    countsByType: countsByType(pieces),
-    recordingsNeeded: needRecording > 0 ? `${needRecording} ${needRecording === 1 ? "piece needs" : "pieces need"} a recording from you.` : null,
-    reviewUrl: `${baseUrl}/review/${week.id}`,
+    input: {
+      kind: "week_ready",
+      ...common,
+      weekLabel: label,
+      countsByType: counts,
+      recordingsNeeded: needRecording > 0 ? `${needRecording} ${needRecording === 1 ? "piece needs" : "pieces need"} a recording from you.` : null,
+      reviewUrl: `${baseUrl}/review/${week.id}`,
+    },
   };
 }
 
@@ -168,9 +197,10 @@ async function runCompany(
   mode: "dry_run" | "send",
   now: Date,
   failures: ReminderFailure[],
+  skipped: SkippedReminder[],
 ): Promise<CompanySummary> {
   const companyId = cadence.company_id;
-  const summary: CompanySummary = { companyId, due: 0, wouldSend: 0, sent: 0, alreadySent: 0, heldByDailyLimit: 0, noTemplate: 0 };
+  const summary: CompanySummary = { companyId, due: 0, wouldSend: 0, sent: 0, alreadySent: 0, heldByDailyLimit: 0, noTemplate: 0, skippedInvalid: 0 };
 
   const loaded = await loadCompanyReminderData(supabase, cadence, now);
   if (loaded.status === "skipped") return { ...summary, skipped: loaded.reason };
@@ -194,8 +224,14 @@ async function runCompany(
     if (!isEmailKind(item.kind)) { summary.noTemplate += 1; continue; }
     if (emailedToday.has(item.recipient)) { summary.heldByDailyLimit += 1; continue; }
 
-    const input = emailInputFor(item as DueReminder & { kind: ReminderEmailKind }, data, baseUrl);
-    if (!input) { summary.noTemplate += 1; continue; }
+    const built = emailInputFor(item as DueReminder & { kind: ReminderEmailKind }, data, baseUrl);
+    if ("skip" in built) {
+      // Not logged, and it does not use up the recipient's email for the day.
+      summary.skippedInvalid += 1;
+      skipped.push({ companyId, recipient: item.recipient, kind: item.kind, subject_key: item.subject_key, reason: built.skip });
+      continue;
+    }
+    const input = built.input;
 
     if (mode === "dry_run") {
       summary.wouldSend += 1;
@@ -253,6 +289,7 @@ async function runCompany(
 
 export async function runReminders(supabase: SupabaseAdmin, mode: "dry_run" | "send", now: Date = new Date()): Promise<RunSummary> {
   const failures: ReminderFailure[] = [];
+  const skipped: SkippedReminder[] = [];
   const companies: CompanySummary[] = [];
 
   // The one read that is not scoped to a company: the list of companies that
@@ -264,20 +301,21 @@ export async function runReminders(supabase: SupabaseAdmin, mode: "dry_run" | "s
 
   for (const cadence of (cadences || []) as CadenceRow[]) {
     try {
-      companies.push(await runCompany(supabase, cadence, mode, now, failures));
+      companies.push(await runCompany(supabase, cadence, mode, now, failures, skipped));
     } catch (e) {
-      companies.push({ companyId: cadence.company_id, skipped: "error", due: 0, wouldSend: 0, sent: 0, alreadySent: 0, heldByDailyLimit: 0, noTemplate: 0 });
+      companies.push({ companyId: cadence.company_id, skipped: "error", due: 0, wouldSend: 0, sent: 0, alreadySent: 0, heldByDailyLimit: 0, noTemplate: 0, skippedInvalid: 0 });
       failures.push({ companyId: cadence.company_id, recipient: "", kind: "week_ready", subject_key: "", error: e instanceof Error ? e.message : String(e) });
     }
   }
 
-  const sum = (key: "due" | "wouldSend" | "sent" | "alreadySent" | "heldByDailyLimit" | "noTemplate") => companies.reduce((n, c) => n + c[key], 0);
+  const sum = (key: "due" | "skippedInvalid" | "wouldSend" | "sent" | "alreadySent" | "heldByDailyLimit" | "noTemplate") => companies.reduce((n, c) => n + c[key], 0);
   return {
     mode,
     companies,
     failures,
+    skipped,
     totals: {
-      due: sum("due"), wouldSend: sum("wouldSend"), sent: sum("sent"), alreadySent: sum("alreadySent"),
+      due: sum("due"), skippedInvalid: sum("skippedInvalid"), wouldSend: sum("wouldSend"), sent: sum("sent"), alreadySent: sum("alreadySent"),
       heldByDailyLimit: sum("heldByDailyLimit"), noTemplate: sum("noTemplate"), failed: failures.length,
     },
   };

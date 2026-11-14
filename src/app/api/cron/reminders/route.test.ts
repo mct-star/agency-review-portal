@@ -341,3 +341,104 @@ describe("GET /api/cron/reminders: company isolation", () => {
     expect(h.state.sends.map((s) => s.to)).toEqual(["b@y.com"]);
   });
 });
+
+// A fully approved, already deployed week for A, so only the by-hand reminders can be due.
+function seedDeployedWeek(extra: Array<Record<string, unknown>>) {
+  const t = h.state.tables;
+  (t.company_cadence ||= []).push({ company_id: A, mode: "weekly_batch", reminder_hour: 8, reminder_recipients: ["a@x.com"] });
+  (t.companies ||= []).push({ id: A, timezone: "Europe/London", post_pack: "b2b" });
+  (t.weeks ||= []).push({ id: "w1", company_id: A, date_start: "2026-11-16", date_end: "2026-11-22", status: "approved" });
+  const base = { company_id: A, week_id: "w1", markdown_body: "Body", post_type: null, approval_status: "approved", day_of_week: null, scheduled_time: null };
+  (t.content_pieces ||= []).push(
+    { ...base, id: "social", title: "Post", content_type: "social_post", scheduled_date: "2026-11-18" },
+    ...extra.map((e) => ({ ...base, ...e })),
+  );
+  (t.publishing_jobs ||= []).push({ company_id: A, content_piece_id: "social", target_platform: "linkedin_personal", status: "scheduled" });
+}
+
+describe("GET /api/cron/reminders: by-hand publishing", () => {
+  it("sends a manual_publish reminder for an approved newsletter article due today, and never for a blog", async () => {
+    seedDeployedWeek([
+      { id: "news", title: "The newsletter", content_type: "linkedin_article", scheduled_date: "2026-11-16" },
+      { id: "blog", title: "The blog", content_type: "blog_article", scheduled_date: "2026-11-16" },
+    ]);
+    const body = await (await GET(req())).json();
+    expect(body.totals).toMatchObject({ due: 1, sent: 1 });
+    expect(logRows()).toEqual([expect.objectContaining({ kind: "manual_publish", subject_key: "news" })]);
+    expect(h.state.sends[0].html).toContain("https://portal.example/content/news");
+  });
+
+  it("a blog post in the week produces no manual_publish reminder", async () => {
+    seedDeployedWeek([{ id: "blog", title: "The blog", content_type: "blog_article", scheduled_date: "2026-11-16" }]);
+    const body = await (await GET(req())).json();
+    expect(body.totals).toMatchObject({ due: 0, sent: 0 });
+    expect(logRows()).toHaveLength(0);
+  });
+
+  it("skips, without a log row, a reminder that would need a blank, and reports why", async () => {
+    seedDeployedWeek([{ id: "news", title: "   ", content_type: "linkedin_article", scheduled_date: "2026-11-16" }]);
+    const body = await (await GET(req())).json();
+    expect(body.totals).toMatchObject({ sent: 0, skippedInvalid: 1 });
+    expect(body.skipped).toEqual([expect.objectContaining({ companyId: A, kind: "manual_publish", subject_key: "news", reason: "the newsletter has no title" })]);
+    expect(logRows()).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
+    expect(h.state.sends).toHaveLength(0);
+  });
+
+  it("collapses a multi-line title to one trimmed line", async () => {
+    seedDeployedWeek([{ id: "news", title: "  First line\n  second line ", content_type: "linkedin_article", scheduled_date: "2026-11-16" }]);
+    await GET(req());
+    expect(h.state.sends[0].html).toContain("First line second line");
+  });
+
+  it("builds the week label from the week's own dates, with no w/c form", async () => {
+    seedCompany(A, "a@x.com", "w1", "p1", "2026-11-30", "2026-12-06");
+    h.state.tables.content_pieces[0].scheduled_date = "2026-12-02";
+    at("2026-11-30T09:00:00Z");
+    await GET(req());
+    expect(h.state.sends[0].subject).toBe("Your content for 30 November to 6 December is ready");
+    expect(h.state.sends[0].subject).not.toContain("w/c");
+  });
+});
+
+describe("GET /api/cron/reminders: old data is never reminded about", () => {
+  it("sends nothing and writes no log row for a ready_for_review week and an unpublished newsletter from last year", async () => {
+    seedCompany(A, "a@x.com", "old", "oldp", "2025-11-10", "2025-11-16");
+    const t = h.state.tables;
+    t.content_pieces[0].day_of_week = null;
+    t.content_pieces[0].scheduled_date = "2025-11-12";
+    t.content_pieces.push({
+      id: "oldnews", company_id: A, week_id: "old", title: "Old newsletter", content_type: "linkedin_article", markdown_body: "x",
+      post_type: null, approval_status: "approved", day_of_week: null, scheduled_date: "2025-11-12", scheduled_time: null,
+    });
+    const body = await (await GET(req())).json();
+    expect(body.totals).toMatchObject({ due: 0, sent: 0 });
+    expect(h.state.sends).toHaveLength(0);
+    expect(logRows()).toHaveLength(0);
+    expect(writes()).toHaveLength(0);
+  });
+
+  it("the guard itself holds for a week still inside the load window whose pieces are all in the past", async () => {
+    seedCompany(A, "a@x.com", "recent", "rp", "2026-11-09", "2026-11-15");
+    const t = h.state.tables;
+    t.content_pieces[0].day_of_week = null;
+    t.content_pieces[0].scheduled_date = "2026-11-11";
+    t.content_pieces.push({
+      id: "rnews", company_id: A, week_id: "recent", title: "Last week's newsletter", content_type: "linkedin_article", markdown_body: "x",
+      post_type: null, approval_status: "approved", day_of_week: null, scheduled_date: "2026-11-11", scheduled_time: null,
+    });
+    expect(t.weeks).toHaveLength(1); // it is loaded: the guard, not the window, drops it
+    const body = await (await GET(req())).json();
+    expect(body.totals).toMatchObject({ due: 0, sent: 0 });
+    expect(logRows()).toHaveLength(0);
+  });
+
+  it("a newsletter dated two days ago is not reminded about, one dated yesterday still is", async () => {
+    seedDeployedWeek([
+      { id: "two", title: "Two days ago", content_type: "linkedin_article", scheduled_date: "2026-11-14" },
+      { id: "yest", title: "Yesterday", content_type: "linkedin_article", scheduled_date: "2026-11-15" },
+    ]);
+    await GET(req());
+    expect(logRows().map((r) => r.subject_key)).toEqual(["yest"]);
+  });
+});
