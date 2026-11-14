@@ -28,6 +28,20 @@ adds `review_notes` (dictated notes on a piece, each anchored to the
 paragraph in view). Apply it before merging the code that reads it: until it
 exists, the dictate bar on /content/[pieceId] shows an error and saves nothing.
 
+NOT YET APPLIED (14 November 2026): `20261114100000_capture_grants_and_newsletter_guard.sql`
+adds `capture_grants` (the stored side of a phone capture link: company, piece,
+expiry, use count, withdrawn flag) and a partial unique index on
+`publishing_jobs` so a newsletter article can be marked as published once.
+Apply it before merging the code that reads it. Until it exists the code fails
+safe: every capture link is refused (503 "not available at the moment") and no
+video is stored, the photo staff link is untouched, and "Mark as published"
+keeps its existing check, so a double click is only caught by that check
+rather than the database. Before applying, run the duplicate check at the top
+of the file: if a piece already has two published newsletter jobs, the file
+sets the later ones to `cancelled` (nothing is deleted) so the index can be
+built. Capture links also need `CAPTURE_LINK_SECRET` set in the environment;
+without it they stay off.
+
 `20261113090000_posting_cadence_and_reminders.sql` was applied on 14 November 2026
 under the live name `20261114084142 posting_cadence_and_reminders`. It adds
 `company_cadence` and `reminder_log`, read by the hourly reminder job.

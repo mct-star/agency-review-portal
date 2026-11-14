@@ -3,7 +3,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { companyForToken, checkAndRecordAttempt } from "@/lib/staff-upload/access";
 import { notifyStaffPhotosPending } from "@/lib/staff-upload/notify";
 import { autoTagItem, findStoredObject, registerLibraryItem } from "@/lib/media/library";
-import { resolveCaptureGrant } from "@/lib/staff-upload/capture";
+import { consumeCaptureGrantUse, resolveCaptureGrant } from "@/lib/staff-upload/capture";
 import { recordRawVideo } from "@/lib/media/raw-video";
 import { CAPTURES_BUCKET, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES, PHOTO_MIME_TYPES, VIDEO_MIME_TYPES } from "@/lib/upload/media-constants";
 
@@ -42,13 +42,36 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       await supabase.storage.from(CAPTURES_BUCKET).remove([path]);
       return NextResponse.json({ error: "Only a video up to 2 GB can be added here." }, { status: 413 });
     }
+    // The stored object must say what it is and how big it is. We never fall
+    // back to what the phone claims, and we do not delete a file whose
+    // details have simply not been reported yet.
+    if (!storedMime || stored.size === null || stored.size <= 0) {
+      return NextResponse.json({ error: "We could not confirm that video yet. Please try adding it again." }, { status: 422 });
+    }
+    // One row per stored file. content_assets has no company_id column, so
+    // this is scoped by the piece, which resolveCaptureGrant has just proved
+    // belongs to this company (the path also starts with the company id).
+    const existing = await supabase
+      .from("content_assets")
+      .select("id")
+      .eq("content_piece_id", resolved.pieceId)
+      .eq("storage_path", path)
+      .limit(1);
+    if (existing.error) return NextResponse.json({ error: "Could not save the video. Please try again." }, { status: 500 });
+    if (Array.isArray(existing.data) && existing.data.length > 0) {
+      return NextResponse.json({ error: "That video has already been added." }, { status: 409 });
+    }
+    // Count the use now, so a second upload racing for the last place loses.
+    if (!(await consumeCaptureGrantUse(supabase, company.id, resolved))) {
+      return NextResponse.json({ error: "This recording link has expired or has already been used the maximum number of times. Ask for a new one." }, { status: 403 });
+    }
     const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
     const { data: asset, error } = await recordRawVideo(supabase, {
       contentPieceId: resolved.pieceId,
       bucket: CAPTURES_BUCKET,
       path,
-      mimeType: storedMime || (typeof body.mimeType === "string" ? body.mimeType.split(";")[0].trim().toLowerCase() : "video/mp4"),
-      sizeBytes: stored.size ?? (num(body.sizeBytes) || 1),
+      mimeType: storedMime,
+      sizeBytes: stored.size,
       originalFilename: typeof body.originalFilename === "string" ? body.originalFilename.slice(0, 200) : "video.mov",
       durationSeconds: num(body.durationSeconds),
     });

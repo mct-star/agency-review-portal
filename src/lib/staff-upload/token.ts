@@ -24,29 +24,43 @@ export function hashIp(forwardedFor: string | null, salt: string): string {
  * Capture links: the staff upload link, narrowed to one planned piece.
  *
  * The company token in the address still says whose link it is. The grant
- * (`?capture=`) is base64url(JSON {companyId, pieceId}) . expiry . HMAC-SHA256
- * and names the one piece a phone may add a video to. Routes still check the
- * piece against the company in the database before reading or writing.
+ * (`?capture=`) is base64url(JSON {companyId, pieceId, grantId}) . expiry .
+ * HMAC-SHA256 and names the one piece a phone may add a video to. The
+ * grantId points at a stored row in `capture_grants` (company, piece,
+ * expiry, use count, revoked flag): the signature proves we issued the link,
+ * the row is what lets us count its uses and withdraw it. Routes check the
+ * row, and the piece against the company, before reading or writing.
+ *
+ * A link lives 48 hours and takes at most 3 videos.
  */
-export const CAPTURE_LINK_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const CAPTURE_LINK_TTL_SECONDS = 48 * 60 * 60;
+export const CAPTURE_GRANT_MAX_USES = 3;
 
 export interface CaptureGrant {
   companyId: string;
   pieceId: string;
+  grantId: string;
 }
 
-/** The signing secret. Empty means capture links are switched off (fail closed). */
+/**
+ * The signing secret. Only CAPTURE_LINK_SECRET counts: it is deliberately not
+ * shared with the IP hash salt. Empty means capture links are switched off
+ * (minting and verifying both refuse) and nothing else in staff upload changes.
+ */
 export function captureLinkSecret(env: Record<string, string | undefined> = process.env): string {
-  return (env.CAPTURE_LINK_SECRET || env.STAFF_UPLOAD_SALT || "").trim();
+  return (env.CAPTURE_LINK_SECRET || "").trim();
 }
 
 function captureMac(secret: string, body: string): Buffer {
   return createHmac("sha256", secret).update(body).digest();
 }
 
+/** Sign a grant. Throws when there is no secret, so a link can never be minted unsigned. */
 export function signCaptureGrant(grant: CaptureGrant, secret: string, now = Date.now()): string {
+  if (!secret) throw new Error("Capture links are switched off: CAPTURE_LINK_SECRET is not set.");
   const exp = Math.floor(now / 1000) + CAPTURE_LINK_TTL_SECONDS;
-  const body = `${Buffer.from(JSON.stringify({ companyId: grant.companyId, pieceId: grant.pieceId })).toString("base64url")}.${exp}`;
+  const payload = { companyId: grant.companyId, pieceId: grant.pieceId, grantId: grant.grantId };
+  const body = `${Buffer.from(JSON.stringify(payload)).toString("base64url")}.${exp}`;
   return `${body}.${captureMac(secret, body).toString("base64url")}`;
 }
 
@@ -63,8 +77,8 @@ export function verifyCaptureGrant(value: unknown, secret: string, now = Date.no
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (typeof parsed?.companyId !== "string" || typeof parsed?.pieceId !== "string") return null;
-    return { companyId: parsed.companyId, pieceId: parsed.pieceId };
+    if (typeof parsed?.companyId !== "string" || typeof parsed?.pieceId !== "string" || typeof parsed?.grantId !== "string") return null;
+    return { companyId: parsed.companyId, pieceId: parsed.pieceId, grantId: parsed.grantId };
   } catch {
     return null;
   }
