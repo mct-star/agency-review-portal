@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
   inserts: [] as Array<{ table: string; row: Row }>,
   websiteCalls: [] as Row[],
+  failPiece: null as string | null,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -44,7 +45,11 @@ vi.mock("@/lib/supabase/admin", () => ({
     },
   }),
 }));
-vi.mock("@/lib/content/piece-media", () => ({ resolvePieceMedia: () => ({ shape: "none", items: [] }) }));
+// A piece named in failPiece carries a document, which the queue refuses:
+// a failure part way through a deploy.
+vi.mock("@/lib/content/piece-media", () => ({
+  resolvePieceMedia: (piece: { id: string }) => piece.id === state.failPiece ? { shape: "document", items: [] } : { shape: "none", items: [] },
+}));
 vi.mock("@/app/api/publish/website/route", () => ({
   POST: vi.fn(async (request: Request) => {
     const body = await request.json();
@@ -55,6 +60,7 @@ vi.mock("@/app/api/publish/website/route", () => ({
 }));
 
 import { POST } from "./route";
+import { pieceVersionHash } from "@/lib/content/version-hash";
 
 const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 const deploy = (body: Row = {}) => POST(new Request("http://localhost/api/publish/deploy-week", {
@@ -65,6 +71,15 @@ const piece = (id: string, extra: Row = {}): Row => ({
   markdown_body: `Approved text ${id}`, first_comment: null, cover_image_url: null,
   day_of_week: null, scheduled_date: future, scheduled_time: "09:00", ...extra,
 });
+let decisions = 0;
+/** Record a decision on the piece's current text, as /api/content/approve does. */
+const decide = (id: string, decision = "approved") => {
+  const p = state.tables.content_pieces.find((r) => r.id === id)!;
+  state.tables.content_approvals.push({
+    piece_id: id, company_id: p.company_id, version_hash: pieceVersionHash(p as never), decision,
+    decided_at: new Date(Date.UTC(2026, 10, 1) + ++decisions * 1000).toISOString(),
+  });
+};
 const queued = () => state.inserts.filter((i) => i.table === "publishing_jobs" && i.row.target_platform === "linkedin_personal");
 
 beforeEach(() => {
@@ -86,8 +101,10 @@ beforeEach(() => {
       id: "account-1", company_id: "company-1", platform: "linkedin_personal", account_id: "person-1", account_name: "Profile",
       access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(), is_active: true,
     }],
-    content_images: [], content_assets: [], publishing_jobs: [],
+    content_images: [], content_assets: [], publishing_jobs: [], content_approvals: [],
   };
+  state.failPiece = null;
+  for (const id of ["a", "b", "x"]) decide(id);
 });
 
 describe("POST /api/publish/deploy-week: deploy", () => {
@@ -121,10 +138,26 @@ describe("POST /api/publish/deploy-week: deploy", () => {
 
   it("lists a post whose time has passed or that has no time for the scheduler export instead of queueing it", async () => {
     state.tables.content_pieces = [piece("a"), piece("late", { scheduled_date: "2020-01-06" }), piece("untimed", { scheduled_time: null })];
+    decide("late"); decide("untimed");
     const body = await (await deploy()).json();
     expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
     expect(body.notQueued.map((n: Row) => n.pieceId).sort()).toEqual(["late", "untimed"]);
-    expect(body.schedulerExportHref).toContain("week-1");
+    expect(body.notQueued.every((n: Row) => n.next === "export")).toBe(true);
+    expect(body.schedulerExportHref).toBe("/api/export/metricool?weekId=week-1&leftForScheduler=true");
+  });
+
+  it("offers the queue only the types it takes, and says truthfully where every other post goes", async () => {
+    state.tables.content_pieces = [
+      piece("meme", { content_type: "meme" }),
+      piece("script", { content_type: "video_script" }),
+      piece("late-video", { content_type: "video", scheduled_date: "2020-01-06" }),
+    ];
+    for (const id of ["meme", "script", "late-video"]) decide(id);
+    const body = await (await deploy()).json();
+    expect(queued()).toHaveLength(0);
+    const next = Object.fromEntries(body.notQueued.map((n: Row) => [n.pieceId, n.next]));
+    // The scheduler export carries memes; it carries no video or video script.
+    expect(next).toEqual({ meme: "export", script: "by_hand", "late-video": "by_hand" });
   });
 
   it("asks which account when the company has more than one LinkedIn account, and queues nothing", async () => {
@@ -134,6 +167,36 @@ describe("POST /api/publish/deploy-week: deploy", () => {
     expect(state.inserts).toHaveLength(0);
     expect((await deploy({ socialAccountId: "account-2" })).status).toBe(200);
     expect(queued().every((q) => q.row.social_account_id === "account-2")).toBe(true);
+  });
+});
+
+describe("POST /api/publish/deploy-week: recorded approval", () => {
+  it("does not queue a piece edited after it was approved, and says so", async () => {
+    state.tables.content_pieces[0].markdown_body = "Edited after approval";
+    const body = await (await deploy()).json();
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["b"]);
+    expect(body.notQueued).toEqual([expect.objectContaining({ pieceId: "a", next: "approve", reason: expect.stringMatching(/edited after approval/i) })]);
+  });
+
+  it("does not queue a piece with no recorded approval, and says so", async () => {
+    state.tables.content_approvals = state.tables.content_approvals.filter((r) => r.piece_id !== "b");
+    const body = await (await deploy()).json();
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
+    expect(body.notQueued).toEqual([expect.objectContaining({ pieceId: "b", next: "approve", reason: expect.stringMatching(/no recorded approval/i) })]);
+  });
+
+  it("does not queue a piece whose newest decision asked for changes", async () => {
+    decide("a", "changes_requested");
+    const body = await (await deploy()).json();
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["b"]);
+    expect(body.notQueued[0]).toMatchObject({ pieceId: "a", next: "approve" });
+  });
+
+  it("never lists an edited post whose time has passed as in the scheduler export", async () => {
+    state.tables.content_pieces[0].scheduled_date = "2020-01-06";
+    state.tables.content_pieces[0].markdown_body = "Edited after approval";
+    const body = await (await deploy()).json();
+    expect(body.notQueued.find((n: Row) => n.pieceId === "a")).toMatchObject({ next: "approve" });
   });
 });
 
@@ -148,6 +211,19 @@ describe("POST /api/publish/deploy-week: rights", () => {
     state.profile = { id: "admin-1", role: "admin", company_id: null, can_publish: false };
     expect((await deploy()).status).toBe(200);
     expect(queued()).toHaveLength(2);
+  });
+
+  it("refuses a LinkedIn account that belongs to another company, and queues nothing", async () => {
+    state.tables.company_social_accounts.push({ ...state.tables.company_social_accounts[0], id: "account-other", company_id: "company-2" });
+    const res = await deploy({ socialAccountId: "account-other" });
+    expect(res.status).toBe(404);
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("ignores another company's LinkedIn job for the same piece id", async () => {
+    state.tables.publishing_jobs.push({ id: "foreign", company_id: "company-2", content_piece_id: "a", target_platform: "linkedin_personal", status: "scheduled" });
+    const body = await (await deploy()).json();
+    expect(body.queued.map((q: Row) => q.pieceId).sort()).toEqual(["a", "b"]);
   });
 
   it("refuses another company's week as if it did not exist", async () => {
@@ -174,9 +250,53 @@ describe("POST /api/publish/deploy-week: idempotent", () => {
     expect(second.alreadyQueued.map((q: Row) => q.pieceId).sort()).toEqual(["a", "b"]);
   });
 
+  it("reports a queued post as already in the queue on a second deploy after its time has passed, never as not queued", async () => {
+    await deploy();
+    // Its posting time passes while it waits in the queue.
+    state.tables.content_pieces[0].scheduled_date = "2020-01-06";
+    const second = await (await deploy()).json();
+    expect(second.alreadyQueued.map((q: Row) => q.pieceId).sort()).toEqual(["a", "b"]);
+    expect(second.notQueued).toEqual([]);
+    expect(queued()).toHaveLength(2);
+  });
+
+  it("reports a post queued on another of the company's accounts, or published, as already in the queue", async () => {
+    state.tables.publishing_jobs.push(
+      { id: "other-account", company_id: "company-1", content_piece_id: "a", target_platform: "linkedin_personal", status: "scheduled", social_account_id: "account-2" },
+      { id: "done", company_id: "company-1", content_piece_id: "b", target_platform: "linkedin_personal", status: "published" },
+    );
+    const body = await (await deploy()).json();
+    expect(queued()).toHaveLength(0);
+    expect(body.alreadyQueued.map((q: Row) => [q.pieceId, q.status])).toEqual([["a", "scheduled"], ["b", "published"]]);
+  });
+
+  it("treats a failed job whose outcome was uncertain as possibly posted, and a plain failure as not", async () => {
+    state.tables.publishing_jobs.push(
+      { id: "unsure", company_id: "company-1", content_piece_id: "a", target_platform: "linkedin_personal", status: "failed", response_payload: { outcome_uncertain: true } },
+      { id: "rejected", company_id: "company-1", content_piece_id: "b", target_platform: "linkedin_personal", status: "failed", response_payload: { outcome_uncertain: false } },
+    );
+    const body = await (await deploy()).json();
+    expect(body.alreadyQueued).toEqual([expect.objectContaining({ pieceId: "a", status: "uncertain", note: expect.stringMatching(/may already have this post/) })]);
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["b"]);
+  });
+
+  it("leaves no duplicate when a deploy fails part way through and is run again", async () => {
+    state.failPiece = "b";
+    const first = await (await deploy()).json();
+    expect(first.queued.map((q: Row) => q.pieceId)).toEqual(["a"]);
+    expect(first.notQueued.map((n: Row) => n.pieceId)).toEqual(["b"]);
+    state.failPiece = null;
+    const second = await (await deploy()).json();
+    expect(second.alreadyQueued.map((q: Row) => q.pieceId)).toEqual(["a"]);
+    expect(second.queued.map((q: Row) => q.pieceId)).toEqual(["b"]);
+    const jobs = state.tables.publishing_jobs.filter((j) => j.target_platform === "linkedin_personal");
+    expect(jobs.map((j) => j.content_piece_id).sort()).toEqual(["a", "b"]);
+  });
+
   it("opens the blog pull request once, for an admin on the AGENCY company, and not again on a second deploy", async () => {
     state.profile = { id: "admin-1", role: "admin", company_id: null, can_publish: true };
     state.tables.content_pieces.push(piece("blog", { content_type: "blog_article" }));
+    decide("blog");
     const first = await (await deploy({ ctaCluster: "launch" })).json();
     expect(state.websiteCalls).toEqual([{ pieceId: "blog", ctaCluster: "launch" }]);
     expect(first.blogs[0]).toMatchObject({ id: "blog", status: "pull_request_opened" });

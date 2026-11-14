@@ -11,10 +11,12 @@ interface Props {
   showCtaPicker: boolean;
 }
 
+type NotQueued = { pieceId: string; title: string; reason: string; next: "export" | "by_hand" | "approve" };
+
 interface DeployResult {
   queued: Array<{ pieceId: string; title: string; scheduledFor: string }>;
-  alreadyQueued: Array<{ pieceId: string; title: string }>;
-  notQueued: Array<{ pieceId: string; title: string; reason: string }>;
+  alreadyQueued: Array<{ pieceId: string; title: string; note: string }>;
+  notQueued: NotQueued[];
   blogs: DeployBlogResult[];
   newsletters: Array<{ id: string; title: string; copyHref: string }>;
   schedulerExportHref: string;
@@ -55,6 +57,14 @@ export default function DeployWeekPanel({ weekId, accounts, queueCount, showCtaP
     }
   }
 
+  // Each heading is true for every post under it: only the types the
+  // scheduler export carries are said to be in it.
+  const NOT_QUEUED_GROUPS: Array<{ next: NotQueued["next"]; heading: string }> = [
+    { next: "export", heading: "Not queued, so in the scheduler export:" },
+    { next: "by_hand", heading: "Not queued and not in the scheduler export. Publish these by hand:" },
+    { next: "approve", heading: "Not queued. Approve the current version, then deploy again:" },
+  ];
+
   const ukTime = (iso: string) => new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   if (result) {
@@ -68,16 +78,33 @@ export default function DeployWeekPanel({ weekId, accounts, queueCount, showCtaP
           <ul className="mt-2 space-y-1">
             {result.queued.map((q) => <li key={q.pieceId}>{q.title}: {ukTime(q.scheduledFor)}</li>)}
           </ul>
-          {result.notQueued.length > 0 && (
+          {result.alreadyQueued.length > 0 && (
             <>
-              <p className="mt-3 font-semibold">Not queued, so in the scheduler export:</p>
+              <p className="mt-3 font-semibold">Already in the LinkedIn queue, so not queued again:</p>
               <ul className="mt-1 space-y-1">
-                {result.notQueued.map((n) => <li key={n.pieceId}>{n.title}: {n.reason}</li>)}
+                {result.alreadyQueued.map((a) => <li key={a.pieceId}>{a.title}: {a.note}</li>)}
               </ul>
             </>
           )}
+          {NOT_QUEUED_GROUPS.map(({ next, heading }) => {
+            const items = result.notQueued.filter((n) => n.next === next);
+            if (!items.length) return null;
+            return (
+              <div key={next}>
+                <p className="mt-3 font-semibold">{heading}</p>
+                <ul className="mt-1 space-y-1">
+                  {items.map((n) => <li key={n.pieceId}>{n.title}: {n.reason}</li>)}
+                </ul>
+              </div>
+            );
+          })}
         </div>
-        <DeployChecklist blogs={result.blogs} newsletters={result.newsletters} schedulerExportHref={result.schedulerExportHref} />
+        <DeployChecklist
+          blogs={result.blogs}
+          newsletters={result.newsletters}
+          schedulerExportHref={result.schedulerExportHref}
+          exportCount={result.notQueued.filter((n) => n.next === "export").length}
+        />
       </div>
     );
   }

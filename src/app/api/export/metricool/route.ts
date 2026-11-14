@@ -4,11 +4,17 @@ import { canAccessCompany } from "@/lib/auth/permissions";
 import type { ContentPiece, ContentImage } from "@/types/database";
 import { resolvePieceMedia, type MediaSourceAsset } from "@/lib/content/piece-media";
 import { METRICOOL_HEADERS, buildMetricoolRow, csvLine } from "@/lib/export/metricool-row";
+import { LEFT_FOR_SCHEDULER_PARAM, loadLeftForScheduler } from "@/lib/export/left-for-scheduler";
 
 /**
- * GET /api/export/metricool?weekId=uuid&draft=false
+ * GET /api/export/metricool?weekId=uuid&draft=false[&leftForScheduler=true]
  *
  * Exports an approved week as an 88-column Metricool CSV.
+ *
+ * leftForScheduler=true (opt-in, used by the Deploy week checklist): posts
+ * already in the direct LinkedIn queue do not go to LinkedIn again, and
+ * posts whose recorded approval does not match their text are left out.
+ * See src/lib/export/left-for-scheduler.ts. Without it nothing changes.
  *
  * Metricool CSV columns (88 total, see atom 12_METRICOOL_CSV.md):
  * 0  Text
@@ -86,6 +92,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const weekId = searchParams.get("weekId");
   const isDraft = searchParams.get("draft") === "true";
+  const leftForScheduler = searchParams.get(LEFT_FOR_SCHEDULER_PARAM) === "true";
 
   if (!weekId) {
     return NextResponse.json({ error: "weekId is required" }, { status: 400 });
@@ -130,6 +137,15 @@ export async function GET(request: Request) {
     );
   }
 
+  // Deploy week's view: decided per post below, checked against this
+  // company's LinkedIn queue and approval records only.
+  const decide = leftForScheduler
+    ? await loadLeftForScheduler(supabase, week.company_id as string, pieces as ContentPiece[])
+    : undefined;
+  if (decide === null) {
+    return NextResponse.json({ error: "Could not check the LinkedIn queue, so no export was made. Try again." }, { status: 500 });
+  }
+
   // Fetch images for all pieces
   const pieceIds = pieces.map((p: ContentPiece) => p.id);
   const { data: images } = await supabase
@@ -172,11 +188,18 @@ export async function GET(request: Request) {
     // The same media the preview shows, from the same rule.
     const media = resolvePieceMedia(piece, imagesByPiece.get(piece.id) || [], assetsByPiece.get(piece.id) || []);
     const altTexts = media.items.map((m, i) => (i === 0 && piece.source_meta?.alt_text) || m.alt);
+    let companyNetworks = company?.social_networks;
+    if (decide) {
+      const decision = decide(piece, company?.social_networks);
+      if (decision.note) notes.push(decision.note);
+      if (!decision.include) { blockedNotes.push(decision.note); continue; }
+      if (decision.networks) companyNetworks = decision.networks;
+    }
     const built = buildMetricoolRow({
       piece,
       weekStart: week.date_start,
       isDraft,
-      companyNetworks: company?.social_networks,
+      companyNetworks,
       media,
       altTexts,
     });

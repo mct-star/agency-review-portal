@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { NOT_FOR_VENUE } from "@/lib/hospitality/b2b-only";
-import { directLinkedInJobId } from "@/lib/linkedin/direct-publish";
+import { APPROVAL_REFUSALS, approvalRefusal, newestApprovals, type GatePiece } from "@/lib/content/approval-gate";
+import { liveLinkedInJobsByPiece, liveLinkedInNote, type LiveLinkedInStatus } from "@/lib/publishing/live-linkedin-jobs";
 import { CTA_CLUSTERS } from "@/lib/publishing/website-blog";
-import { planWeekDeploy, type DeployManualSocial, type DeployPiece, type DeploySocial } from "@/lib/publishing/deploy-week";
+import { nextForType, planWeekDeploy, type DeployManualSocial, type DeployPiece, type DeploySocial } from "@/lib/publishing/deploy-week";
+import { LEFT_FOR_SCHEDULER_PARAM } from "@/lib/export/left-for-scheduler";
 import { POST as queueLinkedInPost } from "@/app/api/publish/linkedin-direct/route";
 import { POST as sendBlogToWebsite } from "@/app/api/publish/website/route";
 
 export const maxDuration = 60;
+
+interface AlreadyQueued { pieceId: string; title: string; status: LiveLinkedInStatus; note: string }
 
 /**
  * POST /api/publish/deploy-week  { weekId, confirm: true, socialAccountId?, ctaCluster? }
@@ -21,8 +25,16 @@ export const maxDuration = 60;
  * company ownership, media rules).
  *
  * Deploying is recorded only as the publishing_jobs rows those routes
- * write: the LinkedIn rows have a deterministic id per piece and account,
- * so a second deploy finds them and queues nothing twice.
+ * write. Before queueing, every planned feed post is looked up in the
+ * LinkedIn queue (any account, any live status): one already there is
+ * reported as already in the queue, never as not queued, so a second deploy
+ * or a re-run after a failure part way through posts nothing twice. The
+ * queue route's deterministic job id per piece and account backs this up.
+ *
+ * Nothing is queued unless its newest recorded approval matches its current
+ * text (src/lib/content/approval-gate.ts). Each post not queued says where
+ * it goes next: the scheduler export (only for the types it carries), by
+ * hand, or back for approval.
  *
  * Refused: a missing confirmation (so a link or page load never deploys),
  * another company's week, a client without the publish right, a hospitality
@@ -56,7 +68,7 @@ export async function POST(request: Request) {
   }
 
   const { data: pieceRows, error: piecesError } = await supabase.from("content_pieces")
-    .select("id, title, content_type, approval_status, day_of_week, scheduled_time, scheduled_date")
+    .select("id, title, content_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
     .eq("week_id", weekId).eq("company_id", companyId);
   if (piecesError) return NextResponse.json({ error: "Could not read the week." }, { status: 500 });
   const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start as string);
@@ -83,27 +95,61 @@ export async function POST(request: Request) {
   const accountId = requested || (accountIds.length === 1 ? accountIds[0] : null);
 
   const queued: DeploySocial[] = [];
-  const alreadyQueued: DeploySocial[] = [];
-  const notQueued: DeployManualSocial[] = [...plan.manualSocial];
+  const alreadyQueued: AlreadyQueued[] = [];
+  const notQueued: DeployManualSocial[] = [];
+
+  // Every planned feed post, queueable or not, is checked against the
+  // LinkedIn queue first: one with a live job (any account) is reported as
+  // already there, never as not queued, so nobody schedules it again.
+  const planned = [...plan.social, ...plan.manualSocial];
+  const plannedIds = planned.map((s) => s.pieceId);
+  const [live, approvals] = await Promise.all([
+    liveLinkedInJobsByPiece(supabase, companyId, plannedIds),
+    newestApprovals(supabase, companyId, plannedIds),
+  ]);
+  if (!live) return NextResponse.json({ error: "Could not read the LinkedIn queue, so nothing was deployed." }, { status: 500 });
+  const pieceById = new Map(((pieceRows || []) as GatePiece[]).map((p) => [p.id, p]));
+  // Only text someone approved is queued or handed to the export: the
+  // newest recorded approval must match the piece as it is now.
+  const approvalRefusalFor = (pieceId: string) => {
+    const piece = pieceById.get(pieceId);
+    if (!piece || !approvals) return APPROVAL_REFUSALS.unreadable;
+    return approvalRefusal(piece, approvals.get(pieceId));
+  };
+
+  for (const m of plan.manualSocial) {
+    const status = live.get(m.pieceId);
+    if (status) { alreadyQueued.push({ pieceId: m.pieceId, title: m.title, status, note: liveLinkedInNote(status) }); continue; }
+    const refused = approvalRefusalFor(m.pieceId);
+    notQueued.push(refused ? { ...m, reason: refused, next: "approve" } : m);
+  }
+
+  const toQueue: DeploySocial[] = [];
+  for (const s of plan.social) {
+    const status = live.get(s.pieceId);
+    if (status) { alreadyQueued.push({ pieceId: s.pieceId, title: s.title, status, note: liveLinkedInNote(status) }); continue; }
+    const refused = approvalRefusalFor(s.pieceId);
+    if (refused) { notQueued.push({ pieceId: s.pieceId, title: s.title, contentType: s.contentType, reason: refused, next: "approve" }); continue; }
+    toQueue.push(s);
+  }
 
   if (!accountId) {
-    for (const s of plan.social) notQueued.push({ pieceId: s.pieceId, title: s.title, reason: "No LinkedIn account is connected." });
-  } else if (plan.social.length) {
-    const ids = new Map(plan.social.map((s) => [directLinkedInJobId(companyId, s.pieceId, accountId), s]));
-    const { data: existing } = await supabase.from("publishing_jobs").select("id")
-      .eq("company_id", companyId).in("id", [...ids.keys()]);
-    const existingIds = new Set((existing || []).map((j) => j.id as string));
-    for (const [jobId, s] of ids) {
-      if (existingIds.has(jobId)) { alreadyQueued.push(s); continue; }
+    for (const s of toQueue) notQueued.push({ pieceId: s.pieceId, title: s.title, contentType: s.contentType, reason: "No LinkedIn account is connected.", next: nextForType(s.contentType) });
+  } else {
+    for (const s of toQueue) {
+      // The existing queue route keeps its own checks (approval record,
+      // publish right, account ownership, media rules) and its unique job id.
       const res = await queueLinkedInPost(new Request(new URL("/api/publish/linkedin-direct", request.url), {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ companyId, pieceId: s.pieceId, socialAccountId: accountId, scheduledFor: s.scheduledFor }),
       }));
-      if (res.status === 201) queued.push(s);
-      else {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        notQueued.push({ pieceId: s.pieceId, title: s.title, reason: err.error || "It could not be queued." });
-      }
+      if (res.status === 201) { queued.push(s); continue; }
+      const err = await res.json().catch(() => ({})) as { error?: string; code?: string };
+      notQueued.push({
+        pieceId: s.pieceId, title: s.title, contentType: s.contentType,
+        reason: err.error || "It could not be queued.",
+        next: err.code === "approval_mismatch" ? "approve" : nextForType(s.contentType),
+      });
     }
   }
 
@@ -138,6 +184,8 @@ export async function POST(request: Request) {
     notQueued,
     blogs,
     newsletters: plan.newsletters.map((n) => ({ ...n, copyHref: `/content/${n.id}` })),
-    schedulerExportHref: `/api/export/metricool?weekId=${encodeURIComponent(weekId)}`,
+    // Leaves out of LinkedIn every post already in the direct queue, and
+    // every post whose approval does not match its text.
+    schedulerExportHref: `/api/export/metricool?weekId=${encodeURIComponent(weekId)}&${LEFT_FOR_SCHEDULER_PARAM}=true`,
   }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }

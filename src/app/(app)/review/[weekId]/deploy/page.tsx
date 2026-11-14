@@ -4,6 +4,8 @@ import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/serve
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import DeployWeekPanel from "@/components/review/DeployWeekPanel";
 import { planWeekDeploy, type DeployPiece } from "@/lib/publishing/deploy-week";
+import { APPROVAL_REFUSALS, approvalRefusal, newestApprovals, type GatePiece } from "@/lib/content/approval-gate";
+import { liveLinkedInJobsByPiece, liveLinkedInNote } from "@/lib/publishing/live-linkedin-jobs";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
 
 interface PageProps {
@@ -34,7 +36,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
   if (company.post_pack === "hospitality") redirect("/review");
 
   const { data: pieceRows } = await supabase.from("content_pieces")
-    .select("id, title, content_type, approval_status, day_of_week, scheduled_time, scheduled_date")
+    .select("id, title, content_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
     .eq("week_id", weekId).eq("company_id", company.id).order("sort_order", { ascending: true });
   const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start);
   const canPublish = profile.role === "admin" || !!profile.can_publish;
@@ -44,6 +46,33 @@ export default async function DeployWeekPage({ params }: PageProps) {
   const { data: accountRows } = await admin.from("company_social_accounts").select("id, account_name")
     .eq("company_id", company.id).eq("platform", "linkedin_personal").eq("is_active", true);
   const accounts = (accountRows || []).map((a) => ({ id: a.id as string, name: (a.account_name as string) || "LinkedIn profile" }));
+  // The same checks the deploy route makes, so this page promises only what
+  // Deploy week will do: a post already in the LinkedIn queue is not queued
+  // again, and a post whose approval does not match its text is not queued.
+  const plannedIds = [...plan.social, ...plan.manualSocial].map((p) => p.pieceId);
+  const [live, approvals] = await Promise.all([
+    liveLinkedInJobsByPiece(admin, company.id, plannedIds),
+    newestApprovals(admin, company.id, plannedIds),
+  ]);
+  const pieceById = new Map(((pieceRows || []) as GatePiece[]).map((p) => [p.id, p]));
+  const refusalFor = (id: string) => {
+    const piece = pieceById.get(id);
+    return !piece || !approvals ? APPROVAL_REFUSALS.unreadable : approvalRefusal(piece, approvals.get(id));
+  };
+  const already = [...plan.social, ...plan.manualSocial].flatMap((p) => {
+    const status = live?.get(p.pieceId);
+    return status ? [{ pieceId: p.pieceId, title: p.title, note: liveLinkedInNote(status) }] : [];
+  });
+  const isLive = (id: string) => !!live?.get(id);
+  const toQueue = plan.social.filter((p) => !isLive(p.pieceId) && !refusalFor(p.pieceId));
+  const notQueued = [
+    ...plan.social.filter((p) => !isLive(p.pieceId) && refusalFor(p.pieceId))
+      .map((p) => ({ pieceId: p.pieceId, line: `${p.title}. ${refusalFor(p.pieceId)}` })),
+    ...plan.manualSocial.filter((p) => !isLive(p.pieceId)).map((p) => {
+      const refused = refusalFor(p.pieceId);
+      return { pieceId: p.pieceId, line: refused ? `${p.title}. ${refused}` : `${p.title}. ${p.reason} ${p.next === "export" ? "It goes in the scheduler export." : "Publish it by hand: the scheduler export does not carry it."}` };
+    }),
+  ];
   const isPlatformCompany = company.slug === (process.env.PLATFORM_COMPANY_SLUG || "agency-bristol");
   const showCtaPicker = profile.role === "admin" && isPlatformCompany && plan.blogs.length > 0;
 
@@ -72,11 +101,13 @@ export default async function DeployWeekPage({ params }: PageProps) {
           <>
             <h2 className="mt-6 text-sm font-semibold text-gray-900">What Deploy week will do</h2>
             <ul className="mt-2 space-y-1 text-sm text-gray-700">
-              {plan.social.length === 0 && <li>No posts can be queued for LinkedIn.</li>}
-              {plan.social.map((p) => (
+              {toQueue.length === 0 && <li>No posts can be queued for LinkedIn.</li>}
+              {toQueue.map((p) => (
                 <li key={p.pieceId}>Queue for LinkedIn: {p.title}, {ukTime(p.scheduledFor)}</li>
               ))}
-              {plan.social.length > 0 && accounts.length === 0 && <li>No LinkedIn account is connected, so these posts will not be queued.</li>}
+              {toQueue.length > 0 && accounts.length === 0 && <li>No LinkedIn account is connected, so these posts will not be queued.</li>}
+              {!live && <li>The LinkedIn queue could not be read just now. Deploy week checks it again before queueing anything.</li>}
+              {already.map((a) => <li key={a.pieceId}>Not queued again: {a.title}. {a.note}</li>)}
               {plan.blogs.map((b) => (
                 <li key={b.id}>{showCtaPicker ? `Open a pull request on the website for the blog: ${b.title}` : `Blog left for you to publish: ${b.title}`}</li>
               ))}
@@ -84,7 +115,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
 
             <h2 className="mt-6 text-sm font-semibold text-gray-900">What stays manual</h2>
             <ul className="mt-2 space-y-1 text-sm text-gray-700">
-              {plan.manualSocial.map((p) => <li key={p.pieceId}>Not queued: {p.title}. {p.reason}</li>)}
+              {notQueued.map((n) => <li key={n.pieceId}>Not queued: {n.line}</li>)}
               {plan.blogs.length > 0 && <li>Publishing the blog post: merging its pull request.</li>}
               <li>Uploading the scheduler export for channels without direct publishing.</li>
               {plan.newsletters.map((n) => <li key={n.id}>Publishing the newsletter: {n.title}, from its copy page.</li>)}
@@ -92,7 +123,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
 
             <div className="mt-6">
               {canPublish
-                ? <DeployWeekPanel weekId={weekId} accounts={accounts} queueCount={plan.social.length} showCtaPicker={showCtaPicker} />
+                ? <DeployWeekPanel weekId={weekId} accounts={accounts} queueCount={toQueue.length} showCtaPicker={showCtaPicker} />
                 : <p className="text-sm text-gray-700">Your account cannot publish. Ask AGENCY to switch publishing on.</p>}
             </div>
           </>

@@ -64,4 +64,20 @@ describe("planWeekDeploy", () => {
   it("is not ready for an empty week", () => {
     expect(planWeekDeploy([], "2026-11-16", now).ready).toBe(false);
   });
+
+  it("plans with the queue's own eligibility: only social posts and videos are offered to it", () => {
+    const plan = planWeekDeploy([
+      piece({ id: "post" }),
+      piece({ id: "video", content_type: "video" }),
+      piece({ id: "meme", content_type: "meme" }),
+      piece({ id: "script", content_type: "video_script" }),
+    ], "2026-11-16", now);
+    expect(plan.social.map((s) => s.pieceId)).toEqual(["post", "video"]);
+    expect(plan.manualSocial.map((s) => [s.pieceId, s.next])).toEqual([["meme", "export"], ["script", "by_hand"]]);
+  });
+
+  it("never says the scheduler export carries a video whose time has passed", () => {
+    const plan = planWeekDeploy([piece({ id: "late", content_type: "video", day_of_week: "monday", scheduled_time: "08:00" })], "2026-11-16", now);
+    expect(plan.manualSocial[0]).toMatchObject({ pieceId: "late", next: "by_hand" });
+  });
 });
