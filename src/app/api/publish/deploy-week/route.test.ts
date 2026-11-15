@@ -305,6 +305,32 @@ describe("POST /api/publish/deploy-week: idempotent", () => {
     expect(second.blogs[0]).toMatchObject({ id: "blog", status: "already_sent" });
   });
 
+  const ownTarget = (ctaClusters: unknown[]): Row => ({
+    company_id: "company-1", service_category: "blog_publishing", provider: "github_pull_request", is_active: true,
+    provider_settings: { repo: "example-org/example-site", liveBaseUrl: "https://example.com/blog", defaultAuthor: "Example Person", ctaClusters },
+    credentials_encrypted: null,
+  });
+
+  it("sends the blog with no service when the company's own target has none", async () => {
+    state.profile = { id: "admin-1", role: "admin", company_id: null, can_publish: true };
+    state.tables.company_api_configs = [ownTarget([])];
+    state.tables.content_pieces.push(piece("blog", { content_type: "blog_article" }));
+    decide("blog");
+    const body = await (await deploy()).json();
+    expect(state.websiteCalls).toEqual([{ pieceId: "blog", ctaCluster: "" }]);
+    expect(body.blogs[0]).toMatchObject({ id: "blog", status: "pull_request_opened" });
+  });
+
+  it("leaves the blog manual, with the refusal as the reason, when the company has no usable target", async () => {
+    state.profile = { id: "admin-1", role: "admin", company_id: null, can_publish: true };
+    state.tables.company_api_configs = [{ ...ownTarget([]), provider_settings: { repo: "nonsense", liveBaseUrl: "https://example.com/blog" } }];
+    state.tables.content_pieces.push(piece("blog", { content_type: "blog_article" }));
+    decide("blog");
+    const body = await (await deploy({ ctaCluster: "launch" })).json();
+    expect(state.websiteCalls).toHaveLength(0);
+    expect(body.blogs[0]).toMatchObject({ id: "blog", status: "manual", reason: "The website target's repo must look like owner/name, using plain names only." });
+  });
+
   it("leaves the blog and the newsletter on the manual list for a client publisher", async () => {
     state.tables.content_pieces.push(piece("blog", { content_type: "blog_article" }), piece("news", { content_type: "linkedin_article" }));
     const body = await (await deploy({ ctaCluster: "launch" })).json();

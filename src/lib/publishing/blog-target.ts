@@ -50,8 +50,10 @@ export function legacyBlogTarget(): BlogPublishTarget {
   };
 }
 
-const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+// One path segment: a plain name, never "." or "..", never anything a URL would reinterpret.
+const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 const BRANCH = /^[A-Za-z0-9._/-]+$/;
+const plainSegments = (segments: string[]) => segments.every(x => x !== "." && x !== ".." && SEGMENT.test(x));
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -60,8 +62,8 @@ function folder(value: unknown, fallback: string, field: string): string | { err
   if (value === undefined || value === null || value === "") return fallback;
   if (typeof value !== "string") return { error: `The website target's ${field} must be text.` };
   const v = value.trim().replace(/\/+$/, "");
-  if (!v || v.startsWith("/") || v.split("/").includes("..") || v.includes("\\")) {
-    return { error: `The website target's ${field} must be a folder inside the repository, with no leading slash and no "..".` };
+  if (!v || !plainSegments(v.split("/"))) {
+    return { error: `The website target's ${field} must be a folder inside the repository, made of plain names (letters, numbers, dot, dash, underscore) with no leading slash, no "." or ".." and no spaces or other symbols.` };
   }
   return v;
 }
@@ -71,11 +73,13 @@ export function parseBlogTarget(providerSettings: unknown): BlogPublishTarget | 
   if (!isRecord(providerSettings)) return { error: "The website target's settings are missing." };
   const s = providerSettings;
 
-  if (typeof s.repo !== "string" || !REPO.test(s.repo.trim())) {
-    return { error: "The website target's repo must look like owner/name." };
+  const repoParts = typeof s.repo === "string" ? s.repo.trim().split("/") : [];
+  if (repoParts.length !== 2 || !plainSegments(repoParts)) {
+    return { error: "The website target's repo must look like owner/name, using plain names only." };
   }
   const baseBranch = s.baseBranch === undefined || s.baseBranch === null || s.baseBranch === "" ? "main" : s.baseBranch;
-  if (typeof baseBranch !== "string" || !BRANCH.test(baseBranch.trim()) || baseBranch.includes("..")) {
+  if (typeof baseBranch !== "string" || !BRANCH.test(baseBranch.trim()) || baseBranch.includes("..")
+    || /^[/-]/.test(baseBranch.trim()) || baseBranch.trim().endsWith("/")) {
     return { error: "The website target's baseBranch is not a valid branch name." };
   }
   const contentPath = folder(s.contentPath, "src/content/blog", "contentPath");
@@ -86,10 +90,10 @@ export function parseBlogTarget(providerSettings: unknown): BlogPublishTarget | 
   let liveBaseUrl = "";
   try {
     const url = new URL(typeof s.liveBaseUrl === "string" ? s.liveBaseUrl.trim() : "");
-    if (url.protocol !== "https:") throw new Error("not https");
+    if (url.protocol !== "https:" || url.search || url.hash || /[?#]/.test(s.liveBaseUrl as string)) throw new Error("not a plain https address");
     liveBaseUrl = url.toString().replace(/\/+$/, "");
   } catch {
-    return { error: "The website target's liveBaseUrl must be a full https address." };
+    return { error: "The website target's liveBaseUrl must be a full https address with no query string or fragment." };
   }
 
   if (s.defaultAuthor !== undefined && s.defaultAuthor !== null && typeof s.defaultAuthor !== "string") {
@@ -111,7 +115,7 @@ export function parseBlogTarget(providerSettings: unknown): BlogPublishTarget | 
   }
 
   return {
-    provider: "github_pull_request", repo: s.repo.trim(), baseBranch: baseBranch.trim(), contentPath, imagePath,
+    provider: "github_pull_request", repo: repoParts.join("/"), baseBranch: baseBranch.trim(), contentPath, imagePath,
     liveBaseUrl, defaultAuthor, ctaClusters, source: "company_config",
   };
 }

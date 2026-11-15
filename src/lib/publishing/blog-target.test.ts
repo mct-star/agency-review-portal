@@ -50,6 +50,12 @@ describe("parseBlogTarget", () => {
     });
   });
 
+  it("still accepts the legacy target's own values", () => {
+    const l = legacyBlogTarget();
+    expect(parseBlogTarget({ repo: l.repo, baseBranch: l.baseBranch, contentPath: l.contentPath, imagePath: l.imagePath, liveBaseUrl: l.liveBaseUrl, ctaClusters: l.ctaClusters }))
+      .toMatchObject({ repo: l.repo, baseBranch: "main", contentPath: l.contentPath, imagePath: l.imagePath, liveBaseUrl: l.liveBaseUrl });
+  });
+
   it("defaults the branch and folders, and allows no author and no services", () => {
     const t = parseBlogTarget({ repo: "a/b", liveBaseUrl: "https://example.com/blog" });
     expect(t).toMatchObject({ baseBranch: "main", contentPath: "src/content/blog", imagePath: "public/images/blog", defaultAuthor: null, ctaClusters: [] });
@@ -64,6 +70,18 @@ describe("parseBlogTarget", () => {
     ["a content path with a leading slash", { ...good, contentPath: "/content" }, "contentPath"],
     ["an image path with ..", { ...good, imagePath: "../img" }, "imagePath"],
     ["an image path with a leading slash", { ...good, imagePath: "/public/img" }, "imagePath"],
+    ["%2e%2e in a content path", { ...good, contentPath: "blog/%2e%2e/%2e%2e/%2e%2e" }, "contentPath"],
+    ["# in an image path", { ...good, imagePath: "img#frag" }, "imagePath"],
+    ["a space in a content path", { ...good, contentPath: "my posts" }, "contentPath"],
+    ["a dot segment in an image path", { ...good, imagePath: "img/./x" }, "imagePath"],
+    ["a repo of ../..", { ...good, repo: "../.." }, "repo"],
+    ["a repo of ./x", { ...good, repo: "./x" }, "repo"],
+    ["a repo name of ..", { ...good, repo: "owner/.." }, "repo"],
+    ["a leading-dash branch", { ...good, baseBranch: "-main" }, "baseBranch"],
+    ["a branch with a leading slash", { ...good, baseBranch: "/main" }, "baseBranch"],
+    ["a branch with a trailing slash", { ...good, baseBranch: "main/" }, "baseBranch"],
+    ["a live address with a query string", { ...good, liveBaseUrl: "https://example.com/blog?a" }, "liveBaseUrl"],
+    ["a live address with a fragment", { ...good, liveBaseUrl: "https://example.com/blog#top" }, "liveBaseUrl"],
     ["an http live address", { ...good, liveBaseUrl: "http://example.com/blog" }, "liveBaseUrl"],
     ["no live address", { ...good, liveBaseUrl: undefined }, "liveBaseUrl"],
     ["a service list that is not a list", { ...good, ctaClusters: "launch" }, "ctaClusters"],
