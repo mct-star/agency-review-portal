@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { requireAdmin, createAdminSupabaseClient, getSignedInProfile } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 
 /**
  * GET /api/variants?contentPieceId=uuid
  * List all platform variants for a content piece.
- * Accessible by both admin and client (client can read their own company's data).
+ *
+ * Needs a signed-in user who may access the piece's company (an admin, or a
+ * member of that company). The piece is read first and its company checked;
+ * an unknown piece and another company's piece both answer 404, so the
+ * caller cannot tell them apart. Same pattern as GET /api/assets.
  */
 export async function GET(request: Request) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const contentPieceId = searchParams.get("contentPieceId");
   if (!contentPieceId) {
@@ -19,6 +27,15 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
+  const { data: piece } = await supabase
+    .from("content_pieces")
+    .select("id, company_id")
+    .eq("id", contentPieceId)
+    .maybeSingle();
+  if (!piece || !canAccessCompany(profile, piece.company_id)) {
+    return NextResponse.json({ error: "Content piece not found" }, { status: 404 });
+  }
+
   const { data, error } = await supabase
     .from("platform_variants")
     .select("*, social_account:company_social_accounts(platform, account_name)")
@@ -34,7 +51,7 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/variants
- * Create platform variants for a content piece.
+ * Create platform variants for a content piece. Admin only.
  * Body: { contentPieceId, variants: [{ platform, adaptedCopy, adaptedFirstComment?, characterCount?, hashtags?, mentions?, socialAccountId? }] }
  */
 export async function POST(request: Request) {
@@ -97,30 +114,18 @@ export async function POST(request: Request) {
 
 /**
  * PUT /api/variants
- * Update a variant (admin can edit everything, client can update approval_status).
- * Body: { id, adaptedCopy?, isSelected?, approvalStatus?, scheduledAt? }
+ * Update a variant.
+ * Body: { id, adaptedCopy?, adaptedFirstComment?, isSelected?, approvalStatus?, scheduledAt?, hashtags?, mentions? }
+ *
+ * Needs a signed-in user who may access the company of the variant's piece.
+ * The variant and its piece are read first; an unknown variant, a variant
+ * whose piece is missing, and another company's variant all answer the same
+ * 404, and nothing is updated. After that an admin may change every listed
+ * field; anyone else may change only approvalStatus (403 otherwise).
  */
 export async function PUT(request: Request) {
-  const cookieStore = await cookies();
-
-  // Check auth
-  const authClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-
-  const {
-    data: { user: authUser },
-  } = await authClient.auth.getUser();
-  if (!authUser) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -133,15 +138,20 @@ export async function PUT(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
 
-  // Get user profile to determine permissions
-  const { data: profile } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", authUser.id)
-    .single();
-
-  if (!profile) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const { data: variant } = await supabase
+    .from("platform_variants")
+    .select("id, content_piece_id")
+    .eq("id", id)
+    .maybeSingle();
+  const { data: piece } = variant
+    ? await supabase
+        .from("content_pieces")
+        .select("id, company_id")
+        .eq("id", variant.content_piece_id)
+        .maybeSingle()
+    : { data: null };
+  if (!variant || !piece || !canAccessCompany(profile, piece.company_id)) {
+    return NextResponse.json({ error: "Variant not found" }, { status: 404 });
   }
 
   const row: Record<string, unknown> = {};
