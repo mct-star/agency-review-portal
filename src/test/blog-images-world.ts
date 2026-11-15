@@ -25,6 +25,7 @@ export interface WorldImage {
   dimensions?: string | null;
   image_record?: unknown;
   sort_order?: number | null;
+  created_at?: string | null;
 }
 
 export interface WorldInit {

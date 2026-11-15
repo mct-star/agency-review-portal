@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_BLOG_GATE_SETTINGS, runBlogGate } from "./blog-gate";
 import { blogImagesForGate, imageSlotKeys, parseDimensions, roleForArchetype, type BlogImageRow } from "./blog-gate-input";
 
 const row = (id: string, archetype: string | null, extra: Partial<BlogImageRow> = {}): BlogImageRow => ({
@@ -98,5 +99,36 @@ describe("blogImagesForGate", () => {
       row("s", "share_card"), row("i", "in_article_image_prompt_1"), row("h", "hero_image_prompt"),
     ], "[[image: 1]]");
     expect(out.images.map(i => i.role)).toEqual(["hero", "inline", "share"]);
+  });
+});
+
+describe("blogImagesForGate describes exactly what publishes", () => {
+  it("gives no inline image for a slot whose only row has no public_url, so a long blog fails inline_present", () => {
+    const body = `${"word ".repeat(950)}\n\n[[image: 1]]\n`;
+    const out = blogImagesForGate([row("i1", "in_article_image_prompt_1", { public_url: null })], body);
+    expect(out.images).toEqual([]);
+    const report = runBlogGate({ pieceTitle: "Example", body, images: out.images, settings: DEFAULT_BLOG_GATE_SETTINGS });
+    const inline = report.checks.find(c => c.code === "inline_present")!;
+    expect(inline.passed).toBe(false);
+  });
+
+  it("uses the earlier row when the last row for a number has no public_url", () => {
+    const out = blogImagesForGate([
+      row("early", "in_article_image_prompt_1"), row("late", "in_article_image_prompt_1", { public_url: null }),
+    ], "[[image: 1]]");
+    expect(out.images.map(i => i.id)).toEqual(["early"]);
+  });
+
+  it("uses the newest share_card row by created_at", () => {
+    const out = blogImagesForGate([
+      row("new", "share_card", { created_at: "2026-11-15T10:00:00Z" }),
+      row("old", "share_card", { created_at: "2026-11-14T10:00:00Z" }),
+    ], "");
+    expect(out.images.map(i => i.id)).toEqual(["new"]);
+  });
+
+  it("falls back to the last share_card row in sort order when created_at is missing", () => {
+    const out = blogImagesForGate([row("first", "share_card"), row("second", "share_card")], "");
+    expect(out.images.map(i => i.id)).toEqual(["second"]);
   });
 });

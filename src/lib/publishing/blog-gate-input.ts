@@ -10,10 +10,13 @@ import { inArticleImageNumber } from "@/lib/publishing/website-blog";
  * and the export.
  *
  * - hero: archetype hero_image_prompt.
- * - inline n: archetype in_article_image_prompt_<n>, and only when the body
- *   has a [[image: n]] line for it. An inline image with no line does not
- *   publish, so it is not gated; it comes back in `unplaced`.
- * - share: archetype share_card, the uploaded share image. The older
+ * - inline n: archetype in_article_image_prompt_<n> with a public_url, and
+ *   only when the body has a [[image: n]] line for it. An inline image with
+ *   no line does not publish, so it is not gated; it comes back in
+ *   `unplaced`. A row with no public_url is skipped, as the publisher does.
+ * - share: archetype share_card, the uploaded share image; when there is
+ *   more than one row, the newest (by created_at, else the last in sort
+ *   order), so the latest upload is the one shown and checked. The older
  *   cover_image_prompt picture is not the share image for the gate; it
  *   comes back as `legacyCover`.
  */
@@ -29,6 +32,7 @@ export interface BlogImageRow {
   filename?: string | null;
   dimensions?: string | null;
   image_record?: unknown;
+  created_at?: string | null;
 }
 
 export interface GateImage extends BlogGateImage {
@@ -82,6 +86,18 @@ export function imageSlotKeys(body: string): Set<string> {
   return keys;
 }
 
+/** The newest row by created_at; rows without one fall back to their place in sort order. */
+function newest(rows: BlogImageRow[]): BlogImageRow | undefined {
+  let best: BlogImageRow | undefined;
+  let bestTime = -Infinity;
+  for (const r of rows) {
+    const t = r.created_at ? Date.parse(r.created_at) : NaN;
+    const time = Number.isFinite(t) ? t : -Infinity;
+    if (!best || time >= bestTime) { best = r; bestTime = time; }
+  }
+  return best;
+}
+
 function gateImage(row: BlogImageRow, label: string, role: BlogImageRole, n?: number): GateImage {
   const size = parseDimensions(row.dimensions);
   return {
@@ -100,18 +116,19 @@ function gateImage(row: BlogImageRow, label: string, role: BlogImageRole, n?: nu
 /**
  * The images exactly as they would publish. Rows are taken in the order
  * given (sort order). The publisher uses the first hero; for an inline slot
- * the last row for that number is the one the article shows.
+ * the last row with a public_url for that number is the one the article
+ * shows.
  */
 export function blogImagesForGate(rows: BlogImageRow[], body: string): BlogGateImages {
   const slots = imageSlotKeys(body);
   const hero = rows.find(r => r.archetype === HERO_ARCHETYPE);
-  const share = rows.find(r => r.archetype === SHARE_ARCHETYPE);
+  const share = newest(rows.filter(r => r.archetype === SHARE_ARCHETYPE));
   const cover = rows.find(r => r.archetype === LEGACY_COVER_ARCHETYPE);
 
   const byNumber = new Map<number, BlogImageRow>();
   for (const r of rows) {
     const n = inArticleImageNumber(r.archetype);
-    if (n !== null) byNumber.set(n, r);
+    if (n !== null && r.public_url) byNumber.set(n, r);
   }
   const numbers = [...byNumber.keys()].sort((a, b) => a - b);
 

@@ -73,6 +73,7 @@ describe("the blog image panel on the piece page", () => {
     expect(html).toContain("(required)");
     expect(html).toContain("The portal does not make the share card yet, so upload it here for now: a designed image 1200 by 630, not the hero.");
     expect(html).toContain("Upload the share image");
+    expect(html).toContain("(PNG, JPEG or WebP, up to 4 MB)");
     expect(html).toContain("Image checks");
     expect(html).toContain("Every image has a record");
     expect(html).toContain("Failed");

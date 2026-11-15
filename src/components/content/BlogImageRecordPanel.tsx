@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { BlogImagesPayload } from "@/lib/publishing/blog-images";
 import type { GateImage } from "@/lib/publishing/blog-gate-input";
 import { BLOG_IMAGE_TYPES } from "@/lib/publishing/blog-image-record";
+import { shareFileProblem, shareUploadError } from "@/lib/publishing/share-image";
 
 /**
  * The image record on a blog piece (15 Nov 2026): what each image is and
@@ -59,13 +60,15 @@ export default function BlogImageRecordPanel({ pieceId, initial }: { pieceId: st
   }
 
   async function uploadShare(file: File) {
+    const problem = shareFileProblem(file);
+    if (problem) { setUpload({ error: problem }); return; }
     setUpload({ busy: true });
     try {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch(url, { method: "POST", body: form });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || "The share image could not be uploaded.");
+      const body: unknown = await res.json().catch(() => null);
+      if (!res.ok || !body || typeof body !== "object") throw new Error(shareUploadError(res.status, body));
       applyPayload(body as BlogImagesPayload);
       setUpload({ done: true });
     } catch (e) {
@@ -169,7 +172,7 @@ export default function BlogImageRecordPanel({ pieceId, initial }: { pieceId: st
           </p>
         )}
         <label className="block text-xs font-medium text-gray-700" htmlFor={`share-${pieceId}`}>
-          {share ? "Replace the share image" : "Upload the share image"} (PNG, JPEG or WebP, up to 5 MB)
+          {share ? "Replace the share image" : "Upload the share image"} (PNG, JPEG or WebP, up to 4 MB)
         </label>
         <input id={`share-${pieceId}`} type="file" accept="image/png,image/jpeg,image/webp" disabled={upload.busy}
           onChange={e => { const f = e.target.files?.[0]; if (f) void uploadShare(f); e.target.value = ""; }}

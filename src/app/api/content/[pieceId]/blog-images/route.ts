@@ -4,6 +4,7 @@ import { createAdminSupabaseClient, requireCompanyUser } from "@/lib/supabase/ad
 import { PUBLISHED_BUCKET } from "@/lib/upload/media-constants";
 import { nextImageSortOrder } from "@/lib/media/publish-copy";
 import { roleForArchetype, SHARE_ARCHETYPE } from "@/lib/publishing/blog-gate-input";
+import { MAX_SHARE_BYTES, SHARE_TOO_LARGE } from "@/lib/publishing/share-image";
 import { loadBlogImagesPayload, mergeImageRecord, writeFailure, type BlogPieceForImages } from "@/lib/publishing/blog-images";
 
 export const maxDuration = 30;
@@ -18,8 +19,9 @@ export const maxDuration = 30;
  *        the record on one of the piece's images. The role comes from where
  *        the image is used, never from the request.
  * POST   multipart, field "file": the share image (PNG, JPEG or WebP, up to
- *        5 MB). It is measured here and stored whatever its size, so the
- *        gate can report a wrong size. One per piece: it replaces the last.
+ *        4 MB, below the host's 4.5 MB request limit). It is measured
+ *        here and stored whatever its size, so the gate can report a wrong
+ *        size. One per piece: it replaces the last.
  *
  * Who may use it: any signed-in user with access to the piece's company,
  * that is an admin or a member of that company. An unknown piece, another
@@ -32,7 +34,6 @@ export const maxDuration = 30;
 
 const NOT_FOUND = { error: "Content piece not found" };
 const notFound = () => NextResponse.json(NOT_FOUND, { status: 404 });
-const MAX_SHARE_BYTES = 5 * 1024 * 1024;
 const SHARE_FORMATS: Record<string, { ext: string; mime: string }> = {
   png: { ext: "png", mime: "image/png" },
   jpeg: { ext: "jpg", mime: "image/jpeg" },
@@ -74,7 +75,11 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!access) return notFound();
   const { supabase, piece } = access;
 
-  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const raw: unknown = await request.json().catch(() => null);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return NextResponse.json({ error: "Send the image and its record to save." }, { status: 400 });
+  }
+  const body = raw as Record<string, unknown>;
   const imageId = typeof body.imageId === "string" ? body.imageId : "";
   if (!imageId) return NextResponse.json({ error: "Say which image to save." }, { status: 400 });
 
@@ -116,7 +121,7 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: "The share image must be a PNG, JPEG or WebP file." }, { status: 415 });
   }
   if (file.size > MAX_SHARE_BYTES) {
-    return NextResponse.json({ error: "The share image must be 5 MB or smaller." }, { status: 413 });
+    return NextResponse.json({ error: SHARE_TOO_LARGE }, { status: 413 });
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());

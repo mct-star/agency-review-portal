@@ -27,7 +27,7 @@ export interface BlogPieceForImages {
 
 type Reader = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-export const IMAGE_COLUMNS = "id, archetype, public_url, filename, storage_path, dimensions, image_record, sort_order";
+export const IMAGE_COLUMNS = "id, archetype, public_url, filename, storage_path, dimensions, image_record, sort_order, created_at";
 
 export async function loadBlogImagesPayload(
   supabase: Reader, piece: BlogPieceForImages,

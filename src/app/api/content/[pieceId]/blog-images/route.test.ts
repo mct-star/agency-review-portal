@@ -124,6 +124,14 @@ describe("PATCH", () => {
     expect(state.world.calls.filter(c => c.method === "update")).toEqual([]);
   });
 
+  it.each([["null", "null"], ["an array", "[]"], ["a string", '"hero"'], ["a number", "7"], ["not JSON", "{"]])(
+    "refuses a body that is %s with a plain 400", async (_name, raw) => {
+      const res = await PATCH(new Request("http://x", { method: "PATCH", headers: { "content-type": "application/json" }, body: raw }), ctx);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Send the image and its record to save." });
+      expect(state.world.calls.filter(c => c.table === "content_images")).toEqual([]);
+    });
+
   it("needs an image id and a record", async () => {
     expect((await patch({ record: { passage: "x" } })).status).toBe(400);
     const res = await patch({ imageId: "hero" });
@@ -151,6 +159,22 @@ describe("PATCH", () => {
 });
 
 describe("POST, the share image", () => {
+  it("accepts a file of exactly 4 MB as far as the size check", async () => {
+    const res = await upload(new Uint8Array(4 * 1024 * 1024), "image/png", "edge.png");
+    expect(res.status).toBe(415);
+  });
+
+  it("shows the newest share image when two share_card rows are left", async () => {
+    state.world = world([
+      { id: "older", content_piece_id: PIECE, archetype: "share_card", public_url: "https://example.com/older.png", dimensions: "800x400", sort_order: 5, created_at: "2026-11-15T09:00:00Z" },
+      { id: "newer", content_piece_id: PIECE, archetype: "share_card", public_url: "https://example.com/newer.png", dimensions: "1200x630", sort_order: 4, created_at: "2026-11-15T10:00:00Z" },
+    ]);
+    const json = await (await get()).json();
+    expect(json.images.filter((i: { role: string }) => i.role === "share").map((i: { id: string }) => i.id)).toEqual(["newer"]);
+    const select = state.world.calls.find(c => c.table === "content_images" && c.method === "select")!;
+    expect(String(select.args[0])).toContain("created_at");
+  });
+
   it("stores the file, measures it and records it as the share image", async () => {
     const res = await upload(await image(1200, 630));
     expect(res.status).toBe(200);
@@ -199,16 +223,16 @@ describe("POST, the share image", () => {
     expect(state.world.state.images.filter(i => i.archetype === "share_card")).toHaveLength(1);
   });
 
-  it("refuses a missing file, another type, a file that is not an image and one over 5 MB", async () => {
+  it("refuses a missing file, another type, a file that is not an image and one over 4 MB", async () => {
     const empty = await POST(new Request("http://x", { method: "POST", body: new FormData() }), ctx);
     expect(empty.status).toBe(400);
     expect((await upload(Buffer.from("GIF89a"), "image/gif", "a.gif")).status).toBe(415);
     const fake = await upload(Buffer.from("not an image at all"), "image/png", "a.png");
     expect(fake.status).toBe(415);
     expect((await fake.json()).error).toBe("The share image must be a PNG, JPEG or WebP file.");
-    const big = await upload(new Uint8Array(5 * 1024 * 1024 + 1), "image/png", "big.png");
+    const big = await upload(new Uint8Array(4 * 1024 * 1024 + 1), "image/png", "big.png");
     expect(big.status).toBe(413);
-    expect((await big.json()).error).toBe("The share image must be 5 MB or smaller.");
+    expect((await big.json()).error).toBe("That file is too large. The share image must be 4 MB or smaller.");
     expect(state.world.storageCalls).toEqual([]);
     expect(state.world.calls.filter(c => c.method === "insert")).toEqual([]);
   });
