@@ -1,0 +1,21 @@
+{
+  "images": [
+    {
+      "file": "/images/blog/example.jpg",
+      "role": "hero",
+      "type": "cartoon",
+      "passage": "Opening claim"
+    },
+    {
+      "file": "/images/blog/example-1.jpg",
+      "role": "inline",
+      "type": "infographic",
+      "passage": "Stage list"
+    },
+    {
+      "file": "/images/blog/example-og.jpg",
+      "role": "share",
+      "passage": "Share card"
+    }
+  ]
+}

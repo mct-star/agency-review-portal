@@ -301,6 +301,7 @@ export interface ContentImage {
   public_url: string;
   archetype: string | null;
   dimensions: string | null;
+  image_record?: unknown | null;
   sort_order: number;
   created_at: string;
 }
