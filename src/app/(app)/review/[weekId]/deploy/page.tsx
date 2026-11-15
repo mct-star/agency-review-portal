@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createServerSupabaseClient, getUserProfile } from "@/lib/supabase/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import DeployWeekPanel from "@/components/review/DeployWeekPanel";
 import { planWeekDeploy, type DeployPiece } from "@/lib/publishing/deploy-week";
 import { APPROVAL_REFUSALS, approvalRefusal, newestApprovals, type GatePiece } from "@/lib/content/approval-gate";
@@ -75,6 +76,9 @@ export default async function DeployWeekPage({ params }: PageProps) {
   ];
   const isPlatformCompany = company.slug === (process.env.PLATFORM_COMPANY_SLUG || "agency-bristol");
   const showCtaPicker = profile.role === "admin" && isPlatformCompany && plan.blogs.length > 0;
+  // The services the blog can point to are the company's own publish target.
+  const blogTarget = showCtaPicker ? await resolveBlogTarget(admin, company.id) : null;
+  const clusters = blogTarget ? ("target" in blogTarget ? blogTarget.target.ctaClusters : []) : undefined;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -123,7 +127,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
 
             <div className="mt-6">
               {canPublish
-                ? <DeployWeekPanel weekId={weekId} accounts={accounts} queueCount={toQueue.length} showCtaPicker={showCtaPicker} />
+                ? <DeployWeekPanel weekId={weekId} accounts={accounts} queueCount={toQueue.length} showCtaPicker={showCtaPicker} clusters={clusters} />
                 : <p className="text-sm text-gray-700">Your account cannot publish. Ask AGENCY to switch publishing on.</p>}
             </div>
           </>

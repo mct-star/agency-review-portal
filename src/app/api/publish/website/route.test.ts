@@ -90,3 +90,84 @@ describe("POST /api/publish/website", () => {
     expect(inserts.find(i => i.table === "content_syndication_links")?.row).toMatchObject({ external_url: "https://agencymedicalmarketing.com/blog/the-quiet-launch", is_canonical: true });
   });
 });
+
+describe("POST /api/publish/website, per-company target", () => {
+  const settings = {
+    repo: "example-org/example-site", baseBranch: "develop", contentPath: "content/posts", imagePath: "static/img/posts",
+    liveBaseUrl: "https://example.com/journal", defaultAuthor: "Example Person",
+    ctaClusters: [{ code: "pricing-help", label: "Pricing help" }],
+  };
+  const ownRow = (over: Record<string, unknown> = {}) => ({
+    company_id: "c1", service_category: "blog_publishing", provider: "github_pull_request", is_active: true,
+    provider_settings: settings, credentials_encrypted: null, ...over,
+  });
+
+  beforeEach(() => { tables.company_api_configs = null; });
+
+  it("uses the company's own repo, branch, paths, live address and services in the dry run", async () => {
+    tables.company_api_configs = ownRow();
+    tables.companies = { spokesperson_name: null };
+    const out = await (await POST(req({ pieceId: "p1", ctaCluster: "pricing-help", dryRun: true }))).json();
+    expect(out.repo).toBe("example-org/example-site");
+    expect(out.files.map((f: { path: string }) => f.path)).toEqual([
+      "content/posts/the-quiet-launch.mdx", "static/img/posts/the-quiet-launch.png", "static/img/posts/the-quiet-launch-og.jpg",
+    ]);
+    expect(out.liveUrl).toBe("https://example.com/journal/the-quiet-launch");
+    expect(out.mdx).toContain("heroImage: /static/img/posts/the-quiet-launch.png");
+    expect(out.mdx).toContain("author: Example Person");
+    expect(out.mdx).toContain("ctaCluster: pricing-help");
+    expect(out.ready).toBe(false);
+    expect(out.missing).toContain("company's website publishing token");
+  });
+
+  it("checks the service against the company's own list", async () => {
+    tables.company_api_configs = ownRow();
+    const res = await POST(req({ pieceId: "p1", ctaCluster: "launch", dryRun: true }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).problems).toContain("Choose the service the blog points readers to.");
+  });
+
+  it("needs no service when the target has none, and writes no ctaCluster line", async () => {
+    tables.company_api_configs = ownRow({ provider_settings: { ...settings, ctaClusters: [] } });
+    const res = await POST(req({ pieceId: "p1", dryRun: true }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).mdx).not.toContain("ctaCluster");
+  });
+
+  it("opens the pull request on the company's repo and base branch", async () => {
+    tables.company_api_configs = ownRow();
+    const calls: Array<{ url: string; method: string; body?: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method || "GET", body: init?.body as string | undefined });
+      if (url.includes("/contents/content/posts/the-quiet-launch.mdx?ref=develop")) return new Response("", { status: 404 });
+      if (url.endsWith("/git/ref/heads/develop")) return new Response(JSON.stringify({ object: { sha: "abc" } }), { status: 200 });
+      if (url.endsWith("/pulls")) return new Response(JSON.stringify({ html_url: "https://github.com/example-org/example-site/pull/2" }), { status: 201 });
+      if (url.startsWith("https://s.supabase.co/")) return new Response(new Uint8Array([1]), { status: 200 });
+      return new Response("{}", { status: 201 });
+    }));
+    vi.stubEnv("ENCRYPTION_KEY", "0".repeat(64));
+    const { encryptJson } = await import("@/lib/crypto");
+    tables.company_api_configs = ownRow({ credentials_encrypted: encryptJson({ token: "company-token" }) });
+    const out = await (await POST(req({ pieceId: "p1", ctaCluster: "pricing-help" }))).json();
+    expect(out.pullRequest).toBe("https://github.com/example-org/example-site/pull/2");
+    expect(calls.every(c => !c.url.startsWith("https://api.github.com") || c.url.startsWith("https://api.github.com/repos/example-org/example-site/"))).toBe(true);
+    const pull = calls.find(c => c.url.endsWith("/pulls"));
+    expect(JSON.parse(pull!.body!)).toMatchObject({ base: "develop" });
+  });
+
+  it("answers 422 with the plain sentence when the company has no target, for dry run and real run", async () => {
+    vi.stubEnv("WEBSITE_LEGACY_TARGET_COMPANY_ID", "some-other-company");
+    for (const dryRun of [true, false]) {
+      const res = await POST(req({ pieceId: "p1", ctaCluster: "launch", dryRun }));
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toBe("This company has no website publishing target set up yet.");
+    }
+  });
+
+  it("answers 422 naming the bad field when the company's row is wrong", async () => {
+    tables.company_api_configs = ownRow({ provider_settings: { ...settings, repo: "nonsense" } });
+    const res = await POST(req({ pieceId: "p1", ctaCluster: "launch", dryRun: true }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("repo");
+  });
+});

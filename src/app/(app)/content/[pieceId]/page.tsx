@@ -13,6 +13,7 @@ import ContentAssets from "@/components/content/ContentAssets";
 import BankPicker from "@/components/content/BankPicker";
 import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
+import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import WebsitePublishPanel from "@/components/content/WebsitePublishPanel";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
@@ -145,6 +146,11 @@ export default async function ContentPiecePage({ params }: PageProps) {
     return prompt ? [{ n, prompt }] : [];
   });
   const articleDone = [1, 2, 3].filter(n => (images || []).some(i => i.archetype === `in_article_image_prompt_${n}`));
+  // The services the blog can point readers to: the company's own publish target.
+  const websiteTarget = profile.role === "admin" && piece.content_type === "blog_article"
+    ? await resolveBlogTarget(await createAdminSupabaseClient(), piece.company_id)
+    : null;
+  const websiteClusters = websiteTarget ? ("target" in websiteTarget ? websiteTarget.target.ctaClusters : []) : undefined;
 
   // Long-form reads get the dictate bar: notes spoken while scrolling, kept per paragraph.
   const dictatedNotes = ["blog_article", "linkedin_article"].includes(piece.content_type);
@@ -364,6 +370,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
           hasOg={(images || []).some(i => i.archetype === "cover_image_prompt")}
           articlePrompts={articlePrompts}
           articleDone={articleDone}
+          clusters={websiteClusters}
         />
       )}
 

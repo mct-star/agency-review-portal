@@ -10,7 +10,7 @@ import { CTA_CLUSTERS } from "@/lib/publishing/website-blog";
  * pull request is what puts it live. Admin only; the page decides.
  */
 export default function WebsitePublishPanel({
-  pieceId, companyId, isApproved, heroPrompt, coverPrompt, hasHero, hasOg, articlePrompts = [], articleDone = [],
+  pieceId, companyId, isApproved, heroPrompt, coverPrompt, hasHero, hasOg, articlePrompts = [], articleDone = [], clusters = CTA_CLUSTERS,
 }: {
   pieceId: string;
   companyId: string;
@@ -23,6 +23,8 @@ export default function WebsitePublishPanel({
   articlePrompts?: { n: number; prompt: string }[];
   /** Slot numbers that already have an image. */
   articleDone?: number[];
+  /** The services the blog can point readers to: the company's own list. Empty means none is needed. */
+  clusters?: ReadonlyArray<{ code: string; label: string }>;
 }) {
   const [cluster, setCluster] = useState("");
   const [busy, setBusy] = useState<null | "images" | "preview" | "send">(null);
@@ -110,14 +112,16 @@ export default function WebsitePublishPanel({
         <p className="text-sm text-gray-500">Approve the blog to send it to the website.</p>
       ) : (
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700" htmlFor="cta-cluster">Which service does it point readers to?</label>
-          <select id="cta-cluster" value={cluster} onChange={e => { setCluster(e.target.value); setPreview(null); }}
-            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500">
-            <option value="">Choose a service</option>
-            {CTA_CLUSTERS.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-          </select>
+          {clusters.length > 0 && (<>
+            <label className="block text-sm font-medium text-gray-700" htmlFor="cta-cluster">Which service does it point readers to?</label>
+            <select id="cta-cluster" value={cluster} onChange={e => { setCluster(e.target.value); setPreview(null); }}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500">
+              <option value="">Choose a service</option>
+              {clusters.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+          </>)}
           <div className="flex gap-2">
-            <button onClick={() => send(true)} disabled={!cluster || busy !== null}
+            <button onClick={() => send(true)} disabled={(clusters.length > 0 && !cluster) || busy !== null}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               {busy === "preview" ? "Checking" : "Preview what will be sent"}
             </button>
