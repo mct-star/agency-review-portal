@@ -96,6 +96,11 @@ export default function WebsitePublishPanel({
     }
   }
 
+  // Each sentence once: when image checks block, theirs are listed under the image checks.
+  const otherProblems = imageChecks?.enforced
+    ? problems.filter(p => !imageChecks.report.problems.includes(p))
+    : problems;
+
   const needImages = (!hasHero && !!heroPrompt) || (!hasOg && !!coverPrompt) || missingArticle.length > 0;
   const missingCount = (!hasHero && heroPrompt ? 1 : 0) + (!hasOg && coverPrompt ? 1 : 0) + missingArticle.length;
 
@@ -162,9 +167,9 @@ export default function WebsitePublishPanel({
 
       {message && <p className="text-sm text-green-700">{message}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {problems.length > 0 && (
+      {otherProblems.length > 0 && (
         <ul className="list-disc space-y-1 pl-5 text-sm text-red-600">
-          {problems.map((p, i) => <li key={i}>{p}</li>)}
+          {otherProblems.map((p, i) => <li key={i}>{p}</li>)}
         </ul>
       )}
       {imageChecks && (() => {

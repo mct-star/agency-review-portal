@@ -25,6 +25,14 @@ describe("mdxBody alt text", () => {
     expect(out.split("\n").filter(l => l.startsWith("![")).length).toBe(1);
   });
 
+  it("escapes every \"<\" in alt text, once", () => {
+    const at = (alt: string) => mdxBody(body, "T", { "1": { src: "/images/blog/t-1.png", alt } }).split("\n")[2];
+    expect(at("Rates < 5%")).toBe("![Rates \\< 5%](/images/blog/t-1.png)");
+    expect(at("a <b> c")).toBe("![a \\<b> c](/images/blog/t-1.png)");
+    expect(at("less <")).toBe("![less \\<](/images/blog/t-1.png)");
+    expect(at("<<b")).toBe("![\\<\\<b](/images/blog/t-1.png)");
+  });
+
   it("escapes brackets, backslashes and line breaks", () => {
     expect(escapeAlt("a]b[c\\d\r\ne")).toBe("a\\]b\\[c\\\\d e");
   });

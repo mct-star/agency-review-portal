@@ -52,15 +52,19 @@ export function inArticleImageNumber(archetype: string | null | undefined): numb
  *
  * A slot may carry alt text ({ src, alt }, 15 Nov 2026): it is written as
  * ![alt](src), on one line, with backslashes and square brackets escaped
- * so it cannot close the image early. The { } < escaping below covers it
- * as it covers the rest of the body. With no alt the line is ![](src), as
- * before.
+ * so it cannot close the image early. Every "<" in alt text is escaped:
+ * the body-wide pass below escapes { } and a "<" before a letter, "/" or
+ * "!", so escapeAlt escapes every other "<" ("Rates < 5%") and leaves those
+ * to that pass, so nothing is escaped twice. With no alt the line is
+ * ![](src), as before.
  */
 export type BlogImageSlot = string | { src: string; alt?: string | null };
 
-/** Alt text safe inside ![...]: one line, backslashes and brackets escaped. */
+/** Alt text safe inside ![...]: one line, backslashes, brackets and every "<" escaped (with the body pass). */
 export function escapeAlt(alt: string): string {
-  return alt.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().replace(/([\\[\]])/g, "\\$1");
+  return alt.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim()
+    .replace(/([\\[\]])/g, "\\$1")
+    .replace(/<(?![A-Za-z/!])/g, "\\<");
 }
 
 function slotImage(slot: BlogImageSlot | undefined): string | null {

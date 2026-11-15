@@ -64,6 +64,27 @@ const image = (id: string, archetype: string, url: string | null, extra: Row = {
 });
 const images = (...rows: Row[]) => { state.tables.content_images = rows; };
 
+/** Nothing may leave the building unless a test opens GitHub on purpose. */
+let blockedFetch = vi.fn();
+/** A refusal sent nothing: no network call, no job, no syndication link. */
+const nothingLeft = () => {
+  expect(blockedFetch).not.toHaveBeenCalled();
+  expect(state.writes.filter(w => w.table === "publishing_jobs" || w.table === "content_syndication_links")).toEqual([]);
+};
+/** A GitHub that accepts the pull request, for tests that expect a real send. */
+const github = () => {
+  const calls: Array<{ url: string; method: string; body?: string }> = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method || "GET", body: init?.body as string | undefined });
+    if (url.includes("/contents/src/content/blog/the-quiet-launch.mdx?ref=main")) return new Response("", { status: 404 });
+    if (url.endsWith("/git/ref/heads/main")) return new Response(JSON.stringify({ object: { sha: "abc" } }), { status: 200 });
+    if (url.endsWith("/pulls")) return new Response(JSON.stringify({ html_url: "https://github.com/example/site/pull/3" }), { status: 201 });
+    if (url.startsWith("https://s.supabase.co/")) return new Response(new Uint8Array([1]), { status: 200 });
+    return new Response("{}", { status: 201 });
+  }));
+  return calls;
+};
+
 const HERO = image("hero", "hero_image_prompt", "https://s.supabase.co/h.png", {
   image_record: { role: "hero", type: "diagram", passage: "The launch plan" },
 });
@@ -83,6 +104,8 @@ beforeEach(() => {
   vi.stubEnv("WEBSITE_GITHUB_TOKEN", "t");
   vi.stubEnv("WEBSITE_GITHUB_REPO", "");
   vi.stubEnv("WEBSITE_LEGACY_TARGET_COMPANY_ID", "");
+  blockedFetch = vi.fn(async () => { throw new Error("nothing may leave the building in this test"); });
+  vi.stubGlobal("fetch", blockedFetch);
   state.tables = {
     content_pieces: [{
       id: "p1", company_id: "c1", content_type: "blog_article", approval_status: "approved", title: TITLE, first_comment: null,
@@ -99,7 +122,11 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-const problemsOf = async (res: Response) => { expect(res.status).toBe(422); return (await res.json()).problems as string[]; };
+const problemsOf = async (res: Response) => {
+  expect(res.status).toBe(422);
+  nothingLeft();
+  return (await res.json()).problems as string[];
+};
 
 describe("POST /api/publish/website: recorded approval, for every company", () => {
   it("passes an exact approval", async () => {
@@ -117,25 +144,41 @@ describe("POST /api/publish/website: recorded approval, for every company", () =
 
   it("refuses when the newest decision asked for changes", async () => {
     approve("changes_requested", piece(), "2026-11-14T10:00:00Z");
-    expect(await problemsOf(await check()))
-      .toContain(`The blog "${TITLE}"'s newest decision asked for changes. Approve it before publishing.`);
+    for (const extra of [{}, { dryRun: false }]) {
+      expect(await problemsOf(await check(extra)))
+        .toContain(`The blog "${TITLE}"'s newest decision asked for changes. Approve it before publishing.`);
+    }
   });
 
   it("refuses a blog edited after approval", async () => {
     piece().markdown_body = "An opening line, edited.\n\n[[image: 1]]\n\nThe end.";
-    expect(await problemsOf(await check()))
-      .toContain(`The blog "${TITLE}" was edited after approval. Approve the current version before publishing.`);
+    for (const extra of [{}, { dryRun: false }]) {
+      expect(await problemsOf(await check(extra)))
+        .toContain(`The blog "${TITLE}" was edited after approval. Approve the current version before publishing.`);
+    }
   });
 
   it("refuses when the approval record cannot be read", async () => {
     state.failRead = { table: "content_approvals" };
-    expect(await problemsOf(await check()))
-      .toContain(`The blog "${TITLE}"'s approval record could not be checked, so nothing was sent.`);
+    for (const extra of [{}, { dryRun: false }]) {
+      expect(await problemsOf(await check(extra)))
+        .toContain(`The blog "${TITLE}"'s approval record could not be checked, so nothing was sent.`);
+    }
   });
 
   it("does not repeat itself for a blog that is not approved at all", async () => {
     piece().approval_status = "pending";
     expect(await problemsOf(await check())).toEqual(["Approve the blog first."]);
+  });
+
+  it("ignores another company's approval of the same piece", async () => {
+    state.tables.content_approvals = [{
+      piece_id: "p1", company_id: "c2", version_hash: pieceVersionHash(piece() as never), decision: "approved", decided_at: "2026-11-14T11:00:00Z",
+    }];
+    for (const extra of [{}, { dryRun: false }]) {
+      expect(await problemsOf(await check(extra)))
+        .toContain(`The blog "${TITLE}" has no recorded approval. Approve it again before publishing.`);
+    }
   });
 
   it("leaves a plain dry run, without withChecks, as the preview it was", async () => {
@@ -197,6 +240,7 @@ describe("POST /api/publish/website: image checks a company enforces", () => {
       ]);
       expect(out.error).toBe(out.problems.join(" "));
       expect(out.imageChecks.enforced).toBe(true);
+      nothingLeft();
     }
   });
 
@@ -211,16 +255,17 @@ describe("POST /api/publish/website: image checks a company enforces", () => {
     ]);
   });
 
+  it("refuses a share card that is the same file as the hero, on dry run and real send", async () => {
+    images(HERO, INLINE, { ...SHARE, public_url: HERO.public_url });
+    for (const extra of [{}, { dryRun: false }]) {
+      expect(await problemsOf(await check(extra))).toEqual([
+        `Blog "${TITLE}": the share image is the same file as the hero image. Make the share card its own designed image.`,
+      ]);
+    }
+  });
+
   it("sends when everything is right: the share card as the share image and the alt text in the post", async () => {
-    const calls: Array<{ url: string; method: string; body?: string }> = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push({ url, method: init?.method || "GET", body: init?.body as string | undefined });
-      if (url.includes("/contents/src/content/blog/the-quiet-launch.mdx?ref=main")) return new Response("", { status: 404 });
-      if (url.endsWith("/git/ref/heads/main")) return new Response(JSON.stringify({ object: { sha: "abc" } }), { status: 200 });
-      if (url.endsWith("/pulls")) return new Response(JSON.stringify({ html_url: "https://github.com/example/site/pull/3" }), { status: 201 });
-      if (url.startsWith("https://s.supabase.co/")) return new Response(new Uint8Array([1]), { status: 200 });
-      return new Response("{}", { status: 201 });
-    }));
+    const calls = github();
     const res = await POST(req({ pieceId: "p1", ctaCluster: "launch" }));
     expect(res.status).toBe(200);
     const out = await res.json();
@@ -242,6 +287,20 @@ describe("POST /api/publish/website: image checks a company enforces", () => {
     await check();
     await check({ dryRun: false, ctaCluster: "" });
     expect(state.writes.filter(w => w.table === "content_images")).toEqual([]);
+    nothingLeft();
+  });
+});
+
+describe("POST /api/publish/website: inline images", () => {
+  it("does not upload an inline image the body has no [[image: n]] line for", async () => {
+    images(HERO, INLINE, image("inline-2", "in_article_image_prompt_2", "https://s.supabase.co/a2.png", { sort_order: 4 }), SHARE);
+    const calls = github();
+    const res = await POST(req({ pieceId: "p1", ctaCluster: "launch" }));
+    expect(res.status).toBe(200);
+    const puts = calls.filter(c => c.method === "PUT").map(c => c.url.split("/contents/")[1]);
+    expect(puts).toContain("public/images/blog/the-quiet-launch-1.webp");
+    expect(puts.some(p => p.includes("the-quiet-launch-2"))).toBe(false);
+    expect(calls.some(c => c.url === "https://s.supabase.co/a2.png")).toBe(false);
   });
 });
 
@@ -252,11 +311,23 @@ describe("POST /api/publish/website: settings and callers", () => {
       const res = await check(extra);
       expect(res.status).toBe(422);
       expect((await res.json()).error).toBe("This company's blog checks could not be read, so nothing was sent. Try again.");
+      nothingLeft();
+    }
+  });
+
+  it("refuses when enforceImageChecks is set up wrongly, rather than treating it as not enforcing", async () => {
+    enforce({ enforceImageChecks: "true" });
+    for (const extra of [{}, { dryRun: false }, { withChecks: false }]) {
+      const res = await check(extra);
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toBe("This company's blog checks are set up wrongly: enforceImageChecks must be true or false.");
+      nothingLeft();
     }
   });
 
   it("is still admin only", async () => {
     state.admin = false;
-    expect((await check()).status).toBe(401);
+    for (const extra of [{}, { dryRun: false }]) expect((await check(extra)).status).toBe(401);
+    nothingLeft();
   });
 });

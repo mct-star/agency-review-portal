@@ -21,6 +21,16 @@ describe("loadBlogImagesPayload settings", () => {
     expect(out.settings).toEqual({ ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false });
   });
 
+  it("shows the defaults, not enforced, when enforceImageChecks is set up wrongly", async () => {
+    const { client } = fakeSupabase({
+      content_images: { data: [] },
+      company_api_configs: { data: { provider_settings: { enforceImageChecks: "true" } } },
+    });
+    const out = await loadBlogImagesPayload(client, piece);
+    if (!("settings" in out)) throw new Error("expected a payload");
+    expect(out.settings).toEqual({ ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false });
+  });
+
   it("uses the company's own settings when they read", async () => {
     const { client } = fakeSupabase({
       content_images: { data: [] },

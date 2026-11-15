@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fakeSupabase, type RecordedCall } from "@/test/fake-supabase";
 import { DEFAULT_BLOG_GATE_SETTINGS } from "./blog-gate";
-import { BLOG_GATE_SETTINGS_UNREADABLE, resolveBlogGateSettings } from "./blog-gate-settings";
+import { BLOG_GATE_ENFORCE_INVALID, BLOG_GATE_SETTINGS_UNREADABLE, resolveBlogGateSettings } from "./blog-gate-settings";
 
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
@@ -34,13 +34,29 @@ describe("resolveBlogGateSettings", () => {
     expect(await resolveBlogGateSettings(client, A)).toEqual({ settings: { ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false } });
   });
 
+  // Changed on purpose (15 Nov 2026): this row used to carry
+  // enforceImageChecks "true" and fall back to not enforcing. A non-boolean
+  // enforceImageChecks is now a refusal (tested below), so this row leaves
+  // the key out and still checks the field-by-field fallback.
   it("falls back field by field on bad values", async () => {
-    const { client } = configs({ [A]: { photographTreatment: 4, inlineImageWordLimit: -1, requireShareCard: "yes", enforceImageChecks: "true" } });
+    const { client } = configs({ [A]: { photographTreatment: 4, inlineImageWordLimit: -1, requireShareCard: "yes" } });
     expect(await resolveBlogGateSettings(client, A)).toEqual({ settings: { ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false } });
   });
 
+  it.each([["the string \"true\"", "true"], ["the number 1", 1], ["null", null], ["the string \"false\"", "false"]])(
+    "refuses when enforceImageChecks is %s, not true or false", async (_name, value) => {
+      const { client } = configs({ [A]: { enforceImageChecks: value } });
+      expect(await resolveBlogGateSettings(client, A)).toEqual({ refusal: BLOG_GATE_ENFORCE_INVALID });
+    });
+
+  it("treats false as not enforcing", async () => {
+    const { client } = configs({ [A]: { enforceImageChecks: false } });
+    expect(await resolveBlogGateSettings(client, A)).toEqual({ settings: { ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false } });
+  });
+
+  // Also changed on purpose: this row used to carry enforceImageChecks 1, now a refusal.
   it("keeps the good fields of a partly bad row", async () => {
-    const { client } = configs({ [A]: { photographTreatment: "mono", inlineImageWordLimit: "lots", enforceImageChecks: 1 } });
+    const { client } = configs({ [A]: { photographTreatment: "mono", inlineImageWordLimit: "lots" } });
     expect(await resolveBlogGateSettings(client, A)).toEqual({ settings: {
       ...DEFAULT_BLOG_GATE_SETTINGS, photographTreatment: "mono", enforceImageChecks: false,
     } });

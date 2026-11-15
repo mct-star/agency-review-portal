@@ -142,17 +142,14 @@ export async function POST(request: Request) {
     if (refusal && refusal !== APPROVAL_REFUSALS.notApproved) problems.push(approvalSentence(title, refusal));
   }
 
-  // The gate sees each file by the name it publishes under, so "the share
-  // image is the same file as the hero" compares published names.
+  // The gate sees the stored files, exactly as the image panel does
+  // (loadBlogImagesPayload), so "the share image is the same file as the
+  // hero" compares the uploads, not the names they publish under (those
+  // always differ).
   const report: BlogGateReport = runBlogGate({
     pieceTitle: title,
     body: bodyText,
-    images: gate.images.map(i => ({
-      ...i,
-      file: (i.role === "hero" ? heroPath
-        : i.role === "share" ? published(i.publicUrl, "-og")
-        : inArticle.find(a => a.n === i.n)?.path) || i.file,
-    })),
+    images: gate.images,
     settings: {
       photographTreatment: gateSettings.settings.photographTreatment,
       inlineImageWordLimit: gateSettings.settings.inlineImageWordLimit,
