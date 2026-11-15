@@ -28,6 +28,12 @@ adds `review_notes` (dictated notes on a piece, each anchored to the
 paragraph in view). Apply it before merging the code that reads it: until it
 exists, the dictate bar on /content/[pieceId] shows an error and saves nothing.
 
+NOT YET APPLIED (15 November 2026): `20261115090000_drop_client_update_policies.sql`
+drops the client UPDATE policies "Client updates approval" (content_pieces) and
+"Client updates variant approval" (platform_variants). No code depends on them:
+every write to either table goes through an API route on the service-role client.
+It can be applied before or after the code that ships with it.
+
 `20261114100000_capture_grants_and_newsletter_guard.sql` was applied on 14 November 2026
 under the live name `20261114143915 capture_grants_and_newsletter_guard`. It adds
 `capture_grants` and the index `publishing_jobs_newsletter_published_uniq`. Capture links

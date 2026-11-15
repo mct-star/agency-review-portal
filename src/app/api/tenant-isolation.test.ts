@@ -49,6 +49,7 @@ import { signOAuthState } from "@/lib/linkedin/oauth-state";
 import { POST as bluesky } from "./publish/bluesky/route";
 import { GET as trialEmails } from "./cron/trial-emails/route";
 import { POST as voice } from "./generate/transcribe/voice/route";
+import { GET as listAssets } from "./assets/route";
 
 const post = (body: Record<string, unknown>) =>
   new Request("http://x/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -227,5 +228,56 @@ describe("crons and open routes", () => {
     state.user = null;
     const res = await voice(new Request("http://x/api", { method: "POST", body: new FormData() }));
     expect(res.status).toBe(401);
+  });
+});
+
+/**
+ * GET /api/assets read every asset of a piece for anyone holding its id
+ * (closed 15 Nov 2026). It now needs a sign-in and the piece's company; an
+ * unknown piece and another company's piece answer the same 404.
+ */
+describe("piece assets", () => {
+  const get = (pieceId: string) => new Request(`http://x/api/assets?contentPieceId=${pieceId}`);
+  const assetRows = [{ id: "as-1", content_piece_id: "p", asset_type: "blog_article", sort_order: 0 }];
+  const withPiece = (companyId: string | null) =>
+    fakeSupabase({
+      content_pieces: { data: companyId ? { id: "p", company_id: companyId } : null },
+      content_assets: { data: assetRows },
+    });
+  const assetReads = () => state.supabase.calls.filter((c) => c.table === "content_assets");
+
+  it("needs a sign-in", async () => {
+    state.user = null;
+    state.supabase = withPiece(A);
+    expect((await listAssets(get("p"))).status).toBe(401);
+    expect(assetReads()).toEqual([]);
+  });
+  it("refuses a member of another company, and reads no assets", async () => {
+    state.supabase = withPiece(B);
+    const res = await listAssets(get("p"));
+    expect(res.status).toBe(404);
+    expect(assetReads()).toEqual([]);
+  });
+  it("answers an unknown piece exactly as it answers another company's", async () => {
+    state.supabase = withPiece(null);
+    const unknown = await listAssets(get("nope"));
+    state.supabase = withPiece(B);
+    const other = await listAssets(get("p"));
+    expect(unknown.status).toBe(other.status);
+    expect(await unknown.json()).toEqual(await other.json());
+  });
+  it("serves a member of the owning company", async () => {
+    state.supabase = withPiece(A);
+    const res = await listAssets(get("p"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual(assetRows);
+    expect(eqCalls(state.supabase.calls, "content_assets")).toContainEqual(["content_piece_id", "p"]);
+  });
+  it("serves an admin, whatever the company", async () => {
+    state.user = { id: "adm", role: "admin", company_id: null };
+    state.supabase = withPiece(B);
+    const res = await listAssets(get("p"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual(assetRows);
   });
 });
