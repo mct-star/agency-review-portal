@@ -15,6 +15,8 @@ import PlatformVariants from "@/components/content/PlatformVariants";
 import GenerateActions from "@/components/content/GenerateActions";
 import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import WebsitePublishPanel from "@/components/content/WebsitePublishPanel";
+import BlogImageRecordPanel from "@/components/content/BlogImageRecordPanel";
+import { loadBlogImagesPayload } from "@/lib/publishing/blog-images";
 import LinkedInPublishButton from "@/components/content/LinkedInPublishButton";
 import DeletePieceButton from "@/components/content/DeletePieceButton";
 import type { Comment, ContentImage, User } from "@/types/database";
@@ -151,6 +153,12 @@ export default async function ContentPiecePage({ params }: PageProps) {
     ? await resolveBlogTarget(await createAdminSupabaseClient(), piece.company_id)
     : null;
   const websiteClusters = websiteTarget ? ("target" in websiteTarget ? websiteTarget.target.ctaClusters : []) : undefined;
+
+  // A blog's image records, share image and image checks, for everyone who can see the piece.
+  // The piece's company was authorised above; the company's gate settings are read on the service role.
+  const blogImages = piece.content_type === "blog_article"
+    ? await loadBlogImagesPayload(await createAdminSupabaseClient(), piece)
+    : null;
 
   // Long-form reads get the dictate bar: notes spoken while scrolling, kept per paragraph.
   const dictatedNotes = ["blog_article", "linkedin_article"].includes(piece.content_type);
@@ -357,6 +365,11 @@ export default async function ContentPiecePage({ params }: PageProps) {
           published={newsletterPublished}
         />
       )}
+
+      {/* Blog images: the record on each image, the share image and the checks (blogs only) */}
+      {blogImages && ("error" in blogImages
+        ? <div className="workspace-panel p-5 sm:p-6"><p className="text-sm text-red-600">{blogImages.error}</p></div>
+        : <BlogImageRecordPanel pieceId={piece.id} initial={blogImages} />)}
 
       {/* Website (admin only, blogs only): images, preview, then a pull request */}
       {profile.role === "admin" && piece.content_type === "blog_article" && (

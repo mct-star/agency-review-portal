@@ -54,6 +54,7 @@ vi.mock("@/components/content/BankPicker", () => ({ default: () => null }));
 vi.mock("@/components/content/PlatformVariants", () => ({ default: () => null }));
 vi.mock("@/components/content/GenerateActions", () => ({ default: () => null }));
 vi.mock("@/components/content/WebsitePublishPanel", () => ({ default: () => null }));
+vi.mock("@/components/content/BlogImageRecordPanel", () => ({ default: () => null }));
 vi.mock("@/components/content/DeletePieceButton", () => ({ default: () => null }));
 
 import ContentPiecePage from "./page";
