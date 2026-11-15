@@ -4,7 +4,7 @@ import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { NOT_FOR_VENUE } from "@/lib/hospitality/b2b-only";
 import { APPROVAL_REFUSALS, approvalRefusal, newestApprovals, type GatePiece } from "@/lib/content/approval-gate";
 import { liveLinkedInJobsByPiece, liveLinkedInNote, type LiveLinkedInStatus } from "@/lib/publishing/live-linkedin-jobs";
-import { CTA_CLUSTERS } from "@/lib/publishing/website-blog";
+import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import { nextForType, planWeekDeploy, type DeployManualSocial, type DeployPiece, type DeploySocial } from "@/lib/publishing/deploy-week";
 import { LEFT_FOR_SCHEDULER_PARAM } from "@/lib/export/left-for-scheduler";
 import { POST as queueLinkedInPost } from "@/app/api/publish/linkedin-direct/route";
@@ -155,10 +155,14 @@ export async function POST(request: Request) {
 
   // The blog: a pull request on the AGENCY website, through the existing
   // admin-only route. Merging it stays manual.
-  const ctaCluster = typeof body.ctaCluster === "string" && CTA_CLUSTERS.some((c) => c.code === body.ctaCluster) ? body.ctaCluster : null;
   const isPlatformCompany = company.slug === (process.env.PLATFORM_COMPANY_SLUG || "agency-bristol");
   const blogs: Array<{ id: string; title: string; status: "pull_request_opened" | "already_sent" | "manual"; url?: string | null; reason?: string }> = [];
   if (plan.blogs.length) {
+    // The service list is the company's own publish target, not a constant.
+    const resolved = isPlatformCompany ? await resolveBlogTarget(supabase, companyId) : null;
+    const clusters = resolved && "target" in resolved ? resolved.target.ctaClusters : [];
+    const ctaCluster = typeof body.ctaCluster === "string" && clusters.some((c) => c.code === body.ctaCluster) ? body.ctaCluster : null;
+    const needsService = clusters.length > 0;
     const { data: sent } = await supabase.from("publishing_jobs").select("content_piece_id, external_url, status")
       .eq("company_id", companyId).eq("target_platform", "website").in("content_piece_id", plan.blogs.map((b) => b.id));
     for (const blog of plan.blogs) {
@@ -166,10 +170,11 @@ export async function POST(request: Request) {
       if (prior) { blogs.push({ ...blog, status: "already_sent", url: prior.external_url as string | null }); continue; }
       if (!isPlatformCompany) { blogs.push({ ...blog, status: "manual", reason: "Publish this blog on the company's own website." }); continue; }
       if (user.role !== "admin") { blogs.push({ ...blog, status: "manual", reason: "AGENCY sends the blog to the website as a pull request." }); continue; }
-      if (!ctaCluster) { blogs.push({ ...blog, status: "manual", reason: "Choose which service the blog points readers to, then deploy again." }); continue; }
+      if (resolved && "refusal" in resolved) { blogs.push({ ...blog, status: "manual", reason: resolved.refusal }); continue; }
+      if (needsService && !ctaCluster) { blogs.push({ ...blog, status: "manual", reason: "Choose which service the blog points readers to, then deploy again." }); continue; }
       const res = await sendBlogToWebsite(new Request(new URL("/api/publish/website", request.url), {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pieceId: blog.id, ctaCluster }),
+        body: JSON.stringify({ pieceId: blog.id, ctaCluster: ctaCluster || "" }),
       }));
       const out = await res.json().catch(() => ({})) as { pullRequest?: string; url?: string; error?: string };
       if (res.ok) blogs.push({ ...blog, status: "pull_request_opened", url: out.pullRequest || null });

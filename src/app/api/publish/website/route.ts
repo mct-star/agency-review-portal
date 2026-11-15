@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import {
-  WEBSITE_BLOG_BASE, buildBlogMdx, imageExt, inArticleImageNumber, publishProblems, readTimeFor, slugify,
+  buildBlogMdx, imageExt, inArticleImageNumber, publishProblems, readTimeFor, slugify,
 } from "@/lib/publishing/website-blog";
 
 export const maxDuration = 60;
@@ -18,9 +19,17 @@ export const maxDuration = 60;
  * dryRun returns the exact files and changes nothing. A slug already on
  * the site, or already sent, is refused.
  *
+ * Where it goes is the company's publish target (src/lib/publishing/
+ * blog-target.ts): its active company_api_configs row, or, with no row,
+ * today's publisher from the env below.
+ *
  * Env: WEBSITE_GITHUB_TOKEN (fine-grained, agency-website only: contents
  * and pull requests, read and write); WEBSITE_GITHUB_REPO optional,
- * default mct-star/agency-website.
+ * default mct-star/agency-website. Both apply only to the legacy target.
+ * WEBSITE_LEGACY_TARGET_COMPANY_ID optional: when set, only that company
+ * may use the legacy target and any other company with no row of its own
+ * is refused (422). Unset, every company without a row falls back, as it
+ * always has.
  */
 const GH = "https://api.github.com";
 
@@ -48,6 +57,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This blog has already been sent to the website.", url: sent[0].external_url }, { status: 409 });
   }
 
+  const resolved = await resolveBlogTarget(supabase, piece.company_id as string);
+  if ("refusal" in resolved) return NextResponse.json({ error: resolved.refusal }, { status: 422 });
+  const { target, token } = resolved;
+  const author = company?.spokesperson_name || target.defaultAuthor;
+  if (!author) {
+    return NextResponse.json({ error: "Set a spokesperson or a default author for this company before sending the blog." }, { status: 422 });
+  }
+
   const asset = (t: string) => (assets || []).find(a => a.asset_type === t)?.text_content?.trim() || "";
   const title = (piece.title || "").trim();
   const slug = slugify(asset("url_slug") || title);
@@ -57,18 +74,18 @@ export async function POST(request: Request) {
   const problems = publishProblems({
     approved: piece.approval_status === "approved", contentType: piece.content_type,
     title, body: piece.markdown_body || "", slug, ctaCluster, heroUrl: hero,
-  });
+  }, target.ctaClusters);
   if (problems.length > 0) return NextResponse.json({ error: problems.join(" "), problems }, { status: 422 });
 
-  const heroPath = `public/images/blog/${slug}.${imageExt(hero!)}`;
-  const ogPath = og ? `public/images/blog/${slug}-og.${imageExt(og)}` : null;
+  const heroPath = `${target.imagePath}/${slug}.${imageExt(hero!)}`;
+  const ogPath = og ? `${target.imagePath}/${slug}-og.${imageExt(og)}` : null;
   // In-article images, one per [[image: n]] slot the writer left.
   const inArticle = (images || [])
     .map(i => ({ n: inArticleImageNumber(i.archetype), url: i.public_url }))
     .filter((i): i is { n: number; url: string } => i.n !== null && !!i.url)
-    .map(i => ({ ...i, path: `public/images/blog/${slug}-${i.n}.${imageExt(i.url)}` }));
+    .map(i => ({ ...i, path: `${target.imagePath}/${slug}-${i.n}.${imageExt(i.url)}` }));
   const imageMap = Object.fromEntries(inArticle.map(i => [String(i.n), "/" + i.path.replace(/^public\//, "")]));
-  const mdxPath = `src/content/blog/${slug}.mdx`;
+  const mdxPath = `${target.contentPath}/${slug}.mdx`;
   const words = (piece.markdown_body || "").split(/\s+/).filter(Boolean).length;
   const mdx = buildBlogMdx({
     slug, title,
@@ -76,7 +93,7 @@ export async function POST(request: Request) {
     description: asset("seo_meta_description") || asset("excerpt") || title,
     date: new Date().toISOString().slice(0, 10),
     readTime: readTimeFor(words),
-    author: company?.spokesperson_name || "Michael Colling-Tuck",
+    author,
     heroImage: "/" + heroPath.replace(/^public\//, ""),
     ogImage: ogPath ? "/" + ogPath.replace(/^public\//, "") : null,
     ctaCluster,
@@ -88,17 +105,19 @@ export async function POST(request: Request) {
     ...(ogPath ? [{ path: ogPath, from: og! }] : []),
     ...inArticle.map(i => ({ path: i.path, from: i.url })),
   ];
-  const liveUrl = `${WEBSITE_BLOG_BASE}/${slug}`;
+  const liveUrl = `${target.liveBaseUrl}/${slug}`;
   const branch = `blog/${slug}`;
 
-  const token = process.env.WEBSITE_GITHUB_TOKEN;
-  const repo = process.env.WEBSITE_GITHUB_REPO || "mct-star/agency-website";
+  const repo = target.repo;
+  const noToken = target.source === "legacy_default"
+    ? "WEBSITE_GITHUB_TOKEN is not set in the portal's Vercel project"
+    : "This company's website publishing token is not set";
   if (dryRun) {
     return NextResponse.json({ dryRun: true, branch, repo, files, mdx, liveUrl, ready: !!token,
-      ...(token ? {} : { missing: "WEBSITE_GITHUB_TOKEN is not set in the portal's Vercel project, so nothing can be sent yet." }) });
+      ...(token ? {} : { missing: `${noToken}, so nothing can be sent yet.` }) });
   }
   if (!token) {
-    return NextResponse.json({ error: "WEBSITE_GITHUB_TOKEN is not set in the portal's Vercel project, so nothing was sent." }, { status: 503 });
+    return NextResponse.json({ error: `${noToken}, so nothing was sent.` }, { status: 503 });
   }
 
   const gh = (path: string, init: RequestInit = {}) => fetch(`${GH}/repos/${repo}${path}`, {
@@ -107,11 +126,11 @@ export async function POST(request: Request) {
   });
 
   try {
-    if ((await gh(`/contents/${mdxPath}?ref=main`)).status === 200) {
+    if ((await gh(`/contents/${mdxPath}?ref=${target.baseBranch}`)).status === 200) {
       return NextResponse.json({ error: `A post called ${slug} is already on the website. Change the URL slug and try again.` }, { status: 409 });
     }
-    const main = await gh("/git/ref/heads/main");
-    if (!main.ok) throw new Error(`reading main: GitHub ${main.status}`);
+    const main = await gh(`/git/ref/heads/${target.baseBranch}`);
+    if (!main.ok) throw new Error(`reading ${target.baseBranch}: GitHub ${main.status}`);
     const baseSha = (await main.json()).object.sha as string;
     const ref = await gh("/git/refs", { method: "POST", body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }) });
     if (!ref.ok && ref.status !== 422) throw new Error(`creating ${branch}: GitHub ${ref.status}`);
@@ -131,7 +150,7 @@ export async function POST(request: Request) {
     const pr = await gh("/pulls", {
       method: "POST",
       body: JSON.stringify({
-        title: `Blog: ${title}`, head: branch, base: "main",
+        title: `Blog: ${title}`, head: branch, base: target.baseBranch,
         body: `A new blog post from the content portal, approved there.\n\n- Post: \`${mdxPath}\`\n- Hero: \`${heroPath}\`${ogPath ? `\n- Share card: \`${ogPath}\`` : ""}${inArticle.length ? `\n- In-article images: ${inArticle.length}` : ""}\n- Goes live at ${liveUrl} when merged.`,
       }),
     });

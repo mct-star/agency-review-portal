@@ -9,6 +9,8 @@ interface Props {
   accounts: Array<{ id: string; name: string }>;
   queueCount: number;
   showCtaPicker: boolean;
+  /** The services the blog can point readers to: the company's own list. Defaults to AGENCY's. */
+  clusters?: ReadonlyArray<{ code: string; label: string }>;
 }
 
 type NotQueued = { pieceId: string; title: string; reason: string; next: "export" | "by_hand" | "approve" };
@@ -27,7 +29,7 @@ interface DeployResult {
  * Deploy week and then confirms; the route refuses a request without that
  * confirmation. Afterwards it shows what was queued and the manual steps.
  */
-export default function DeployWeekPanel({ weekId, accounts, queueCount, showCtaPicker }: Props) {
+export default function DeployWeekPanel({ weekId, accounts, queueCount, showCtaPicker, clusters = CTA_CLUSTERS }: Props) {
   const [accountId, setAccountId] = useState(accounts.length === 1 ? accounts[0].id : "");
   const [cluster, setCluster] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -120,12 +122,12 @@ export default function DeployWeekPanel({ weekId, accounts, queueCount, showCtaP
           </select>
         </label>
       )}
-      {showCtaPicker && (
+      {showCtaPicker && clusters.length > 0 && (
         <label className="block text-sm text-gray-700">
           Which service does the blog point readers to?
           <select value={cluster} onChange={(e) => setCluster(e.target.value)} className="mt-1 block rounded-md border border-gray-300 px-2 py-1 text-sm">
             <option value="">Leave the blog for later</option>
-            {CTA_CLUSTERS.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+            {clusters.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
           </select>
         </label>
       )}

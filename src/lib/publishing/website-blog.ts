@@ -96,7 +96,7 @@ export function buildBlogMdx(fm: BlogFrontmatter, body: string, images: Record<s
     `author: ${fm.author}`,
     ...(fm.heroImage ? [`heroImage: ${fm.heroImage}`] : []),
     ...(fm.ogImage ? [`ogImage: ${fm.ogImage}`] : []),
-    `ctaCluster: ${fm.ctaCluster}`,
+    ...(fm.ctaCluster ? [`ctaCluster: ${fm.ctaCluster}`] : []),
     "---",
   ];
   return `${lines.join("\n")}\n\n${mdxBody(body, fm.title, images)}`;
@@ -111,12 +111,13 @@ export function imageExt(url: string): string {
 /** Why this blog cannot go to the website yet; empty when it can. */
 export function publishProblems(p: {
   approved: boolean; contentType: string; title: string; body: string; slug: string; ctaCluster: string; heroUrl: string | null;
-}): string[] {
+}, clusters: ReadonlyArray<{ code: string }> = CTA_CLUSTERS): string[] {
   const out: string[] = [];
   if (p.contentType !== "blog_article") out.push("Only blog articles go to the website.");
   if (!p.approved) out.push("Approve the blog first.");
   if (!p.slug) out.push("The blog has no URL slug.");
-  if (!CTA_CLUSTERS.some(c => c.code === p.ctaCluster)) out.push("Choose the service the blog points readers to.");
+  // A site with no service list needs no service chosen.
+  if (clusters.length > 0 && !clusters.some(c => c.code === p.ctaCluster)) out.push("Choose the service the blog points readers to.");
   if (/[–—]/.test(p.title + p.body)) out.push("The blog contains an em or en dash; edit it out first.");
   if (/[:]/.test(p.title)) out.push("The title contains a colon.");
   if (!p.heroUrl) out.push("Generate the hero image first; every post on the site carries one.");
