@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireAdmin, createAdminSupabaseClient, getSignedInProfile } from "@/lib/supabase/admin";
+import { canAccessCompany } from "@/lib/auth/permissions";
 
 /**
  * GET /api/assets?contentPieceId=uuid
  * List all assets for a content piece.
+ *
+ * Needs a signed-in user who may access the piece's company (an admin, or a
+ * member of that company). The piece is read first and its company checked;
+ * an unknown piece and another company's piece both answer 404, so the
+ * caller cannot tell them apart. Same pattern as content/[pieceId]/notes.
  */
 export async function GET(request: Request) {
+  const profile = await getSignedInProfile();
+  if (!profile) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const contentPieceId = searchParams.get("contentPieceId");
   if (!contentPieceId) {
@@ -16,6 +27,15 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
+  const { data: piece } = await supabase
+    .from("content_pieces")
+    .select("id, company_id")
+    .eq("id", contentPieceId)
+    .maybeSingle();
+  if (!piece || !canAccessCompany(profile, piece.company_id)) {
+    return NextResponse.json({ error: "Content piece not found" }, { status: 404 });
+  }
+
   const { data, error } = await supabase
     .from("content_assets")
     .select("*")
