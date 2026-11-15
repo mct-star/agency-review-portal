@@ -7,12 +7,16 @@ describe("parseImageRecord", () => {
       .toEqual({ role: "inline", type: "diagram", passage: "Stage list", treatment: "watermark-a", alt: "A chart" });
   });
   it("is tolerant of null, empty and wrong shapes and never throws", () => {
-    for (const v of [null, undefined, {}, [], "x", 3, { role: "banner" }, { role: 4 }]) {
+    for (const v of [null, undefined, {}, [], "x", 3, { role: 4 }]) {
       expect(parseImageRecord(v)).toBeNull();
     }
   });
   it("keeps an unknown type as given so the gate can report it", () => {
     expect(parseImageRecord({ role: "hero", type: "cartoon", passage: "p" })?.type).toBe("cartoon");
+  });
+  it("keeps a record with a missing or unknown role", () => {
+    expect(parseImageRecord({ type: "diagram", passage: "p" })).toEqual({ type: "diagram", passage: "p" });
+    expect(parseImageRecord({ role: "banner", passage: "p" })).toEqual({ role: "banner", passage: "p" });
   });
   it("defaults a missing passage to empty and ignores wrong-typed fields", () => {
     expect(parseImageRecord({ role: "share", passage: 5, alt: 7, treatment: 1 })).toEqual({ role: "share", passage: "" });

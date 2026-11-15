@@ -70,7 +70,9 @@ describe("runBlogGate", () => {
     expect(check({ ...set, images: [hero(), ok, share()] }, "treatment").passed).toBe(true);
     const unset = check({ ...set, settings: settings({ photographTreatment: null }) }, "treatment");
     expect(unset.passed).toBe(true);
-    expect(unset.label).toContain("not required");
+    expect(unset.required).toBe(false);
+    expect(unset.label).not.toContain("not required");
+    expect(check(set, "treatment").required).toBe(true);
   });
 
   it("e: flags an inline image with empty alt text", () => {
@@ -89,7 +91,9 @@ describe("runBlogGate", () => {
     expect(check({ ...noInline, images: [hero(), inline(), share()] }, "inline_present").passed).toBe(true);
     const off = check({ ...noInline, settings: settings({ inlineImageWordLimit: null }) }, "inline_present");
     expect(off.passed).toBe(true);
-    expect(off.label).toContain("not required");
+    expect(off.required).toBe(false);
+    expect(check(noInline, "inline_present").label).toBe("A blog over 900 words has at least one inline image");
+    expect(off.label).not.toContain("not required");
     expect(check({ ...noInline, body: "word ".repeat(900) }, "inline_present").passed).toBe(true);
   });
 
@@ -100,14 +104,22 @@ describe("runBlogGate", () => {
     expect(check(input({ images: [hero(), share({ record: { role: "inline", passage: "p" } })] }), "share").problems[0]).toContain('"inline" role');
     expect(check(input({ images: [hero(), share({ file: "/other/EXAMPLE.jpg?v=2" })] }), "share").problems[0]).toContain("same file as the hero");
     expect(check(input({ images: [hero({ sha256: "abc" }), share({ sha256: "abc" })] }), "share").problems[0]).toContain("same file as the hero");
+    expect(check(input({ images: [hero({ sha256: "ABC" }), share({ sha256: "abc" })] }), "share").problems[0]).toContain("same file as the hero");
     expect(check(input({ images: [hero({ sha256: "abc" }), share({ sha256: "def" })] }), "share").passed).toBe(true);
+    for (const bad of [NaN, Infinity]) {
+      expect(check(input({ images: [hero(), share({ width: bad })] }), "share").problems[0]).toContain("could not be measured");
+    }
     expect(check(input(), "share").passed).toBe(true);
   });
 
   it("g: a share image is not required when the setting is off", () => {
     const c = check(input({ images: [hero(), inline()], settings: settings({ requireShareCard: false }) }), "share");
     expect(c.passed).toBe(true);
-    expect(c.label).toContain("not required");
+    expect(c.required).toBe(false);
+    expect(c.label).not.toContain("not required");
+    expect(check(input({ images: [hero(), inline()] }), "share").required).toBe(true);
+    const present = check(input({ settings: settings({ requireShareCard: false }) }), "share");
+    expect(present.required).toBe(true);
   });
 
   it("h: flags long dashes in the title, body and alt text", () => {
@@ -135,10 +147,49 @@ describe("runBlogGate", () => {
     }
   });
 
+  it("a record with no role is accepted for a hero or inline image, not reported as missing", () => {
+    const noRole = { passage: "p", type: "diagram" as const, alt: "An alt" };
+    const r = runBlogGate(input({ images: [hero({ record: noRole }), inline({ record: noRole }), share()] }));
+    expect(r.problems).toEqual([]);
+  });
+
+  it("an explicit role that contradicts where the image is used gets its own sentence", () => {
+    const c = check(input({ images: [hero({ record: { role: "inline", type: "diagram", passage: "p" } }), share()] }), "records");
+    expect(c.passed).toBe(false);
+    expect(c.problems[0]).toBe(`Blog "${TITLE}": the hero image has a record marked "inline", but it is used as the hero image. Change the record to match.`);
+    const odd = check(input({ images: [inline({ record: { role: "banner", type: "diagram", passage: "p", alt: "a" } }), share()] }), "records");
+    expect(odd.problems[0]).toContain('marked "banner"');
+    expect(odd.problems[0]).not.toContain("has no image record");
+  });
+
+  it("a share record with no role asks for it to be marked as the share image", () => {
+    const c = check(input({ images: [hero(), share({ record: { passage: "p" } })] }), "share");
+    expect(c.problems[0]).toContain("not marked as the share image");
+  });
+
   it("flattens problems in check order", () => {
     const r = runBlogGate(input({ images: [hero({ record: null }), share({ width: 1 })] }));
     expect(r.problems).toEqual(r.checks.flatMap(c => c.problems));
     expect(r.checks[0].problems.length).toBe(1);
+  });
+});
+
+describe("word counting", () => {
+  const OLD = (b: string) => (b.replace(/!\[[^\]]*\]\([^)]*\)/g, " ").replace(/\[\[\s*image:[^\]]*\]\]/gi, " ").match(/\S+/g) || []).length;
+  const samples = [
+    "plain words here", "one ![alt](/a.jpg) two", "a [[image: 2]] b\n[[ IMAGE: hero ]]\nc", "![broken](/a.jpg and ![ok](/b.png) tail",
+    "![a](b) ![c](d)", "text [[image: 1] not closed", "![", "[[image:", "x ![y]\n(z) w", "",
+  ];
+  it("counts normal bodies as before", () => {
+    for (const b of samples) expect(countBlogWords(b), JSON.stringify(b)).toBe(OLD(b));
+  });
+  it("finishes quickly on unclosed openings", () => {
+    for (const unit of ["![", "[[image:", "![](", "![a]("]) {
+      const body = unit.repeat(Math.ceil(200000 / unit.length));
+      const t = Date.now();
+      countBlogWords(body);
+      expect(Date.now() - t).toBeLessThan(1000);
+    }
   });
 });
 
@@ -198,7 +249,9 @@ describe("parity fixtures", () => {
     it(`agrees with expected.json: ${name}`, () => {
       const read = (f: string) => readFileSync(join(FIXTURES, name, f), "utf8");
       const report = runBlogGate(adapt(read("blog.mdx"), JSON.parse(read("record.json"))));
-      expect(report.problems.length === 0).toBe(JSON.parse(read("expected.json")).pass);
+      const expected = JSON.parse(read("expected.json")) as { pass: boolean; codes: string[] };
+      expect(report.problems.length === 0).toBe(expected.pass);
+      expect(report.checks.filter(c => !c.passed).map(c => c.code)).toEqual(expected.codes);
     });
   }
 });

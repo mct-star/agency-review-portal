@@ -62,6 +62,8 @@ export interface BlogGateInput {
 export interface BlogGateCheck {
   code: string;
   label: string;
+  /** False when the check does not apply to this company or blog; it is then listed as passed. */
+  required: boolean;
   passed: boolean;
   problems: string[];
 }
@@ -81,12 +83,60 @@ export function normaliseImageFile(p: string): string {
   return base.toLowerCase();
 }
 
+const ALT_LIMIT = 300;
+const URL_LIMIT = 2000;
+
+/** The next index of ch at or after from, or -1; remembers its answer so a scan stays linear. */
+function nextFinder(text: string, ch: string) {
+  let at = -2; // -2 unknown, -1 none left
+  return (from: number): number => {
+    if (at === -1) return -1;
+    if (at < from) at = text.indexOf(ch, from);
+    return at;
+  };
+}
+
+/**
+ * The text with markdown images and [[image: ...]] slots blanked. One pass,
+ * every lookahead bounded and cached, so a body of unclosed openings cannot
+ * take quadratic time.
+ */
+function stripImageMarkup(text: string): string {
+  const nextBracket = nextFinder(text, "]");
+  const nextParen = nextFinder(text, ")");
+  const slotStart = /\[\[\s*image:/iy;
+  const out: string[] = [];
+  let last = 0;
+  let i = 0;
+  while (i < text.length) {
+    const c = text.charCodeAt(i);
+    let end = -1;
+    if (c === 33 && text.charCodeAt(i + 1) === 91) { // "!["
+      const j = nextBracket(i + 2);
+      if (j !== -1 && j - (i + 2) <= ALT_LIMIT && text.charCodeAt(j + 1) === 40) {
+        const k = nextParen(j + 2);
+        if (k !== -1 && k - (j + 2) <= URL_LIMIT) end = k + 1;
+      }
+    } else if (c === 91 && text.charCodeAt(i + 1) === 91) { // "[["
+      slotStart.lastIndex = i;
+      const m = slotStart.exec(text);
+      if (m) {
+        const from = i + m[0].length;
+        const j = nextBracket(from);
+        if (j !== -1 && j - from <= ALT_LIMIT && text.charCodeAt(j + 1) === 93) end = j + 2;
+      }
+    }
+    if (end === -1) { i += 1; continue; }
+    out.push(text.slice(last, i), " ");
+    last = i = end;
+  }
+  out.push(text.slice(last));
+  return out.join("");
+}
+
 /** Words as the local script counts them: non-space runs, markdown images and [[image: ...]] slots removed. */
 export function countBlogWords(body: string): number {
-  const text = (body || "")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[\[\s*image:[^\]]*\]\]/gi, " ");
-  return (text.match(/\S+/g) || []).length;
+  return ((stripImageMarkup(body || "")).match(/\S+/g) || []).length;
 }
 
 // Built from code points so no long dash is typed into this file.
@@ -98,15 +148,21 @@ export function runBlogGate(input: BlogGateInput): BlogGateReport {
   const withRecord = images.filter(i => i.record);
   const editorial = withRecord.filter(i => i.role === "hero" || i.role === "inline");
   const checks: BlogGateCheck[] = [];
-  const add = (code: string, label: string, problems: string[], notRequired = false) =>
-    checks.push({ code, label: notRequired ? `${label} (not required)` : label, passed: problems.length === 0, problems });
+  const add = (code: string, label: string, problems: string[], required = true) =>
+    checks.push({ code, label, required, passed: problems.length === 0, problems });
 
   add("records", "Every image has a record",
-    images.filter(i => !i.record).map(i =>
-      `${piece}: ${i.label} has no image record. Add what it shows and the passage it serves.`));
+    images.flatMap(i => {
+      if (!i.record) return [`${piece}: ${i.label} has no image record. Add what it shows and the passage it serves.`];
+      const r = i.record.role;
+      if (i.role !== "share" && r !== undefined && r !== i.role) {
+        return [`${piece}: ${i.label} has a record marked "${r}", but it is used as the ${i.role === "hero" ? "hero image" : "inline image"}. Change the record to match.`];
+      }
+      return [];
+    }));
 
   add("type", "Hero and inline images have a type",
-    editorial.filter(i => !i.record!.type || !BLOG_IMAGE_TYPES.includes(i.record!.type)).map(i =>
+    editorial.filter(i => !i.record!.type || !(BLOG_IMAGE_TYPES as readonly string[]).includes(i.record!.type)).map(i =>
       `${piece}: ${i.label} has ${i.record!.type ? `the type "${i.record!.type}"` : "no type"}. Set it to diagram, infographic or photograph.`));
 
   add("passage", "Every record has a passage line",
@@ -114,10 +170,10 @@ export function runBlogGate(input: BlogGateInput): BlogGateReport {
       `${piece}: ${i.label} has no passage line. Write one line on the passage it serves.`));
 
   const wanted = settings.photographTreatment;
-  add("treatment", "Photographs carry the house treatment",
+  add("treatment", wanted === null ? "Photographs carry the house treatment" : `Photographs carry the "${wanted}" treatment`,
     wanted === null ? [] : editorial.filter(i => i.record!.type === "photograph" && i.record!.treatment !== wanted).map(i =>
       `${piece}: ${i.label} is a photograph without the "${wanted}" treatment. Apply the treatment before publishing.`),
-    wanted === null);
+    wanted !== null);
 
   add("alt", "Every inline image has alt text",
     withRecord.filter(i => i.role === "inline" && !(i.record!.alt || "").trim()).map(i =>
@@ -126,10 +182,10 @@ export function runBlogGate(input: BlogGateInput): BlogGateReport {
   const limit = settings.inlineImageWordLimit;
   const words = countBlogWords(body);
   const hasInline = images.some(i => i.role === "inline");
-  add("inline_present", "A long blog has an inline image",
+  add("inline_present", limit === null ? "A long blog has at least one inline image" : `A blog over ${limit} words has at least one inline image`,
     limit === null || words <= limit || hasInline ? [] : [
       `${piece}: the blog is ${words} words, over ${limit}, and has no inline image. Add at least one inline image.`],
-    limit === null);
+    limit !== null);
 
   const shareProblems: string[] = [];
   const shares = images.filter(i => i.role === "share");
@@ -139,22 +195,24 @@ export function runBlogGate(input: BlogGateInput): BlogGateReport {
   }
   for (const s of shares) {
     if (s.record && s.record.role !== "share") {
-      shareProblems.push(`${piece}: ${s.label} has a record for the "${s.record.role}" role. Mark its record as the share image.`);
+      shareProblems.push(s.record.role === undefined
+        ? `${piece}: the record for ${s.label} is not marked as the share image. Mark its record as the share image.`
+        : `${piece}: ${s.label} has a record for the "${s.record.role}" role. Mark its record as the share image.`);
     }
-    const measured = typeof s.width === "number" && typeof s.height === "number";
+    const measured = Number.isFinite(s.width) && Number.isFinite(s.height);
     if (!measured) {
       shareProblems.push(`${piece}: ${s.label} could not be measured. Check the file opens, then try again.`);
     } else if (s.width !== SHARE_WIDTH || s.height !== SHARE_HEIGHT) {
       shareProblems.push(`${piece}: ${s.label} is ${s.width} by ${s.height}. Replace it with a ${SHARE_WIDTH} by ${SHARE_HEIGHT} card.`);
     }
     const same = heroes.some(h =>
-      normaliseImageFile(h.file) === normaliseImageFile(s.file) || (!!h.sha256 && !!s.sha256 && h.sha256 === s.sha256));
+      normaliseImageFile(h.file) === normaliseImageFile(s.file) || (!!h.sha256 && !!s.sha256 && h.sha256.toLowerCase() === s.sha256.toLowerCase()));
     if (same) {
       shareProblems.push(`${piece}: ${s.label} is the same file as the hero image. Make the share card its own designed image.`);
     }
   }
   add("share", "The share image is present, 1200 by 630 and its own file", shareProblems,
-    !settings.requireShareCard && shares.length === 0);
+    settings.requireShareCard || shares.length > 0);
 
   const dashProblems: string[] = [];
   if (LONG_DASH.test(pieceTitle)) dashProblems.push(`${piece}: the title contains a long dash. Replace it with a comma, full stop or brackets.`);

@@ -10,35 +10,36 @@ export type BlogImageType = "diagram" | "infographic" | "photograph";
 export const BLOG_IMAGE_TYPES: readonly BlogImageType[] = ["diagram", "infographic", "photograph"];
 
 export interface BlogImageRecord {
-  role: BlogImageRole;
+  /** Optional: the gate takes the role from where the image is used. An explicit role that contradicts it is reported. */
+  role?: BlogImageRole | string;
   /** Kept as given when it is not a known type, so the gate can report it. */
-  type?: BlogImageType;
+  type?: BlogImageType | string;
   passage: string;
   treatment?: string | null;
   alt?: string;
 }
 
-const ROLES: readonly string[] = ["hero", "inline", "share"];
-
-/** A record from stored JSON, or null when there is nothing usable. Never throws. */
+/**
+ * A record from stored JSON, or null when there is nothing usable. Never
+ * throws. A missing or unknown role is kept as given (the gate uses the role
+ * of the place the image is used and reports only a contradiction).
+ */
 export function parseImageRecord(value: unknown): BlogImageRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const v = value as Record<string, unknown>;
-  if (typeof v.role !== "string" || !ROLES.includes(v.role)) return null;
-  const record: BlogImageRecord = {
-    role: v.role as BlogImageRole,
-    passage: typeof v.passage === "string" ? v.passage : "",
-  };
-  if (typeof v.type === "string") record.type = v.type as BlogImageType;
-  if (typeof v.treatment === "string") record.treatment = v.treatment;
-  else if (v.treatment === null) record.treatment = null;
-  if (typeof v.alt === "string") record.alt = v.alt;
-  return record;
+  const record: BlogImageRecord = { passage: typeof v.passage === "string" ? v.passage : "" };
+  let found = typeof v.passage === "string";
+  if (typeof v.role === "string") { record.role = v.role; found = true; }
+  if (typeof v.type === "string") { record.type = v.type; found = true; }
+  if (typeof v.treatment === "string") { record.treatment = v.treatment; found = true; }
+  else if (v.treatment === null) { record.treatment = null; found = true; }
+  if (typeof v.alt === "string") { record.alt = v.alt; found = true; }
+  return found ? record : null;
 }
 
 export interface SidecarImage {
   file: string;
-  role: BlogImageRole;
+  role?: string;
   type?: string;
   passage: string;
   treatment?: string | null;
@@ -49,7 +50,8 @@ export interface SidecarImage {
 export function toSidecar(images: Array<{ file: string; record: BlogImageRecord }>): { images: SidecarImage[] } {
   return {
     images: images.map(({ file, record }) => {
-      const out: SidecarImage = { file, role: record.role } as SidecarImage;
+      const out: SidecarImage = { file } as SidecarImage;
+      if (record.role !== undefined) out.role = record.role;
       if (record.type !== undefined) out.type = record.type;
       out.passage = record.passage;
       if (record.treatment !== undefined && record.treatment !== null) out.treatment = record.treatment;
