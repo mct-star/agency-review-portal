@@ -104,6 +104,10 @@ export async function POST(request: Request) {
     .eq("company_id", companyId)
     .eq("service_category", serviceCategory)
     .eq("is_active", true)
+    // The website pull request target and the blog image checks share the
+    // blog_publishing category but are not publishers in this sense; a row
+    // of either must not break this read (15 Nov 2026).
+    .not("provider", "in", "(github_pull_request,blog_gate)")
     .single();
 
   // Look up social account if applicable

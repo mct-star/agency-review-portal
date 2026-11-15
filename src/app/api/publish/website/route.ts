@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveBlogTarget } from "@/lib/publishing/blog-target";
+import { APPROVAL_REFUSALS, recordedApprovalRefusal, type GatePiece } from "@/lib/content/approval-gate";
+import { resolveBlogGateSettings } from "@/lib/publishing/blog-gate-settings";
+import { blogImagesForGate, type BlogImageRow } from "@/lib/publishing/blog-gate-input";
+import { runBlogGate, type BlogGateReport } from "@/lib/publishing/blog-gate";
+import { IMAGE_COLUMNS } from "@/lib/publishing/blog-images";
 import {
-  buildBlogMdx, imageExt, inArticleImageNumber, publishProblems, readTimeFor, slugify,
+  buildBlogMdx, imageExt, publishProblems, readTimeFor, slugify,
 } from "@/lib/publishing/website-blog";
 
 export const maxDuration = 60;
@@ -30,7 +35,37 @@ export const maxDuration = 60;
  * may use the legacy target and any other company with no row of its own
  * is refused (422). Unset, every company without a row falls back, as it
  * always has.
+ *
+ * The gate (15 Nov 2026). Before anything is sent, every problem is
+ * gathered and answered at once (422, { error, problems, imageChecks }):
+ * the checks above; the recorded approval (src/lib/content/approval-gate.ts:
+ * the newest content_approvals row must approve the exact current text, for
+ * every company); and, only when the company's blog_gate settings have
+ * enforceImageChecks true, every image check (src/lib/publishing/
+ * blog-gate.ts). For any other company the image checks are reported under
+ * imageChecks as warnings and do not block. Settings that cannot be read
+ * refuse.
+ *
+ * Images come from blogImagesForGate, so the checks and the files cannot
+ * drift: the first hero, each inline image the body places, and as the
+ * share card the newest uploaded share_card image. The older 16:9 cover
+ * picture stands in for the share card only while the company is not
+ * enforcing image checks. Inline images carry their record's alt text into
+ * the post.
+ *
+ * A plain dry run ({ dryRun: true }) is the preview as it was: it leaves
+ * out the recorded-approval check and the imageChecks key. Add
+ * withChecks: true for the full verdict, as the page does. A real send
+ * always runs every check.
  */
+function approvalSentence(title: string, refusal: string): string {
+  const name = title ? `The blog "${title}"` : "This blog";
+  const reason = refusal.replace("so it was not queued", "so nothing was sent");
+  if (reason.startsWith("Its ")) return `${name}'s ${reason.slice(4)}`;
+  if (reason.startsWith("It ")) return `${name} ${reason.slice(3)}`;
+  return `${name}: ${reason}`;
+}
+
 const GH = "https://api.github.com";
 
 export async function POST(request: Request) {
@@ -40,6 +75,8 @@ export async function POST(request: Request) {
   const pieceId = typeof body.pieceId === "string" ? body.pieceId : "";
   const ctaCluster = typeof body.ctaCluster === "string" ? body.ctaCluster : "";
   const dryRun = body.dryRun === true;
+  // Every check runs on a real send; a dry run runs them when asked.
+  const withChecks = !dryRun || body.withChecks === true;
   if (!pieceId) return NextResponse.json({ error: "pieceId is required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
@@ -48,7 +85,7 @@ export async function POST(request: Request) {
 
   const [{ data: assets }, { data: images }, { data: company }, { data: sent }] = await Promise.all([
     supabase.from("content_assets").select("asset_type, text_content").eq("content_piece_id", pieceId),
-    supabase.from("content_images").select("public_url, archetype, sort_order").eq("content_piece_id", pieceId).order("sort_order"),
+    supabase.from("content_images").select(IMAGE_COLUMNS).eq("content_piece_id", pieceId).order("sort_order"),
     supabase.from("companies").select("spokesperson_name").eq("id", piece.company_id).maybeSingle(),
     supabase.from("publishing_jobs").select("external_url, status").eq("content_piece_id", pieceId)
       .eq("target_platform", "website").in("status", ["queued", "running", "published"]).limit(1),
@@ -65,28 +102,75 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Set a spokesperson or a default author for this company before sending the blog." }, { status: 422 });
   }
 
+  const gateSettings = await resolveBlogGateSettings(supabase, piece.company_id as string);
+  if ("refusal" in gateSettings) {
+    return NextResponse.json({ error: gateSettings.refusal, problems: [gateSettings.refusal] }, { status: 422 });
+  }
+  const enforced = gateSettings.settings.enforceImageChecks;
+
   const asset = (t: string) => (assets || []).find(a => a.asset_type === t)?.text_content?.trim() || "";
   const title = (piece.title || "").trim();
+  const bodyText = piece.markdown_body || "";
   const slug = slugify(asset("url_slug") || title);
-  const hero = (images || []).find(i => i.archetype === "hero_image_prompt")?.public_url || null;
-  const og = (images || []).find(i => i.archetype === "cover_image_prompt")?.public_url || null;
+
+  // The images exactly as they publish, shared with the gate.
+  const gate = blogImagesForGate((images || []) as BlogImageRow[], bodyText);
+  const heroImage = gate.images.find(i => i.role === "hero");
+  const shareImage = gate.images.find(i => i.role === "share");
+  const hero = heroImage?.publicUrl || null;
+  const og = shareImage?.publicUrl || (enforced ? null : gate.legacyCover?.publicUrl || null);
+  // The repository path of an image, or null when there is no file.
+  const published = (url: string | null, suffix: string) => url ? `${target.imagePath}/${slug}${suffix}.${imageExt(url)}` : null;
+  const heroPath = published(hero, "");
+  const ogPath = published(og, "-og");
+  // In-article images, one per [[image: n]] slot the writer left.
+  const inArticle = gate.images
+    .filter(i => i.role === "inline" && i.n !== undefined && !!i.publicUrl)
+    .map(i => ({
+      n: i.n!, url: i.publicUrl!, alt: (i.record?.alt || "").trim(),
+      path: published(i.publicUrl, `-${i.n}`)!,
+    }));
 
   const problems = publishProblems({
     approved: piece.approval_status === "approved", contentType: piece.content_type,
-    title, body: piece.markdown_body || "", slug, ctaCluster, heroUrl: hero,
+    title, body: bodyText, slug, ctaCluster, heroUrl: hero,
   }, target.ctaClusters);
-  if (problems.length > 0) return NextResponse.json({ error: problems.join(" "), problems }, { status: 422 });
 
-  const heroPath = `${target.imagePath}/${slug}.${imageExt(hero!)}`;
-  const ogPath = og ? `${target.imagePath}/${slug}-og.${imageExt(og)}` : null;
-  // In-article images, one per [[image: n]] slot the writer left.
-  const inArticle = (images || [])
-    .map(i => ({ n: inArticleImageNumber(i.archetype), url: i.public_url }))
-    .filter((i): i is { n: number; url: string } => i.n !== null && !!i.url)
-    .map(i => ({ ...i, path: `${target.imagePath}/${slug}-${i.n}.${imageExt(i.url)}` }));
-  const imageMap = Object.fromEntries(inArticle.map(i => [String(i.n), "/" + i.path.replace(/^public\//, "")]));
+  if (withChecks) {
+    const refusal = await recordedApprovalRefusal(supabase, piece.company_id as string, piece as GatePiece);
+    // "Not approved" is already said by the checks above.
+    if (refusal && refusal !== APPROVAL_REFUSALS.notApproved) problems.push(approvalSentence(title, refusal));
+  }
+
+  // The gate sees each file by the name it publishes under, so "the share
+  // image is the same file as the hero" compares published names.
+  const report: BlogGateReport = runBlogGate({
+    pieceTitle: title,
+    body: bodyText,
+    images: gate.images.map(i => ({
+      ...i,
+      file: (i.role === "hero" ? heroPath
+        : i.role === "share" ? published(i.publicUrl, "-og")
+        : inArticle.find(a => a.n === i.n)?.path) || i.file,
+    })),
+    settings: {
+      photographTreatment: gateSettings.settings.photographTreatment,
+      inlineImageWordLimit: gateSettings.settings.inlineImageWordLimit,
+      requireShareCard: gateSettings.settings.requireShareCard,
+    },
+  });
+  if (enforced) {
+    problems.push(...report.problems);
+    if (shareImage && !shareImage.publicUrl) {
+      problems.push(`The share image for the blog "${title}" has no stored file. Upload it again.`);
+    }
+  }
+  const imageChecks = withChecks ? { imageChecks: { enforced, report } } : {};
+  if (problems.length > 0) return NextResponse.json({ error: problems.join(" "), problems, ...imageChecks }, { status: 422 });
+
+  const imageMap = Object.fromEntries(inArticle.map(i => [String(i.n), { src: "/" + i.path.replace(/^public\//, ""), alt: i.alt }]));
   const mdxPath = `${target.contentPath}/${slug}.mdx`;
-  const words = (piece.markdown_body || "").split(/\s+/).filter(Boolean).length;
+  const words = bodyText.split(/\s+/).filter(Boolean).length;
   const mdx = buildBlogMdx({
     slug, title,
     seoTitle: asset("seo_title") || title,
@@ -94,14 +178,14 @@ export async function POST(request: Request) {
     date: new Date().toISOString().slice(0, 10),
     readTime: readTimeFor(words),
     author,
-    heroImage: "/" + heroPath.replace(/^public\//, ""),
+    heroImage: "/" + heroPath!.replace(/^public\//, ""),
     ogImage: ogPath ? "/" + ogPath.replace(/^public\//, "") : null,
     ctaCluster,
-  }, piece.markdown_body || "", imageMap);
+  }, bodyText, imageMap);
 
   const files = [
     { path: mdxPath, from: "the approved text" },
-    { path: heroPath, from: hero! },
+    { path: heroPath!, from: hero! },
     ...(ogPath ? [{ path: ogPath, from: og! }] : []),
     ...inArticle.map(i => ({ path: i.path, from: i.url })),
   ];
@@ -114,7 +198,7 @@ export async function POST(request: Request) {
     : "This company's website publishing token is not set";
   if (dryRun) {
     return NextResponse.json({ dryRun: true, branch, repo, files, mdx, liveUrl, ready: !!token,
-      ...(token ? {} : { missing: `${noToken}, so nothing can be sent yet.` }) });
+      ...(token ? {} : { missing: `${noToken}, so nothing can be sent yet.` }), ...imageChecks });
   }
   if (!token) {
     return NextResponse.json({ error: `${noToken}, so nothing was sent.` }, { status: 503 });
@@ -139,7 +223,7 @@ export async function POST(request: Request) {
       const r = await gh(`/contents/${path}`, { method: "PUT", body: JSON.stringify({ message: `Blog: ${title}`, content: base64, branch }) });
       if (!r.ok) throw new Error(`writing ${path}: GitHub ${r.status} ${(await r.text()).slice(0, 160)}`);
     };
-    const uploads: Array<[string, string]> = [[heroPath, hero!], ...(ogPath ? [[ogPath, og!]] as Array<[string, string]> : []), ...inArticle.map(i => [i.path, i.url] as [string, string])];
+    const uploads: Array<[string, string]> = [[heroPath!, hero!], ...(ogPath ? [[ogPath, og!]] as Array<[string, string]> : []), ...inArticle.map(i => [i.path, i.url] as [string, string])];
     for (const [path, url] of uploads) {
       const img = await fetch(url);
       if (!img.ok) throw new Error(`downloading ${url}: ${img.status}`);
@@ -164,7 +248,7 @@ export async function POST(request: Request) {
     });
     await supabase.from("content_syndication_links").insert({ content_piece_id: pieceId, platform: "website", external_url: liveUrl, is_canonical: true });
 
-    return NextResponse.json({ pullRequest: prUrl, liveUrl, branch });
+    return NextResponse.json({ pullRequest: prUrl, liveUrl, branch, ...imageChecks });
   } catch (err) {
     return NextResponse.json({ error: `Nothing went live. ${err instanceof Error ? err.message : "GitHub error"}` }, { status: 502 });
   }

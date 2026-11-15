@@ -49,8 +49,28 @@ export function inArticleImageNumber(archetype: string | null | undefined): numb
  * goes; a numbered marker becomes the image at that site path when one
  * exists and is dropped when none does. Older drafts wrote "IMAGE
  * PLACEMENT: HERO IMAGE" as prose, which would have published as text.
+ *
+ * A slot may carry alt text ({ src, alt }, 15 Nov 2026): it is written as
+ * ![alt](src), on one line, with backslashes and square brackets escaped
+ * so it cannot close the image early. The { } < escaping below covers it
+ * as it covers the rest of the body. With no alt the line is ![](src), as
+ * before.
  */
-export function mdxBody(markdown: string, title: string, images: Record<string, string> = {}): string {
+export type BlogImageSlot = string | { src: string; alt?: string | null };
+
+/** Alt text safe inside ![...]: one line, backslashes and brackets escaped. */
+export function escapeAlt(alt: string): string {
+  return alt.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().replace(/([\\[\]])/g, "\\$1");
+}
+
+function slotImage(slot: BlogImageSlot | undefined): string | null {
+  if (!slot) return null;
+  if (typeof slot === "string") return `![](${slot})`;
+  if (!slot.src) return null;
+  return `![${escapeAlt(slot.alt || "")}](${slot.src})`;
+}
+
+export function mdxBody(markdown: string, title: string, images: Record<string, BlogImageSlot> = {}): string {
   const lines = markdown.replace(/\r\n/g, "\n").trim().split("\n");
   if (lines[0]?.replace(/^#\s+/, "").trim() === title.trim() && lines[0].startsWith("# ")) lines.shift();
   const out: string[] = [];
@@ -58,7 +78,8 @@ export function mdxBody(markdown: string, title: string, images: Record<string, 
     const slot = line.match(/^\s*\[\[\s*image:\s*([a-z0-9]+)\s*\]\]\s*$/i);
     if (slot) {
       const key = slot[1].toLowerCase();
-      if (key !== "hero" && images[key]) out.push(`![](${images[key]})`);
+      const image = key !== "hero" ? slotImage(images[key]) : null;
+      if (image) out.push(image);
       continue;
     }
     if (/^\s*(IMAGE PLACEMENT\b|\[IMAGE\b)/i.test(line)) continue;
@@ -84,7 +105,7 @@ export interface BlogFrontmatter {
   ctaCluster: string;
 }
 
-export function buildBlogMdx(fm: BlogFrontmatter, body: string, images: Record<string, string> = {}): string {
+export function buildBlogMdx(fm: BlogFrontmatter, body: string, images: Record<string, BlogImageSlot> = {}): string {
   const lines = [
     "---",
     `slug: ${fm.slug}`,

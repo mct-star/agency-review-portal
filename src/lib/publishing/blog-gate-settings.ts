@@ -8,8 +8,11 @@ import { BLOG_PUBLISHING_CATEGORY } from "@/lib/publishing/blog-target";
  * enforceImageChecks, which says whether a failed check blocks publishing
  * for this company. No credentials are involved.
  *
- * No row, or a row that cannot be read, gives the defaults with
- * enforceImageChecks false. Always filtered by company_id.
+ * No row gives the defaults with enforceImageChecks false. A read that
+ * fails is a refusal, not the defaults: the publish route must not let a
+ * blog through because the company's settings could not be read. Callers
+ * that only show the checks may fall back to the defaults themselves.
+ * Always filtered by company_id.
  */
 
 export const BLOG_GATE_PROVIDER = "blog_gate";
@@ -28,7 +31,15 @@ export function parseCompanyBlogGateSettings(value: unknown): CompanyBlogGateSet
 // Only the one method the resolver needs from the Supabase client.
 type Reader = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-export async function resolveBlogGateSettings(supabase: Reader, companyId: string): Promise<CompanyBlogGateSettings> {
+export const BLOG_GATE_SETTINGS_UNREADABLE =
+  "This company's blog checks could not be read, so nothing was sent. Try again.";
+
+/** The defaults, not enforced: what a company with no row gets. */
+export const DEFAULT_COMPANY_BLOG_GATE_SETTINGS: CompanyBlogGateSettings = { ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false };
+
+export async function resolveBlogGateSettings(
+  supabase: Reader, companyId: string,
+): Promise<{ settings: CompanyBlogGateSettings } | { refusal: string }> {
   const { data: row, error } = await supabase.from("company_api_configs")
     .select("provider_settings")
     .eq("company_id", companyId)
@@ -36,6 +47,7 @@ export async function resolveBlogGateSettings(supabase: Reader, companyId: strin
     .eq("provider", BLOG_GATE_PROVIDER)
     .eq("is_active", true)
     .maybeSingle();
-  if (error || !row) return { ...DEFAULT_BLOG_GATE_SETTINGS, enforceImageChecks: false };
-  return parseCompanyBlogGateSettings(row.provider_settings);
+  if (error) return { refusal: BLOG_GATE_SETTINGS_UNREADABLE };
+  if (!row) return { settings: { ...DEFAULT_COMPANY_BLOG_GATE_SETTINGS } };
+  return { settings: parseCompanyBlogGateSettings(row.provider_settings) };
 }

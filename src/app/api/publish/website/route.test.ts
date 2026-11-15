@@ -19,6 +19,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { POST } from "./route";
+import { pieceVersionHash } from "@/lib/content/version-hash";
 
 const req = (body: unknown) => new Request("http://localhost/api/publish/website", { method: "POST", body: JSON.stringify(body) });
 
@@ -32,6 +33,10 @@ beforeEach(() => {
   ];
   tables.companies = { spokesperson_name: "Michael Colling-Tuck" };
   tables.publishing_jobs = [];
+  // A real send checks the recorded approval: the newest decision approves this exact text.
+  tables.content_approvals = [{
+    piece_id: "p1", version_hash: pieceVersionHash(tables.content_pieces as never), decision: "approved", decided_at: "2026-11-14T09:00:00Z",
+  }];
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 

@@ -2,12 +2,20 @@
 
 import { useState } from "react";
 import { CTA_CLUSTERS } from "@/lib/publishing/website-blog";
+import type { BlogGateReport } from "@/lib/publishing/blog-gate";
+
+/** The image checks the route reports: blocking when enforced, warnings when not. */
+interface ImageChecks { enforced: boolean; report: BlogGateReport }
 
 /**
  * A blog's route to agencymedicalmarketing.com (25 Sept 2026): make the
  * hero and share images from the writer's own prompts, preview exactly
  * what will be sent, then open a pull request on the website. Merging that
  * pull request is what puts it live. Admin only; the page decides.
+ *
+ * The preview asks for the full verdict (15 Nov 2026): every problem the
+ * route found is listed, and the image checks are shown as blocking when
+ * the company enforces them and as warnings when it does not.
  */
 export default function WebsitePublishPanel({
   pieceId, companyId, isApproved, heroPrompt, coverPrompt, hasHero, hasOg, articlePrompts = [], articleDone = [], clusters = CTA_CLUSTERS,
@@ -30,6 +38,8 @@ export default function WebsitePublishPanel({
   const [busy, setBusy] = useState<null | "images" | "preview" | "send">(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const [imageChecks, setImageChecks] = useState<ImageChecks | null>(null);
   const [preview, setPreview] = useState<{ files: { path: string }[]; mdx: string; liveUrl: string; missing?: string } | null>(null);
   const [prUrl, setPrUrl] = useState<string | null>(null);
 
@@ -60,15 +70,23 @@ export default function WebsitePublishPanel({
   }
 
   async function send(dryRun: boolean) {
-    setBusy(dryRun ? "preview" : "send"); setError(null); setMessage(null);
+    setBusy(dryRun ? "preview" : "send"); setError(null); setMessage(null); setProblems([]);
     try {
       const res = await fetch("/api/publish/website", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pieceId, ctaCluster: cluster, dryRun }),
+        body: JSON.stringify({ pieceId, ctaCluster: cluster, dryRun, withChecks: true }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`);
+      setImageChecks(data.imageChecks || null);
+      if (!res.ok) {
+        if (Array.isArray(data.problems) && data.problems.length > 0) {
+          setProblems(data.problems); setPreview(null);
+          setError(dryRun ? "This blog cannot be sent yet:" : "Nothing was sent:");
+          return;
+        }
+        throw new Error(data.error || `Failed (${res.status})`);
+      }
       if (dryRun) setPreview(data);
       else { setPrUrl(data.pullRequest); setPreview(null); }
     } catch (e) {
@@ -144,6 +162,30 @@ export default function WebsitePublishPanel({
 
       {message && <p className="text-sm text-green-700">{message}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {problems.length > 0 && (
+        <ul className="list-disc space-y-1 pl-5 text-sm text-red-600">
+          {problems.map((p, i) => <li key={i}>{p}</li>)}
+        </ul>
+      )}
+      {imageChecks && (() => {
+        const failed = imageChecks.report.checks.filter(c => !c.passed);
+        return (
+          <div className="space-y-1 text-sm">
+            <p className={failed.length === 0 ? "text-green-700" : imageChecks.enforced ? "text-red-600" : "text-amber-700"}>
+              {failed.length === 0
+                ? "Image checks passed."
+                : imageChecks.enforced
+                  ? `Image checks: ${failed.length} failed, and they block sending. Fix these in Blog images above.`
+                  : `Image checks: ${failed.length} failed, shown, not yet blocking. Fix these in Blog images above.`}
+            </p>
+            {failed.length > 0 && (
+              <ul className={`list-disc space-y-1 pl-5 ${imageChecks.enforced ? "text-red-600" : "text-amber-700"}`}>
+                {failed.flatMap(c => c.problems).map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
