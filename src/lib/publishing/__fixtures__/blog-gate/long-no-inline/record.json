@@ -1,0 +1,15 @@
+{
+  "images": [
+    {
+      "file": "/images/blog/example.jpg",
+      "role": "hero",
+      "type": "diagram",
+      "passage": "Opening claim"
+    },
+    {
+      "file": "/images/blog/example-og.jpg",
+      "role": "share",
+      "passage": "Share card"
+    }
+  ]
+}
