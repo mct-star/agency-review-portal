@@ -50,6 +50,7 @@ import { POST as bluesky } from "./publish/bluesky/route";
 import { GET as trialEmails } from "./cron/trial-emails/route";
 import { POST as voice } from "./generate/transcribe/voice/route";
 import { GET as listAssets } from "./assets/route";
+import { GET as listVariants, PUT as updateVariant } from "./variants/route";
 
 const post = (body: Record<string, unknown>) =>
   new Request("http://x/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -279,5 +280,115 @@ describe("piece assets", () => {
     const res = await listAssets(get("p"));
     expect(res.status).toBe(200);
     expect((await res.json()).data).toEqual(assetRows);
+  });
+});
+
+/**
+ * Platform variants: reading needs access to the piece's company; updating
+ * needs access to the company of the variant's piece. Unknown and another
+ * company's both answer 404, and nothing is read or written for them.
+ */
+describe("piece variants", () => {
+  const get = (pieceId: string) => new Request(`http://x/api/variants?contentPieceId=${pieceId}`);
+  const put = (body: Record<string, unknown>) =>
+    new Request("http://x/api/variants", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const variantRows = [{ id: "v-1", content_piece_id: "p", platform: "linkedin" }];
+  const variantReads = () => state.supabase.calls.filter((c) => c.table === "platform_variants");
+  const variantUpdates = () => state.supabase.calls.filter((c) => c.table === "platform_variants" && c.method === "update");
+  /** The piece belongs to companyId (null: no such piece). The variant exists unless variant is false. */
+  const withPiece = (companyId: string | null, variant = true) =>
+    fakeSupabase({
+      content_pieces: { data: companyId ? { id: "p", company_id: companyId } : null },
+      platform_variants: (own) =>
+        own.some((c) => c.method === "update")
+          ? { data: { ...variantRows[0], approval_status: "approved" } }
+          : own.some((c) => c.method === "maybeSingle")
+            ? { data: variant ? { id: "v-1", content_piece_id: "p" } : null }
+            : { data: variantRows },
+    });
+
+  describe("GET", () => {
+    it("needs a sign-in, and reads no variants", async () => {
+      state.user = null;
+      state.supabase = withPiece(A);
+      expect((await listVariants(get("p"))).status).toBe(401);
+      expect(variantReads()).toEqual([]);
+    });
+    it("refuses a member of another company, and reads no variants", async () => {
+      state.supabase = withPiece(B);
+      const res = await listVariants(get("p"));
+      expect(res.status).toBe(404);
+      expect(variantReads()).toEqual([]);
+    });
+    it("answers an unknown piece exactly as it answers another company's", async () => {
+      state.supabase = withPiece(null);
+      const unknown = await listVariants(get("nope"));
+      state.supabase = withPiece(B);
+      const other = await listVariants(get("p"));
+      expect(unknown.status).toBe(other.status);
+      expect(await unknown.json()).toEqual(await other.json());
+    });
+    it("serves a member of the owning company", async () => {
+      state.supabase = withPiece(A);
+      const res = await listVariants(get("p"));
+      expect(res.status).toBe(200);
+      expect((await res.json()).data).toEqual(variantRows);
+      expect(eqCalls(state.supabase.calls, "platform_variants")).toContainEqual(["content_piece_id", "p"]);
+    });
+    it("serves an admin, whatever the company", async () => {
+      state.user = { id: "adm", role: "admin", company_id: null };
+      state.supabase = withPiece(B);
+      const res = await listVariants(get("p"));
+      expect(res.status).toBe(200);
+      expect((await res.json()).data).toEqual(variantRows);
+    });
+  });
+
+  describe("PUT", () => {
+    it("needs a sign-in, and updates nothing", async () => {
+      state.user = null;
+      state.supabase = withPiece(A);
+      expect((await updateVariant(put({ id: "v-1", approvalStatus: "approved" }))).status).toBe(401);
+      expect(variantReads()).toEqual([]);
+    });
+    it("refuses another company's variant, and updates nothing", async () => {
+      state.supabase = withPiece(B);
+      const res = await updateVariant(put({ id: "v-1", approvalStatus: "approved" }));
+      expect(res.status).toBe(404);
+      expect(variantUpdates()).toEqual([]);
+      expect(eqCalls(state.supabase.calls, "content_pieces")).toContainEqual(["id", "p"]);
+    });
+    it("answers an unknown variant exactly as it answers another company's", async () => {
+      state.supabase = withPiece(A, false);
+      const unknown = await updateVariant(put({ id: "nope", approvalStatus: "approved" }));
+      expect(variantUpdates()).toEqual([]);
+      state.supabase = withPiece(B);
+      const other = await updateVariant(put({ id: "v-1", approvalStatus: "approved" }));
+      expect(unknown.status).toBe(404);
+      expect(unknown.status).toBe(other.status);
+      expect(await unknown.json()).toEqual(await other.json());
+    });
+    it("lets a member of the owning company set the approval status", async () => {
+      state.supabase = withPiece(A);
+      const res = await updateVariant(put({ id: "v-1", approvalStatus: "approved" }));
+      expect(res.status).toBe(200);
+      expect(variantUpdates()).toEqual([{ table: "platform_variants", method: "update", args: [{ approval_status: "approved" }] }]);
+      expect(eqCalls(state.supabase.calls, "content_pieces")).toContainEqual(["id", "p"]);
+      const afterUpdate = state.supabase.calls.slice(state.supabase.calls.findIndex((c) => c.method === "update"));
+      expect(afterUpdate).toContainEqual({ table: "platform_variants", method: "eq", args: ["id", "v-1"] });
+    });
+    it("refuses a member of the owning company anything but the approval status", async () => {
+      state.supabase = withPiece(A);
+      const res = await updateVariant(put({ id: "v-1", isSelected: true }));
+      expect(res.status).toBe(403);
+      expect(variantUpdates()).toEqual([]);
+    });
+    it("lets an admin update any company's variant", async () => {
+      state.user = { id: "adm", role: "admin", company_id: null };
+      state.supabase = withPiece(B);
+      const res = await updateVariant(put({ id: "v-1", isSelected: true }));
+      expect(res.status).toBe(200);
+      expect(variantUpdates()).toEqual([{ table: "platform_variants", method: "update", args: [{ is_selected: true }] }]);
+    });
   });
 });

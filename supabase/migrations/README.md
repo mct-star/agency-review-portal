@@ -28,11 +28,23 @@ adds `review_notes` (dictated notes on a piece, each anchored to the
 paragraph in view). Apply it before merging the code that reads it: until it
 exists, the dictate bar on /content/[pieceId] shows an error and saves nothing.
 
-NOT YET APPLIED (15 November 2026): `20261115090000_drop_client_update_policies.sql`
+Applied 15 November 2026: `20261115090000_drop_client_update_policies.sql`
 drops the client UPDATE policies "Client updates approval" (content_pieces) and
-"Client updates variant approval" (platform_variants). No code depends on them:
+"Client updates variant approval" (platform_variants). Applied by hand with
+Michael's go-ahead and read back: both policies gone. No code depends on them:
 every write to either table goes through an API route on the service-role client.
-It can be applied before or after the code that ships with it.
+
+NOT YET APPLIED (15 November 2026): `20261115100000_scope_ecosystem_and_notification_policies.sql`
+drops the four "Authenticated users can ... week_ecosystems" policies, leaving
+row security on with no policy, and recreates "Admin creates notifications" for
+authenticated admins only (its old check ended in `OR true`). No code depends on
+the dropped policies: nothing reads or writes week_ecosystems. The two notify
+helpers (`src/lib/hospitality/notify.ts`, `src/lib/staff-upload/notify.ts`) insert
+on the service-role client; `POST /api/notifications` runs on the caller's own
+token, where an admin passes the new check and a client never reaches the insert
+(it can see no admin recipients under the users policies). So nothing that
+creates a notification today is affected. It can be applied before or after the
+code that ships with it. It waits for Michael's go-ahead.
 
 `20261114100000_capture_grants_and_newsletter_guard.sql` was applied on 14 November 2026
 under the live name `20261114143915 capture_grants_and_newsletter_guard`. It adds
