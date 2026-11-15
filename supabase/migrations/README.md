@@ -34,6 +34,12 @@ drops the client UPDATE policies "Client updates approval" (content_pieces) and
 Michael's go-ahead and read back: both policies gone. No code depends on them:
 every write to either table goes through an API route on the service-role client.
 
+Applied 15 November 2026: `20261115100000_content_images_image_record.sql`
+adds the nullable jsonb column `content_images.image_record`, the record that says
+why a blog image is there. Live migration version: `20261115141102`. Applied by
+hand with Michael's go-ahead and read back: jsonb, nullable, no default, 76 rows,
+none with a record. The blog image record routes and panel read and write it.
+
 NOT YET APPLIED (15 November 2026): `20261115100000_scope_ecosystem_and_notification_policies.sql`
 drops the four "Authenticated users can ... week_ecosystems" policies, leaving
 row security on with no policy, and recreates "Admin creates notifications" for
