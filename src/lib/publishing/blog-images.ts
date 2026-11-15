@@ -1,6 +1,6 @@
 import { runBlogGate, type BlogGateReport } from "@/lib/publishing/blog-gate";
 import { blogImagesForGate, type GateImage, type LegacyCover, type UnplacedImage } from "@/lib/publishing/blog-gate-input";
-import { resolveBlogGateSettings, type CompanyBlogGateSettings } from "@/lib/publishing/blog-gate-settings";
+import { DEFAULT_COMPANY_BLOG_GATE_SETTINGS, resolveBlogGateSettings, type CompanyBlogGateSettings } from "@/lib/publishing/blog-gate-settings";
 import { BLOG_IMAGE_TYPES, parseImageRecord, type BlogImageRecord, type BlogImageRole } from "@/lib/publishing/blog-image-record";
 
 /**
@@ -32,11 +32,14 @@ export const IMAGE_COLUMNS = "id, archetype, public_url, filename, storage_path,
 export async function loadBlogImagesPayload(
   supabase: Reader, piece: BlogPieceForImages,
 ): Promise<BlogImagesPayload | { error: string }> {
-  const [{ data: rows, error }, settings] = await Promise.all([
+  const [{ data: rows, error }, resolved] = await Promise.all([
     supabase.from("content_images").select(IMAGE_COLUMNS).eq("content_piece_id", piece.id).order("sort_order", { ascending: true }),
     resolveBlogGateSettings(supabase, piece.company_id),
   ]);
   if (error) return { error: "The images for this piece could not be read. Try again in a minute." };
+  // The panel only shows the checks: settings that cannot be read show the
+  // defaults, not enforced. The publish route refuses instead.
+  const settings = "settings" in resolved ? resolved.settings : { ...DEFAULT_COMPANY_BLOG_GATE_SETTINGS };
   const body = piece.markdown_body || "";
   const { images, unplaced, legacyCover } = blogImagesForGate(rows || [], body);
   const report = runBlogGate({
