@@ -5,6 +5,7 @@ import LinkedInPreview from "./LinkedInPreview";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { basePostType, feedLabel, hasBothFeeds, pieceFeed } from "@/lib/content/feed";
 import MarkdownRenderer from "./MarkdownRenderer";
+import BlogArticleView from "./BlogArticleView";
 import type { ContentPiece, ContentImage, ContentAsset } from "@/types/database";
 
 type ReviewTab = "social" | "blog" | "article" | "assets";
@@ -26,6 +27,8 @@ interface WeekReviewTabsProps {
   /** The company page posts as the company: its name and logo in the preview. */
   companyName?: string;
   companyLogoUrl?: string;
+  /** A blog's website preview pull request, by piece id (Vercel posts the preview link on it). */
+  websitePreviews?: Record<string, string>;
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -77,6 +80,7 @@ export default function WeekReviewTabs({
   brandColor,
   companyName,
   companyLogoUrl,
+  websitePreviews = {},
 }: WeekReviewTabsProps) {
   // A feed chip on every post only when the week holds both feeds.
   const showFeedChips = hasBothFeeds(socialPieces);
@@ -361,8 +365,11 @@ export default function WeekReviewTabs({
             const seoAssets = piece.assets.filter(
               (a) => a.asset_type === "seo_title" || a.asset_type === "seo_meta_description" || a.asset_type === "url_slug" || a.asset_type === "excerpt"
             );
-            const coverImage = piece.images.find((img) => img.filename?.includes("cover") || img.sort_order === 0);
-            const inlineImages = piece.images.filter((img) => img !== coverImage);
+            // A blog reads as the website will show it (BlogArticleView); a PDF guide keeps its cover.
+            const isBlog = piece.content_type === "blog_article";
+            const coverImage = isBlog ? undefined : piece.images.find((img) => img.filename?.includes("cover") || img.sort_order === 0);
+            const inlineImages = isBlog ? [] : piece.images.filter((img) => img !== coverImage);
+            const websitePreview = isBlog ? websitePreviews[piece.id] : undefined;
 
             return (
               <div key={piece.id} className="rounded-lg border border-gray-200 bg-white">
@@ -400,6 +407,9 @@ export default function WeekReviewTabs({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {websitePreview && (
+                        <a href={websitePreview} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-violet-700 hover:underline">Website preview</a>
+                      )}
                       <a href={`/content/${piece.id}`} className="text-xs font-medium text-violet-700 hover:underline">Open to approve</a>
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -440,7 +450,8 @@ export default function WeekReviewTabs({
                       </div>
                     ) : null;
                   })()}
-                  {piece.content_type !== "pdf_guide" && <MarkdownRenderer content={piece.markdown_body} />}
+                  {isBlog && <BlogArticleView markdown={piece.markdown_body} images={piece.images} />}
+                  {!isBlog && piece.content_type !== "pdf_guide" && <MarkdownRenderer content={piece.markdown_body} />}
 
                   {/* Inline images grid */}
                   {inlineImages.length > 0 && (

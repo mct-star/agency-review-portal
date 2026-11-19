@@ -44,7 +44,9 @@ export default async function WeekReviewPage({ params }: PageProps) {
   const pieces = (piecesData || []) as ContentPiece[];
   const pieceIds = pieces.map((p) => p.id);
 
-  const [imagesForPieces, assetsForPieces] = await Promise.all([
+  // A blog's website preview: the draft pull request Vercel builds (POST /api/publish/website with preview).
+  const blogIds = pieces.filter((p) => p.content_type === "blog_article").map((p) => p.id);
+  const [imagesForPieces, assetsForPieces, previewLinks] = await Promise.all([
     supabase
       .from("content_images")
       .select("*")
@@ -55,7 +57,21 @@ export default async function WeekReviewPage({ params }: PageProps) {
       .select("*")
       .in("content_piece_id", pieceIds.length > 0 ? pieceIds : ["__none__"])
       .order("sort_order", { ascending: true }),
+    blogIds.length > 0
+      ? supabase
+          .from("content_syndication_links")
+          .select("content_piece_id, external_url, created_at")
+          .eq("platform", "website_preview")
+          .in("content_piece_id", blogIds)
+          .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] as Array<{ content_piece_id: string; external_url: string }> }),
   ]);
+
+  // The newest preview per blog.
+  const websitePreviews: Record<string, string> = {};
+  for (const link of (previewLinks.data || []) as Array<{ content_piece_id: string; external_url: string }>) {
+    websitePreviews[link.content_piece_id] = link.external_url;
+  }
 
   const imagesByPiece = new Map<string, ContentImage[]>();
   for (const img of (imagesForPieces.data || []) as ContentImage[]) {
@@ -259,6 +275,7 @@ export default async function WeekReviewPage({ params }: PageProps) {
         brandColor={company.brand_color || "#0a66c2"}
         companyName={company.name}
         companyLogoUrl={company.logo_url || undefined}
+        websitePreviews={websitePreviews}
       />
     </div>
   );

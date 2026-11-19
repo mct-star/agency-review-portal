@@ -160,6 +160,14 @@ export default async function ContentPiecePage({ params }: PageProps) {
     ? await loadBlogImagesPayload(await createAdminSupabaseClient(), piece)
     : null;
 
+  // The blog's website preview pull request, newest first (POST /api/publish/website with preview).
+  const { data: previewLink } = piece.content_type === "blog_article"
+    ? await supabase.from("content_syndication_links").select("external_url")
+      .eq("content_piece_id", pieceId).eq("platform", "website_preview")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle()
+    : { data: null };
+  const websitePreviewUrl = (previewLink as { external_url?: string } | null)?.external_url || null;
+
   // Long-form reads get the dictate bar: notes spoken while scrolling, kept per paragraph.
   const dictatedNotes = ["blog_article", "linkedin_article"].includes(piece.content_type);
 
@@ -266,6 +274,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
         media={media}
         companyId={piece.company_id}
         contentPieceId={piece.id}
+        blogImages={piece.content_type === "blog_article" ? (images || []) : undefined}
       />
 
         </div>
@@ -384,6 +393,7 @@ export default async function ContentPiecePage({ params }: PageProps) {
           articlePrompts={articlePrompts}
           articleDone={articleDone}
           clusters={websiteClusters}
+          previewUrl={websitePreviewUrl}
         />
       )}
 

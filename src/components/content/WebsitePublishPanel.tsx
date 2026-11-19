@@ -16,9 +16,15 @@ interface ImageChecks { enforced: boolean; report: BlogGateReport }
  * The preview asks for the full verdict (15 Nov 2026): every problem the
  * route found is listed, and the image checks are shown as blocking when
  * the company enforces them and as warnings when it does not.
+ *
+ * Website preview (19 Nov 2026): before approval, "Open a website preview"
+ * opens the same pull request as a draft. Vercel builds it and posts the
+ * preview link on the pull request, so the blog can be read exactly as the
+ * site will show it. Sending after approval reuses that pull request.
  */
 export default function WebsitePublishPanel({
   pieceId, companyId, isApproved, heroPrompt, coverPrompt, hasHero, hasOg, articlePrompts = [], articleDone = [], clusters = CTA_CLUSTERS,
+  previewUrl: initialPreviewUrl = null,
 }: {
   pieceId: string;
   companyId: string;
@@ -33,9 +39,12 @@ export default function WebsitePublishPanel({
   articleDone?: number[];
   /** The services the blog can point readers to: the company's own list. Empty means none is needed. */
   clusters?: ReadonlyArray<{ code: string; label: string }>;
+  /** The website preview pull request already open for this blog, if any. */
+  previewUrl?: string | null;
 }) {
   const [cluster, setCluster] = useState("");
-  const [busy, setBusy] = useState<null | "images" | "preview" | "send">(null);
+  const [busy, setBusy] = useState<null | "images" | "preview" | "send" | "website">(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialPreviewUrl);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -96,6 +105,33 @@ export default function WebsitePublishPanel({
     }
   }
 
+  async function openWebsitePreview() {
+    setBusy("website"); setError(null); setMessage(null); setProblems([]);
+    try {
+      const res = await fetch("/api/publish/website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pieceId, ctaCluster: cluster, preview: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setImageChecks(data.imageChecks || null);
+      if (!res.ok) {
+        if (Array.isArray(data.problems) && data.problems.length > 0) {
+          setProblems(data.problems);
+          setError("The website preview could not be opened:");
+          return;
+        }
+        throw new Error(data.error || `Failed (${res.status})`);
+      }
+      setPreviewUrl(data.pullRequest);
+      setMessage("Website preview updated. The preview link appears on the pull request once Vercel has built it, in about two minutes.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Each sentence once: when image checks block, theirs are listed under the image checks.
   const otherProblems = imageChecks?.enforced
     ? problems.filter(p => !imageChecks.report.problems.includes(p))
@@ -131,8 +167,6 @@ export default function WebsitePublishPanel({
         <p className="text-sm text-gray-700">
           Pull request opened: <a href={prUrl} target="_blank" rel="noopener noreferrer" className="text-amber-700 underline">{prUrl}</a>. Merge it to put the post live.
         </p>
-      ) : !isApproved ? (
-        <p className="text-sm text-gray-500">Approve the blog to send it to the website.</p>
       ) : (
         <div className="space-y-3">
           {clusters.length > 0 && (<>
@@ -143,6 +177,20 @@ export default function WebsitePublishPanel({
               {clusters.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
             </select>
           </>)}
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={openWebsitePreview} disabled={(clusters.length > 0 && !cluster) || busy !== null}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              {busy === "website" ? "Opening the website preview" : previewUrl ? "Update the website preview" : "Open a website preview"}
+            </button>
+            {previewUrl && (
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-amber-700 underline">Website preview</a>
+            )}
+          </div>
+          {!isApproved && <p className="text-sm text-gray-500">Approve the blog to send it to the website.</p>}
+        </div>
+      )}
+      {!prUrl && isApproved && (
+        <div className="space-y-3">
           <div className="flex gap-2">
             <button onClick={() => send(true)} disabled={(clusters.length > 0 && !cluster) || busy !== null}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">

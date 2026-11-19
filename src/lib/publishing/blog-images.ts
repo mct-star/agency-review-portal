@@ -55,9 +55,9 @@ export async function loadBlogImagesPayload(
   return { images, unplaced, legacyCover, settings, report };
 }
 
-export const RECORD_LIMITS = { passage: 300, treatment: 60, alt: 300 } as const;
+export const RECORD_LIMITS = { passage: 300, treatment: 60, alt: 300, caption: 300 } as const;
 
-const FIELD_NAMES = { passage: "The passage line", treatment: "The treatment", alt: "The alt text" } as const;
+const FIELD_NAMES = { passage: "The passage line", treatment: "The treatment", alt: "The alt text", caption: "The caption" } as const;
 
 // Built from code points so no long dash is typed into this file.
 const LONG_DASH = new RegExp(`[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`);
@@ -78,6 +78,7 @@ export function mergeImageRecord(
   if (current?.type !== undefined) next.type = current.type;
   if (current?.treatment !== undefined && current.treatment !== null) next.treatment = current.treatment;
   if (current?.alt !== undefined) next.alt = current.alt;
+  if (current?.caption !== undefined) next.caption = current.caption;
 
   if (v.type !== undefined) {
     if (v.type === null || v.type === "") delete next.type;
@@ -85,7 +86,7 @@ export function mergeImageRecord(
     else return { error: "The type must be diagram, infographic or photograph." };
   }
 
-  for (const field of ["passage", "treatment", "alt"] as const) {
+  for (const field of ["passage", "treatment", "alt", "caption"] as const) {
     const raw = v[field];
     if (raw === undefined) continue;
     if (raw !== null && typeof raw !== "string") return { error: `${FIELD_NAMES[field]} must be text.` };

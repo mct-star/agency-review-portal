@@ -41,3 +41,18 @@ describe("loadBlogImagesPayload settings", () => {
     expect(out.settings).toMatchObject({ enforceImageChecks: true, requireShareCard: false });
   });
 });
+
+describe("mergeImageRecord caption (19 Nov 2026)", () => {
+  it("keeps a stored caption when the request leaves it out, and clears it when sent empty", async () => {
+    const { mergeImageRecord } = await import("./blog-images");
+    const stored = { role: "inline", passage: "p", alt: "a", caption: "Fees begin here." };
+    expect(mergeImageRecord("inline", stored, { alt: "b" })).toEqual({ record: { role: "inline", passage: "p", alt: "b", caption: "Fees begin here." } });
+    expect(mergeImageRecord("inline", stored, { caption: "" })).toEqual({ record: { role: "inline", passage: "p", alt: "a" } });
+    expect(mergeImageRecord("inline", stored, { caption: "New line." })).toMatchObject({ record: { caption: "New line." } });
+  });
+
+  it("refuses a caption with a long dash", async () => {
+    const { mergeImageRecord } = await import("./blog-images");
+    expect(mergeImageRecord("inline", null, { caption: `a ${String.fromCharCode(0x2014)} b` })).toEqual({ error: "The caption contains a long dash. Use a comma, full stop or brackets instead." });
+  });
+});

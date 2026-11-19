@@ -57,8 +57,17 @@ export function inArticleImageNumber(archetype: string | null | undefined): numb
  * "!", so escapeAlt escapes every other "<" ("Rates < 5%") and leaves those
  * to that pass, so nothing is escaped twice. With no alt the line is
  * ![](src), as before.
+ *
+ * A slot may also carry a caption (19 Nov 2026): it is written as the
+ * image's title, ![alt](src "caption"), which agencymedicalmarketing.com
+ * renders as a figure with the caption under the image. Quotes and
+ * backslashes are escaped so the title cannot close early; "<" as for alt.
+ * With no caption the image stays untitled and renders as before.
+ *
+ * Placeholder lines the writer left ("[IMAGE ...]", "[INFOGRAPHIC ...]",
+ * "[DIAGRAM ...]", "IMAGE PLACEMENT ...") never publish as text.
  */
-export type BlogImageSlot = string | { src: string; alt?: string | null };
+export type BlogImageSlot = string | { src: string; alt?: string | null; caption?: string | null };
 
 /** Alt text safe inside ![...]: one line, backslashes, brackets and every "<" escaped (with the body pass). */
 export function escapeAlt(alt: string): string {
@@ -67,11 +76,19 @@ export function escapeAlt(alt: string): string {
     .replace(/<(?![A-Za-z/!])/g, "\\<");
 }
 
+/** A caption safe inside ![..](src "..."): one line, backslashes, quotes and every "<" escaped (with the body pass). */
+export function escapeCaption(caption: string): string {
+  return caption.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim()
+    .replace(/(["\\])/g, "\\$1")
+    .replace(/<(?![A-Za-z/!])/g, "\\<");
+}
+
 function slotImage(slot: BlogImageSlot | undefined): string | null {
   if (!slot) return null;
   if (typeof slot === "string") return `![](${slot})`;
   if (!slot.src) return null;
-  return `![${escapeAlt(slot.alt || "")}](${slot.src})`;
+  const caption = escapeCaption(slot.caption || "");
+  return `![${escapeAlt(slot.alt || "")}](${slot.src}${caption ? ` "${caption}"` : ""})`;
 }
 
 export function mdxBody(markdown: string, title: string, images: Record<string, BlogImageSlot> = {}): string {
@@ -86,7 +103,7 @@ export function mdxBody(markdown: string, title: string, images: Record<string, 
       if (image) out.push(image);
       continue;
     }
-    if (/^\s*(IMAGE PLACEMENT\b|\[IMAGE\b)/i.test(line)) continue;
+    if (/^\s*(IMAGE PLACEMENT\b|\[(IMAGE|INFOGRAPHIC|DIAGRAM)\b)/i.test(line)) continue;
     out.push(line.replace(/\[\[\s*image:[^\]]*\]\]/gi, ""));
   }
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim()
