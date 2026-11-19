@@ -13,13 +13,14 @@ import { shareFileProblem, shareUploadError } from "@/lib/publishing/share-image
  * /api/content/[pieceId]/blog-images do the saving.
  */
 
-interface Draft { type: string; passage: string; treatment: string; alt: string }
+interface Draft { type: string; passage: string; treatment: string; alt: string; caption: string }
 
 const draftFor = (image: GateImage): Draft => ({
   type: typeof image.record?.type === "string" ? image.record.type : "",
   passage: image.record?.passage || "",
   treatment: typeof image.record?.treatment === "string" ? image.record.treatment : "",
   alt: image.record?.alt || "",
+  caption: image.record?.caption || "",
 });
 
 const sentence = (label: string) => label.charAt(0).toUpperCase() + label.slice(1);
@@ -44,7 +45,8 @@ export default function BlogImageRecordPanel({ pieceId, initial }: { pieceId: st
     try {
       const record = image.role === "share"
         ? { passage: draft.passage }
-        : { type: draft.type || null, passage: draft.passage, treatment: draft.treatment, alt: draft.alt };
+        : { type: draft.type || null, passage: draft.passage, treatment: draft.treatment, alt: draft.alt,
+            ...(image.role === "inline" ? { caption: draft.caption } : {}) };
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -133,6 +135,13 @@ export default function BlogImageRecordPanel({ pieceId, initial }: { pieceId: st
                         Alt text{image.role === "inline" && <span className="text-red-600"> (required)</span>}
                       </label>
                       <input id={`alt-${image.id}`} type="text" maxLength={300} value={draft.alt} onChange={e => edit(image.id, "alt", e.target.value)} className={inputClass} />
+                    </div>
+                  )}
+                  {editorial && image.role === "inline" && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700" htmlFor={`caption-${image.id}`}>Caption</label>
+                      <input id={`caption-${image.id}`} type="text" maxLength={300} value={draft.caption} onChange={e => edit(image.id, "caption", e.target.value)} className={inputClass} />
+                      <p className="mt-1 text-xs text-gray-500">Printed under the image on the website. Say why it matters, not what it shows.</p>
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-3">

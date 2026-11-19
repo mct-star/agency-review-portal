@@ -13,7 +13,7 @@ import {
 export const maxDuration = 60;
 
 /**
- * POST /api/publish/website  { pieceId, ctaCluster, dryRun? }
+ * POST /api/publish/website  { pieceId, ctaCluster, dryRun?, preview? }
  *
  * Sends an approved blog to agencymedicalmarketing.com as a pull request
  * on the agency-website repo (25 Sept 2026): the MDX post, its hero and
@@ -57,6 +57,23 @@ export const maxDuration = 60;
  * out the recorded-approval check and the imageChecks key. Add
  * withChecks: true for the full verdict, as the page does. A real send
  * always runs every check.
+ *
+ * Website preview (19 Nov 2026). { preview: true } opens the same pull
+ * request before the blog is approved, as a GitHub draft, so Vercel builds
+ * the post exactly as the site will show it and posts the preview link on
+ * the pull request. It needs no approval and the image checks only warn;
+ * every other check (slug, service, dashes, colon, hero) still refuses,
+ * because the site's build would. A repository without draft pull requests
+ * gets an ordinary one titled as a preview not to merge. The pull request
+ * link is kept in content_syndication_links with platform "website_preview"
+ * (not publishing_jobs: that table is read across the portal as "sent"),
+ * and nothing is recorded as sent. Previewing again updates the same
+ * branch and pull request.
+ *
+ * Both a preview and a send look for an open pull request from the blog's
+ * branch first. The approved send writes the files to that branch, renames
+ * the pull request, marks a draft ready for review, and records the send;
+ * it opens a new pull request only when there is none.
  */
 function approvalSentence(title: string, refusal: string): string {
   const name = title ? `The blog "${title}"` : "This blog";
@@ -75,8 +92,11 @@ export async function POST(request: Request) {
   const pieceId = typeof body.pieceId === "string" ? body.pieceId : "";
   const ctaCluster = typeof body.ctaCluster === "string" ? body.ctaCluster : "";
   const dryRun = body.dryRun === true;
-  // Every check runs on a real send; a dry run runs them when asked.
-  const withChecks = !dryRun || body.withChecks === true;
+  const preview = body.preview === true;
+  // Every check runs on a real send; a dry run runs them when asked. A
+  // preview never checks the approval.
+  const withChecks = (!dryRun || body.withChecks === true) && !preview;
+  const reportChecks = withChecks || preview;
   if (!pieceId) return NextResponse.json({ error: "pieceId is required" }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
@@ -127,12 +147,12 @@ export async function POST(request: Request) {
   const inArticle = gate.images
     .filter(i => i.role === "inline" && i.n !== undefined && !!i.publicUrl)
     .map(i => ({
-      n: i.n!, url: i.publicUrl!, alt: (i.record?.alt || "").trim(),
+      n: i.n!, url: i.publicUrl!, alt: (i.record?.alt || "").trim(), caption: (i.record?.caption || "").trim(),
       path: published(i.publicUrl, `-${i.n}`)!,
     }));
 
   const problems = publishProblems({
-    approved: piece.approval_status === "approved", contentType: piece.content_type,
+    approved: preview || piece.approval_status === "approved", contentType: piece.content_type,
     title, body: bodyText, slug, ctaCluster, heroUrl: hero,
   }, target.ctaClusters);
 
@@ -156,16 +176,16 @@ export async function POST(request: Request) {
       requireShareCard: gateSettings.settings.requireShareCard,
     },
   });
-  if (enforced) {
+  if (enforced && !preview) {
     problems.push(...report.problems);
     if (shareImage && !shareImage.publicUrl) {
       problems.push(`The share image for the blog "${title}" has no stored file. Upload it again.`);
     }
   }
-  const imageChecks = withChecks ? { imageChecks: { enforced, report } } : {};
+  const imageChecks = reportChecks ? { imageChecks: { enforced: enforced && !preview, report } } : {};
   if (problems.length > 0) return NextResponse.json({ error: problems.join(" "), problems, ...imageChecks }, { status: 422 });
 
-  const imageMap = Object.fromEntries(inArticle.map(i => [String(i.n), { src: "/" + i.path.replace(/^public\//, ""), alt: i.alt }]));
+  const imageMap = Object.fromEntries(inArticle.map(i => [String(i.n), { src: "/" + i.path.replace(/^public\//, ""), alt: i.alt, caption: i.caption }]));
   const mdxPath = `${target.contentPath}/${slug}.mdx`;
   const words = bodyText.split(/\s+/).filter(Boolean).length;
   const mdx = buildBlogMdx({
@@ -194,7 +214,7 @@ export async function POST(request: Request) {
     ? "WEBSITE_GITHUB_TOKEN is not set in the portal's Vercel project"
     : "This company's website publishing token is not set";
   if (dryRun) {
-    return NextResponse.json({ dryRun: true, branch, repo, files, mdx, liveUrl, ready: !!token,
+    return NextResponse.json({ dryRun: true, ...(preview ? { preview: true } : {}), branch, repo, files, mdx, liveUrl, ready: !!token,
       ...(token ? {} : { missing: `${noToken}, so nothing can be sent yet.` }), ...imageChecks });
   }
   if (!token) {
@@ -206,18 +226,38 @@ export async function POST(request: Request) {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(init.headers || {}) },
   });
 
+  const prTitle = preview ? `Preview, not approved, do not merge: Blog: ${title}` : `Blog: ${title}`;
+  const prBody = preview
+    ? `A preview of a blog post from the content portal. It is not approved yet, so do not merge it. Vercel posts the preview link below; the portal marks this ready for review when the blog is approved and sent.\n\n- Post: \`${mdxPath}\`\n- Goes live at ${liveUrl} once approved and merged.`
+    : `A new blog post from the content portal, approved there.\n\n- Post: \`${mdxPath}\`\n- Hero: \`${heroPath}\`${ogPath ? `\n- Share card: \`${ogPath}\`` : ""}${inArticle.length ? `\n- In-article images: ${inArticle.length}` : ""}\n- Goes live at ${liveUrl} when merged.`;
+
   try {
     if ((await gh(`/contents/${mdxPath}?ref=${target.baseBranch}`)).status === 200) {
       return NextResponse.json({ error: `A post called ${slug} is already on the website. Change the URL slug and try again.` }, { status: 409 });
     }
+    // An open pull request from this blog's branch: a preview, or an earlier send.
+    const owner = repo.split("/")[0];
+    const open = await gh(`/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=open`);
+    const openList = open.ok ? await open.json().catch(() => []) : [];
+    const existing = Array.isArray(openList) && openList[0]
+      ? openList[0] as { html_url: string; number: number; node_id?: string; draft?: boolean }
+      : null;
+
     const main = await gh(`/git/ref/heads/${target.baseBranch}`);
     if (!main.ok) throw new Error(`reading ${target.baseBranch}: GitHub ${main.status}`);
     const baseSha = (await main.json()).object.sha as string;
     const ref = await gh("/git/refs", { method: "POST", body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }) });
     if (!ref.ok && ref.status !== 422) throw new Error(`creating ${branch}: GitHub ${ref.status}`);
+    // 422: the branch is already there (a preview), so each file it holds is replaced by its sha.
+    const branchExisted = ref.status === 422;
 
     const put = async (path: string, base64: string) => {
-      const r = await gh(`/contents/${path}`, { method: "PUT", body: JSON.stringify({ message: `Blog: ${title}`, content: base64, branch }) });
+      let sha: string | undefined;
+      if (branchExisted) {
+        const current = await gh(`/contents/${path}?ref=${encodeURIComponent(branch)}`);
+        if (current.status === 200) sha = ((await current.json().catch(() => ({}))) as { sha?: string }).sha;
+      }
+      const r = await gh(`/contents/${path}`, { method: "PUT", body: JSON.stringify({ message: `Blog: ${title}`, content: base64, branch, ...(sha ? { sha } : {}) }) });
       if (!r.ok) throw new Error(`writing ${path}: GitHub ${r.status} ${(await r.text()).slice(0, 160)}`);
     };
     const uploads: Array<[string, string]> = [[heroPath!, hero!], ...(ogPath ? [[ogPath, og!]] as Array<[string, string]> : []), ...inArticle.map(i => [i.path, i.url] as [string, string])];
@@ -228,15 +268,51 @@ export async function POST(request: Request) {
     }
     await put(mdxPath, Buffer.from(mdx, "utf8").toString("base64"));
 
-    const pr = await gh("/pulls", {
-      method: "POST",
-      body: JSON.stringify({
-        title: `Blog: ${title}`, head: branch, base: target.baseBranch,
-        body: `A new blog post from the content portal, approved there.\n\n- Post: \`${mdxPath}\`\n- Hero: \`${heroPath}\`${ogPath ? `\n- Share card: \`${ogPath}\`` : ""}${inArticle.length ? `\n- In-article images: ${inArticle.length}` : ""}\n- Goes live at ${liveUrl} when merged.`,
-      }),
-    });
-    if (!pr.ok) throw new Error(`opening the pull request: GitHub ${pr.status} ${(await pr.text()).slice(0, 160)}`);
-    const prUrl = (await pr.json()).html_url as string;
+    let prUrl: string;
+    let draft: boolean;
+    if (existing) {
+      prUrl = existing.html_url;
+      draft = !!existing.draft;
+      if (!preview) {
+        const renamed = await gh(`/pulls/${existing.number}`, { method: "PATCH", body: JSON.stringify({ title: prTitle, body: prBody }) });
+        if (!renamed.ok) throw new Error(`renaming the pull request: GitHub ${renamed.status}`);
+        if (draft) {
+          const ready = await fetch(`${GH}/graphql`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: "mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }",
+              variables: { id: existing.node_id },
+            }),
+          });
+          const answer = ready.ok ? await ready.json().catch(() => null) : null;
+          if (!answer || answer.errors) throw new Error(`marking the pull request ready for review: GitHub ${ready.status}`);
+          draft = false;
+        }
+      }
+    } else {
+      const openPr = (asDraft: boolean, prName: string) => gh("/pulls", {
+        method: "POST",
+        body: JSON.stringify({ title: prName, head: branch, base: target.baseBranch, body: prBody, ...(asDraft ? { draft: true } : {}) }),
+      });
+      let pr = await openPr(preview, prTitle);
+      draft = preview;
+      if (preview && pr.status === 422 && /draft/i.test(await pr.clone().text())) {
+        pr = await openPr(false, prTitle);
+        draft = false;
+      }
+      if (!pr.ok) throw new Error(`opening the pull request: GitHub ${pr.status} ${(await pr.text()).slice(0, 160)}`);
+      prUrl = (await pr.json()).html_url as string;
+    }
+
+    if (preview) {
+      const { data: links } = await supabase.from("content_syndication_links").select("external_url")
+        .eq("content_piece_id", pieceId).eq("platform", "website_preview");
+      if (!(links || []).some((l: { external_url: string }) => l.external_url === prUrl)) {
+        await supabase.from("content_syndication_links").insert({ content_piece_id: pieceId, platform: "website_preview", external_url: prUrl, is_canonical: false });
+      }
+      return NextResponse.json({ preview: true, pullRequest: prUrl, draft, liveUrl, branch, ...imageChecks });
+    }
 
     await supabase.from("publishing_jobs").insert({
       company_id: piece.company_id, content_piece_id: pieceId, target_platform: "website", status: "queued",

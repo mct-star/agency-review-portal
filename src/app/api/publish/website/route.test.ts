@@ -176,3 +176,137 @@ describe("POST /api/publish/website, per-company target", () => {
     expect((await res.json()).error).toContain("repo");
   });
 });
+
+/**
+ * Website preview (19 Nov 2026): the same pull request opened as a GitHub
+ * draft before approval, so Vercel builds the post as the site will show it;
+ * the approved send then reuses that branch and marks it ready for review.
+ */
+describe("POST /api/publish/website, preview", () => {
+  const PR = "https://github.com/mct-star/agency-website/pull/9";
+  beforeEach(() => { tables.content_syndication_links = []; tables.company_api_configs = null; });
+  type Call = { url: string; method: string; body?: Record<string, unknown> };
+  function github(opts: { openPr?: Record<string, unknown> | null; branchExists?: boolean; draftUnsupported?: boolean } = {}) {
+    vi.stubEnv("WEBSITE_GITHUB_TOKEN", "t");
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method || "GET";
+      const body = init?.body ? JSON.parse(init.body as string) : undefined;
+      calls.push({ url, method, body });
+      if (url.includes("/contents/src/content/blog/the-quiet-launch.mdx?ref=main")) return new Response("", { status: 404 });
+      if (url.endsWith("/git/ref/heads/main")) return new Response(JSON.stringify({ object: { sha: "abc" } }), { status: 200 });
+      if (url.includes("/pulls?head=")) return new Response(JSON.stringify(opts.openPr ? [opts.openPr] : []), { status: 200 });
+      if (url.endsWith("/git/refs")) return new Response("{}", { status: opts.branchExists ? 422 : 201 });
+      if (method === "GET" && url.includes("/contents/") && url.includes("?ref=blog%2Fthe-quiet-launch")) {
+        return new Response(JSON.stringify({ sha: "old-sha" }), { status: 200 });
+      }
+      if (url.endsWith("/pulls") && method === "POST") {
+        if (opts.draftUnsupported && body?.draft) return new Response(JSON.stringify({ message: "Draft pull requests are not supported in this repository." }), { status: 422 });
+        return new Response(JSON.stringify({ html_url: PR, number: 9, node_id: "PR_9", draft: !!body?.draft }), { status: 201 });
+      }
+      if (url.endsWith("/graphql")) return new Response(JSON.stringify({ data: { markPullRequestReadyForReview: { pullRequest: { isDraft: false } } } }), { status: 200 });
+      if (url.startsWith("https://s.supabase.co/")) return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+      return new Response("{}", { status: 200 });
+    }));
+    return calls;
+  }
+
+  it("opens an unapproved blog as a draft pull request and records the link, not a send", async () => {
+    tables.content_pieces = { ...(tables.content_pieces as object), approval_status: "pending" };
+    tables.content_approvals = [];
+    const calls = github();
+    const res = await POST(req({ pieceId: "p1", ctaCluster: "launch", preview: true }));
+    expect(res.status).toBe(200);
+    const out = await res.json();
+    expect(out).toMatchObject({ preview: true, pullRequest: PR, draft: true, branch: "blog/the-quiet-launch" });
+    const pull = calls.find(c => c.url.endsWith("/pulls") && c.method === "POST");
+    expect(pull?.body).toMatchObject({ draft: true, head: "blog/the-quiet-launch", base: "main" });
+    expect(String(pull?.body?.title)).toContain("Preview");
+    expect(inserts.find(i => i.table === "publishing_jobs")).toBeUndefined();
+    expect(inserts.find(i => i.table === "content_syndication_links")?.row).toMatchObject({
+      content_piece_id: "p1", platform: "website_preview", external_url: PR, is_canonical: false,
+    });
+  });
+
+  it("still refuses a preview the site could not build: no hero", async () => {
+    tables.content_pieces = { ...(tables.content_pieces as object), approval_status: "pending" };
+    tables.content_images = [];
+    github();
+    const res = await POST(req({ pieceId: "p1", ctaCluster: "launch", preview: true }));
+    expect(res.status).toBe(422);
+    const problems = (await res.json()).problems as string[];
+    expect(problems.some(p => p.includes("hero"))).toBe(true);
+    expect(problems).not.toContain("Approve the blog first.");
+  });
+
+  it("updates the open preview instead of opening a second pull request", async () => {
+    tables.content_pieces = { ...(tables.content_pieces as object), approval_status: "pending" };
+    tables.content_syndication_links = [{ external_url: PR }];
+    const calls = github({ openPr: { html_url: PR, number: 9, node_id: "PR_9", draft: true }, branchExists: true });
+    const out = await (await POST(req({ pieceId: "p1", ctaCluster: "launch", preview: true }))).json();
+    expect(out.pullRequest).toBe(PR);
+    expect(calls.some(c => c.url.endsWith("/pulls") && c.method === "POST")).toBe(false);
+    const puts = calls.filter(c => c.method === "PUT");
+    expect(puts.length).toBe(3);
+    expect(puts.every(c => c.body?.sha === "old-sha" && c.body?.branch === "blog/the-quiet-launch")).toBe(true);
+    expect(inserts.find(i => i.table === "content_syndication_links")).toBeUndefined();
+  });
+
+  it("falls back to an ordinary pull request marked as a preview when the repository has no drafts", async () => {
+    tables.content_pieces = { ...(tables.content_pieces as object), approval_status: "pending" };
+    const calls = github({ draftUnsupported: true });
+    const out = await (await POST(req({ pieceId: "p1", ctaCluster: "launch", preview: true }))).json();
+    expect(out).toMatchObject({ pullRequest: PR, draft: false });
+    const pulls = calls.filter(c => c.url.endsWith("/pulls") && c.method === "POST");
+    expect(pulls.map(p => !!p.body?.draft)).toEqual([true, false]);
+    expect(String(pulls[1].body?.title)).toContain("do not merge");
+  });
+
+  it("refuses a preview of a blog already sent", async () => {
+    tables.publishing_jobs = [{ external_url: PR, status: "queued" }];
+    github();
+    expect((await POST(req({ pieceId: "p1", ctaCluster: "launch", preview: true }))).status).toBe(409);
+  });
+
+  it("the approved send reuses the preview branch, marks it ready and renames it", async () => {
+    const calls = github({ openPr: { html_url: PR, number: 9, node_id: "PR_9", draft: true }, branchExists: true });
+    const res = await POST(req({ pieceId: "p1", ctaCluster: "launch" }));
+    expect(res.status).toBe(200);
+    const out = await res.json();
+    expect(out.pullRequest).toBe(PR);
+    expect(calls.some(c => c.url.endsWith("/pulls") && c.method === "POST")).toBe(false);
+    const ready = calls.find(c => c.url.endsWith("/graphql"));
+    expect(ready?.body).toMatchObject({ variables: { id: "PR_9" } });
+    expect(String(ready?.body?.query)).toContain("markPullRequestReadyForReview");
+    const rename = calls.find(c => c.url.endsWith("/pulls/9") && c.method === "PATCH");
+    expect(rename?.body).toMatchObject({ title: "Blog: The Quiet Launch" });
+    expect(inserts.find(i => i.table === "publishing_jobs")?.row).toMatchObject({ external_url: PR, status: "queued" });
+  });
+
+  it("the approved send of a ready preview does not ask GitHub to mark it ready again", async () => {
+    const calls = github({ openPr: { html_url: PR, number: 9, node_id: "PR_9", draft: false }, branchExists: true });
+    expect((await POST(req({ pieceId: "p1", ctaCluster: "launch" }))).status).toBe(200);
+    expect(calls.some(c => c.url.endsWith("/graphql"))).toBe(false);
+    expect(calls.some(c => c.url.endsWith("/pulls/9") && c.method === "PATCH")).toBe(true);
+  });
+
+  it("still needs approval for the real send", async () => {
+    tables.content_pieces = { ...(tables.content_pieces as object), approval_status: "pending" };
+    github();
+    expect((await POST(req({ pieceId: "p1", ctaCluster: "launch" }))).status).toBe(422);
+  });
+});
+
+describe("POST /api/publish/website, captions", () => {
+  beforeEach(() => { tables.company_api_configs = null; });
+  it("writes an inline image's caption into the post", async () => {
+    tables.content_pieces = { ...(tables.content_pieces as object), markdown_body: "# The Quiet Launch\n\nOpening.\n\n[[image: 1]]\n\nEnd." };
+    tables.content_images = [
+      { id: "h", public_url: "https://s.supabase.co/h.png", archetype: "hero_image_prompt", sort_order: 0 },
+      { id: "i1", public_url: "https://s.supabase.co/i1.png", archetype: "in_article_image_prompt_1", sort_order: 1,
+        image_record: { role: "inline", type: "diagram", passage: "p", alt: "Four steps", caption: "Fees begin at the fourth step." } },
+    ];
+    const out = await (await POST(req({ pieceId: "p1", ctaCluster: "launch", dryRun: true }))).json();
+    expect(out.mdx).toContain('![Four steps](/images/blog/the-quiet-launch-1.png "Fees begin at the fourth step.")');
+  });
+});

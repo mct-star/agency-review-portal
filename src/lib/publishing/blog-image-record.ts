@@ -17,6 +17,8 @@ export interface BlogImageRecord {
   passage: string;
   treatment?: string | null;
   alt?: string;
+  /** The line printed under an inline image on the website (19 Nov 2026). */
+  caption?: string;
 }
 
 /**
@@ -34,6 +36,7 @@ export function parseImageRecord(value: unknown): BlogImageRecord | null {
   if (typeof v.treatment === "string") { record.treatment = v.treatment; found = true; }
   else if (v.treatment === null) { record.treatment = null; found = true; }
   if (typeof v.alt === "string") { record.alt = v.alt; found = true; }
+  if (typeof v.caption === "string") { record.caption = v.caption; found = true; }
   return found ? record : null;
 }
 
@@ -44,6 +47,7 @@ export interface SidecarImage {
   passage: string;
   treatment?: string | null;
   alt?: string;
+  caption?: string;
 }
 
 /** The JSON shape validate_blog_images.py reads, with absent keys omitted. */
@@ -56,6 +60,7 @@ export function toSidecar(images: Array<{ file: string; record: BlogImageRecord 
       out.passage = record.passage;
       if (record.treatment !== undefined && record.treatment !== null) out.treatment = record.treatment;
       if (record.alt !== undefined) out.alt = record.alt;
+      if (record.caption !== undefined) out.caption = record.caption;
       return out;
     }),
   };

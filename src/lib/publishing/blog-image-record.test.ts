@@ -48,3 +48,15 @@ describe("toSidecar", () => {
     expect(parseImageRecord(images[0])).toEqual(record);
   });
 });
+
+describe("the caption on a record (19 Nov 2026)", () => {
+  it("reads and writes the caption", () => {
+    const record = parseImageRecord({ role: "inline", passage: "p", alt: "Four steps", caption: "Fees begin here." });
+    expect(record).toMatchObject({ alt: "Four steps", caption: "Fees begin here." });
+    expect(toSidecar([{ file: "/i.png", record: record! }]).images[0]).toMatchObject({ caption: "Fees begin here." });
+  });
+
+  it("finds a record that holds only a caption", () => {
+    expect(parseImageRecord({ caption: "Only this" })).toEqual({ passage: "", caption: "Only this" });
+  });
+});

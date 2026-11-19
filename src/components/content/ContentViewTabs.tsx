@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import MarkdownRenderer from "./MarkdownRenderer";
+import BlogArticleView from "./BlogArticleView";
+import type { ReadingImageRow } from "@/lib/publishing/blog-reading";
 import LinkedInPreview from "./LinkedInPreview";
 import type { PieceMedia } from "@/lib/content/piece-media";
 
@@ -22,6 +24,8 @@ interface ContentViewTabsProps {
   // Required for Apply Brand Overlay button
   companyId?: string;
   contentPieceId?: string;
+  /** A blog's images: the blog then reads as the website will show it, pictures and captions in place. */
+  blogImages?: ReadingImageRow[];
 }
 
 type ViewTab = "content" | "preview";
@@ -47,6 +51,7 @@ export default function ContentViewTabs({
   media,
   companyId,
   contentPieceId,
+  blogImages,
 }: ContentViewTabsProps) {
   const [activeTab, setActiveTab] = useState<ViewTab>("content");
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(imageUrl ?? null);
@@ -112,7 +117,9 @@ export default function ContentViewTabs({
       {/* Content view */}
       {activeTab === "content" && (
         <div className="workspace-panel p-5 sm:p-7" data-review-body>
-          <MarkdownRenderer content={markdownBody} />
+          {contentType === "blog_article" && blogImages
+            ? <BlogArticleView markdown={markdownBody} images={blogImages} />
+            : <MarkdownRenderer content={markdownBody} />}
         </div>
       )}
 
