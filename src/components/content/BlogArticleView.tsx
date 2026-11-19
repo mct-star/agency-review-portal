@@ -1,6 +1,7 @@
 "use client";
 
 import MarkdownRenderer from "./MarkdownRenderer";
+import BlogEnding from "./BlogEnding";
 import { blogReadingBlocks, type ReadingImage, type ReadingImageRow } from "@/lib/publishing/blog-reading";
 
 /**
@@ -41,6 +42,7 @@ export default function BlogArticleView({ markdown, images }: { markdown: string
           </div>
         </div>
       )}
+      <BlogEnding />
     </div>
   );
 }
