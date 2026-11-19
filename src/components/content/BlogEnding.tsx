@@ -2,13 +2,12 @@ import { BLOG_ENDING_RESOURCES } from "./blog-ending-resources";
 
 /**
  * How a blog post ends on the website, in the live page order: primary call
- * to action, content routes, newsletter band, author strip and related posts,
+ * to action, newsletter band, author strip and related posts,
  * tagline band, then the four-card resources carousel. Preview only: items 1
- * to 5 are labelled placeholders, the four cards are the real ones.
+ * to 4 are labelled placeholders, the four cards are the real ones.
  */
 const PLACEHOLDERS = [
   { label: "Call to action", note: "One primary call to action for this post." },
-  { label: "Content routes", note: "A text-only block of routes to more reading." },
   { label: "Newsletter", note: "The newsletter sign-up band." },
   { label: "Author and related posts", note: "The author strip and any related posts." },
   { label: "Tagline band", note: "The AGENCY tagline band." },
@@ -22,7 +21,7 @@ export default function BlogEnding() {
       data-blog-ending
     >
       <p className="text-xs font-semibold uppercase text-violet-700">How this post ends on the website</p>
-      <p className="mt-1 text-xs text-gray-500">Preview only. Blocks 1 to 5 are placeholders in the order the page shows them; block 6 is the real carousel.</p>
+      <p className="mt-1 text-xs text-gray-500">Preview only. Blocks 1 to 4 are placeholders in the order the page shows them; block 5 is the real carousel.</p>
 
       <ol className="mt-3 space-y-2">
         {PLACEHOLDERS.map((p, i) => (
@@ -32,7 +31,7 @@ export default function BlogEnding() {
         ))}
       </ol>
 
-      <p className="mt-4 text-sm font-medium text-gray-900">6. Resources carousel</p>
+      <p className="mt-4 text-sm font-medium text-gray-900">5. Resources carousel</p>
       <p className="mt-2 text-[11px] font-semibold uppercase text-violet-700">Useful before we ever speak</p>
       <p className="text-base font-semibold text-gray-900">Choose your next step.</p>
       <ul className="mt-2 flex snap-x gap-3 overflow-x-auto pb-2" data-blog-ending-tiles>

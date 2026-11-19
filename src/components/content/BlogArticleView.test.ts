@@ -23,8 +23,8 @@ describe("blog preview ending", () => {
     }
   });
 
-  it("lists the five placeholders then the carousel, in the live page order", () => {
-    const order = ["1. Call to action.", "2. Content routes.", "3. Newsletter.", "4. Author and related posts.", "5. Tagline band.", "6. Resources carousel", "Useful before we ever speak", "Choose your next step."].map(s => html.indexOf(s));
+  it("lists the four placeholders then the carousel, in the live page order", () => {
+    const order = ["1. Call to action.", "2. Newsletter.", "3. Author and related posts.", "4. Tagline band.", "5. Resources carousel", "Useful before we ever speak", "Choose your next step."].map(s => html.indexOf(s));
     expect(order.every(p => p > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html.indexOf("Choose your next step.")).toBeLessThan(html.indexOf(BLOG_ENDING_RESOURCES[0].cta));
