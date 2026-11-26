@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { awaitLinkedInPublish } from "@/lib/linkedin/await-publish";
+import { linkedInPublishPreview, type LinkedInPublishPayload } from "@/lib/linkedin/publish-preview";
+import LinkedInPublishMockup from "@/components/content/LinkedInPublishMockup";
 
 interface LinkedInPublishButtonProps {
   pieceId: string;
   companyId: string;
   isApproved: boolean;
+  /** For the mockup's author header. */
+  authorAvatarUrl?: string | null;
+  authorTagline?: string | null;
 }
 
 type PublishState = "idle" | "confirming" | "publishing" | "success" | "error";
@@ -19,6 +24,8 @@ export default function LinkedInPublishButton({
   pieceId,
   companyId,
   isApproved,
+  authorAvatarUrl,
+  authorTagline,
 }: LinkedInPublishButtonProps) {
   const [state, setState] = useState<PublishState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -108,29 +115,32 @@ export default function LinkedInPublishButton({
             <span className="text-sm font-medium text-gray-900">Confirm LinkedIn Publish</span>
           </div>
 
-          {/* Exactly what the route will send: the same text and images as the preview. */}
-          <div className="rounded-md bg-gray-50 p-3 text-sm text-gray-700 space-y-2">
-            <p className="text-xs text-gray-500">
-              Posting as <strong>{(dryRunData.linkedInAccount as Record<string, string>)?.name || "Unknown"}</strong>
-              {" · "}
-              {(() => {
-                const m = dryRunData.media as { shape: string; urls: string[] } | undefined;
-                if (!m || m.shape === "none") return "text only, no image";
-                return m.urls.length === 1 ? "one image" : `${m.urls.length} images`;
-              })()}
-            </p>
-            <p className="whitespace-pre-wrap break-words text-sm text-gray-900">{dryRunData.postText as string}</p>
-            {((dryRunData.media as { urls?: string[] } | undefined)?.urls || []).length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {((dryRunData.media as { urls: string[] }).urls).map((u) => (
-                  <img key={u} src={u} alt="" className="h-24 w-auto rounded border border-gray-200" />
-                ))}
+          {/* The mockup is drawn from the exact payload the publish job will carry. */}
+          {(() => {
+            const payload = dryRunData.payload as LinkedInPublishPayload | undefined;
+            const name = (dryRunData.linkedInAccount as Record<string, string>)?.name || "Unknown";
+            if (!payload) return <p className="text-sm text-red-600">The preview did not come back with the post. Cancel and try again.</p>;
+            const preview = linkedInPublishPreview(payload);
+            return (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">
+                  Posting as <strong>{name}</strong>
+                  {" · "}
+                  {preview.mode === "pdf"
+                    ? `${preview.imageUrls.length} images as one PDF document`
+                    : preview.mode === "image" ? "one image" : preview.mode === "video" ? "one video" : "text only, no image"}
+                </p>
+                <div className="rounded-md bg-gray-100 px-2 py-3 sm:px-4">
+                  <LinkedInPublishMockup
+                    preview={preview}
+                    authorName={name}
+                    authorTagline={authorTagline || undefined}
+                    authorAvatarUrl={authorAvatarUrl}
+                  />
+                </div>
               </div>
-            )}
-            {typeof dryRunData.firstComment === "string" && dryRunData.firstComment && (
-              <p className="text-xs text-gray-600"><strong>First comment:</strong> {dryRunData.firstComment as string}</p>
-            )}
-          </div>
+            );
+          })()}
 
           <div className="flex gap-2">
             <button

@@ -89,7 +89,7 @@ function EngagementBar() {
   );
 }
 
-function ActionButtons() {
+export function ActionButtons() {
   const actions = [
     {
       label: "Like",

@@ -360,6 +360,8 @@ export default async function ContentPiecePage({ params }: PageProps) {
           pieceId={piece.id}
           companyId={piece.company_id}
           isApproved={piece.approval_status === "approved"}
+          authorAvatarUrl={spokesperson ? spokesperson.profile_picture_url : company?.profile_picture_url}
+          authorTagline={spokesperson ? spokesperson.tagline : company?.spokesperson_tagline}
         />
       )}
 
