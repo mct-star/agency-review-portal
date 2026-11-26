@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { toLinkedInText, escapeLittleText } from "@/lib/linkedin/post-text";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
+import { defaultCarouselTitle, type LinkedInPublishPayload } from "@/lib/linkedin/publish-preview";
 
 /**
  * POST /api/publish/linkedin  { pieceId, companyId, dryRun? }
@@ -13,7 +14,8 @@ import { resolvePieceMedia } from "@/lib/content/piece-media";
  * Mac and renews monthly, then records the live URL. The portal never
  * holds a LinkedIn token for this.
  *
- * dryRun returns the exact payload for the confirm step and queues nothing.
+ * dryRun returns the exact payload for the confirm step and queues nothing;
+ * the confirm dialog draws its LinkedIn mockup from that payload.
  *
  * GET /api/publish/linkedin?jobId=  the job's status and, once posted, the URL.
  */
@@ -67,6 +69,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This piece is already being published.", jobId: pending[0].id }, { status: 409 });
   }
 
+  // The one payload: shown by the dry run, queued by the real run.
+  const payload: LinkedInPublishPayload = {
+    piece_id: pieceId,
+    commentary,
+    image_urls: imageUrls,
+    first_comment: firstComment,
+    // Several images post as one PDF document; its title is the first line as the reader sees it.
+    ...(imageUrls.length > 1 ? { document_title: defaultCarouselTitle(postText) } : {}),
+  };
+
   if (dryRun) {
     return NextResponse.json({
       dryRun: true,
@@ -74,6 +86,7 @@ export async function POST(request: Request) {
       commentary,
       media: { shape: media.shape, urls: imageUrls },
       firstComment,
+      payload,
       linkedInAccount: { name: "Michael Colling-Tuck" },
     });
   }
@@ -87,7 +100,7 @@ export async function POST(request: Request) {
       week_id: null,
       triggered_by: admin.id,
       run_id: crypto.randomUUID(),
-      input_payload: { piece_id: pieceId, commentary, image_urls: imageUrls, first_comment: firstComment },
+      input_payload: payload,
     })
     .select("id")
     .single();
