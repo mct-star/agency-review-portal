@@ -45,7 +45,7 @@ export function unescapeLittleText(text: string): string {
 /** Mirrors linkedin_publisher.py: (payload.document_title or first line of commentary)[:100]. */
 export function carouselTitle(payload: Pick<LinkedInPublishPayload, "commentary" | "document_title">): string {
   const firstLine = payload.commentary.trim().split(/\r?\n/)[0] || "";
-  return (payload.document_title || firstLine).slice(0, 100);
+  return firstChars(payload.document_title || firstLine, 100);
 }
 
 export function publishPreviewMode(payload: Pick<LinkedInPublishPayload, "image_urls" | "video_url">): PublishPreviewMode {
@@ -71,5 +71,10 @@ export function linkedInPublishPreview(payload: LinkedInPublishPayload): Publish
 
 /** A carousel's title as the route stores it: the post's first line, as the reader sees it, max 100 characters. */
 export function defaultCarouselTitle(postText: string): string {
-  return (postText.trim().split(/\r?\n/)[0] || "").slice(0, 100);
+  return firstChars(postText.trim().split(/\r?\n/)[0] || "", 100);
+}
+
+/** The first n characters as Python counts them (code points), never half an emoji. */
+function firstChars(text: string, n: number): string {
+  return Array.from(text).slice(0, n).join("");
 }

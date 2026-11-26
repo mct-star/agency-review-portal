@@ -62,3 +62,12 @@ describe("linkedInPublishPreview", () => {
     expect(linkedInPublishPreview(base)).toMatchObject({ mode: "none", imageUrls: [], documentTitle: null, firstComment: null });
   });
 });
+
+describe("title cut", () => {
+  it("never splits an emoji at the 100th character", () => {
+    const line = "a".repeat(99) + "🙂tail";
+    const t = defaultCarouselTitle(line);
+    expect(Array.from(t)).toHaveLength(100);
+    expect(t.endsWith("🙂")).toBe(true);
+  });
+});

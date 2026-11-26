@@ -191,7 +191,7 @@ function FirstCommentBlock({ text, authorName, authorAvatarUrl }: { text: string
         </div>
       </div>
       <p className="text-[11px] text-gray-500">
-        Posted as the first comment straight after the post. The Mac publisher holds any post with a first comment until LinkedIn grants comment permission.
+        Posted as the first comment straight after the post. Until LinkedIn grants comment permission, the Mac publisher will not post a piece that has a first comment: the publish fails and nothing goes out.
       </p>
     </div>
   );

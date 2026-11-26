@@ -9,7 +9,8 @@ interface LinkedInPublishButtonProps {
   pieceId: string;
   companyId: string;
   isApproved: boolean;
-  /** For the mockup's author header. */
+  /** For the mockup's author header, used only when this person is the posting account. */
+  authorPersonName?: string | null;
   authorAvatarUrl?: string | null;
   authorTagline?: string | null;
 }
@@ -24,6 +25,7 @@ export default function LinkedInPublishButton({
   pieceId,
   companyId,
   isApproved,
+  authorPersonName,
   authorAvatarUrl,
   authorTagline,
 }: LinkedInPublishButtonProps) {
@@ -121,6 +123,8 @@ export default function LinkedInPublishButton({
             const name = (dryRunData.linkedInAccount as Record<string, string>)?.name || "Unknown";
             if (!payload) return <p className="text-sm text-red-600">The preview did not come back with the post. Cancel and try again.</p>;
             const preview = linkedInPublishPreview(payload);
+            // Never put another person's photo under the posting account's name.
+            const samePerson = !!authorPersonName && authorPersonName.trim().toLowerCase() === name.trim().toLowerCase();
             return (
               <div className="space-y-2">
                 <p className="text-xs text-gray-500">
@@ -134,8 +138,8 @@ export default function LinkedInPublishButton({
                   <LinkedInPublishMockup
                     preview={preview}
                     authorName={name}
-                    authorTagline={authorTagline || undefined}
-                    authorAvatarUrl={authorAvatarUrl}
+                    authorTagline={samePerson ? authorTagline || undefined : undefined}
+                    authorAvatarUrl={samePerson ? authorAvatarUrl : null}
                   />
                 </div>
               </div>
