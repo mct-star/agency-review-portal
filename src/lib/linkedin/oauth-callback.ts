@@ -62,7 +62,7 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
   }
 
   try {
-    const tokens = await exchangeCodeForTokens(code, app.clientId, app.clientSecret, redirectUri);
+    const tokens = await exchangeCodeForTokens(code, app.clientId, app.clientSecret, redirectUri, app.scopes);
     const profile = await getProfile(tokens.accessToken, tokens.scope);
     const supabase = await createAdminSupabaseClient();
     const accessTokenEncrypted = encrypt(tokens.accessToken);

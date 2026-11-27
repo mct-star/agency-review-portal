@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { addComment, createPost, getAdministeredOrganizations, getProfile, uploadDocument, uploadVideo } from "./client";
+import { addComment, createPost, exchangeCodeForTokens, getAdministeredOrganizations, getProfile, uploadDocument, uploadVideo } from "./client";
 
 const VIDEO_URN = "urn:li:video:C5F10AQGKQg_6y2a4sQ";
 
@@ -159,6 +159,11 @@ describe("organisation publishing and member identity without OpenID", () => {
     await addComment("access-token", "urn:li:share:9", "urn:li:organization:111", "Link in here");
     expect(bodies[0].body).toMatchObject({ author: "urn:li:organization:111", content: { media: { id: "urn:li:document:D1", title: "Carousel title" } } });
     expect(bodies[1].body).toMatchObject({ actor: "urn:li:organization:111", object: "urn:li:share:9", message: { text: "Link in here" } });
+  });
+
+  it("records the requested scopes when LinkedIn's token response leaves scope out", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ access_token: "t", expires_in: 60 })));
+    expect((await exchangeCodeForTokens("code", "id", "secret", "https://x/cb", "r_basicprofile w_member_social_feed")).scope).toBe("r_basicprofile w_member_social_feed");
   });
 
   it("keeps a bare member id meaning a person", async () => {

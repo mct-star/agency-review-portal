@@ -150,12 +150,19 @@ export async function DELETE(request: Request) {
   const auth = await authoriseChannelManager(body.companyId);
   if (!auth.ok) return auth.response;
   const supabase = await createAdminSupabaseClient();
-  const { data: account } = await supabase.from("company_social_accounts").select("id, platform")
+  const { data: account } = await supabase.from("company_social_accounts").select("id, platform, account_id")
     .eq("id", body.socialAccountId).eq("company_id", body.companyId).in("platform", [...LINKEDIN_PLATFORMS]).maybeSingle();
   if (!account) return NextResponse.json({ error: "LinkedIn account not found." }, { status: 404 });
   const { error } = await supabase.from("company_social_accounts")
     .update({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null })
     .eq("id", account.id).eq("company_id", body.companyId).eq("platform", account.platform);
   if (error) return NextResponse.json({ error: "Could not disconnect this LinkedIn account." }, { status: 500 });
+  // Pages connected through this profile hold its token, so withdrawing the profile withdraws them too.
+  if (account.platform === "linkedin_personal" && account.account_id) {
+    const { error: pagesError } = await supabase.from("company_social_accounts")
+      .update({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null })
+      .eq("company_id", body.companyId).eq("platform", "linkedin_company").eq("platform_metadata->>connected_member_id", account.account_id);
+    if (pagesError) return NextResponse.json({ error: "The profile was disconnected, but its LinkedIn pages could not be. Disconnect each page." }, { status: 500 });
+  }
   return NextResponse.json({ disconnected: true });
 }

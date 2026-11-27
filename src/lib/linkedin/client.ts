@@ -124,7 +124,8 @@ export async function exchangeCodeForTokens(
   code: string,
   clientId: string,
   clientSecret: string,
-  redirectUri: string
+  redirectUri: string,
+  requestedScopes: string = LINKEDIN_SCOPES
 ): Promise<LinkedInTokens> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -155,7 +156,7 @@ export async function exchangeCodeForTokens(
     refreshToken: data.refresh_token || undefined,
     expiresIn,
     expiresAt,
-    scope: data.scope || LINKEDIN_SCOPES,
+    scope: data.scope || requestedScopes,
   };
 }
 

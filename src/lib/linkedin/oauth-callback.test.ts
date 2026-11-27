@@ -117,7 +117,7 @@ describe("LinkedIn callback through the AGENCY Content Publisher app", () => {
 
   it("exchanges the code with the publisher app and reads the member with its granted scope", async () => {
     await connect();
-    expect(state.exchange).toHaveBeenCalledWith("abc", "pub-id", "pub-secret", "https://portal.example/api/auth/linkedin/callback");
+    expect(state.exchange).toHaveBeenCalledWith("abc", "pub-id", "pub-secret", "https://portal.example/api/auth/linkedin/callback", expect.stringContaining("w_organization_social"));
     expect(state.profile).toHaveBeenCalledWith("t", SCOPES);
   });
 

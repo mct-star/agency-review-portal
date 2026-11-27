@@ -188,7 +188,9 @@ describe("LinkedIn connection metadata and withdrawal", () => {
   it("lets a client with the publish right withdraw their own company's grant", async () => {
     const response = await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }));
     expect(response.status).toBe(200);
-    expect(state.updates).toHaveLength(1);
+    // The profile, then any pages it connected.
+    expect(state.updates).toHaveLength(2);
+    expect(state.updates[0].filters).toEqual(expect.arrayContaining([["id", "account-1"]]));
   });
   it("refuses a client without the publish right, and a client of another company", async () => {
     state.profile = { id: "user-1", role: "client", company_id: "company-1", can_publish: false };
@@ -240,6 +242,15 @@ describe("company page publishing", () => {
     expect((await POST(request(input()))).status).toBe(201);
     expect(state.inserts[0].row.publish_payload).toMatchObject({ image_urls: [url(1), url(2)], document_title: "Approved post" });
     vi.unstubAllEnvs();
+  });
+
+  it("disconnecting a personal profile also withdraws the pages it connected, in that company only", async () => {
+    state.profile = { id: "admin-1", role: "admin" };
+    const response = await DELETE(request({ companyId: "company-1", socialAccountId: "account-1" }));
+    expect(response.status).toBe(200);
+    expect(state.updates).toHaveLength(2);
+    expect(state.updates[1].values).toEqual({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null });
+    expect(state.updates[1].filters).toEqual(expect.arrayContaining([["company_id", "company-1"], ["platform", "linkedin_company"], ["platform_metadata->>connected_member_id", "person-1"]]));
   });
 
   it("lists the page as its own kind of account and can disconnect it", async () => {
