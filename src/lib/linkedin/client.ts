@@ -1,4 +1,5 @@
-import { LEGACY_SCOPES, hasOpenId } from "./app";
+import { PUBLISHER_SCOPES, hasOpenId } from "./app";
+import { LinkedInTokenError, tokenErrorCode } from "./token-error";
 
 /**
  * LinkedIn API v2 client for publishing posts with images and comments.
@@ -15,8 +16,8 @@ import { LEGACY_SCOPES, hasOpenId } from "./app";
  * - OAuth 2.0 with OpenID Connect for authentication
  *
  * Scopes: see src/lib/linkedin/app.ts. The AGENCY Content Publisher app asks
- * for member and organisation posting and comments; the older app asked for
- * OpenID sign-in and member posting only.
+ * for member and organisation posting and comments and for post figures; the
+ * older app asked for OpenID sign-in and member posting only.
  *
  * Owners: every function that names an author, owner or actor takes either a
  * full URN (urn:li:person:..., urn:li:organization:...) or a bare member id,
@@ -85,7 +86,7 @@ const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_API_BASE = "https://api.linkedin.com";
 const LINKEDIN_REQUEST_TIMEOUT_MS = 20_000;
-const LINKEDIN_SCOPES = LEGACY_SCOPES;
+const LINKEDIN_SCOPES = PUBLISHER_SCOPES;
 const REST_HEADERS = { "LinkedIn-Version": "202603", "X-Restli-Protocol-Version": "2.0.0" };
 
 /** A full URN stays as it is; a bare member id names a person. */
@@ -143,7 +144,7 @@ export async function exchangeCodeForTokens(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    throw new Error(`LinkedIn token exchange failed (${res.status}): ${errorBody}`);
+    throw new LinkedInTokenError(`LinkedIn token exchange failed (${res.status}): ${errorBody}`, res.status, tokenErrorCode(errorBody));
   }
 
   const data = await res.json();
@@ -183,7 +184,7 @@ export async function refreshAccessToken(
 
   if (!res.ok) {
     const errorBody = await res.text();
-    throw new Error(`LinkedIn token refresh failed (${res.status}): ${errorBody}`);
+    throw new LinkedInTokenError(`LinkedIn token refresh failed (${res.status}): ${errorBody}`, res.status, tokenErrorCode(errorBody));
   }
 
   const data = await res.json();

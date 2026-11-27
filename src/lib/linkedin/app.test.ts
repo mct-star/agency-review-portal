@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkedInApp, PUBLISHER_SCOPES, canPostAsOrganisation, canCommentAsMember, canCommentAs } from "./app";
+import { linkedInApp, PUBLISHER_SCOPES, CONTENT_PUBLISHER_CLIENT_ID, canPostAsOrganisation, canCommentAsMember, canCommentAs, canReadMemberAnalytics, canReadOrganisationFigures, canListMemberPosts } from "./app";
 
 describe("which LinkedIn app the portal connects through", () => {
   it("uses the AGENCY Content Publisher app once its id and secret are both set", () => {
@@ -30,5 +30,30 @@ describe("which LinkedIn app the portal connects through", () => {
     expect(canCommentAs("linkedin_company", PUBLISHER_SCOPES)).toBe(true);
     expect(canCommentAs("linkedin_company", "w_member_social_feed w_organization_social")).toBe(false);
     expect(canCommentAs("linkedin_personal", "openid profile w_member_social")).toBe(false);
+  });
+});
+
+describe("post figures access", () => {
+  it("asks for the member analytics scopes and exactly the Content Publisher app's grant", () => {
+    expect(PUBLISHER_SCOPES.split(" ").sort()).toEqual([
+      "r_basicprofile", "r_member_postAnalytics", "r_member_profileAnalytics", "r_organization_social",
+      "rw_organization_admin", "w_member_social", "w_member_social_feed", "w_organization_social", "w_organization_social_feed",
+    ]);
+    expect(PUBLISHER_SCOPES.split(" ")).not.toContain("openid");
+    expect(PUBLISHER_SCOPES.split(" ")).not.toContain("profile");
+  });
+
+  it("treats the Content Publisher client id in the older slot as the publisher app", () => {
+    expect(linkedInApp({ LINKEDIN_CLIENT_ID: CONTENT_PUBLISHER_CLIENT_ID, LINKEDIN_CLIENT_SECRET: "s" }))
+      .toEqual({ app: "publisher", clientId: CONTENT_PUBLISHER_CLIENT_ID, clientSecret: "s", scopes: PUBLISHER_SCOPES });
+  });
+
+  it("reads which figures a grant allows", () => {
+    expect(canReadMemberAnalytics(PUBLISHER_SCOPES)).toBe(true);
+    expect(canReadMemberAnalytics("openid profile w_member_social")).toBe(false);
+    expect(canReadOrganisationFigures(PUBLISHER_SCOPES)).toBe(true);
+    expect(canReadOrganisationFigures("r_organization_social")).toBe(false);
+    expect(canListMemberPosts(PUBLISHER_SCOPES)).toBe(false);
+    expect(canListMemberPosts("r_basicprofile,r_member_social")).toBe(true);
   });
 });

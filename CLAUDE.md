@@ -63,6 +63,13 @@ Run `npx tsc --noEmit` and `npm test` after any non-trivial change.
   an item's build-up, reveal or still-on post when one is due (the nearer
   event wins; `source_meta.calendar_item_id` and `slot` stop a repeat),
   otherwise the weather post. Every draft is still pending.
+- **LinkedIn figures.** `/api/cron/linkedin-figures` (daily, `CRON_SECRET`) runs
+  `src/lib/linkedin/figures.ts`: it reads each active LinkedIn connection's post
+  figures (Member Post Analytics for a member, page statistics for a page) into
+  `post_analytics`, which Ops drains as `linkedin-metrics`. A member's posts made
+  outside the portal cannot be listed without `r_member_social` (restricted), so
+  they are read only if the portal published them; a page's posts are all listed.
+  Admin "poll now" (`/api/analytics/poll`) runs the same job.
 - **Buckets.** `captures` and `content-drafts` are private (signed URLs);
   `content-assets`, `media` and `renders` are public. Anything a client would
   not publish (compliance documents, raw uploads) goes in a private bucket.

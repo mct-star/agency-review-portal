@@ -4,6 +4,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { encrypt } from "@/lib/crypto";
 import { exchangeCodeForTokens, getAdministeredOrganizations, getProfile } from "@/lib/linkedin/client";
+import { connectionErrorMessage } from "./token-error";
 import { canPostAsOrganisation, linkedInApp } from "./app";
 import { oauthStateSecret, verifyOAuthState } from "./oauth-state";
 import { saveLinkedInPhoto } from "./profile-photo";
@@ -152,7 +153,7 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
     return NextResponse.redirect(returnUrl(`linkedin_connected=1${pagesParam}`));
   } catch (err) {
     console.error("[LinkedIn OAuth] error:", err instanceof Error ? err.message : err);
-    return NextResponse.redirect(returnUrl(`linkedin_error=${encodeURIComponent("LinkedIn did not complete the connection. Try again.")}`));
+    return NextResponse.redirect(returnUrl(`linkedin_error=${encodeURIComponent(connectionErrorMessage(err))}`));
   }
 }
 
