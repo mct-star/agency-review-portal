@@ -45,9 +45,9 @@ function equal(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
-/** The signing secret: the LinkedIn client secret, which only the server holds. Empty disables the flow. */
+/** The signing secret: a LinkedIn client secret, which only the server holds. Empty disables the flow. */
 export function oauthStateSecret(env: Record<string, string | undefined> = process.env): string {
-  return (env.LINKEDIN_STATE_SECRET || env.LINKEDIN_CLIENT_SECRET || "").trim();
+  return (env.LINKEDIN_STATE_SECRET || env.LINKEDIN_PUBLISHER_CLIENT_SECRET || env.LINKEDIN_CLIENT_SECRET || "").trim();
 }
 
 export async function signOAuthState(payload: OAuthStatePayload, secret: string, now = Date.now()): Promise<string> {

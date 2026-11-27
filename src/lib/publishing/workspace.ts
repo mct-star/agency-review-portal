@@ -1,9 +1,12 @@
 import type { PieceMedia } from "@/lib/content/piece-media";
+import type { Feed } from "@/lib/content/feed";
 
-export type DestinationPlatform = "linkedin_personal" | "facebook" | "instagram" | "bluesky" | "threads" | "twitter" | "youtube" | "pinterest";
+export type DestinationPlatform = "linkedin_personal" | "linkedin_company" | "facebook" | "instagram" | "bluesky" | "threads" | "twitter" | "youtube" | "pinterest";
 export type PublishingDestination = { id: string; platform: DestinationPlatform; accountName: string; usable: boolean; configured: boolean; enabled: boolean };
 export type PublishingPiece = {
   id: string; title: string; content_type: string; week_id: string | null;
+  /** Whose LinkedIn feed the piece is for. Missing means the spokesperson's. */
+  feed?: Feed;
   preview: { linkedin: string; meta: string; social: string; firstComment: string | null };
   media: PieceMedia;
   week?: { date_start?: string; title?: string | null } | null;
@@ -11,7 +14,7 @@ export type PublishingPiece = {
 export type PublishingDraft = { pieceId: string; accountId: string; scheduledFor: string; privacy: "private" | "unlisted" | "public"; madeForKids: "" | "yes" | "no"; boardId: string; pinLink: string };
 export const EMPTY_PUBLISHING_DRAFT: PublishingDraft = { pieceId: "", accountId: "", scheduledFor: "", privacy: "private", madeForKids: "", boardId: "", pinLink: "" };
 
-export const DESTINATION_LABELS: Record<DestinationPlatform, string> = { linkedin_personal: "LinkedIn", facebook: "Facebook", instagram: "Instagram", bluesky: "Bluesky", threads: "Threads", twitter: "X", youtube: "YouTube", pinterest: "Pinterest" };
+export const DESTINATION_LABELS: Record<DestinationPlatform, string> = { linkedin_personal: "LinkedIn", linkedin_company: "LinkedIn page", facebook: "Facebook", instagram: "Instagram", bluesky: "Bluesky", threads: "Threads", twitter: "X", youtube: "YouTube", pinterest: "Pinterest" };
 
 /** Match the existing direct-publish routes before asking someone to submit. The routes still validate the current record and media. */
 export function destinationIssue(piece: PublishingPiece | undefined, account: PublishingDestination): string | null {
@@ -26,12 +29,23 @@ export function destinationIssue(piece: PublishingPiece | undefined, account: Pu
     if (piece.preview.social.length > 5000) return "The video description exceeds YouTube's 5,000 character limit.";
     return null;
   }
-  if (account.platform === "linkedin_personal" && piece.media.shape === "video") {
+  const isLinkedIn = isLinkedInPlatform(account.platform);
+  if (isLinkedIn) {
+    const pagePiece = piece.feed === "company_page";
+    if (pagePiece && account.platform !== "linkedin_company") return "This is a company page post. Choose the company page, not a personal profile.";
+    if (!pagePiece && account.platform === "linkedin_company") return "This post is for a personal profile. Choose a personal profile, not the company page.";
+  }
+  if (isLinkedIn && piece.media.shape === "video") {
     if (!["social_post", "video"].includes(piece.content_type) || piece.media.items.length !== 1 || piece.media.items[0].kind !== "video") return "A LinkedIn video post needs one approved video.";
     if (!publishingText(piece, account.platform).trim()) return "The approved post has no publishable text.";
     return null;
   }
   if (piece.content_type !== "social_post") return "Choose an approved social post for this destination.";
+  if (isLinkedIn && piece.media.shape === "images") {
+    if (piece.media.items.length > 20) return "A LinkedIn carousel takes at most 20 images.";
+    if (!publishingText(piece, account.platform).trim()) return "The approved post has no publishable text.";
+    return null;
+  }
   if (!["none", "image"].includes(piece.media.shape)) return "This destination supports text or one image. Open the content for other publishing options.";
   if (["instagram", "pinterest"].includes(account.platform) && piece.media.shape !== "image") return `${DESTINATION_LABELS[account.platform]} needs one image.`;
   const text = publishingText(piece, account.platform);
@@ -41,12 +55,16 @@ export function destinationIssue(piece: PublishingPiece | undefined, account: Pu
   return null;
 }
 
+export function isLinkedInPlatform(platform: DestinationPlatform): boolean {
+  return platform === "linkedin_personal" || platform === "linkedin_company";
+}
+
 export function publishingText(piece: PublishingPiece, platform: DestinationPlatform): string {
-  return platform === "linkedin_personal" ? piece.preview.linkedin : ["facebook", "instagram"].includes(platform) ? piece.preview.meta : piece.preview.social;
+  return isLinkedInPlatform(platform) ? piece.preview.linkedin : ["facebook", "instagram"].includes(platform) ? piece.preview.meta : piece.preview.social;
 }
 
 export function publishingEndpoint(platform: DestinationPlatform): string {
-  return platform === "linkedin_personal" ? "/api/publish/linkedin-direct" : ["facebook", "instagram"].includes(platform) ? "/api/publish/meta" : "/api/publish/social";
+  return isLinkedInPlatform(platform) ? "/api/publish/linkedin-direct" : ["facebook", "instagram"].includes(platform) ? "/api/publish/meta" : "/api/publish/social";
 }
 
 export function scheduleIssue(value: string, now = Date.now()): string | null {
@@ -71,7 +89,8 @@ export function readPublishingDraft(storage: Pick<Storage, "getItem">, userId: s
   } catch { return { ...EMPTY_PUBLISHING_DRAFT }; }
 }
 
-export function publishingStatus(job: { status: string; needs_checking?: boolean; response_payload?: { outcome_uncertain?: boolean } | null }): string {
+export function publishingStatus(job: { status: string; needs_checking?: boolean; response_payload?: { outcome_uncertain?: boolean; comment_failed?: boolean } | null }): string {
   if (job.needs_checking || job.response_payload?.outcome_uncertain) return "Needs checking";
+  if (job.status === "published" && job.response_payload?.comment_failed) return "Published, first comment missing";
   return ({ queued: "Queued", scheduled: "Scheduled", running: "Publishing", published: "Published", failed: "Failed", cancelled: "Cancelled" } as Record<string, string>)[job.status] || job.status;
 }

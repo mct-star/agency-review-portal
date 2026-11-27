@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { directLinkedInJobId, linkedInDirectMedia, linkedinOutcomeMayBeUncertain } from "./direct-publish";
+import { directLinkedInJobId, linkedInDirectMedia, linkedInOwnerUrn, linkedInPlatformForPostType, linkedinOutcomeMayBeUncertain } from "./direct-publish";
 
 describe("what a direct LinkedIn post may carry", () => {
   const ours = "https://publishing-test.supabase.co/storage/v1/object/public/media/film.mp4";
@@ -29,7 +29,26 @@ describe("what a direct LinkedIn post may carry", () => {
     expect(linkedInDirectMedia("social_post", { shape: "none", items: [] })).toEqual({ imageUrls: [], videoUrl: null, thumbnailUrl: null });
     const image = { kind: "image" as const, url: ours.replace("film.mp4", "a.png"), alt: "" };
     expect(linkedInDirectMedia("social_post", { shape: "image", items: [image] })).toEqual({ imageUrls: [image.url], videoUrl: null, thumbnailUrl: null });
-    expect(linkedInDirectMedia("social_post", { shape: "images", items: [image, image] })).toHaveProperty("error");
+  });
+
+  it("takes several images, in order, to post as one PDF document, and refuses more than twenty or one outside our storage", () => {
+    const image = (name: string) => ({ kind: "image" as const, url: ours.replace("film.mp4", name), alt: "" });
+    expect(linkedInDirectMedia("social_post", { shape: "images", items: [image("1.png"), image("2.png")] })).toEqual({ imageUrls: [image("1.png").url, image("2.png").url], videoUrl: null, thumbnailUrl: null });
+    const many = Array.from({ length: 21 }, (_v, i) => image(`${i}.png`));
+    expect(linkedInDirectMedia("social_post", { shape: "images", items: many })).toHaveProperty("error");
+    expect(linkedInDirectMedia("social_post", { shape: "images", items: [image("1.png"), { kind: "image", url: "https://example.com/2.png", alt: "" }] })).toHaveProperty("error");
+  });
+});
+
+describe("which LinkedIn account a piece's feed goes to", () => {
+  it("sends company page pieces to a LinkedIn page and spokesperson pieces to a personal profile", () => {
+    expect(linkedInPlatformForPostType("agency_product_story")).toBe("linkedin_company");
+    expect(linkedInPlatformForPostType("problem_diagnosis")).toBe("linkedin_personal");
+    expect(linkedInPlatformForPostType(null)).toBe("linkedin_personal");
+  });
+  it("names the account by its platform", () => {
+    expect(linkedInOwnerUrn("linkedin_company", "111")).toBe("urn:li:organization:111");
+    expect(linkedInOwnerUrn("linkedin_personal", "mem-1")).toBe("urn:li:person:mem-1");
   });
 });
 

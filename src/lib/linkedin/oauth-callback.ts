@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { encrypt } from "@/lib/crypto";
-import { exchangeCodeForTokens, getProfile } from "@/lib/linkedin/client";
+import { exchangeCodeForTokens, getAdministeredOrganizations, getProfile } from "@/lib/linkedin/client";
+import { canPostAsOrganisation, linkedInApp } from "./app";
 import { oauthStateSecret, verifyOAuthState } from "./oauth-state";
 import { saveLinkedInPhoto } from "./profile-photo";
 
@@ -52,20 +54,21 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
     return NextResponse.redirect(returnUrl("linkedin_error=missing_params"));
   }
 
-  const clientId = process.env.LINKEDIN_CLIENT_ID;
-  const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+  const app = linkedInApp();
   const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${origin}/api/auth/linkedin/callback`;
 
-  if (!clientId || !clientSecret) {
+  if (!app) {
     return NextResponse.redirect(returnUrl(`linkedin_error=${encodeURIComponent("LinkedIn is not configured")}`));
   }
 
   try {
-    const tokens = await exchangeCodeForTokens(code, clientId, clientSecret, redirectUri);
-    const profile = await getProfile(tokens.accessToken);
+    const tokens = await exchangeCodeForTokens(code, app.clientId, app.clientSecret, redirectUri, app.scopes);
+    const profile = await getProfile(tokens.accessToken, tokens.scope);
     const supabase = await createAdminSupabaseClient();
+    const accessTokenEncrypted = encrypt(tokens.accessToken);
+    const refreshTokenEncrypted = tokens.refreshToken ? encrypt(tokens.refreshToken) : null;
 
-    const { error: upsertErr } = await supabase
+    const { data: saved, error: upsertErr } = await supabase
       .from("company_social_accounts")
       .upsert(
         {
@@ -73,10 +76,11 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
           platform: "linkedin_personal",
           account_name: profile.name,
           account_id: profile.sub,
-          access_token_encrypted: encrypt(tokens.accessToken),
-          refresh_token_encrypted: tokens.refreshToken ? encrypt(tokens.refreshToken) : null,
+          access_token_encrypted: accessTokenEncrypted,
+          refresh_token_encrypted: refreshTokenEncrypted,
           token_expires_at: tokens.expiresAt,
           platform_metadata: {
+            app: app.app,
             picture: profile.picture,
             email: profile.email,
             given_name: profile.givenName,
@@ -86,19 +90,92 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
           is_active: true,
         },
         { onConflict: "company_id,platform,account_id" }
-      );
+      )
+      .select("id")
+      .maybeSingle();
 
     if (upsertErr) {
       console.error("[LinkedIn OAuth] upsert failed:", upsertErr.message);
       return NextResponse.redirect(returnUrl(`linkedin_error=${encodeURIComponent("The connection could not be saved. Try again.")}`));
     }
 
+    // A working personal connection now exists, so retire this company's
+    // personal rows it replaces: URL-only stubs with no token, and expired
+    // rows for the same person from the older app. Rows are deactivated,
+    // never deleted, so publishing history keeps its account.
+    const savedId = (saved as { id?: string } | null)?.id;
+    if (savedId && Date.parse(tokens.expiresAt) > Date.now()) {
+      await retireReplacedPersonalRows(supabase, verified.companyId, savedId, profile.name);
+    }
+
     // Best effort: keep a durable copy of the profile photo for the matching person. Never fails the connection.
     await saveLinkedInPhoto(supabase, verified.companyId, { name: profile.name, picture: profile.picture });
 
-    return NextResponse.redirect(returnUrl("linkedin_connected=1"));
+    let pagesParam = "";
+    if (canPostAsOrganisation(tokens.scope)) {
+      try {
+        const pages = await getAdministeredOrganizations(tokens.accessToken);
+        let savedPages = 0;
+        for (const page of pages) {
+          const { error: pageErr } = await supabase.from("company_social_accounts").upsert(
+            {
+              company_id: verified.companyId,
+              platform: "linkedin_company",
+              account_name: page.name,
+              account_id: page.id,
+              // The member's grant posts as the page, so the page row holds the same token.
+              access_token_encrypted: accessTokenEncrypted,
+              refresh_token_encrypted: refreshTokenEncrypted,
+              token_expires_at: tokens.expiresAt,
+              platform_metadata: {
+                app: app.app,
+                organization_urn: page.urn,
+                vanity_name: page.vanityName,
+                connected_member_id: profile.sub,
+                connected_member_name: profile.name,
+                scope: tokens.scope,
+              },
+              is_active: true,
+            },
+            { onConflict: "company_id,platform,account_id" }
+          );
+          if (pageErr) console.error("[LinkedIn OAuth] page upsert failed:", pageErr.message);
+          else savedPages++;
+        }
+        pagesParam = savedPages === pages.length ? `&linkedin_pages=${savedPages}` : "&linkedin_pages_error=1";
+      } catch (err) {
+        console.error("[LinkedIn OAuth] page lookup failed:", err instanceof Error ? err.message : err);
+        pagesParam = "&linkedin_pages_error=1";
+      }
+    }
+
+    return NextResponse.redirect(returnUrl(`linkedin_connected=1${pagesParam}`));
   } catch (err) {
     console.error("[LinkedIn OAuth] error:", err instanceof Error ? err.message : err);
     return NextResponse.redirect(returnUrl(`linkedin_error=${encodeURIComponent("LinkedIn did not complete the connection. Try again.")}`));
   }
+}
+
+/**
+ * Deactivate this company's personal LinkedIn rows that the new connection
+ * replaces: any with no token (a profile URL stub), and any for the same
+ * named person whose token has expired. Called only after the new row is saved.
+ */
+async function retireReplacedPersonalRows(supabase: SupabaseClient, companyId: string, keepId: string, memberName: string) {
+  const { data: rows } = await supabase.from("company_social_accounts")
+    .select("id, account_name, access_token_encrypted, token_expires_at")
+    .eq("company_id", companyId).eq("platform", "linkedin_personal").eq("is_active", true).neq("id", keepId);
+  const now = Date.now();
+  const replaced = ((Array.isArray(rows) ? rows : []) as Array<{ id: string; account_name: string | null; access_token_encrypted: string | null; token_expires_at: string | null }>)
+    .filter((row) => {
+      if (!row.access_token_encrypted) return true;
+      const expiry = row.token_expires_at ? Date.parse(row.token_expires_at) : Number.NaN;
+      const expired = !Number.isFinite(expiry) || expiry <= now;
+      return expired && !!row.account_name && row.account_name.trim().toLowerCase() === memberName.trim().toLowerCase();
+    })
+    .map((row) => row.id);
+  if (!replaced.length) return;
+  const { error } = await supabase.from("company_social_accounts").update({ is_active: false })
+    .eq("company_id", companyId).eq("platform", "linkedin_personal").neq("id", keepId).in("id", replaced);
+  if (error) console.error("[LinkedIn OAuth] could not retire replaced rows:", error.message);
 }

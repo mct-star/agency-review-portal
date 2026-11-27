@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { processLinkedInDirectJob } from "@/lib/linkedin/direct-worker";
+import { LINKEDIN_PLATFORMS } from "@/lib/linkedin/direct-publish";
 
 export const maxDuration = 300;
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const now = new Date().toISOString();
   const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
   const { data: running } = await supabase.from("publishing_jobs").select("id, company_id, response_payload")
-    .eq("target_platform", "linkedin_personal").contains("publish_payload", { provider: "linkedin-direct-v1" })
+    .in("target_platform", [...LINKEDIN_PLATFORMS]).contains("publish_payload", { provider: "linkedin-direct-v1" })
     .eq("status", "running").limit(50);
   const stale = (running || []).filter((job) => {
     const startedAt = Date.parse((job.response_payload as { attempt_started_at?: string } | null)?.attempt_started_at || "");
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   }
   const { data: candidates, error } = await supabase.from("publishing_jobs")
     .select("id, company_id, content_piece_id, social_account_id, status, scheduled_for, publish_payload")
-    .eq("target_platform", "linkedin_personal")
+    .in("target_platform", [...LINKEDIN_PLATFORMS])
     .contains("publish_payload", { provider: "linkedin-direct-v1" })
     .in("status", ["queued", "scheduled"])
     .or(`scheduled_for.is.null,scheduled_for.lte.${now}`)
@@ -48,10 +49,10 @@ export async function GET(request: Request) {
     // no row after the first process changes queued/scheduled to running.
     const { data: claimed } = await supabase.from("publishing_jobs").update({ status: "running", response_payload: { attempt_started_at: new Date().toISOString() } })
       .eq("id", candidate.id).eq("company_id", candidate.company_id)
-      .eq("target_platform", "linkedin_personal")
+      .in("target_platform", [...LINKEDIN_PLATFORMS])
       .contains("publish_payload", { provider: "linkedin-direct-v1" })
       .in("status", ["queued", "scheduled"])
-      .select("id, company_id, content_piece_id, social_account_id, triggered_by, publish_payload").maybeSingle();
+      .select("id, company_id, content_piece_id, social_account_id, triggered_by, target_platform, publish_payload").maybeSingle();
     if (!claimed) continue;
     totals.claimed++;
     totals[await processLinkedInDirectJob(supabase, claimed)]++;

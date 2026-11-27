@@ -1,17 +1,34 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/crypto";
-import { createPost, uploadImage, uploadVideo, addComment } from "@/lib/linkedin/client";
-import { LINKEDIN_THUMBNAIL_MAX_BYTES, LINKEDIN_VIDEO_MAX_BYTES, linkedInDirectMedia, linkedinOutcomeMayBeUncertain } from "@/lib/linkedin/direct-publish";
+import { createPost, uploadDocument, uploadImage, uploadVideo, addComment } from "@/lib/linkedin/client";
+import { LINKEDIN_PLATFORMS, LINKEDIN_THUMBNAIL_MAX_BYTES, LINKEDIN_VIDEO_MAX_BYTES, linkedInDirectMedia, linkedInFeedMismatch, linkedInOwnerUrn, linkedinOutcomeMayBeUncertain } from "@/lib/linkedin/direct-publish";
+import { canCommentAs } from "@/lib/linkedin/app";
+import { imagesToPdf } from "@/lib/linkedin/images-pdf";
+import { defaultCarouselTitle } from "@/lib/linkedin/publish-preview";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
 
-type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; video_url?: string | null; thumbnail_url?: string | null; first_comment?: string | null };
-type Job = { id: string; company_id: string; content_piece_id: string | null; social_account_id: string | null; triggered_by: string | null; publish_payload: PublishPayload };
+type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; video_url?: string | null; thumbnail_url?: string | null; first_comment?: string | null; document_title?: string | null };
+type Job = { id: string; company_id: string; content_piece_id: string | null; social_account_id: string | null; triggered_by: string | null; target_platform?: string | null; publish_payload: PublishPayload };
+
+/** A refusal whose message is safe and useful to show on the job as it is. */
+class PublishRefusal extends Error {}
+
+const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+async function downloadImage(url: string): Promise<{ bytes: Buffer; mediaType: string | undefined }> {
+  const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error("The post image could not be downloaded");
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength > IMAGE_MAX_BYTES) throw new Error("The post image exceeds the upload limit");
+  return { bytes: Buffer.from(bytes), mediaType: response.headers.get("content-type")?.split(";")[0].trim() };
+}
 
 async function markFailure(supabase: SupabaseClient, job: Job, error: unknown, uncertain: boolean) {
   const statusCode = error instanceof Error ? error.message.match(/\((\d{3})\)/)?.[1] : null;
   const safeMessage = uncertain
     ? "LinkedIn's response was inconclusive. Check the account before taking any further action."
+    : error instanceof PublishRefusal ? error.message
     : statusCode ? `LinkedIn rejected the post (HTTP ${statusCode}). Reconnect the account or correct the post before retrying.` : "The post could not be prepared for LinkedIn.";
   await supabase.from("publishing_jobs").update({
     status: "failed",
@@ -27,15 +44,19 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     if (job.publish_payload?.provider !== "linkedin-direct-v1" || !job.content_piece_id || !job.social_account_id) {
       throw new Error("Invalid direct LinkedIn job payload");
     }
+    const platform = job.target_platform || "linkedin_personal";
+    if (!(LINKEDIN_PLATFORMS as readonly string[]).includes(platform)) throw new Error("Invalid direct LinkedIn job platform");
     const [{ data: piece }, { data: account }, { data: company }, { data: actor }] = await Promise.all([
-      supabase.from("content_pieces").select("id, company_id, approval_status, content_type, markdown_body, first_comment, title, cover_image_url")
+      supabase.from("content_pieces").select("id, company_id, approval_status, content_type, post_type, markdown_body, first_comment, title, cover_image_url")
         .eq("id", job.content_piece_id).eq("company_id", job.company_id).maybeSingle(),
-      supabase.from("company_social_accounts").select("id, company_id, account_id, access_token_encrypted, token_expires_at, is_active")
-        .eq("id", job.social_account_id).eq("company_id", job.company_id).eq("platform", "linkedin_personal").eq("is_active", true).maybeSingle(),
+      supabase.from("company_social_accounts").select("id, company_id, platform, account_id, access_token_encrypted, token_expires_at, is_active, platform_metadata")
+        .eq("id", job.social_account_id).eq("company_id", job.company_id).eq("platform", platform).eq("is_active", true).maybeSingle(),
       supabase.from("companies").select("post_pack, social_networks").eq("id", job.company_id).maybeSingle(),
       job.triggered_by ? supabase.from("users").select("id, role, company_id, can_publish").eq("id", job.triggered_by).maybeSingle() : Promise.resolve({ data: null }),
     ]);
     if (!piece || piece.approval_status !== "approved") throw new Error("Approval was removed before publishing");
+    const mismatch = linkedInFeedMismatch(piece.post_type, platform);
+    if (mismatch) throw new PublishRefusal(mismatch);
     if (!company || !actor || (actor.role !== "admin" && (actor.company_id !== job.company_id || !actor.can_publish))) throw new Error("Publishing permission or company settings could not be confirmed");
     const networks = (company?.social_networks || []) as string[];
     if (company?.post_pack === "hospitality" || (networks.length > 0 && !networks.includes("linkedin"))) throw new Error("LinkedIn publishing is no longer enabled for this company");
@@ -58,9 +79,16 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     const currentFirstComment = piece.first_comment ? toLinkedInText(piece.first_comment) : null;
     if (JSON.stringify(currentMedia.imageUrls) !== JSON.stringify(imageUrls) || currentMedia.videoUrl !== videoUrl || currentMedia.thumbnailUrl !== thumbnailUrl || currentFirstComment !== (job.publish_payload.first_comment || null)) throw new Error("The approved post media or comment changed after it was queued");
 
+    const grantedScope = (account.platform_metadata as { scope?: string } | null)?.scope;
+    if (job.publish_payload.first_comment && !canCommentAs(platform, grantedScope)) {
+      throw new PublishRefusal("Not posted: this post has a first comment and this LinkedIn connection cannot add comments. Reconnect LinkedIn, then publish again.");
+    }
+
     const accessToken = decrypt(account.access_token_encrypted);
+    const owner = linkedInOwnerUrn(platform, account.account_id);
     let imageUrn: string | undefined;
     let videoUrn: string | undefined;
+    let documentUrn: string | undefined;
     if (videoUrl) {
       if (!thumbnailUrl) throw new Error("The post video has no thumbnail");
       const thumbnailResponse = await fetch(thumbnailUrl, { redirect: "error", signal: AbortSignal.timeout(15_000) });
@@ -74,26 +102,35 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
       if (response.headers.get("content-type")?.split(";")[0].trim() !== "video/mp4") throw new Error("LinkedIn publishing needs the video as an MP4");
       const bytes = await response.arrayBuffer();
       if (bytes.byteLength > LINKEDIN_VIDEO_MAX_BYTES) throw new Error("The post video exceeds the upload limit");
-      videoUrn = (await uploadVideo(accessToken, account.account_id, Buffer.from(bytes), Buffer.from(thumbnailBytes))).videoUrn;
+      videoUrn = (await uploadVideo(accessToken, owner, Buffer.from(bytes), Buffer.from(thumbnailBytes))).videoUrn;
+    } else if (imageUrls.length > 1) {
+      // Several images go up as one PDF document: LinkedIn shows it as the swipeable carousel.
+      const pages: Buffer[] = [];
+      for (const url of imageUrls) pages.push((await downloadImage(url)).bytes);
+      documentUrn = (await uploadDocument(accessToken, owner, await imagesToPdf(pages))).documentUrn;
     } else if (imageUrls.length === 1) {
-      const response = await fetch(imageUrls[0], { redirect: "error", signal: AbortSignal.timeout(15_000) });
-      if (!response.ok) throw new Error("The post image could not be downloaded");
-      const bytes = await response.arrayBuffer();
-      if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("The post image exceeds the upload limit");
-      const mediaType = response.headers.get("content-type")?.split(";")[0].trim();
+      const { bytes, mediaType } = await downloadImage(imageUrls[0]);
       const extension = mediaType === "image/png" ? "png" : mediaType === "image/gif" ? "gif" : "jpg";
-      imageUrn = (await uploadImage(accessToken, account.account_id, Buffer.from(bytes), `linkedin-post-image.${extension}`)).imageUrn;
+      imageUrn = (await uploadImage(accessToken, owner, bytes, `linkedin-post-image.${extension}`)).imageUrn;
     }
 
     createRequestStarted = true;
     const posted = videoUrn
-      ? await createPost(accessToken, account.account_id, commentary, videoUrn, piece.title || "Video")
-      : await createPost(accessToken, account.account_id, commentary, imageUrn);
+      ? await createPost(accessToken, owner, commentary, videoUrn, piece.title || "Video")
+      : documentUrn
+      ? await createPost(accessToken, owner, commentary, documentUrn, job.publish_payload.document_title || defaultCarouselTitle(toLinkedInText(piece.markdown_body || "")) || "Carousel")
+      : await createPost(accessToken, owner, commentary, imageUrn);
     if (!posted.postUrn || !posted.postUrl || posted.postUrn.endsWith(":share:")) throw new Error("LinkedIn accepted a post request without returning its post ID");
+    // The post is live. A missing first comment is reported loudly on the job, never hidden.
     let commentError: string | null = null;
+    let commentStatus: number | null = null;
     if (job.publish_payload.first_comment) {
-      try { await addComment(accessToken, posted.postUrn, account.account_id, job.publish_payload.first_comment); }
-      catch { commentError = "LinkedIn accepted the post but did not add the first comment."; }
+      try { await addComment(accessToken, posted.postUrn, owner, job.publish_payload.first_comment); }
+      catch (cause) {
+        const status = cause instanceof Error ? cause.message.match(/\((\d{3})\)/)?.[1] : undefined;
+        commentStatus = status ? Number(status) : null;
+        commentError = `Published, but the first comment was not added${commentStatus ? ` (LinkedIn HTTP ${commentStatus})` : ""}. Add it on LinkedIn by hand now.`;
+      }
     }
     const { error } = await supabase.from("publishing_jobs").update({
       status: "published",
@@ -101,7 +138,9 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
       external_url: posted.postUrl,
       published_at: new Date().toISOString(),
       error_message: commentError,
-      response_payload: { comment_error: commentError },
+      response_payload: commentError
+        ? { comment_error: commentError, comment_failed: true, comment_status: commentStatus, manual_check_required: true }
+        : { comment_error: null },
     }).eq("id", job.id).eq("company_id", job.company_id).eq("status", "running");
     if (error) throw new Error("LinkedIn accepted the post but the result could not be saved");
     return "published" as const;

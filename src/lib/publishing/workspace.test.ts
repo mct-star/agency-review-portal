@@ -14,7 +14,7 @@ describe("publishing readiness", () => {
   it("checks each destination's approved content and media requirements before submission", () => {
     expect(destinationIssue(piece, { ...account, platform: "instagram" })).toContain("one image");
     expect(destinationIssue(piece, { ...account, platform: "pinterest" })).toContain("one image");
-    expect(destinationIssue({ ...piece, media: { shape: "images", items: [] } }, account)).toContain("one image");
+    expect(destinationIssue({ ...piece, media: { shape: "images", items: [] } }, { ...account, platform: "bluesky" })).toContain("one image");
     expect(destinationIssue(piece, { ...account, platform: "youtube" })).toContain("rendered video");
     expect(destinationIssue({ ...piece, content_type: "video_script", media: { shape: "video", items: [{ kind: "video", url: "video.mp4", alt: "" }] } }, { ...account, platform: "youtube" })).toBeNull();
     expect(destinationIssue({ ...piece, content_type: "blog_article" }, account)).toContain("social post");
@@ -26,6 +26,20 @@ describe("publishing readiness", () => {
     expect(destinationIssue({ ...piece, content_type: "video_script", media }, account)).toContain("one approved video");
     expect(destinationIssue({ ...piece, media: { ...media, items: [] } }, account)).toContain("one approved video");
     expect(destinationIssue({ ...piece, media }, { ...account, platform: "bluesky" })).toContain("text or one image");
+  });
+  it("sends company page pieces to the LinkedIn page and spokesperson pieces to a profile", () => {
+    const page: PublishingDestination = { ...account, id: "page-1", platform: "linkedin_company", accountName: "AGENCY" };
+    expect(destinationIssue({ ...piece, feed: "company_page" }, page)).toBeNull();
+    expect(destinationIssue({ ...piece, feed: "company_page" }, account)).toContain("company page");
+    expect(destinationIssue({ ...piece, feed: "person" }, page)).toContain("personal");
+    expect(publishingEndpoint("linkedin_company")).toBe("/api/publish/linkedin-direct");
+  });
+  it("lets LinkedIn take several images as one document", () => {
+    const image = { kind: "image" as const, url: "a.png", alt: "" };
+    expect(destinationIssue({ ...piece, media: { shape: "images", items: [image, image] } }, account)).toBeNull();
+  });
+  it("names a published post whose first comment failed", () => {
+    expect(publishingStatus({ status: "published", response_payload: { comment_failed: true } })).toBe("Published, first comment missing");
   });
   it("does not mislabel an active connection merely because nothing is selected", () => {
     expect(destinationIssue(undefined, account)).toBeNull();
