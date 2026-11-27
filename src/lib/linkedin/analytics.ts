@@ -26,6 +26,9 @@ export type PostFigures = {
 
 export type ListedPost = { urn: string; publishedAt: string | null };
 
+/** What a listing found: the posts inside the window, and the newest post of any age, so an empty window can be told from an empty page. */
+export type PostListing = { posts: ListedPost[]; newestPublishedAt: string | null; reachedEnd: boolean };
+
 async function get(accessToken: string, path: string, finder = false): Promise<unknown> {
   const res = await fetch(`${API}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}`, ...VERSION_HEADERS, ...(finder ? { "X-RestLi-Method": "FINDER" } : {}) },
@@ -114,22 +117,29 @@ export async function fetchOrganisationPostFigures(accessToken: string, organisa
 /**
  * The author's published posts, newest first, from /rest/posts?q=author. A
  * member's posts need r_member_social; a page's posts need r_organization_social.
- * Stops at `maxPosts` or at the first post older than `since`.
+ * Stops at `maxPosts` or at the first post older than `since`; `newestPublishedAt`
+ * is the newest published post LinkedIn returned, whatever its age.
  */
-export async function listAuthorPosts(accessToken: string, authorUrn: string, { since, maxPosts = 50 }: { since: Date; maxPosts?: number }): Promise<ListedPost[]> {
+export async function listAuthorPosts(accessToken: string, authorUrn: string, { since, maxPosts = 50 }: { since: Date; maxPosts?: number }): Promise<PostListing> {
   const posts: ListedPost[] = [];
-  for (let start = 0; posts.length < maxPosts && start < 200; start += 50) {
+  let newest: number | null = null;
+  for (let start = 0; start < 200; start += 50) {
     const data = await get(accessToken, `/rest/posts?author=${encodeURIComponent(authorUrn)}&q=author&count=50&start=${start}&sortBy=CREATED`, true) as { elements?: Array<Record<string, unknown>> };
     const elements = Array.isArray(data?.elements) ? data.elements : [];
     for (const e of elements) {
       const urn = typeof e.id === "string" ? e.id : "";
       if (!urn || e.lifecycleState !== "PUBLISHED") continue;
       const ms = typeof e.publishedAt === "number" ? e.publishedAt : typeof e.createdAt === "number" ? e.createdAt : null;
-      if (ms !== null && ms < since.getTime()) return posts;
+      if (ms !== null && (newest === null || ms > newest)) newest = ms;
+      if (ms !== null && ms < since.getTime()) return { posts, newestPublishedAt: iso(newest), reachedEnd: false };
       posts.push({ urn, publishedAt: ms === null ? null : new Date(ms).toISOString() });
-      if (posts.length >= maxPosts) return posts;
+      if (posts.length >= maxPosts) return { posts, newestPublishedAt: iso(newest), reachedEnd: false };
     }
-    if (elements.length < 50) break;
+    if (elements.length < 50) return { posts, newestPublishedAt: iso(newest), reachedEnd: true };
   }
-  return posts;
+  return { posts, newestPublishedAt: iso(newest), reachedEnd: false };
+}
+
+function iso(ms: number | null): string | null {
+  return ms === null ? null : new Date(ms).toISOString();
 }

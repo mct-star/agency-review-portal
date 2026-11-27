@@ -114,6 +114,41 @@ describe("runLinkedInFigures", () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain("author=urn%3Ali%3Aorganization%3A2414183");
   });
 
+  it("says why a page returned nothing: the listing worked and the newest post is old", async () => {
+    fetchMock.mockImplementation(async () => json({ elements: [{ id: "urn:li:share:1", lifecycleState: "PUBLISHED", publishedAt: Date.parse("2026-08-07T12:00:00Z") }] }));
+    const db = fakeSupabase({
+      company_social_accounts: (calls) => ({ data: calls.some((c) => c.method === "eq" && c.args[0] === "is_active" && c.args[1] === false) ? [{ id: "rebus" }] : [account({ id: "page-1", platform: "linkedin_company", account_id: "2414183", account_name: "AGENCY" })] }),
+      companies: { data: [{ id: COMPANY, post_pack: "b2b" }] },
+      publishing_jobs: { data: [] },
+    });
+    const summary = await runLinkedInFigures(db.client as never, NOW);
+    expect(summary).toMatchObject({ accounts: 1, posts: 0, inactiveAccounts: 1 });
+    expect(summary.perAccount).toEqual([expect.objectContaining({ name: "AGENCY", outcome: "read", listedPosts: 0, newestListedPostAt: "2026-08-07T12:00:00.000Z", due: 0 })]);
+    expect(summary.perAccount[0].reason).toMatch(/listing worked .* no posts in the last 90 days \(newest is 2026-08-07\)/);
+  });
+
+  it("says a member whose posts cannot be listed read only the portal's own", async () => {
+    const db = fakeSupabase({
+      company_social_accounts: { data: [account()] },
+      companies: { data: [{ id: COMPANY, post_pack: "b2b" }] },
+      publishing_jobs: { data: [] },
+    });
+    const summary = await runLinkedInFigures(db.client as never, NOW);
+    expect(summary.perAccount[0]).toMatchObject({ listedPosts: null, portalPosts: 0 });
+    expect(summary.perAccount[0].reason).toMatch(/r_member_social/);
+  });
+
+  it("reports a per-account count for a read account", async () => {
+    const db = fakeSupabase({
+      company_social_accounts: { data: [account({ account_name: "Michael" })] },
+      companies: { data: [{ id: COMPANY, post_pack: "b2b" }] },
+      publishing_jobs: { data: [{ id: "job-1", content_piece_id: null, external_id: "urn:li:share:99", published_at: daysAgo(2), content_pieces: null }] },
+      post_analytics: { data: [] },
+    });
+    const summary = await runLinkedInFigures(db.client as never, NOW);
+    expect(summary.perAccount[0]).toMatchObject({ name: "Michael", outcome: "read", portalPosts: 1, due: 1, written: 1, unchanged: 0, errors: 0 });
+  });
+
   it("skips a connection that has expired or lacks the figures scopes, and says so", async () => {
     const db = fakeSupabase({
       company_social_accounts: { data: [
@@ -125,6 +160,7 @@ describe("runLinkedInFigures", () => {
     const summary = await runLinkedInFigures(db.client as never, NOW);
     expect(summary.accounts).toBe(0);
     expect(summary.skipped.map((s) => s.accountId)).toEqual(["old", "narrow"]);
+    expect(summary.perAccount.map((a) => [a.accountId, a.outcome])).toEqual([["old", "skipped"], ["narrow", "skipped"]]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -146,6 +182,7 @@ describe("runLinkedInFigures", () => {
     const db = fakeSupabase({ company_social_accounts: { data: [account()] }, companies: { data: [{ id: COMPANY, post_pack: "hospitality" }] } });
     const summary = await runLinkedInFigures(db.client as never, NOW);
     expect(summary.accounts).toBe(0);
+    expect(summary.perAccount[0].reason).toMatch(/hospitality/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
