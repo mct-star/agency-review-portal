@@ -1,3 +1,5 @@
+import { LEGACY_SCOPES, hasOpenId } from "./app";
+
 /**
  * LinkedIn API v2 client for publishing posts with images and comments.
  *
@@ -12,9 +14,13 @@
  * - Community Management API (v2) for posts, comments, images
  * - OAuth 2.0 with OpenID Connect for authentication
  *
- * Required LinkedIn App scopes:
- * - openid, profile (user identity)
- * - w_member_social (create posts + comments on behalf of member)
+ * Scopes: see src/lib/linkedin/app.ts. The AGENCY Content Publisher app asks
+ * for member and organisation posting and comments; the older app asked for
+ * OpenID sign-in and member posting only.
+ *
+ * Owners: every function that names an author, owner or actor takes either a
+ * full URN (urn:li:person:..., urn:li:organization:...) or a bare member id,
+ * which means a person.
  *
  * Token lifecycle:
  * - Access tokens expire in 60 days
@@ -60,6 +66,17 @@ export interface LinkedInVideoUploadResult {
   videoUrn: string;
 }
 
+export interface LinkedInDocumentUploadResult {
+  documentUrn: string;
+}
+
+export interface LinkedInOrganization {
+  id: string;
+  urn: string;
+  name: string;
+  vanityName: string | null;
+}
+
 // ============================================================
 // Constants
 // ============================================================
@@ -68,7 +85,13 @@ const LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization";
 const LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken";
 const LINKEDIN_API_BASE = "https://api.linkedin.com";
 const LINKEDIN_REQUEST_TIMEOUT_MS = 20_000;
-const LINKEDIN_SCOPES = "openid profile w_member_social";
+const LINKEDIN_SCOPES = LEGACY_SCOPES;
+const REST_HEADERS = { "LinkedIn-Version": "202603", "X-Restli-Protocol-Version": "2.0.0" };
+
+/** A full URN stays as it is; a bare member id names a person. */
+export function ownerUrn(owner: string): string {
+  return owner.startsWith("urn:") ? owner : `urn:li:person:${owner}`;
+}
 
 // ============================================================
 // OAuth2 Flow
@@ -81,14 +104,15 @@ const LINKEDIN_SCOPES = "openid profile w_member_social";
 export function getAuthorizationUrl(
   clientId: string,
   redirectUri: string,
-  state: string
+  state: string,
+  scopes: string = LINKEDIN_SCOPES
 ): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
     state,
-    scope: LINKEDIN_SCOPES,
+    scope: scopes,
   });
   return `${LINKEDIN_AUTH_URL}?${params.toString()}`;
 }
@@ -180,10 +204,12 @@ export async function refreshAccessToken(
 // ============================================================
 
 /**
- * Get the authenticated user's LinkedIn profile.
- * Uses the OpenID Connect userinfo endpoint to get the member sub (person ID).
+ * Get the authenticated member's LinkedIn profile.
+ * With OpenID in the grant (the older app) this is /v2/userinfo; otherwise
+ * (the publisher app, r_basicprofile) it is /v2/me.
  */
-export async function getProfile(accessToken: string): Promise<LinkedInProfile> {
+export async function getProfile(accessToken: string, scope?: string | null): Promise<LinkedInProfile> {
+  if (scope !== undefined && !hasOpenId(scope)) return getBasicProfile(accessToken);
   const res = await fetch(`${LINKEDIN_API_BASE}/v2/userinfo`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -205,6 +231,75 @@ export async function getProfile(accessToken: string): Promise<LinkedInProfile> 
     picture: data.picture,
     email: data.email,
   };
+}
+
+type LocalisedPicture = { "displayImage~"?: { elements?: Array<{ identifiers?: Array<{ identifier?: string }> }> } };
+
+async function getBasicProfile(accessToken: string): Promise<LinkedInProfile> {
+  const projection = "(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))";
+  const request = (url: string) => fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+  });
+  let res = await request(`${LINKEDIN_API_BASE}/v2/me?projection=${projection}`);
+  // The picture is a nicety: when LinkedIn refuses the projection, read the plain record.
+  if (!res.ok && res.status >= 400 && res.status < 500 && res.status !== 401) res = await request(`${LINKEDIN_API_BASE}/v2/me`);
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`LinkedIn profile fetch failed (${res.status}): ${errorBody}`);
+  }
+  const data = await res.json() as { id?: string; localizedFirstName?: string; localizedLastName?: string; profilePicture?: LocalisedPicture };
+  if (!data.id) throw new Error("LinkedIn returned a profile without a member id");
+  const givenName = data.localizedFirstName || "";
+  const familyName = data.localizedLastName || "";
+  // The largest rendition is listed last.
+  const pictures = data.profilePicture?.["displayImage~"]?.elements || [];
+  const picture = pictures.map((e) => e.identifiers?.[0]?.identifier).filter((u): u is string => !!u).at(-1);
+  return { sub: data.id, name: `${givenName} ${familyName}`.trim() || "LinkedIn member", givenName, familyName, picture };
+}
+
+// ============================================================
+// Pages the member administers
+// ============================================================
+
+/**
+ * The LinkedIn pages the signed-in member administers (organizationAcls,
+ * role ADMINISTRATOR, approved), each with its name. A page whose details
+ * cannot be read keeps a plain label rather than failing the list.
+ */
+export async function getAdministeredOrganizations(accessToken: string): Promise<LinkedInOrganization[]> {
+  const headers = { Authorization: `Bearer ${accessToken}`, ...REST_HEADERS };
+  const res = await fetch(`${LINKEDIN_API_BASE}/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED`, {
+    headers,
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const errorBody = await res.text();
+    throw new Error(`LinkedIn organisation lookup failed (${res.status}): ${errorBody}`);
+  }
+  const data = await res.json() as { elements?: Array<{ organization?: string; organizationTarget?: string; role?: string; state?: string }> };
+  const urns = [...new Set((data.elements || [])
+    .filter((e) => (!e.role || e.role === "ADMINISTRATOR") && (!e.state || e.state === "APPROVED"))
+    .map((e) => e.organization || e.organizationTarget || "")
+    .filter((urn) => /^urn:li:organization:\d+$/.test(urn)))];
+  const pages: LinkedInOrganization[] = [];
+  for (const urn of urns) {
+    const id = urn.slice("urn:li:organization:".length);
+    let name = `LinkedIn page ${id}`;
+    let vanityName: string | null = null;
+    try {
+      const orgRes = await fetch(`${LINKEDIN_API_BASE}/rest/organizations/${id}`, { headers, signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS) });
+      if (orgRes.ok) {
+        const org = await orgRes.json() as { localizedName?: string; vanityName?: string };
+        if (org.localizedName) name = org.localizedName;
+        vanityName = org.vanityName || null;
+      }
+    } catch {
+      // Keep the plain label: the page can still be chosen and posted to.
+    }
+    pages.push({ id, urn, name, vanityName });
+  }
+  return pages;
 }
 
 // ============================================================
@@ -236,7 +331,7 @@ export async function uploadImage(
     },
     body: JSON.stringify({
       initializeUploadRequest: {
-        owner: `urn:li:person:${personUrn}`,
+        owner: ownerUrn(personUrn),
       },
     }),
     signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
@@ -315,7 +410,7 @@ export async function uploadVideo(
     headers,
     body: JSON.stringify({
       initializeUploadRequest: {
-        owner: `urn:li:person:${personUrn}`,
+        owner: ownerUrn(personUrn),
         fileSizeBytes: videoBuffer.byteLength,
         uploadCaptions: false,
         uploadThumbnail: true,
@@ -402,6 +497,65 @@ export async function uploadVideo(
 }
 
 // ============================================================
+// Document Upload (several images posted as one PDF, the swipeable kind)
+// ============================================================
+
+/**
+ * Upload a PDF to LinkedIn for a document post and wait until LinkedIn has
+ * processed it, so the post that references it is not refused.
+ */
+export async function uploadDocument(
+  accessToken: string,
+  owner: string,
+  pdf: Buffer,
+  { pollIntervalMs = 3_000, maxWaitMs = 90_000 }: { pollIntervalMs?: number; maxWaitMs?: number } = {}
+): Promise<LinkedInDocumentUploadResult> {
+  const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", ...REST_HEADERS };
+  const initRes = await fetch(`${LINKEDIN_API_BASE}/rest/documents?action=initializeUpload`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ initializeUploadRequest: { owner: ownerUrn(owner) } }),
+    signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+  });
+  if (!initRes.ok) {
+    const errorBody = await initRes.text();
+    throw new Error(`LinkedIn document init failed (${initRes.status}): ${errorBody}`);
+  }
+  const initData = await initRes.json();
+  const uploadUrl: string | undefined = initData.value?.uploadUrl;
+  const documentUrn: string | undefined = initData.value?.document;
+  if (!uploadUrl || !documentUrn) throw new Error("LinkedIn document init returned no upload address");
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/pdf" },
+    body: new Uint8Array(pdf),
+    signal: AbortSignal.timeout(LINKEDIN_VIDEO_PART_TIMEOUT_MS),
+  });
+  if (!uploadRes.ok) {
+    const errorBody = await uploadRes.text();
+    throw new Error(`LinkedIn document upload failed (${uploadRes.status}): ${errorBody}`);
+  }
+
+  const deadline = Date.now() + maxWaitMs;
+  for (;;) {
+    const statusRes = await fetch(`${LINKEDIN_API_BASE}/rest/documents/${encodeURIComponent(documentUrn)}`, {
+      headers,
+      signal: AbortSignal.timeout(LINKEDIN_REQUEST_TIMEOUT_MS),
+    });
+    if (!statusRes.ok) {
+      const errorBody = await statusRes.text();
+      throw new Error(`LinkedIn document status failed (${statusRes.status}): ${errorBody}`);
+    }
+    const status = (await statusRes.json()).status;
+    if (status === "AVAILABLE") return { documentUrn };
+    if (status === "PROCESSING_FAILED") throw new Error("LinkedIn could not process the document");
+    if (Date.now() + pollIntervalMs > deadline) throw new Error("LinkedIn was still processing the document when the wait ran out");
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+}
+
+// ============================================================
 // Post Creation
 // ============================================================
 
@@ -409,9 +563,9 @@ export async function uploadVideo(
  * Create a LinkedIn post (text-only, with an image, or with a video).
  *
  * @param accessToken - OAuth access token
- * @param personUrn - The member's person ID (from profile.sub)
+ * @param personUrn - The author: a member id, or a full person or organisation URN
  * @param text - The post body text
- * @param imageUrn - Optional image URN from uploadImage() or video URN from uploadVideo()
+ * @param imageUrn - Optional image, video or document URN from the upload functions
  * @param mediaTitle - Title LinkedIn shows with the media (a video's title)
  * @returns The post URN and URL
  */
@@ -423,7 +577,7 @@ export async function createPost(
   mediaTitle = "Post image"
 ): Promise<LinkedInPostResult> {
   const postBody: Record<string, unknown> = {
-    author: `urn:li:person:${personUrn}`,
+    author: ownerUrn(personUrn),
     commentary: text,
     visibility: "PUBLIC",
     distribution: {
@@ -486,7 +640,7 @@ export async function createMultiImagePost(
   imageUrns: string[]
 ): Promise<LinkedInPostResult> {
   const postBody: Record<string, unknown> = {
-    author: `urn:li:person:${personUrn}`,
+    author: ownerUrn(personUrn),
     commentary: text,
     visibility: "PUBLIC",
     distribution: {
@@ -559,7 +713,7 @@ export async function addComment(
         "X-Restli-Protocol-Version": "2.0.0",
       },
       body: JSON.stringify({
-        actor: `urn:li:person:${personUrn}`,
+        actor: ownerUrn(personUrn),
         object: postUrn,
         message: {
           text,

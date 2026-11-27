@@ -5,10 +5,12 @@ import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
 import { oauthStateSecret } from "@/lib/linkedin/oauth-state";
-import { directLinkedInJobId, linkedInDirectMedia } from "@/lib/linkedin/direct-publish";
+import { linkedInApp } from "@/lib/linkedin/app";
+import { defaultCarouselTitle } from "@/lib/linkedin/publish-preview";
+import { LINKEDIN_PLATFORMS, directLinkedInJobId, linkedInDirectMedia, linkedInFeedMismatch } from "@/lib/linkedin/direct-publish";
 import { recordedApprovalRefusal } from "@/lib/content/approval-gate";
 
-/** Queue an approved LinkedIn post for one explicitly selected account. */
+/** Queue an approved LinkedIn post for one explicitly selected account: a personal profile, or a company page for company page pieces. */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
     companyId?: string;
@@ -36,10 +38,10 @@ export async function POST(request: Request) {
 
   const supabase = await createAdminSupabaseClient();
   const [{ data: piece }, { data: account }] = await Promise.all([
-    supabase.from("content_pieces").select("id, company_id, approval_status, content_type, markdown_body, first_comment, title, cover_image_url")
+    supabase.from("content_pieces").select("id, company_id, approval_status, content_type, post_type, markdown_body, first_comment, title, cover_image_url")
       .eq("id", body.pieceId).eq("company_id", body.companyId).maybeSingle(),
-    supabase.from("company_social_accounts").select("id, company_id, account_id, account_name, access_token_encrypted, token_expires_at")
-      .eq("id", body.socialAccountId).eq("company_id", body.companyId).eq("platform", "linkedin_personal").eq("is_active", true).maybeSingle(),
+    supabase.from("company_social_accounts").select("id, company_id, platform, account_id, account_name, access_token_encrypted, token_expires_at")
+      .eq("id", body.socialAccountId).eq("company_id", body.companyId).in("platform", [...LINKEDIN_PLATFORMS]).eq("is_active", true).maybeSingle(),
   ]);
 
   if (!piece) return NextResponse.json({ error: "Approved content not found for this company" }, { status: 404 });
@@ -49,6 +51,8 @@ export async function POST(request: Request) {
   const approvalRefused = await recordedApprovalRefusal(supabase, body.companyId, piece);
   if (approvalRefused) return NextResponse.json({ error: approvalRefused, code: "approval_mismatch" }, { status: 409 });
   if (!account) return NextResponse.json({ error: "Choose an active LinkedIn account connected to this company." }, { status: 404 });
+  const mismatch = linkedInFeedMismatch(piece.post_type, account.platform);
+  if (mismatch) return NextResponse.json({ error: mismatch, code: "wrong_feed" }, { status: 409 });
   const expiry = account.token_expires_at ? Date.parse(account.token_expires_at) : Number.NaN;
   if (!account.account_id || !account.access_token_encrypted || !Number.isFinite(expiry) || expiry <= Date.now()) {
     return NextResponse.json({ error: "This LinkedIn connection needs reconnecting before it can publish." }, { status: 409 });
@@ -61,7 +65,8 @@ export async function POST(request: Request) {
   const media = linkedInDirectMedia(piece.content_type, resolvePieceMedia(piece, images || [], assets || []));
   if ("error" in media) return NextResponse.json({ error: media.error }, { status: 422 });
 
-  const commentary = escapeLittleText(toLinkedInText(piece.markdown_body || "")).trim();
+  const postText = toLinkedInText(piece.markdown_body || "");
+  const commentary = escapeLittleText(postText).trim();
   if (!commentary) return NextResponse.json({ error: "The post has no publishable text." }, { status: 400 });
   const jobId = directLinkedInJobId(body.companyId, piece.id, account.id);
   const queuedJob = {
@@ -69,7 +74,7 @@ export async function POST(request: Request) {
     company_id: body.companyId,
     content_piece_id: piece.id,
     social_account_id: account.id,
-    target_platform: "linkedin_personal",
+    target_platform: account.platform,
     status: scheduledFor ? "scheduled" : "queued",
     scheduled_for: scheduledFor,
     triggered_by: profile.id,
@@ -80,6 +85,8 @@ export async function POST(request: Request) {
       video_url: media.videoUrl,
       thumbnail_url: media.thumbnailUrl,
       first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
+      // Several images post as one PDF document; its title is the first line as the reader sees it, as on the Mac.
+      ...(media.imageUrls.length > 1 ? { document_title: defaultCarouselTitle(postText) } : {}),
     },
   };
   const { data: job, error } = await supabase.from("publishing_jobs").insert(queuedJob)
@@ -108,20 +115,25 @@ export async function GET(request: Request) {
   }
   const supabase = await createAdminSupabaseClient();
   const { data, error } = await supabase.from("company_social_accounts")
-    .select("id, account_name, account_id, token_expires_at, access_token_encrypted, is_active")
-    .eq("company_id", companyId).eq("platform", "linkedin_personal").eq("is_active", true);
+    .select("id, platform, account_name, account_id, token_expires_at, access_token_encrypted, is_active")
+    .eq("company_id", companyId).in("platform", [...LINKEDIN_PLATFORMS]).eq("is_active", true);
   if (error) return NextResponse.json({ error: "Could not load LinkedIn accounts." }, { status: 500 });
   const accounts = (data || []).map((account) => ({
     id: account.id,
-    accountName: account.account_name || "LinkedIn profile",
+    platform: account.platform as "linkedin_personal" | "linkedin_company",
+    kind: account.platform === "linkedin_company" ? "company_page" as const : "personal" as const,
+    accountName: account.account_name || (account.platform === "linkedin_company" ? "LinkedIn page" : "LinkedIn profile"),
     accountId: account.account_id,
     usable: !!account.account_id && !!account.access_token_encrypted && !!account.token_expires_at && Date.parse(account.token_expires_at) > Date.now(),
     expiresAt: account.token_expires_at,
   }));
-  const usable = accounts.find((account) => account.usable);
-  const first = accounts[0];
+  const personal = accounts.filter((account) => account.kind === "personal");
+  const usable = personal.find((account) => account.usable);
+  const first = personal[0];
   return NextResponse.json({
-    configured: !!process.env.LINKEDIN_CLIENT_ID && !!oauthStateSecret(),
+    configured: !!linkedInApp() && !!oauthStateSecret(),
+    // True once the connection goes through the app that can post as a company page.
+    companyPagesSupported: linkedInApp()?.app === "publisher",
     accounts,
     connected: !!usable,
     accountName: usable?.accountName || first?.accountName || null,
@@ -138,12 +150,12 @@ export async function DELETE(request: Request) {
   const auth = await authoriseChannelManager(body.companyId);
   if (!auth.ok) return auth.response;
   const supabase = await createAdminSupabaseClient();
-  const { data: account } = await supabase.from("company_social_accounts").select("id")
-    .eq("id", body.socialAccountId).eq("company_id", body.companyId).eq("platform", "linkedin_personal").maybeSingle();
+  const { data: account } = await supabase.from("company_social_accounts").select("id, platform")
+    .eq("id", body.socialAccountId).eq("company_id", body.companyId).in("platform", [...LINKEDIN_PLATFORMS]).maybeSingle();
   if (!account) return NextResponse.json({ error: "LinkedIn account not found." }, { status: 404 });
   const { error } = await supabase.from("company_social_accounts")
     .update({ is_active: false, access_token_encrypted: null, refresh_token_encrypted: null })
-    .eq("id", account.id).eq("company_id", body.companyId).eq("platform", "linkedin_personal");
+    .eq("id", account.id).eq("company_id", body.companyId).eq("platform", account.platform);
   if (error) return NextResponse.json({ error: "Could not disconnect this LinkedIn account." }, { status: 500 });
   return NextResponse.json({ disconnected: true });
 }

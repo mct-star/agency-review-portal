@@ -339,3 +339,26 @@ describe("POST /api/publish/deploy-week: idempotent", () => {
     expect(body.newsletters[0]).toMatchObject({ id: "news", copyHref: "/content/news" });
   });
 });
+
+describe("POST /api/publish/deploy-week: company page posts", () => {
+  const page = () => ({ id: "page-1", company_id: "company-1", platform: "linkedin_company", account_id: "111", account_name: "AGENCY", access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(), is_active: true });
+  const pageJobs = () => state.inserts.filter((i) => i.table === "publishing_jobs" && i.row.target_platform === "linkedin_company");
+
+  it("queues a company page piece to the company page and the spokesperson's piece to the profile", async () => {
+    state.tables.company_social_accounts.push(page());
+    state.tables.content_pieces.find((p) => p.id === "b")!.post_type = "agency_product_story";
+    const res = await deploy();
+    expect(res.status).toBe(200);
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
+    expect(pageJobs().map((q) => [q.row.content_piece_id, q.row.social_account_id])).toEqual([["b", "page-1"]]);
+  });
+
+  it("does not count the company page when asking which profile, and leaves a page piece unqueued when no page is connected", async () => {
+    state.tables.content_pieces.find((p) => p.id === "b")!.post_type = "agency_product_story";
+    const res = await deploy();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
+    expect(body.notQueued).toEqual(expect.arrayContaining([expect.objectContaining({ pieceId: "b", reason: "No LinkedIn company page is connected." })]));
+  });
+});

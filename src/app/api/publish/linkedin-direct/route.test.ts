@@ -208,3 +208,48 @@ describe("LinkedIn connection metadata and withdrawal", () => {
     expect(state.updates[0].filters).toEqual(expect.arrayContaining([["company_id", "company-1"], ["id", "account-1"], ["platform", "linkedin_personal"]]));
   });
 });
+
+describe("company page publishing", () => {
+  const pageAccount = { id: "page-1", company_id: "company-1", platform: "linkedin_company", account_id: "111", account_name: "AGENCY", access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 86400000).toISOString(), is_active: true };
+  const pagePiece = () => ({ ...(state.tables.content_pieces as Record<string, unknown>[])[0], post_type: "agency_product_story" });
+  beforeEach(() => {
+    state.tables.company_social_accounts = [...(state.tables.company_social_accounts as Record<string, unknown>[]), pageAccount];
+  });
+
+  it("queues a company page piece for the LinkedIn page, as the page", async () => {
+    state.tables.content_pieces = [pagePiece()];
+    const response = await POST(request(input({ socialAccountId: "page-1" })));
+    expect(response.status).toBe(201);
+    expect(state.inserts[0].row).toMatchObject({ social_account_id: "page-1", target_platform: "linkedin_company" });
+  });
+
+  it("refuses a company page piece sent to a personal profile, and a personal piece sent to the page", async () => {
+    state.tables.content_pieces = [pagePiece()];
+    const toPerson = await POST(request(input()));
+    expect(toPerson.status).toBe(409);
+    expect((await toPerson.json()).error).toContain("company page");
+    state.tables.content_pieces = [{ ...pagePiece(), post_type: "problem_diagnosis" }];
+    expect((await POST(request(input({ socialAccountId: "page-1" })))).status).toBe(409);
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("queues several images with the document title the Mac publisher uses", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
+    const url = (n: number) => `https://publishing-test.supabase.co/storage/v1/object/public/media/${n}.png`;
+    state.media = { shape: "images", items: [{ kind: "image", url: url(1), alt: "" }, { kind: "image", url: url(2), alt: "" }] };
+    expect((await POST(request(input()))).status).toBe(201);
+    expect(state.inserts[0].row.publish_payload).toMatchObject({ image_urls: [url(1), url(2)], document_title: "Approved post" });
+    vi.unstubAllEnvs();
+  });
+
+  it("lists the page as its own kind of account and can disconnect it", async () => {
+    const body = await (await GET(new Request("http://localhost/api/publish/linkedin-direct?companyId=company-1"))).json();
+    expect(body.accounts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "account-1", platform: "linkedin_personal", kind: "personal" }),
+      expect.objectContaining({ id: "page-1", platform: "linkedin_company", kind: "company_page", accountName: "AGENCY" }),
+    ]));
+    const response = await DELETE(request({ companyId: "company-1", socialAccountId: "page-1" }));
+    expect(response.status).toBe(200);
+    expect(state.updates[0].filters).toEqual(expect.arrayContaining([["id", "page-1"], ["platform", "linkedin_company"]]));
+  });
+});

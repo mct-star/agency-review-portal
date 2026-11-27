@@ -6,14 +6,14 @@ import { useSearchParams } from "next/navigation";
 import { rememberConnectionReturn } from "@/lib/connections/return-context";
 import {
   DESTINATION_LABELS, EMPTY_PUBLISHING_DRAFT, destinationIssue, publishingDraftKey,
-  publishingEndpoint, publishingStatus, publishingText, readPublishingDraft, scheduleIssue,
+  isLinkedInPlatform, publishingEndpoint, publishingStatus, publishingText, readPublishingDraft, scheduleIssue,
   type DestinationPlatform, type PublishingDestination, type PublishingDraft, type PublishingPiece,
 } from "@/lib/publishing/workspace";
 
 type Job = {
   id: string; content_piece_id: string; social_account_id: string | null; target_platform: string; status: string;
   scheduled_for: string | null; external_url: string | null; error_message: string | null;
-  needs_checking?: boolean; response_payload?: { outcome_uncertain?: boolean } | null;
+  needs_checking?: boolean; response_payload?: { outcome_uncertain?: boolean; comment_failed?: boolean } | null;
   content_piece?: { title: string | null }; social_account?: { account_name: string | null };
 };
 type AccountResponse = { id: string; platform?: DestinationPlatform; accountName: string; usable: boolean };
@@ -81,7 +81,7 @@ export default function PublishingWorkspace({ userId, companyId, canPublish, isH
       if (result?.status !== "fulfilled") return;
       const data = result.value as Connections;
       for (const account of data.accounts || []) {
-        const platform = kind === "linkedin" ? "linkedin_personal" : account.platform;
+        const platform = kind === "linkedin" ? (account.platform === "linkedin_company" ? "linkedin_company" : "linkedin_personal") : account.platform;
         if (!platform || !(platform in DESTINATION_LABELS)) continue;
         const network = platform === "twitter" ? "x" : platform;
         destinations.push({ ...account, platform,
@@ -193,7 +193,7 @@ export default function PublishingWorkspace({ userId, companyId, canPublish, isH
           <dl className="space-y-2 text-sm"><div><dt className="font-medium">Destination</dt><dd>{DESTINATION_LABELS[account.platform]}: {account.accountName}</dd></div><div><dt className="font-medium">Content</dt><dd>{piece.title}</dd></div><div><dt className="font-medium">Time</dt><dd>{draft.scheduledFor ? `${new Date(draft.scheduledFor).toLocaleString("en-GB")} (${timeZone})` : "Queue now"}</dd></div>{account.platform === "youtube" && <div><dt className="font-medium">Video settings</dt><dd>{draft.privacy}, {draft.madeForKids === "yes" ? "made for children" : "not made for children"}</dd></div>}{account.platform === "pinterest" && <div><dt className="font-medium">Board</dt><dd>{boards.find((board) => board.id === draft.boardId)?.name}{draft.pinLink && ` | ${draft.pinLink}`}</dd></div>}</dl>
           <p className="whitespace-pre-wrap break-words rounded-lg bg-white p-4 text-sm">{publishingText(piece, account.platform)}</p>
           {piece.media.items.map((item) => item.kind === "image" ? <img key={item.url} src={item.url} alt={item.alt || piece.title} className="max-h-72 max-w-full rounded-lg object-contain" /> : item.kind === "video" ? <video key={item.url} src={item.url} controls preload="metadata" className="max-h-72 w-full rounded-lg" /> : null)}
-          {account.platform === "linkedin_personal" && piece.preview.firstComment && <div className="text-sm"><p className="font-medium">First comment</p><p className="whitespace-pre-wrap">{piece.preview.firstComment}</p></div>}
+          {isLinkedInPlatform(account.platform) && piece.preview.firstComment && <div className="text-sm"><p className="font-medium">First comment</p><p className="whitespace-pre-wrap">{piece.preview.firstComment}</p></div>}
           <div className="flex flex-wrap gap-3"><button type="button" onClick={() => void queue()} disabled={!ready || saving} className="workspace-button disabled:opacity-50">{saving ? "Saving..." : draft.scheduledFor ? "Confirm schedule" : "Confirm queue now"}</button><button type="button" onClick={() => setConfirming(false)} disabled={saving} className="workspace-button workspace-button-secondary">Back to editing</button></div>
         </section>}
       </>}

@@ -7,17 +7,22 @@ const state = vi.hoisted(() => ({
   actor: {} as Record<string, unknown>,
   updates: [] as Array<Record<string, unknown>>,
   assets: [] as Array<Record<string, unknown>>,
+  filters: [] as Array<[string, string, unknown]>,
 }));
 vi.mock("@/lib/crypto", () => ({ decrypt: () => "access-token" }));
 vi.mock("@/lib/linkedin/client", () => ({
   createPost: vi.fn(async () => ({ postUrn: "urn:li:share:post-1", postUrl: "https://www.linkedin.com/feed/update/post-1/" })),
   uploadImage: vi.fn(),
   uploadVideo: vi.fn(),
+  uploadDocument: vi.fn(),
   addComment: vi.fn(),
 }));
+vi.mock("@/lib/linkedin/images-pdf", () => ({ imagesToPdf: vi.fn(async (images: Buffer[]) => Buffer.from(`%PDF pages=${images.length}`)) }));
 
-import { createPost, uploadImage, uploadVideo } from "@/lib/linkedin/client";
+import { addComment, createPost, uploadDocument, uploadImage, uploadVideo } from "@/lib/linkedin/client";
+import { imagesToPdf } from "@/lib/linkedin/images-pdf";
 import { processLinkedInDirectJob } from "./direct-worker";
+import { escapeLittleText, toLinkedInText } from "./post-text";
 
 const job = {
   id: "job-1", company_id: "company-1", content_piece_id: "piece-1", social_account_id: "account-1", triggered_by: "user-1",
@@ -31,7 +36,7 @@ function fakeSupabase() {
       let values: Record<string, unknown> = {};
       const chain: Record<string, any> = {};
       chain.select = () => chain;
-      chain.eq = () => chain;
+      chain.eq = (key: string, value: unknown) => { state.filters.push([table, key, value]); return chain; };
       chain.not = () => chain;
       chain.update = (patch: Record<string, unknown>) => { action = "update"; values = patch; state.updates.push(patch); return chain; };
       chain.maybeSingle = async () => ({ data: table === "content_pieces" ? state.piece : table === "company_social_accounts" ? state.account : table === "companies" ? state.company : state.actor, error: null });
@@ -45,6 +50,8 @@ beforeEach(() => {
   vi.mocked(createPost).mockResolvedValue({ postUrn: "urn:li:share:post-1", postUrl: "https://www.linkedin.com/feed/update/post-1/" });
   state.updates = [];
   state.assets = [];
+  state.filters = [];
+  vi.mocked(addComment).mockReset().mockResolvedValue({ commentUrn: "urn:li:comment:1" });
   state.piece = { id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved text", first_comment: null, title: "Post", cover_image_url: null };
   state.account = { id: "account-1", company_id: "company-1", account_id: "person-1", access_token_encrypted: "cipher", token_expires_at: new Date(Date.now() + 60_000).toISOString(), is_active: true };
   state.company = { post_pack: "b2b", social_networks: [] };
@@ -57,7 +64,7 @@ describe("processLinkedInDirectJob", () => {
   it("publishes the approved snapshot to the selected account", async () => {
     const supabase = fakeSupabase() as never;
     expect(await processLinkedInDirectJob(supabase, job)).toBe("published");
-    expect(createPost).toHaveBeenCalledWith("access-token", "person-1", "Approved text", undefined);
+    expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Approved text", undefined);
     expect(state.updates.at(-1)).toMatchObject({ status: "published", external_id: "urn:li:share:post-1" });
 
   });
@@ -94,8 +101,8 @@ describe("processLinkedInDirectJob", () => {
     const withImage = { ...job, publish_payload: { ...job.publish_payload, image_urls: [url] } };
     expect(await processLinkedInDirectJob(fakeSupabase() as never, withImage)).toBe("published");
     expect(fetchImage).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: "error", signal: expect.any(AbortSignal) }));
-    expect(uploadImage).toHaveBeenCalledWith("access-token", "person-1", expect.any(Buffer), "linkedin-post-image.png");
-    expect(createPost).toHaveBeenCalledWith("access-token", "person-1", "Approved text", "urn:li:image:image-1");
+    expect(uploadImage).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", expect.any(Buffer), "linkedin-post-image.png");
+    expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Approved text", "urn:li:image:image-1");
   });
 
   describe("video posts", () => {
@@ -120,8 +127,8 @@ describe("processLinkedInDirectJob", () => {
       expect(await processLinkedInDirectJob(fakeSupabase() as never, withVideo)).toBe("published");
       expect(fetchMedia).toHaveBeenCalledWith(url, expect.objectContaining({ redirect: "error" }));
       expect(fetchMedia).toHaveBeenCalledWith(thumbnail, expect.objectContaining({ redirect: "error" }));
-      expect(uploadVideo).toHaveBeenCalledWith("access-token", "person-1", Buffer.from([0, 0, 0, 24]), Buffer.from([255, 216]));
-      expect(createPost).toHaveBeenCalledWith("access-token", "person-1", "Approved text", "urn:li:video:video-1", "Post");
+      expect(uploadVideo).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", Buffer.from([0, 0, 0, 24]), Buffer.from([255, 216]));
+      expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Approved text", "urn:li:video:video-1", "Post");
     });
 
     it("refuses a non-MP4 file and a video swapped after queueing, before posting", async () => {
@@ -166,5 +173,74 @@ describe("processLinkedInDirectJob", () => {
     state.account = { ...state.account, token_expires_at: "not-a-date" };
     expect(await processLinkedInDirectJob(fakeSupabase() as never, job)).toBe("failed");
     expect(createPost).not.toHaveBeenCalled();
+  });
+
+  describe("company page posts", () => {
+    const pageJob = { ...job, target_platform: "linkedin_company", publish_payload: { ...job.publish_payload, first_comment: "Read it here: https://agencybristol.com" } };
+    beforeEach(() => {
+      vi.mocked(createPost).mockClear();
+      state.piece = { ...state.piece, post_type: "agency_product_story", first_comment: "Read it here: https://agencybristol.com" };
+      state.account = { ...state.account, platform: "linkedin_company", account_id: "111", platform_metadata: { scope: "r_basicprofile w_organization_social w_organization_social_feed rw_organization_admin" } };
+    });
+
+    it("posts as the organisation and adds the first comment as the organisation", async () => {
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, pageJob)).toBe("published");
+      expect(state.filters).toContainEqual(["company_social_accounts", "platform", "linkedin_company"]);
+      expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:organization:111", "Approved text", undefined);
+      expect(addComment).toHaveBeenCalledWith("access-token", "urn:li:share:post-1", "urn:li:organization:111", "Read it here: https://agencybristol.com");
+      expect(state.updates.at(-1)).toMatchObject({ status: "published", error_message: null });
+    });
+
+    it("refuses before posting when the grant cannot add the first comment", async () => {
+      state.account = { ...state.account, platform_metadata: { scope: "r_basicprofile w_organization_social rw_organization_admin" } };
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, pageJob)).toBe("failed");
+      expect(createPost).not.toHaveBeenCalled();
+      expect(String(state.updates.at(-1)?.error_message)).toContain("first comment");
+    });
+
+    it("refuses a spokesperson piece sent to the company page, before contacting LinkedIn", async () => {
+      state.piece = { ...state.piece, post_type: "problem_diagnosis" };
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, pageJob)).toBe("failed");
+      expect(createPost).not.toHaveBeenCalled();
+    });
+
+    it("reports a failed first comment loudly on the published job", async () => {
+      vi.mocked(addComment).mockRejectedValue(new Error("LinkedIn comment failed (403): ACCESS_DENIED"));
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, pageJob)).toBe("published");
+      const update = state.updates.at(-1)!;
+      expect(update).toMatchObject({ status: "published", response_payload: { comment_failed: true, comment_status: 403, manual_check_required: true } });
+      expect(String(update.error_message)).toContain("first comment was not added");
+      expect(String(update.error_message)).toContain("403");
+    });
+  });
+
+  it("refuses a company page piece sent to a personal profile", async () => {
+    state.piece = { ...state.piece, post_type: "agency_product_story" };
+    expect(await processLinkedInDirectJob(fakeSupabase() as never, job)).toBe("failed");
+    expect(createPost).not.toHaveBeenCalled();
+  });
+
+  it("posts several images as one PDF document titled from the first line", async () => {
+    vi.mocked(createPost).mockClear();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
+    const urls = ["1.png", "2.png", "3.png"].map((name) => `https://publishing-test.supabase.co/storage/v1/object/public/media/${name}`);
+    state.piece.markdown_body = "Five handoffs that lose a launch\n\nSwipe through.";
+    const commentary = escapeLittleText(toLinkedInText(state.piece.markdown_body as string)).trim();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { "Content-Type": "image/png" } })));
+    vi.mocked(uploadDocument).mockResolvedValue({ documentUrn: "urn:li:document:D1" });
+    const imagesJob = { ...job, publish_payload: { ...job.publish_payload, commentary, image_urls: urls } };
+    const images = urls.map((public_url, sort_order) => ({ public_url, sort_order }));
+    const supabase = fakeSupabase() as unknown as { from: (t: string) => Record<string, any> };
+    const from = supabase.from;
+    supabase.from = (table: string) => {
+      const chain = from(table);
+      if (table === "content_images") chain.then = (resolve: (value: unknown) => void) => Promise.resolve({ data: images, error: null }).then(resolve);
+      return chain;
+    };
+    expect(await processLinkedInDirectJob(supabase as never, imagesJob)).toBe("published");
+    expect(imagesToPdf).toHaveBeenCalledWith([expect.any(Buffer), expect.any(Buffer), expect.any(Buffer)]);
+    expect(uploadDocument).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", Buffer.from("%PDF pages=3"));
+    expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", commentary, "urn:li:document:D1", "Five handoffs that lose a launch");
+    expect(uploadImage).not.toHaveBeenCalled();
   });
 });

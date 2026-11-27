@@ -1,6 +1,32 @@
 import { createHash } from "node:crypto";
 import type { PieceMedia } from "@/lib/content/piece-media";
 import { isOurStorageUrl } from "@/lib/media/our-storage-url";
+import { pieceFeed } from "@/lib/content/feed";
+
+/** The most images one carousel document takes, the same as the Mac publisher. */
+export const LINKEDIN_DOCUMENT_MAX_IMAGES = 20;
+
+export type LinkedInPlatform = "linkedin_personal" | "linkedin_company";
+export const LINKEDIN_PLATFORMS: readonly LinkedInPlatform[] = ["linkedin_personal", "linkedin_company"];
+
+/** Company page pieces go out as the page; every other piece as the spokesperson. */
+export function linkedInPlatformForPostType(postType: string | null | undefined): LinkedInPlatform {
+  return pieceFeed(postType) === "company_page" ? "linkedin_company" : "linkedin_personal";
+}
+
+/** The author, owner and commenter URN for an account. */
+export function linkedInOwnerUrn(platform: string, accountId: string): string {
+  return platform === "linkedin_company" ? `urn:li:organization:${accountId}` : `urn:li:person:${accountId}`;
+}
+
+/** What to tell someone who picked the wrong kind of LinkedIn account for a piece. */
+export function linkedInFeedMismatch(postType: string | null | undefined, platform: string): string | null {
+  const wanted = linkedInPlatformForPostType(postType);
+  if (wanted === platform) return null;
+  return wanted === "linkedin_company"
+    ? "This is a company page post. Choose the company page, not a personal profile."
+    : "This post is for a personal profile. Choose a personal profile, not the company page.";
+}
 
 /** LinkedIn accepts videos up to 500 MB; the worker holds the file in memory, so stay well under. */
 export const LINKEDIN_VIDEO_MAX_BYTES = 200 * 1024 * 1024;
@@ -20,7 +46,8 @@ export type LinkedInDirectMedia = { imageUrls: string[]; videoUrl: string | null
 /**
  * What a direct LinkedIn post may carry, decided once for the queue route and
  * the worker: a social post with text and at most one image or one video, or
- * a video piece with its one rendered video. A video always carries its
+ * a video piece with its one rendered video. Several images post as one PDF
+ * document (the swipeable carousel), as the Mac publisher does. A video always carries its
  * thumbnail, so LinkedIn never picks the frame. Media must be in our own storage.
  */
 export function linkedInDirectMedia(contentType: string, media: PieceMedia): LinkedInDirectMedia | { error: string } {
@@ -35,7 +62,7 @@ export function linkedInDirectMedia(contentType: string, media: PieceMedia): Lin
   }
   if (contentType !== "social_post") return { error: "Only approved social posts and videos can be published to LinkedIn." };
   const imageUrls = media.items.filter((item) => item.kind === "image").map((item) => item.url);
-  if (imageUrls.length > 1) return { error: "This pilot supports text and one image per post." };
+  if (imageUrls.length > LINKEDIN_DOCUMENT_MAX_IMAGES) return { error: `A LinkedIn carousel takes at most ${LINKEDIN_DOCUMENT_MAX_IMAGES} images.` };
   if (imageUrls.some((url) => !isOurStorageUrl(url))) return { error: "The post contains an unsupported image location." };
   return { imageUrls, videoUrl: null, thumbnailUrl: null };
 }

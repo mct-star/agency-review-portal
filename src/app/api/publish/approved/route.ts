@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
+import { pieceFeed } from "@/lib/content/feed";
 import { toLinkedInText } from "@/lib/linkedin/post-text";
 import { toMetaCaption } from "@/lib/meta/direct-publish";
 import { toDirectSocialText } from "@/lib/publishing/direct-social";
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   const supabase = await createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("content_pieces")
-    .select("id, title, content_type, approval_status, week_id, markdown_body, first_comment, cover_image_url, week:weeks(id, week_number, date_start, date_end, pillar, theme, title)")
+    .select("id, title, content_type, post_type, approval_status, week_id, markdown_body, first_comment, cover_image_url, week:weeks(id, week_number, date_start, date_end, pillar, theme, title)")
     .eq("company_id", companyId)
     .eq("approval_status", "approved")
     .order("created_at", { ascending: false });
@@ -51,8 +52,9 @@ export async function GET(request: Request) {
   const assetGroups = new Map<string, NonNullable<typeof assets.data>>();
   for (const row of images.data || []) imageGroups.set(row.content_piece_id, [...(imageGroups.get(row.content_piece_id) || []), row]);
   for (const row of assets.data || []) assetGroups.set(row.content_piece_id, [...(assetGroups.get(row.content_piece_id) || []), row]);
-  return NextResponse.json({ data: (data || []).map(({ markdown_body, first_comment, cover_image_url, ...piece }) => ({
+  return NextResponse.json({ data: (data || []).map(({ markdown_body, first_comment, cover_image_url, post_type, ...piece }) => ({
     ...piece,
+    feed: pieceFeed(post_type),
     preview: { linkedin: toLinkedInText(markdown_body || ""), meta: toMetaCaption(markdown_body || ""), social: toDirectSocialText(markdown_body || ""), firstComment: first_comment ? toLinkedInText(first_comment) : null },
     media: resolvePieceMedia({ title: piece.title, cover_image_url }, imageGroups.get(piece.id) || [], assetGroups.get(piece.id) || []),
   })) }, { headers: { "Cache-Control": "no-store, max-age=0" } });

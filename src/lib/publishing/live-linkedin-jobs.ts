@@ -45,7 +45,7 @@ export async function liveLinkedInJobsByPiece(
   if (!pieceIds.length) return live;
   const { data, error } = await supabase.from("publishing_jobs")
     .select("content_piece_id, status, response_payload")
-    .eq("company_id", companyId).eq("target_platform", "linkedin_personal")
+    .eq("company_id", companyId).in("target_platform", ["linkedin_personal", "linkedin_company"])
     .in("content_piece_id", pieceIds);
   if (error) return null;
   for (const job of (data || []) as LinkedInJobRow[]) {

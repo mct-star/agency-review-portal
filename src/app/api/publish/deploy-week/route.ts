@@ -8,6 +8,7 @@ import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import { nextForType, planWeekDeploy, type DeployManualSocial, type DeployPiece, type DeploySocial } from "@/lib/publishing/deploy-week";
 import { LEFT_FOR_SCHEDULER_PARAM } from "@/lib/export/left-for-scheduler";
 import { POST as queueLinkedInPost } from "@/app/api/publish/linkedin-direct/route";
+import { linkedInPlatformForPostType } from "@/lib/linkedin/direct-publish";
 import { POST as sendBlogToWebsite } from "@/app/api/publish/website/route";
 
 export const maxDuration = 60;
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   }
 
   const { data: pieceRows, error: piecesError } = await supabase.from("content_pieces")
-    .select("id, title, content_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
+    .select("id, title, content_type, post_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
     .eq("week_id", weekId).eq("company_id", companyId);
   if (piecesError) return NextResponse.json({ error: "Could not read the week." }, { status: 500 });
   const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start as string);
@@ -80,16 +81,21 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
-  // The LinkedIn account the posts go to: the one the user confirmed, or the
-  // company's only active one.
-  const { data: accountRows } = await supabase.from("company_social_accounts").select("id")
-    .eq("company_id", companyId).eq("platform", "linkedin_personal").eq("is_active", true);
-  const accountIds = (accountRows || []).map((a) => a.id as string);
+  // The LinkedIn profile the spokesperson's posts go to: the one the user
+  // confirmed, or the company's only active one. Company page posts go to the
+  // company's only active LinkedIn page.
+  const { data: accountRows } = await supabase.from("company_social_accounts").select("id, platform")
+    .eq("company_id", companyId).in("platform", ["linkedin_personal", "linkedin_company"]).eq("is_active", true);
+  const accountIds = (accountRows || []).filter((a) => a.platform === "linkedin_personal").map((a) => a.id as string);
+  const pageIds = (accountRows || []).filter((a) => a.platform === "linkedin_company").map((a) => a.id as string);
+  const pageId = pageIds.length === 1 ? pageIds[0] : null;
+  const pieceFeedPlatform = (pieceId: string) =>
+    linkedInPlatformForPostType((pieceRows || []).find((p) => p.id === pieceId)?.post_type as string | null | undefined);
   const requested = typeof body.socialAccountId === "string" ? body.socialAccountId : null;
   if (requested && !accountIds.includes(requested)) {
     return NextResponse.json({ error: "Choose a LinkedIn account connected to this company." }, { status: 404 });
   }
-  if (!requested && accountIds.length > 1 && plan.social.length > 0) {
+  if (!requested && accountIds.length > 1 && plan.social.some((s) => pieceFeedPlatform(s.pieceId) === "linkedin_personal")) {
     return NextResponse.json({ error: "Choose which LinkedIn account the week goes to.", code: "choose_account" }, { status: 409 });
   }
   const accountId = requested || (accountIds.length === 1 ? accountIds[0] : null);
@@ -133,24 +139,29 @@ export async function POST(request: Request) {
     toQueue.push(s);
   }
 
-  if (!accountId) {
-    for (const s of toQueue) notQueued.push({ pieceId: s.pieceId, title: s.title, contentType: s.contentType, reason: "No LinkedIn account is connected.", next: nextForType(s.contentType) });
-  } else {
-    for (const s of toQueue) {
-      // The existing queue route keeps its own checks (approval record,
-      // publish right, account ownership, media rules) and its unique job id.
-      const res = await queueLinkedInPost(new Request(new URL("/api/publish/linkedin-direct", request.url), {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ companyId, pieceId: s.pieceId, socialAccountId: accountId, scheduledFor: s.scheduledFor }),
-      }));
-      if (res.status === 201) { queued.push(s); continue; }
-      const err = await res.json().catch(() => ({})) as { error?: string; code?: string };
-      notQueued.push({
-        pieceId: s.pieceId, title: s.title, contentType: s.contentType,
-        reason: err.error || "It could not be queued.",
-        next: err.code === "approval_mismatch" ? "approve" : nextForType(s.contentType),
-      });
+  for (const s of toQueue) {
+    const toPage = pieceFeedPlatform(s.pieceId) === "linkedin_company";
+    const target = toPage ? pageId : accountId;
+    if (!target) {
+      const reason = !toPage ? "No LinkedIn account is connected."
+        : pageIds.length > 1 ? "More than one LinkedIn page is connected. Choose the page on the Publish page."
+        : "No LinkedIn company page is connected.";
+      notQueued.push({ pieceId: s.pieceId, title: s.title, contentType: s.contentType, reason, next: nextForType(s.contentType) });
+      continue;
     }
+    // The existing queue route keeps its own checks (approval record,
+    // publish right, account ownership, feed, media rules) and its unique job id.
+    const res = await queueLinkedInPost(new Request(new URL("/api/publish/linkedin-direct", request.url), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ companyId, pieceId: s.pieceId, socialAccountId: target, scheduledFor: s.scheduledFor }),
+    }));
+    if (res.status === 201) { queued.push(s); continue; }
+    const err = await res.json().catch(() => ({})) as { error?: string; code?: string };
+    notQueued.push({
+      pieceId: s.pieceId, title: s.title, contentType: s.contentType,
+      reason: err.error || "It could not be queued.",
+      next: err.code === "approval_mismatch" ? "approve" : nextForType(s.contentType),
+    });
   }
 
   // The blog: a pull request on the AGENCY website, through the existing
