@@ -29,6 +29,10 @@
       "schedule": "*/2 * * * *"
     },
     {
+      "path": "/api/cron/linkedin-figures",
+      "schedule": "30 3 * * *"
+    },
+    {
       "path": "/api/cron/reminders",
       "schedule": "0 * * * *"
     }
