@@ -85,9 +85,25 @@ describe("listing an author's posts", () => {
         { id: "urn:li:share:5", lifecycleState: "PUBLISHED", publishedAt: now - 1 },
       ] });
     }));
-    const posts = await listAuthorPosts("tok", "urn:li:organization:9", { since: new Date(now - 90 * day) });
+    const { posts, newestPublishedAt } = await listAuthorPosts("tok", "urn:li:organization:9", { since: new Date(now - 90 * day) });
+    expect(newestPublishedAt).toBe(new Date(now - day).toISOString());
     expect(posts.map((p) => p.urn)).toEqual(["urn:li:share:1", "urn:li:ugcPost:3"]);
     expect(posts[0].publishedAt).toBe(new Date(now - day).toISOString());
     expect(urls[0]).toBe("https://api.linkedin.com/rest/posts?author=urn%3Ali%3Aorganization%3A9&q=author&count=50&start=0&sortBy=CREATED");
+  });
+
+  it("reports the newest post of any age when everything is outside the window", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    vi.stubGlobal("fetch", vi.fn(async () => json({ elements: [{ id: "urn:li:share:9", lifecycleState: "PUBLISHED", publishedAt: now - 120 * day }] })));
+    const listing = await listAuthorPosts("tok", "urn:li:organization:9", { since: new Date(now - 90 * day) });
+    expect(listing.posts).toEqual([]);
+    expect(listing.newestPublishedAt).toBe(new Date(now - 120 * day).toISOString());
+  });
+
+  it("tells an empty page from a page whose posts are all old", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ elements: [] })));
+    const listing = await listAuthorPosts("tok", "urn:li:organization:9", { since: new Date(0) });
+    expect(listing).toEqual({ posts: [], newestPublishedAt: null, reachedEnd: true });
   });
 });

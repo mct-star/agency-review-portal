@@ -18,6 +18,6 @@ export async function POST() {
     total: summary.posts,
     message: summary.accounts === 0 && summary.skipped.length
       ? "LinkedIn needs reconnecting before figures can be read"
-      : summary.posts === 0 ? "No recent LinkedIn posts to poll" : undefined,
+      : summary.posts === 0 ? `No recent LinkedIn posts to poll. ${summary.perAccount.map((a) => `${a.name || a.platform}: ${a.reason}`).join("; ")}` : undefined,
   });
 }

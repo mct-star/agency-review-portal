@@ -48,8 +48,31 @@ export type KnownPost = {
   postType?: string | null;
 };
 
+/** One connection's run, so an empty listing can be told apart from a quiet page or a skipped account. */
+export type AccountReport = {
+  accountId: string;
+  platform: string;
+  name: string | null;
+  /** read: figures were read (or none were due). skipped: nothing was read, see reason. */
+  outcome: "read" | "skipped" | "error";
+  /** Posts the portal itself published in the window. */
+  portalPosts: number;
+  /** Posts LinkedIn's listing returned inside the window (null: the connection cannot list posts). */
+  listedPosts: number | null;
+  /** Newest post the listing returned, whatever its age (null: none, or no listing). */
+  newestListedPostAt: string | null;
+  due: number;
+  written: number;
+  unchanged: number;
+  errors: number;
+  reason: string;
+};
+
 export type FiguresSummary = {
   accounts: number;
+  /** LinkedIn connections that are switched off (is_active false) and so not read. */
+  inactiveAccounts: number;
+  perAccount: AccountReport[];
   posts: number;
   written: number;
   unchanged: number;
@@ -112,7 +135,16 @@ function unchanged(row: StoredRow | undefined, f: PostFigures, post: KnownPost):
   return sameFigures && !learnsLink;
 }
 
-type Account = { id: string; company_id: string; platform: string; account_id: string; access_token_encrypted: string | null; token_expires_at: string | null; platform_metadata: Record<string, unknown> | null };
+/** Why nothing was due for an account, in words that tell a quiet page from a listing that cannot see its posts. */
+function emptyReason(canList: boolean, isPage: boolean, report: AccountReport, portalPosts: number): string {
+  if (!canList) return portalPosts === 0
+    ? "no posts due: LinkedIn will not list a member's own posts for this connection (r_member_social), and the portal published none in the last 90 days"
+    : `no posts due: the ${portalPosts} portal post${portalPosts === 1 ? "" : "s"} are outside the reading window`;
+  if (report.newestListedPostAt) return `listing worked and the ${isPage ? "page" : "member"} has no posts in the last ${HORIZON_DAYS} days (newest is ${report.newestListedPostAt.slice(0, 10)})`;
+  return `listing worked but LinkedIn returned no published posts for this ${isPage ? "page" : "member"}`;
+}
+
+type Account = { id: string; company_id: string; platform: string; account_id: string; account_name?: string | null; access_token_encrypted: string | null; token_expires_at: string | null; platform_metadata: Record<string, unknown> | null };
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -141,38 +173,56 @@ async function knownPosts(supabase: SupabaseClient, account: Account, since: Dat
 
 /** Finds, reads and stores the figures for every active LinkedIn connection. */
 export async function runLinkedInFigures(supabase: SupabaseClient, now = new Date()): Promise<FiguresSummary> {
-  const summary: FiguresSummary = { accounts: 0, posts: 0, written: 0, unchanged: 0, errors: 0, rateLimited: false, skipped: [] };
+  const summary: FiguresSummary = { accounts: 0, inactiveAccounts: 0, perAccount: [], posts: 0, written: 0, unchanged: 0, errors: 0, rateLimited: false, skipped: [] };
   const since = new Date(now.getTime() - HORIZON_DAYS * DAY_MS);
 
   const { data: accountRows } = await supabase
     .from("company_social_accounts")
-    .select("id, company_id, platform, account_id, access_token_encrypted, token_expires_at, platform_metadata")
+    .select("id, company_id, platform, account_id, account_name, access_token_encrypted, token_expires_at, platform_metadata")
     .in("platform", ["linkedin_personal", "linkedin_company"])
     .eq("is_active", true)
     .not("access_token_encrypted", "is", null)
     .order("platform", { ascending: false });
   const accounts = (accountRows || []) as Account[];
+  const { data: inactiveRows } = await supabase
+    .from("company_social_accounts")
+    .select("id")
+    .in("platform", ["linkedin_personal", "linkedin_company"])
+    .eq("is_active", false)
+    .not("access_token_encrypted", "is", null);
+  summary.inactiveAccounts = Array.isArray(inactiveRows) ? inactiveRows.length : 0;
   if (!accounts.length) return summary;
 
   const { data: companyRows } = await supabase.from("companies").select("id, post_pack").in("id", [...new Set(accounts.map((a) => a.company_id))]);
   const hospitality = new Set(((companyRows || []) as Array<{ id: string; post_pack: string | null }>).filter((c) => c.post_pack === "hospitality").map((c) => c.id));
 
   for (const account of accounts) {
-    if (summary.rateLimited) break;
-    if (hospitality.has(account.company_id)) continue;
+    const report: AccountReport = {
+      accountId: account.id, platform: account.platform, name: account.account_name ?? null, outcome: "skipped",
+      portalPosts: 0, listedPosts: null, newestListedPostAt: null, due: 0, written: 0, unchanged: 0, errors: 0, reason: "",
+    };
+    summary.perAccount.push(report);
+    if (summary.rateLimited) { report.reason = "not reached, an earlier account hit LinkedIn's rate limit"; continue; }
+    if (hospitality.has(account.company_id)) { report.reason = "hospitality company, LinkedIn figures not read"; continue; }
     const scope = typeof account.platform_metadata?.scope === "string" ? account.platform_metadata.scope : "";
     const isPage = account.platform === "linkedin_company";
     const expiry = account.token_expires_at ? Date.parse(account.token_expires_at) : Number.NaN;
-    if (!Number.isFinite(expiry) || expiry <= now.getTime()) { summary.skipped.push({ accountId: account.id, reason: "token expired, reconnect" }); continue; }
-    if (isPage ? !canReadOrganisationFigures(scope) : !canReadMemberAnalytics(scope)) { summary.skipped.push({ accountId: account.id, reason: "connection lacks the figures scopes, reconnect" }); continue; }
+    if (!Number.isFinite(expiry) || expiry <= now.getTime()) { report.reason = "token expired, reconnect"; summary.skipped.push({ accountId: account.id, reason: report.reason }); continue; }
+    if (isPage ? !canReadOrganisationFigures(scope) : !canReadMemberAnalytics(scope)) { report.reason = "connection lacks the figures scopes, reconnect"; summary.skipped.push({ accountId: account.id, reason: report.reason }); continue; }
     summary.accounts++;
+    report.outcome = "read";
 
     try {
       const accessToken = decrypt(account.access_token_encrypted!);
       const owner = isPage ? `urn:li:organization:${account.account_id}` : `urn:li:person:${account.account_id}`;
       const posts = await knownPosts(supabase, account, since);
-      if (isPage || canListMemberPosts(scope)) {
-        for (const listed of await listAuthorPosts(accessToken, owner, { since, maxPosts: MAX_POSTS_PER_ACCOUNT })) {
+      report.portalPosts = posts.size;
+      const canList = isPage || canListMemberPosts(scope);
+      if (canList) {
+        const listing = await listAuthorPosts(accessToken, owner, { since, maxPosts: MAX_POSTS_PER_ACCOUNT });
+        report.listedPosts = listing.posts.length;
+        report.newestListedPostAt = listing.newestPublishedAt;
+        for (const listed of listing.posts) {
           if (!posts.has(listed.urn)) posts.set(listed.urn, { urn: listed.urn, publishedAt: listed.publishedAt });
         }
       }
@@ -180,7 +230,11 @@ export async function runLinkedInFigures(supabase: SupabaseClient, now = new Dat
         .filter((p) => dueForReading(p.publishedAt, now))
         .sort((a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0))
         .slice(0, MAX_POSTS_PER_ACCOUNT);
-      if (!due.length) continue;
+      report.due = due.length;
+      if (!due.length) {
+        report.reason = emptyReason(canList, isPage, report, posts.size);
+        continue;
+      }
       summary.posts += due.length;
 
       const { data: stored } = await supabase.from("post_analytics").select("external_post_id, impressions, likes, comments, shares, clicks, poll_count, publishing_job_id, content_piece_id")
@@ -200,20 +254,22 @@ export async function runLinkedInFigures(supabase: SupabaseClient, now = new Dat
             await pause(CALL_PAUSE_MS);
           }
           const existing = rows.get(post.urn);
-          if (unchanged(existing, f, post)) { summary.unchanged++; continue; }
+          if (unchanged(existing, f, post)) { summary.unchanged++; report.unchanged++; continue; }
           const { error } = await supabase.from("post_analytics")
             .upsert(analyticsRow(account.company_id, post, f, now, (existing?.poll_count || 0) + 1), { onConflict: "platform,external_post_id" });
           if (error) throw new Error(error.message);
-          summary.written++;
+          summary.written++; report.written++;
         } catch (err) {
-          if (err instanceof LinkedInApiError && err.rateLimited) { summary.rateLimited = true; break; }
-          summary.errors++;
+          if (err instanceof LinkedInApiError && err.rateLimited) { summary.rateLimited = true; report.reason = "LinkedIn rate limit reached, run stopped"; break; }
+          summary.errors++; report.errors++;
           console.error(`[LinkedIn figures] post ${post.urn} failed:`, err instanceof Error ? err.message : err);
         }
       }
+      if (!report.reason) report.reason = `read ${report.due} post${report.due === 1 ? "" : "s"}: ${report.written} written, ${report.unchanged} unchanged${report.errors ? `, ${report.errors} failed` : ""}`;
     } catch (err) {
-      if (err instanceof LinkedInApiError && err.rateLimited) { summary.rateLimited = true; break; }
-      summary.errors++;
+      if (err instanceof LinkedInApiError && err.rateLimited) { summary.rateLimited = true; report.reason = "LinkedIn rate limit reached, run stopped"; break; }
+      summary.errors++; report.errors++; report.outcome = "error";
+      report.reason = err instanceof LinkedInApiError ? `LinkedIn refused the request (HTTP ${err.status})` : "the run failed for this account";
       console.error(`[LinkedIn figures] account ${account.id} failed:`, err instanceof Error ? err.message : err);
     }
   }
