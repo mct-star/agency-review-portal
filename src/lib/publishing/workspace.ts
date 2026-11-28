@@ -2,7 +2,7 @@ import type { PieceMedia } from "@/lib/content/piece-media";
 import type { Feed } from "@/lib/content/feed";
 
 export type DestinationPlatform = "linkedin_personal" | "linkedin_company" | "facebook" | "instagram" | "bluesky" | "threads" | "twitter" | "youtube" | "pinterest";
-export type PublishingDestination = { id: string; platform: DestinationPlatform; accountName: string; usable: boolean; configured: boolean; enabled: boolean };
+export type PublishingDestination = { id: string; platform: DestinationPlatform; accountName: string; usable: boolean; configured: boolean; enabled: boolean; /** True for the company's default LinkedIn page. */ isDefault?: boolean };
 export type PublishingPiece = {
   id: string; title: string; content_type: string; week_id: string | null;
   /** Whose LinkedIn feed the piece is for. Missing means the spokesperson's. */

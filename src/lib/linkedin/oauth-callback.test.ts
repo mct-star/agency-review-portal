@@ -169,4 +169,66 @@ describe("LinkedIn callback through the AGENCY Content Publisher app", () => {
     expect(res.headers.get("location")).toBe(`https://portal.example/setup/${A}/social?linkedin_connected=1`);
     expect(state.organisations).not.toHaveBeenCalled();
   });
+
+  const existingPages = (rows: Array<Record<string, unknown>>) => {
+    state.supabase = fakeSupabase({ companies: { data: { post_pack: "b2b" } }, company_social_accounts: (calls) => calls.some((c) => c.method === "upsert")
+      ? { data: { id: "new-row" } }
+      : calls.some((c) => c.method === "eq" && c.args[0] === "platform" && c.args[1] === "linkedin_company") ? { data: rows } : { data: [] } });
+  };
+  const pageUpserts = () => upserts().map((c) => c.args[0] as Record<string, unknown>).filter((r) => r.platform === "linkedin_company");
+
+  it("makes the first page ever connected the company's default", async () => {
+    existingPages([]);
+    await connect();
+    expect(pageUpserts()[0].platform_metadata).toMatchObject({ default_page: true });
+  });
+
+  it("does not pick a default when the first connection brings several pages", async () => {
+    state.organisations.mockResolvedValue([
+      { id: "111", urn: "urn:li:organization:111", name: "AGENCY", vanityName: "agency-bristol" },
+      { id: "222", urn: "urn:li:organization:222", name: "Rebus MedicoLegal", vanityName: "rebus" },
+    ]);
+    existingPages([]);
+    await connect();
+    for (const row of pageUpserts()) expect(row.platform_metadata).not.toHaveProperty("default_page");
+  });
+
+  it("does not make a page the default when the company already has pages, and keeps the default it has", async () => {
+    state.organisations.mockResolvedValue([
+      { id: "111", urn: "urn:li:organization:111", name: "AGENCY", vanityName: "agency-bristol" },
+      { id: "222", urn: "urn:li:organization:222", name: "Rebus MedicoLegal", vanityName: "rebus" },
+    ]);
+    existingPages([
+      { id: "p1", account_id: "111", is_active: true, platform_metadata: { default_page: true, app: "old" } },
+      { id: "p2", account_id: "222", is_active: false, platform_metadata: { app: "old" } },
+    ]);
+    await connect();
+    const [agency, rebus] = pageUpserts();
+    expect(agency.platform_metadata).toMatchObject({ default_page: true, organization_urn: "urn:li:organization:111" });
+    expect(rebus.platform_metadata).not.toHaveProperty("default_page");
+  });
+
+  it("never switches a page back on that the user switched off, and still refreshes its token", async () => {
+    state.organisations.mockResolvedValue([{ id: "222", urn: "urn:li:organization:222", name: "Rebus MedicoLegal", vanityName: "rebus" }]);
+    existingPages([{ id: "p2", account_id: "222", is_active: false, platform_metadata: {} }]);
+    await connect();
+    expect(pageUpserts()[0]).toMatchObject({ account_id: "222", is_active: false, access_token_encrypted: "enc:t" });
+  });
+
+  it("saves a page it has not seen before as active but not default when the company already has a page", async () => {
+    existingPages([{ id: "p1", account_id: "999", is_active: true, platform_metadata: { default_page: true } }]);
+    await connect();
+    expect(pageUpserts()[0]).toMatchObject({ account_id: "111", is_active: true });
+    expect(pageUpserts()[0].platform_metadata).not.toHaveProperty("default_page");
+  });
+
+  it("does not make a default when the page list could not be read for the existing rows", async () => {
+    state.supabase = fakeSupabase({ companies: { data: { post_pack: "b2b" } }, company_social_accounts: (calls) => calls.some((c) => c.method === "upsert")
+      ? { data: { id: "new-row" } }
+      : calls.some((c) => c.method === "eq" && c.args[0] === "platform" && c.args[1] === "linkedin_company") ? { data: null, error: { message: "down" } } : { data: [] } });
+    const res = await connect();
+    expect(pageUpserts()).toHaveLength(0);
+    expect(res.headers.get("location")).toContain("linkedin_pages_error=1");
+  });
 });
+

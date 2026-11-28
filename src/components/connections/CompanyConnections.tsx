@@ -24,7 +24,7 @@ export default function CompanyConnections({ companyId, canPublish, canConnect, 
   return <div className="space-y-6">
     <div><h2 className="text-xl font-semibold text-gray-900">{canSelfConnect ? "Connect your channels" : "Connections"}</h2><p className="mt-1 text-sm text-gray-600">{canSelfConnect ? "Connect or disconnect the accounts your posts publish to. Only your own company's accounts are shown here." : "Connect the accounts you want to publish to. You can create and review content before connecting."}</p></div>
     {!canPublish ? <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm text-gray-600">Publishing is not switched on for your account, so you cannot connect channels yourself. Ask your AGENCY contact to switch it on, or to connect or reconnect an account for you.</div> : <>
-      {!isHospitality && <LinkedInConnections key={`linkedin-${companyId}`} companyId={companyId} canConnect={canConnect || canSelfConnect} />}
+      {!isHospitality && <LinkedInConnections key={`linkedin-${companyId}`} companyId={companyId} canConnect={canConnect || canSelfConnect} canManagePages={canConnect} />}
       <MetaPublishingPanel key={`meta-${companyId}`} companyId={companyId} canPublish={canPublish} mode="manage" onConnectionChanged={() => setPendingMetaSelection(false)} />
       {!isHospitality && <SocialPublishingPanel key={`social-${companyId}`} companyId={companyId} canPublish={canPublish} canConnect={canConnect} connectable={canSelfConnect ? ["bluesky"] : []} mode="manage" />}
     </>}

@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmNonDefaultMessage } from "@/lib/linkedin/default-page";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -16,7 +17,7 @@ type Job = {
   needs_checking?: boolean; response_payload?: { outcome_uncertain?: boolean; comment_failed?: boolean } | null;
   content_piece?: { title: string | null }; social_account?: { account_name: string | null };
 };
-type AccountResponse = { id: string; platform?: DestinationPlatform; accountName: string; usable: boolean };
+type AccountResponse = { id: string; platform?: DestinationPlatform; accountName: string; usable: boolean; isDefault?: boolean };
 type Connections = { accounts?: AccountResponse[]; configured?: boolean | Record<string, boolean>; enabledNetworks?: string[] };
 type Props = { userId: string; companyId: string; canPublish: boolean; isHospitality?: boolean };
 
@@ -39,6 +40,7 @@ export default function PublishingWorkspace({ userId, companyId, canPublish, isH
   const [reload, setReload] = useState(0);
   const [notice, setNotice] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [pageConfirmed, setPageConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const sending = useRef(false);
   const [timeZone, setTimeZone] = useState("your device time zone");
@@ -140,16 +142,19 @@ export default function PublishingWorkspace({ userId, companyId, canPublish, isH
   const optionIssue = account?.platform === "youtube" && !draft.madeForKids ? "Answer whether the video is made for children." : account?.platform === "pinterest" && !boards.some((board) => board.id === draft.boardId) ? "Choose a Pinterest board." : null;
   const invalidPinLink = account?.platform === "pinterest" && !!draft.pinLink && (() => { try { return new URL(draft.pinLink).protocol !== "https:"; } catch { return true; } })();
   const ready = !!piece && !!account && !issue && !timingIssue && !optionIssue && !invalidPinLink && !existingJob && checkedPiece === draft.pieceId && !loading && !errors.includes("publishing status");
-  const update = (changes: Partial<PublishingDraft>) => { setDraft((current) => ({ ...current, ...changes })); setConfirming(false); setNotice(""); };
+  // A LinkedIn page other than the default is never posted to without a second, named confirmation.
+  const otherPage = account?.platform === "linkedin_company" && !account.isDefault;
+  const defaultPageName = accounts.find((item) => item.platform === "linkedin_company" && item.isDefault)?.accountName || null;
+  const update = (changes: Partial<PublishingDraft>) => { setDraft((current) => ({ ...current, ...changes })); setConfirming(false); setPageConfirmed(false); setNotice(""); };
   const manageConnections = () => rememberConnectionReturn(userId, companyId, "publish");
 
   async function queue() {
-    if (!ready || !piece || !account || sending.current) return;
+    if (!ready || !piece || !account || sending.current || (otherPage && !pageConfirmed)) return;
     sending.current = true; setSaving(true); setNotice("");
     try {
       const options = account.platform === "youtube" ? { privacy: draft.privacy, madeForKids: draft.madeForKids === "yes" }
         : account.platform === "pinterest" ? { boardId: draft.boardId, ...(draft.pinLink ? { link: draft.pinLink } : {}) } : {};
-      const response = await fetch(publishingEndpoint(account.platform), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, pieceId: piece.id, socialAccountId: account.id, platform: account.platform, scheduledFor: draft.scheduledFor ? new Date(draft.scheduledFor).toISOString() : null, options }) });
+      const response = await fetch(publishingEndpoint(account.platform), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, pieceId: piece.id, socialAccountId: account.id, platform: account.platform, ...(otherPage ? { confirmNonDefaultPage: account.id } : {}), scheduledFor: draft.scheduledFor ? new Date(draft.scheduledFor).toISOString() : null, options }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not add this post to the queue.");
       setNotice(`${piece.title || "Content"} ${draft.scheduledFor ? "scheduled" : "queued"} for ${DESTINATION_LABELS[account.platform]}: ${account.accountName}.`);
@@ -175,7 +180,7 @@ export default function PublishingWorkspace({ userId, companyId, canPublish, isH
         <fieldset disabled={saving || loading} className="min-w-0 space-y-4 disabled:opacity-70">
           <label className="block text-sm font-medium">1. Approved content<select value={draft.pieceId} onChange={(event) => update({ pieceId: event.target.value })} className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3"><option value="">Choose approved content</option>{pieces.map((item) => <option key={item.id} value={item.id}>{item.title || "Untitled content"}{item.week?.date_start ? ` | week of ${item.week.date_start}` : ""}</option>)}</select></label>
           {!loading && draft.pieceId && !piece && <p role="status" className="text-sm text-amber-800">This content is no longer in the approved list. Choose another approved piece.</p>}
-          <label className="block text-sm font-medium">2. Destination account<select value={draft.accountId} onChange={(event) => update({ accountId: event.target.value, boardId: "", pinLink: "", madeForKids: "", privacy: "private" })} className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3"><option value="">Choose a named account</option>{accounts.map((item) => <option key={item.id} value={item.id}>{DESTINATION_LABELS[item.platform]}: {item.accountName}{item.usable ? "" : " (reconnect needed)"}</option>)}</select></label>
+          <label className="block text-sm font-medium">2. Destination account<select value={draft.accountId} onChange={(event) => update({ accountId: event.target.value, boardId: "", pinLink: "", madeForKids: "", privacy: "private" })} className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3"><option value="">Choose a named account</option>{accounts.map((item) => <option key={item.id} value={item.id}>{DESTINATION_LABELS[item.platform]}: {item.accountName}{item.platform === "linkedin_company" ? (item.isDefault ? " (default page)" : " (not the default page)") : ""}{item.usable ? "" : " (reconnect needed)"}</option>)}</select></label>
           {!loading && !accounts.length && <p className="text-sm text-gray-600">Connect a destination in Settings to publish. You can keep creating and reviewing content.</p>}
           {!loading && draft.accountId && !account && <p role="status" className="text-sm text-amber-800">The previous destination is no longer available. Choose an account or check Connections in Settings.</p>}
           {issue && <p role="status" className="text-sm text-amber-800">{issue}</p>}
@@ -191,10 +196,11 @@ export default function PublishingWorkspace({ userId, companyId, canPublish, isH
         {confirming && piece && account && <section aria-label="Confirm publishing details" className="space-y-4 rounded-lg border border-violet-200 bg-violet-50/50 p-4">
           <h3 className="text-base font-semibold">Check before {draft.scheduledFor ? "scheduling" : "queueing"}</h3>
           <dl className="space-y-2 text-sm"><div><dt className="font-medium">Destination</dt><dd>{DESTINATION_LABELS[account.platform]}: {account.accountName}</dd></div><div><dt className="font-medium">Content</dt><dd>{piece.title}</dd></div><div><dt className="font-medium">Time</dt><dd>{draft.scheduledFor ? `${new Date(draft.scheduledFor).toLocaleString("en-GB")} (${timeZone})` : "Queue now"}</dd></div>{account.platform === "youtube" && <div><dt className="font-medium">Video settings</dt><dd>{draft.privacy}, {draft.madeForKids === "yes" ? "made for children" : "not made for children"}</dd></div>}{account.platform === "pinterest" && <div><dt className="font-medium">Board</dt><dd>{boards.find((board) => board.id === draft.boardId)?.name}{draft.pinLink && ` | ${draft.pinLink}`}</dd></div>}</dl>
+          {otherPage && <label className="flex min-h-11 items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={pageConfirmed} onChange={(event) => setPageConfirmed(event.target.checked)} className="mt-1 h-5 w-5" /><span><strong>{confirmNonDefaultMessage(account.accountName, defaultPageName)}</strong><span className="block">Tick to confirm this post goes to {account.accountName}.</span></span></label>}
           <p className="whitespace-pre-wrap break-words rounded-lg bg-white p-4 text-sm">{publishingText(piece, account.platform)}</p>
           {piece.media.items.map((item) => item.kind === "image" ? <img key={item.url} src={item.url} alt={item.alt || piece.title} className="max-h-72 max-w-full rounded-lg object-contain" /> : item.kind === "video" ? <video key={item.url} src={item.url} controls preload="metadata" className="max-h-72 w-full rounded-lg" /> : null)}
           {isLinkedInPlatform(account.platform) && piece.preview.firstComment && <div className="text-sm"><p className="font-medium">First comment</p><p className="whitespace-pre-wrap">{piece.preview.firstComment}</p></div>}
-          <div className="flex flex-wrap gap-3"><button type="button" onClick={() => void queue()} disabled={!ready || saving} className="workspace-button disabled:opacity-50">{saving ? "Saving..." : draft.scheduledFor ? "Confirm schedule" : "Confirm queue now"}</button><button type="button" onClick={() => setConfirming(false)} disabled={saving} className="workspace-button workspace-button-secondary">Back to editing</button></div>
+          <div className="flex flex-wrap gap-3"><button type="button" onClick={() => void queue()} disabled={!ready || saving || (otherPage && !pageConfirmed)} className="workspace-button disabled:opacity-50">{saving ? "Saving..." : draft.scheduledFor ? "Confirm schedule" : "Confirm queue now"}</button><button type="button" onClick={() => { setConfirming(false); setPageConfirmed(false); }} disabled={saving} className="workspace-button workspace-button-secondary">Back to editing</button></div>
         </section>}
       </>}
     </section>
