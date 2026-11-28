@@ -1,3 +1,5 @@
+import type { OpsAlert } from "@/lib/alerts/ops-alert";
+
 /**
  * Pure rules for LinkedIn token expiry: when to renew, when to warn, and what
  * the warning says. No I/O, so every rule here is tested directly.
@@ -68,29 +70,24 @@ export function reconnectUrl(baseUrl: string, companyId: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/setup/${companyId}/social`;
 }
 
-/** One message per company, listing every account that is due a notice. Plain British English, no em dashes. */
-export function buildNotice(accounts: NoticeAccount[], baseUrl: string): { subject: string; text: string; html: string } {
+/** One alert per company, listing every account that is due a notice. Plain British English, no em dashes. */
+export function buildNotice(accounts: NoticeAccount[], baseUrl: string): OpsAlert {
   const expired = accounts.some((a) => a.kind === "expired");
-  const url = reconnectUrl(baseUrl, accounts[0].companyId);
-  const lines = accounts.map((a) =>
-    a.kind === "expired"
-      ? `${a.accountName}: expired on ${longDate(a.expiresAt)}. Publishing to this account has stopped.`
-      : `${a.accountName}: expires on ${longDate(a.expiresAt)}.`
-  );
   const names = accounts.map((a) => a.accountName).join(", ");
-  const subject = expired ? `LinkedIn connection expired: ${names}` : `LinkedIn connection expires soon: ${names}`;
-  const note = accounts.find((a) => a.renewalNote)?.renewalNote || "";
-  const text = [
-    expired ? "A LinkedIn connection has expired, so posts to it will not publish." : "A LinkedIn connection is about to expire. After that date posts to it will not publish.",
-    "",
-    ...lines,
-    ...(note ? ["", note] : []),
-    "",
-    `Reconnect LinkedIn here: ${url}`,
-    "",
-    "Sign in to the portal as an admin, open that page and choose Reconnect LinkedIn.",
-  ].join("\n");
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const html = `<p>${esc(expired ? "A LinkedIn connection has expired, so posts to it will not publish." : "A LinkedIn connection is about to expire. After that date posts to it will not publish.")}</p><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>${note ? `<p>${esc(note)}</p>` : ""}<p><a href="${esc(url)}">Reconnect LinkedIn</a></p><p>Sign in to the portal as an admin, open that page and choose Reconnect LinkedIn.</p>`;
-  return { subject, text, html };
+  const note = accounts.find((a) => a.renewalNote)?.renewalNote;
+  return {
+    subject: expired ? `LinkedIn connection expired: ${names}` : `LinkedIn connection expires soon: ${names}`,
+    intro: expired
+      ? "A LinkedIn connection has expired, so posts to it will not publish."
+      : "A LinkedIn connection is about to expire. After that date posts to it will not publish.",
+    fields: [
+      ...accounts.map((a) => ({
+        label: a.accountName,
+        value: a.kind === "expired" ? `expired on ${longDate(a.expiresAt)}. Publishing to this account has stopped.` : `expires on ${longDate(a.expiresAt)}.`,
+      })),
+      ...(note ? [{ label: "Automatic renewal", value: note }] : []),
+      { label: "What to do", value: "Sign in to the portal as an admin, open the page below and choose Reconnect LinkedIn." },
+    ],
+    fixUrl: reconnectUrl(baseUrl, accounts[0].companyId),
+  };
 }

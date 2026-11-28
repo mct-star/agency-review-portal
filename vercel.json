@@ -37,6 +37,14 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/cron/publishing-watch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/publishing-live-check",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/linkedin-token-renewal",
       "schedule": "0 7 * * *"
     }

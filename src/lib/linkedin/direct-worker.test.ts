@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   account: {} as Record<string, unknown>,
   company: {} as Record<string, unknown>,
   actor: {} as Record<string, unknown>,
+  pages: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   assets: [] as Array<Record<string, unknown>>,
   filters: [] as Array<[string, string, unknown]>,
@@ -40,7 +41,7 @@ function fakeSupabase() {
       chain.not = () => chain;
       chain.update = (patch: Record<string, unknown>) => { action = "update"; values = patch; state.updates.push(patch); return chain; };
       chain.maybeSingle = async () => ({ data: table === "content_pieces" ? state.piece : table === "company_social_accounts" ? state.account : table === "companies" ? state.company : state.actor, error: null });
-      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: table === "content_assets" ? state.assets : [], error: null }).then(resolve);
+      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: table === "content_assets" ? state.assets : table === "company_social_accounts" ? state.pages : [], error: null }).then(resolve);
       return chain;
     },
   };
@@ -180,7 +181,35 @@ describe("processLinkedInDirectJob", () => {
     beforeEach(() => {
       vi.mocked(createPost).mockClear();
       state.piece = { ...state.piece, post_type: "agency_product_story", first_comment: "Read it here: https://agencybristol.com" };
-      state.account = { ...state.account, platform: "linkedin_company", account_id: "111", platform_metadata: { scope: "r_basicprofile w_organization_social w_organization_social_feed rw_organization_admin" } };
+      state.account = { ...state.account, id: "account-1", platform: "linkedin_company", account_id: "111", platform_metadata: { scope: "r_basicprofile w_organization_social w_organization_social_feed rw_organization_admin", default_page: true } };
+      state.pages = [{ id: "account-1", account_name: "AGENCY", is_active: true, platform_metadata: { default_page: true } }, { id: "page-2", account_name: "Rebus MedicoLegal", is_active: true, platform_metadata: {} }];
+    });
+
+    it("refuses a page that is neither the default nor confirmed, before contacting LinkedIn", async () => {
+      state.account = { ...state.account, id: "page-2", account_id: "222", platform_metadata: { scope: "r_basicprofile w_organization_social w_organization_social_feed rw_organization_admin" } };
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, { ...pageJob, social_account_id: "page-2" })).toBe("failed");
+      expect(createPost).not.toHaveBeenCalled();
+      expect(String(state.updates.at(-1)?.error_message)).toMatch(/default LinkedIn page/i);
+    });
+
+    it("refuses when the default changed after queueing, even for a page that used to be the default", async () => {
+      state.pages = [{ id: "account-1", account_name: "AGENCY", is_active: true, platform_metadata: {} }, { id: "page-2", account_name: "Rebus MedicoLegal", is_active: true, platform_metadata: { default_page: true } }];
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, pageJob)).toBe("failed");
+      expect(createPost).not.toHaveBeenCalled();
+    });
+
+    it("posts to a non-default page the job confirmed", async () => {
+      state.account = { ...state.account, id: "page-2", account_id: "222", platform_metadata: { scope: "r_basicprofile w_organization_social w_organization_social_feed rw_organization_admin" } };
+      const confirmed = { ...pageJob, social_account_id: "page-2", publish_payload: { ...pageJob.publish_payload, confirmed_non_default_page: "page-2" } };
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, confirmed)).toBe("published");
+      expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:organization:222", "Approved text", undefined);
+    });
+
+    it("refuses a confirmation recorded for a different page", async () => {
+      state.account = { ...state.account, id: "page-2", account_id: "222" };
+      const wrong = { ...pageJob, social_account_id: "page-2", publish_payload: { ...pageJob.publish_payload, confirmed_non_default_page: "account-1" } };
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, wrong)).toBe("failed");
+      expect(createPost).not.toHaveBeenCalled();
     });
 
     it("posts as the organisation and adds the first comment as the organisation", async () => {

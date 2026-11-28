@@ -5,6 +5,7 @@ vi.mock("@/lib/crypto", () => ({ decrypt: (v: string) => v.replace(/^enc:/, ""),
 vi.mock("./app", async (orig) => ({ ...(await orig<typeof import("./app")>()), linkedInApp: vi.fn(() => ({ app: "publisher", clientId: "id", clientSecret: "secret", scopes: "s" })) }));
 
 import { linkedInApp } from "./app";
+import type { OpsAlert } from "@/lib/alerts/ops-alert";
 import { runTokenRenewal, type AccountRow } from "./token-renewal";
 
 const NOW = new Date("2027-01-10T07:00:00Z");
@@ -37,8 +38,8 @@ const row = (over: Partial<AccountRow> & { id: string }): AccountRow => ({
   access_token_encrypted: "enc:old", refresh_token_encrypted: "enc:rt", token_expires_at: inDays(30), platform_metadata: { app: "publisher", scope: "a b" }, ...over,
 });
 const deps = (over = {}) => ({
-  now: NOW, baseUrl: "https://portal.test", alertEmail: "alerts@test",
-  sendEmail: vi.fn(async () => ({ success: true })), postSlack: vi.fn(async () => true),
+  now: NOW, baseUrl: "https://portal.test",
+  alert: vi.fn(async (_a: OpsAlert) => ({ delivered: true })),
   refresh: vi.fn(async () => ({ accessToken: "new", refreshToken: "rt2", expiresIn: 1, expiresAt: inDays(60), scope: "a b c" })), ...over,
 });
 
@@ -64,7 +65,7 @@ describe("runTokenRenewal", () => {
     expect(rows.every((r) => r.token_expires_at === inDays(60) && r.access_token_encrypted === "enc:new" && r.refresh_token_encrypted === "enc:rt2")).toBe(true);
     expect((rows[0].platform_metadata as { token_renewal: { outcome: string } }).token_renewal.outcome).toBe("refreshed");
     expect(s.noticesSent).toBe(0);
-    expect(d.sendEmail).not.toHaveBeenCalled();
+    expect(d.alert).not.toHaveBeenCalled();
   });
 
   it("when LinkedIn refuses, records the failure and warns at 7 days by email and Slack", async () => {
@@ -73,14 +74,12 @@ describe("runTokenRenewal", () => {
     const d = deps({ refresh: vi.fn(async () => { throw new LinkedInTokenError("raw body must not leak", 400, "invalid_grant"); }) });
     const s = await runTokenRenewal(client, d);
     expect(s.failed).toBe(1);
-    expect(d.sendEmail).toHaveBeenCalledTimes(1);
-    expect(d.postSlack).toHaveBeenCalledTimes(1);
-    const [to, subject, html] = d.sendEmail.mock.calls[0] as unknown as [string, string, string];
-    expect(to).toBe("alerts@test");
-    expect(subject).toContain("expires soon");
-    expect(html).toContain("https://portal.test/setup/c1/social");
-    expect(html).toContain("invalid_grant");
-    expect(html).not.toContain("raw body");
+    expect(d.alert).toHaveBeenCalledTimes(1);
+    const sent = d.alert.mock.calls[0][0] as OpsAlert;
+    expect(sent.subject).toContain("expires soon");
+    expect(sent.fixUrl).toBe("https://portal.test/setup/c1/social");
+    expect(JSON.stringify(sent)).toContain("invalid_grant");
+    expect(JSON.stringify(sent)).not.toContain("raw body");
     expect((rows[0].platform_metadata as { token_renewal: { outcome: string } }).token_renewal.outcome).toBe("failed");
   });
 
@@ -92,7 +91,7 @@ describe("runTokenRenewal", () => {
     expect(d.refresh).not.toHaveBeenCalled();
     expect(s.unavailable).toBe(1);
     expect(s.noticesSent).toBe(1);
-    expect((d.sendEmail.mock.calls[0] as unknown as string[])[2]).toContain("no refresh token is stored");
+    expect(JSON.stringify(d.alert.mock.calls[0][0])).toContain("no refresh token is stored");
   });
 
   it("sends each warning once per account per expiry date, across repeated runs", async () => {
@@ -101,14 +100,14 @@ describe("runTokenRenewal", () => {
     const d = deps();
     await runTokenRenewal(client, d);
     await runTokenRenewal(client, d);
-    expect(d.sendEmail).toHaveBeenCalledTimes(1);
+    expect(d.alert).toHaveBeenCalledTimes(1);
     // ...and a second, different notice on expiry.
     const later = deps({ now: new Date(NOW.getTime() + 6 * 86_400_000) });
     await runTokenRenewal(client, later);
-    expect(later.sendEmail).toHaveBeenCalledTimes(1);
-    expect((later.sendEmail.mock.calls[0] as unknown as string[])[1]).toContain("expired");
+    expect(later.alert).toHaveBeenCalledTimes(1);
+    expect((later.alert.mock.calls[0][0] as OpsAlert).subject).toContain("expired");
     await runTokenRenewal(client, later);
-    expect(later.sendEmail).toHaveBeenCalledTimes(1);
+    expect(later.alert).toHaveBeenCalledTimes(1);
   });
 
   it("combines accounts of one company into one message", async () => {
@@ -116,24 +115,26 @@ describe("runTokenRenewal", () => {
     const { client } = db(rows);
     const d = deps();
     const s = await runTokenRenewal(client, d);
-    expect(d.sendEmail).toHaveBeenCalledTimes(1);
+    expect(d.alert).toHaveBeenCalledTimes(1);
     expect(s.noticesSent).toBe(2);
   });
 
-  it("still emails when Slack is not configured, and releases the claim when every channel fails", async () => {
+  it("releases the claim when the alert is not delivered, so the next run retries", async () => {
     const rows = [row({ id: "a", refresh_token_encrypted: null, token_expires_at: inDays(5) })];
     const { client } = db(rows);
-    const noSlack = deps({ postSlack: vi.fn(async () => false) });
-    expect((await runTokenRenewal(client, noSlack)).noticesSent).toBe(1);
-
-    const rows2 = [row({ id: "a", refresh_token_encrypted: null, token_expires_at: inDays(5) })];
-    const { client: c2 } = db(rows2);
-    const failing = deps({ sendEmail: vi.fn(async () => ({ success: false })), postSlack: vi.fn(async () => false) });
-    const s = await runTokenRenewal(c2, failing);
+    const failing = deps({ alert: vi.fn(async () => ({ delivered: false })) });
+    const s = await runTokenRenewal(client, failing);
     expect(s.noticesFailed).toBe(1);
-    expect(rows2[0].platform_metadata).not.toHaveProperty("expiry_notices");
+    expect(rows[0].platform_metadata).not.toHaveProperty("expiry_notices");
     const retry = deps();
-    expect((await runTokenRenewal(c2, retry)).noticesSent).toBe(1);
+    expect((await runTokenRenewal(client, retry)).noticesSent).toBe(1);
+  });
+
+  it("treats a thrown alert as not delivered", async () => {
+    const rows = [row({ id: "a", refresh_token_encrypted: null, token_expires_at: inDays(5) })];
+    const { client } = db(rows);
+    const s = await runTokenRenewal(client, deps({ alert: vi.fn(async () => { throw new Error("boom"); }) }));
+    expect(s.noticesFailed).toBe(1);
   });
 
   it("does not try to refresh when the app credentials are missing", async () => {

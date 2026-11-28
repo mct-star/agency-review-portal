@@ -40,19 +40,19 @@ describe("buildNotice", () => {
   const base = "https://agency-review-portal.vercel.app/";
   const soon = buildNotice([{ companyId: "c1", accountName: "AGENCY", kind: "expiring_soon", expiresAt: "2027-01-26T18:35:47Z", renewalNote: "" }], base);
   const gone = buildNotice([{ companyId: "c1", accountName: "AGENCY", kind: "expired", expiresAt: "2027-01-26T18:35:47Z", renewalNote: "Automatic renewal did not work: LinkedIn refused the renewal (invalid_grant), so the connection has to be reconnected by hand." }], base);
+  const flat = (a: ReturnType<typeof buildNotice>) => JSON.stringify(a);
   it("names the account, the date and the reconnect page", () => {
     expect(soon.subject).toBe("LinkedIn connection expires soon: AGENCY");
-    expect(soon.text).toContain("AGENCY: expires on 26 January 2027.");
-    expect(soon.text).toContain("https://agency-review-portal.vercel.app/setup/c1/social");
-    expect(soon.html).toContain('href="https://agency-review-portal.vercel.app/setup/c1/social"');
-    expect(reconnectUrl(base, "c1")).toBe("https://agency-review-portal.vercel.app/setup/c1/social");
+    expect(soon.fields[0]).toEqual({ label: "AGENCY", value: "expires on 26 January 2027." });
+    expect(soon.fixUrl).toBe("https://agency-review-portal.vercel.app/setup/c1/social");
+    expect(reconnectUrl(base, "c1")).toBe(soon.fixUrl);
   });
   it("says publishing has stopped once expired, and carries the refresh-unavailable note", () => {
     expect(gone.subject).toBe("LinkedIn connection expired: AGENCY");
-    expect(gone.text).toContain("Publishing to this account has stopped.");
-    expect(gone.text).toContain("Automatic renewal did not work");
+    expect(flat(gone)).toContain("Publishing to this account has stopped.");
+    expect(flat(gone)).toContain("Automatic renewal did not work");
   });
   it("uses no em dashes", () => {
-    for (const m of [soon, gone]) expect(`${m.subject}${m.text}${m.html}`).not.toContain("—");
+    for (const m of [soon, gone]) expect(flat(m)).not.toContain("\u2014");
   });
 });

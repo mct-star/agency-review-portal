@@ -8,6 +8,7 @@ import { connectionErrorMessage } from "./token-error";
 import { canPostAsOrganisation, linkedInApp } from "./app";
 import { oauthStateSecret, verifyOAuthState } from "./oauth-state";
 import { saveLinkedInPhoto } from "./profile-photo";
+import { firstPageBecomesDefault, withDefaultFlag, type PageRow } from "./default-page";
 
 /**
  * The one LinkedIn OAuth callback, used by /api/auth/linkedin/callback and by
@@ -116,8 +117,18 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
     if (canPostAsOrganisation(tokens.scope)) {
       try {
         const pages = await getAdministeredOrganizations(tokens.accessToken);
+        // Reconnecting refreshes a page's token and details and nothing else: a page the
+        // user switched off stays off, and the default never moves. Only a company that
+        // has never had a page, connecting exactly one, gets a default.
+        const { data: existingData, error: existingErr } = await supabase.from("company_social_accounts")
+          .select("id, account_id, is_active, platform_metadata").eq("company_id", verified.companyId).eq("platform", "linkedin_company");
+        if (existingErr) throw new Error(`could not read the company's existing pages: ${existingErr.message}`);
+        const existing = (Array.isArray(existingData) ? existingData : []) as Array<PageRow & { account_id: string | null }>;
+        const byAccount = new Map(existing.map((row) => [row.account_id, row]));
+        const makeFirstDefault = firstPageBecomesDefault(existing, pages.length);
         let savedPages = 0;
-        for (const page of pages) {
+        for (const [index, page] of pages.entries()) {
+          const known = byAccount.get(page.id);
           const { error: pageErr } = await supabase.from("company_social_accounts").upsert(
             {
               company_id: verified.companyId,
@@ -129,6 +140,7 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
               refresh_token_encrypted: refreshTokenEncrypted,
               token_expires_at: tokens.expiresAt,
               platform_metadata: {
+                ...withDefaultFlag(known?.platform_metadata, known ? known.platform_metadata?.default_page === true : makeFirstDefault && index === 0),
                 app: app.app,
                 organization_urn: page.urn,
                 vanity_name: page.vanityName,
@@ -136,7 +148,7 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
                 connected_member_name: profile.name,
                 scope: tokens.scope,
               },
-              is_active: true,
+              is_active: known ? known.is_active === true : true,
             },
             { onConflict: "company_id,platform,account_id" }
           );

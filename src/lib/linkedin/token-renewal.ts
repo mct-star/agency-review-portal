@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt, encrypt } from "@/lib/crypto";
+import type { OpsAlert } from "@/lib/alerts/ops-alert";
 import { linkedInApp } from "./app";
 import { refreshAccessToken } from "./client";
 import { LinkedInTokenError } from "./token-error";
@@ -13,9 +14,9 @@ import { buildNotice, expiryState, noticeDue, noticeKey, type NoticeAccount, typ
  *    one sign-in (a member and their pages) share one refresh token, so each
  *    distinct refresh token is used once and every row that holds it is updated.
  * 2. Whether or not that worked, warn when 7 days remain and again on expiry,
- *    by email and by Slack. Each notice is sent once per account per expiry
+ *    through the shared ops alert channel (Slack and email). Each notice is sent once per account per expiry
  *    date: the key is stored in platform_metadata.expiry_notices and claimed
- *    before sending, then released if every channel failed.
+ *    before sending, then released if the alert was not delivered.
  *
  * Outcomes are recorded in platform_metadata.token_renewal (no tokens, no
  * LinkedIn reply bodies). Nothing here prints a token.
@@ -39,10 +40,8 @@ export type Deps = {
   now?: Date;
   baseUrl: string;
   refresh?: typeof refreshAccessToken;
-  sendEmail: (to: string, subject: string, html: string) => Promise<{ success: boolean }>;
-  /** Returns false when Slack is not configured or the post failed. */
-  postSlack: (text: string) => Promise<boolean>;
-  alertEmail: string;
+  /** The shared ops alert channel (Slack and email). Resolves delivered: true when at least one channel got it. */
+  alert: (alert: OpsAlert) => Promise<{ delivered: boolean }>;
 };
 
 export type RenewalSummary = {
@@ -166,10 +165,8 @@ export async function runTokenRenewal(supabase: SupabaseClient, deps: Deps): Pro
       expiresAt: row.token_expires_at as string,
       renewalNote: results.get(row.id)?.reason ? `Automatic renewal did not work: ${results.get(row.id)?.reason}.` : "",
     }));
-    const { subject, text, html } = buildNotice(accounts, deps.baseUrl);
-    const emailed = await deps.sendEmail(deps.alertEmail, subject, html).then((r) => r.success).catch(() => false);
-    const slacked = await deps.postSlack(`${subject}\n${text}`).catch(() => false);
-    if (emailed || slacked) summary.noticesSent += claimed.length;
+    const delivered = await deps.alert(buildNotice(accounts, deps.baseUrl)).then((r) => r.delivered).catch(() => false);
+    if (delivered) summary.noticesSent += claimed.length;
     else {
       summary.noticesFailed += claimed.length;
       // Release the claim so tomorrow's run tries again.

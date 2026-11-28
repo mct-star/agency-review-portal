@@ -72,10 +72,10 @@ Run `npx tsc --noEmit` and `npm test` after any non-trivial change.
   Admin "poll now" (`/api/analytics/poll`) runs the same job.
 - **LinkedIn token renewal.** `/api/cron/linkedin-token-renewal` (daily, `CRON_SECRET`)
   runs `src/lib/linkedin/token-renewal.ts`: it refreshes any token expiring within
-  14 days (once per shared refresh token), and warns by email and Slack at 7 days
+  14 days (once per shared refresh token), and warns through `sendOpsAlert` (Slack and email) at 7 days
   and on expiry, once per account per expiry date (keys in
-  `platform_metadata.expiry_notices`). Optional env: `LINKEDIN_ALERT_EMAIL`,
-  `SLACK_ALERT_WEBHOOK_URL` (Slack is skipped when unset).
+  `platform_metadata.expiry_notices`). Recipients and Slack follow the
+  shared alert channel (`ALERT_EMAIL_TO`, `SLACK_ALERT_WEBHOOK_URL`).
 - **Buckets.** `captures` and `content-drafts` are private (signed URLs);
   `content-assets`, `media` and `renders` are public. Anything a client would
   not publish (compliance documents, raw uploads) goes in a private bucket.
