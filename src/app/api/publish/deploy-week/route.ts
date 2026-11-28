@@ -9,6 +9,7 @@ import { nextForType, planWeekDeploy, type DeployManualSocial, type DeployPiece,
 import { LEFT_FOR_SCHEDULER_PARAM } from "@/lib/export/left-for-scheduler";
 import { POST as queueLinkedInPost } from "@/app/api/publish/linkedin-direct/route";
 import { linkedInPlatformForPostType } from "@/lib/linkedin/direct-publish";
+import { resolveDefaultPage, type PageRow } from "@/lib/linkedin/default-page";
 import { POST as sendBlogToWebsite } from "@/app/api/publish/website/route";
 
 export const maxDuration = 60;
@@ -83,12 +84,13 @@ export async function POST(request: Request) {
 
   // The LinkedIn profile the spokesperson's posts go to: the one the user
   // confirmed, or the company's only active one. Company page posts go to the
-  // company's only active LinkedIn page.
-  const { data: accountRows } = await supabase.from("company_social_accounts").select("id, platform")
-    .eq("company_id", companyId).in("platform", ["linkedin_personal", "linkedin_company"]).eq("is_active", true);
-  const accountIds = (accountRows || []).filter((a) => a.platform === "linkedin_personal").map((a) => a.id as string);
-  const pageIds = (accountRows || []).filter((a) => a.platform === "linkedin_company").map((a) => a.id as string);
-  const pageId = pageIds.length === 1 ? pageIds[0] : null;
+  // company's default page and to no other: deploying never picks a page.
+  const { data: accountRows } = await supabase.from("company_social_accounts").select("id, platform, is_active, account_name, platform_metadata")
+    .eq("company_id", companyId).in("platform", ["linkedin_personal", "linkedin_company"]);
+  const accountIds = (accountRows || []).filter((a) => a.platform === "linkedin_personal" && a.is_active === true).map((a) => a.id as string);
+  const pageRows = (accountRows || []).filter((a) => a.platform === "linkedin_company") as unknown as PageRow[];
+  const activePages = pageRows.filter((a) => a.is_active === true);
+  const pageId = resolveDefaultPage(pageRows)?.id ?? null;
   const pieceFeedPlatform = (pieceId: string) =>
     linkedInPlatformForPostType((pieceRows || []).find((p) => p.id === pieceId)?.post_type as string | null | undefined);
   const requested = typeof body.socialAccountId === "string" ? body.socialAccountId : null;
@@ -144,7 +146,7 @@ export async function POST(request: Request) {
     const target = toPage ? pageId : accountId;
     if (!target) {
       const reason = !toPage ? "No LinkedIn account is connected."
-        : pageIds.length > 1 ? "More than one LinkedIn page is connected. Choose the page on the Publish page."
+        : activePages.length > 0 ? "No default LinkedIn page is set. Choose the default page in Settings, then deploy again."
         : "No LinkedIn company page is connected.";
       notQueued.push({ pieceId: s.pieceId, title: s.title, contentType: s.contentType, reason, next: nextForType(s.contentType) });
       continue;

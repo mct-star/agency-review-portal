@@ -361,4 +361,39 @@ describe("POST /api/publish/deploy-week: company page posts", () => {
     expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
     expect(body.notQueued).toEqual(expect.arrayContaining([expect.objectContaining({ pieceId: "b", reason: "No LinkedIn company page is connected." })]));
   });
+
+  it("sends a page piece only to the default page, and never to a second active page", async () => {
+    const rebus = { ...page(), id: "page-2", account_id: "222", account_name: "Rebus MedicoLegal" };
+    state.tables.company_social_accounts.push({ ...page(), platform_metadata: { default_page: true } }, rebus);
+    state.tables.content_pieces.find((p) => p.id === "b")!.post_type = "agency_product_story";
+    const res = await deploy();
+    expect(res.status).toBe(200);
+    expect(pageJobs().map((q) => q.row.social_account_id)).toEqual(["page-1"]);
+  });
+
+  it("queues no page piece when two pages are active and none is the default, and says why", async () => {
+    state.tables.company_social_accounts.push(page(), { ...page(), id: "page-2", account_id: "222", account_name: "Rebus MedicoLegal" });
+    state.tables.content_pieces.find((p) => p.id === "b")!.post_type = "agency_product_story";
+    const body = await (await deploy()).json();
+    expect(pageJobs()).toHaveLength(0);
+    expect(body.notQueued).toEqual(expect.arrayContaining([expect.objectContaining({ pieceId: "b", reason: expect.stringMatching(/default LinkedIn page/i) })]));
+  });
+
+  it("does not use a page that was switched off, even when it is the only one connected", async () => {
+    state.tables.company_social_accounts.push({ ...page(), is_active: false });
+    state.tables.content_pieces.find((p) => p.id === "b")!.post_type = "agency_product_story";
+    const body = await (await deploy()).json();
+    expect(pageJobs()).toHaveLength(0);
+    expect(body.notQueued).toEqual(expect.arrayContaining([expect.objectContaining({ pieceId: "b", reason: "No LinkedIn company page is connected." })]));
+  });
+
+  it("cannot be steered to a non-default page: a page id in the body is refused and nothing is queued", async () => {
+    state.tables.company_social_accounts.push({ ...page(), platform_metadata: { default_page: true } }, { ...page(), id: "page-2", account_id: "222" });
+    state.tables.content_pieces.find((p) => p.id === "b")!.post_type = "agency_product_story";
+    const res = await deploy({ socialAccountId: "page-2", confirmNonDefaultPage: "page-2" });
+    expect(res.status).toBe(404);
+    expect(pageJobs()).toHaveLength(0);
+  });
+
 });
+

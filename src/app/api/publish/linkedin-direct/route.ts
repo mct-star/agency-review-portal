@@ -9,6 +9,7 @@ import { linkedInApp } from "@/lib/linkedin/app";
 import { defaultCarouselTitle } from "@/lib/linkedin/publish-preview";
 import { LINKEDIN_PLATFORMS, directLinkedInJobId, linkedInDirectMedia, linkedInFeedMismatch } from "@/lib/linkedin/direct-publish";
 import { recordedApprovalRefusal } from "@/lib/content/approval-gate";
+import { confirmNonDefaultMessage, isFlaggedDefault, resolveDefaultPage, withDefaultFlag, type PageRow } from "@/lib/linkedin/default-page";
 
 /** Queue an approved LinkedIn post for one explicitly selected account: a personal profile, or a company page for company page pieces. */
 export async function POST(request: Request) {
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
     pieceId?: string;
     socialAccountId?: string;
     scheduledFor?: string | null;
+    /** The id of the non-default page the person confirmed posting to. */
+    confirmNonDefaultPage?: unknown;
   } | null;
   if (!body?.companyId) return NextResponse.json({ error: "companyId is required" }, { status: 400 });
 
@@ -53,6 +56,21 @@ export async function POST(request: Request) {
   if (!account) return NextResponse.json({ error: "Choose an active LinkedIn account connected to this company." }, { status: 404 });
   const mismatch = linkedInFeedMismatch(piece.post_type, account.platform);
   if (mismatch) return NextResponse.json({ error: mismatch, code: "wrong_feed" }, { status: 409 });
+  // Only the default page is posted to without asking. Any other page needs
+  // the person to confirm that exact page, so a page can never be reached by accident.
+  if (account.platform === "linkedin_company") {
+    const { data: pages, error: pagesError } = await supabase.from("company_social_accounts")
+      .select("id, account_name, is_active, platform_metadata").eq("company_id", body.companyId).eq("platform", "linkedin_company");
+    if (pagesError) return NextResponse.json({ error: "Could not check the company's LinkedIn pages, so nothing was queued." }, { status: 500 });
+    const def = resolveDefaultPage((pages || []) as PageRow[]);
+    if (def?.id !== account.id && body.confirmNonDefaultPage !== account.id) {
+      const pageName = account.account_name || "this page";
+      return NextResponse.json({
+        error: confirmNonDefaultMessage(pageName, def?.account_name || null),
+        code: "non_default_page", pageName, defaultPageName: def?.account_name || null,
+      }, { status: 409 });
+    }
+  }
   const expiry = account.token_expires_at ? Date.parse(account.token_expires_at) : Number.NaN;
   if (!account.account_id || !account.access_token_encrypted || !Number.isFinite(expiry) || expiry <= Date.now()) {
     return NextResponse.json({ error: "This LinkedIn connection needs reconnecting before it can publish." }, { status: 409 });
@@ -113,18 +131,24 @@ export async function GET(request: Request) {
   if (profile.role !== "admin" && !profile.can_publish) {
     return NextResponse.json({ error: "Your account cannot publish." }, { status: 403 });
   }
+  const includeInactive = new URL(request.url).searchParams.get("includeInactive") === "1";
   const supabase = await createAdminSupabaseClient();
   const { data, error } = await supabase.from("company_social_accounts")
-    .select("id, platform, account_name, account_id, token_expires_at, access_token_encrypted, is_active")
-    .eq("company_id", companyId).in("platform", [...LINKEDIN_PLATFORMS]).eq("is_active", true);
+    .select("id, platform, account_name, account_id, token_expires_at, access_token_encrypted, is_active, platform_metadata")
+    .eq("company_id", companyId).in("platform", [...LINKEDIN_PLATFORMS]);
   if (error) return NextResponse.json({ error: "Could not load LinkedIn accounts." }, { status: 500 });
-  const accounts = (data || []).map((account) => ({
+  const rows = data || [];
+  const defaultPage = resolveDefaultPage(rows.filter((row) => row.platform === "linkedin_company") as unknown as PageRow[]);
+  // Switched-off pages are listed only for the settings card, which needs them to switch one back on.
+  const accounts = rows.filter((row) => row.is_active === true || (includeInactive && row.platform === "linkedin_company")).map((account) => ({
     id: account.id,
     platform: account.platform as "linkedin_personal" | "linkedin_company",
     kind: account.platform === "linkedin_company" ? "company_page" as const : "personal" as const,
     accountName: account.account_name || (account.platform === "linkedin_company" ? "LinkedIn page" : "LinkedIn profile"),
     accountId: account.account_id,
-    usable: !!account.account_id && !!account.access_token_encrypted && !!account.token_expires_at && Date.parse(account.token_expires_at) > Date.now(),
+    active: account.is_active === true,
+    isDefault: account.platform === "linkedin_company" && defaultPage?.id === account.id,
+    usable: account.is_active === true && !!account.account_id && !!account.access_token_encrypted && !!account.token_expires_at && Date.parse(account.token_expires_at) > Date.now(),
     expiresAt: account.token_expires_at,
   }));
   const personal = accounts.filter((account) => account.kind === "personal");
@@ -142,6 +166,52 @@ export async function GET(request: Request) {
   });
 }
 
+
+/**
+ * Settings for a company's LinkedIn pages: which page is the default, and which are switched on.
+ * set_default needs a switched-on page; the default page cannot be switched off; switching a
+ * page on or off never changes the default.
+ */
+export async function PATCH(request: Request) {
+  const body = await request.json().catch(() => null) as { companyId?: string; socialAccountId?: string; action?: string } | null;
+  if (!body?.companyId || !body.socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
+  if (!["set_default", "switch_on", "switch_off"].includes(body.action || "")) return NextResponse.json({ error: "Choose set_default, switch_on or switch_off." }, { status: 400 });
+  const auth = await authoriseChannelManager(body.companyId);
+  if (!auth.ok) return auth.response;
+  const supabase = await createAdminSupabaseClient();
+  const { data, error: readError } = await supabase.from("company_social_accounts")
+    .select("id, account_name, is_active, platform_metadata").eq("company_id", body.companyId).eq("platform", "linkedin_company");
+  if (readError) return NextResponse.json({ error: "Could not read the company's LinkedIn pages." }, { status: 500 });
+  const pages = (data || []) as Array<PageRow & { platform_metadata: Record<string, unknown> | null }>;
+  const target = pages.find((row) => row.id === body.socialAccountId);
+  if (!target) return NextResponse.json({ error: "LinkedIn page not found." }, { status: 404 });
+  const name = target.account_name || "This page";
+  const update = (id: string, values: Record<string, unknown>) =>
+    supabase.from("company_social_accounts").update(values).eq("id", id).eq("company_id", body.companyId!).eq("platform", "linkedin_company");
+
+  if (body.action === "switch_on") {
+    const { error } = await update(target.id, { is_active: true });
+    if (error) return NextResponse.json({ error: "Could not switch this page on." }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+  if (body.action === "switch_off") {
+    if (isFlaggedDefault(target) || resolveDefaultPage(pages)?.id === target.id) {
+      return NextResponse.json({ error: `${name} is the default page. Make another page the default before switching it off.` }, { status: 409 });
+    }
+    const { error } = await update(target.id, { is_active: false });
+    if (error) return NextResponse.json({ error: "Could not switch this page off." }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+  if (target.is_active !== true) return NextResponse.json({ error: `${name} is switched off. Switch it on before making it the default.` }, { status: 409 });
+  // Set the new default first: if the second write fails, two flags resolve to no default, which refuses posting rather than guessing.
+  const { error: setError } = await update(target.id, { platform_metadata: withDefaultFlag(target.platform_metadata, true) });
+  if (setError) return NextResponse.json({ error: "Could not set the default page." }, { status: 500 });
+  for (const other of pages.filter((row) => row.id !== target.id && isFlaggedDefault(row))) {
+    const { error } = await update(other.id, { platform_metadata: withDefaultFlag(other.platform_metadata, false) });
+    if (error) return NextResponse.json({ error: "The default was set, but another page still carries the default flag. Try again." }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
+}
 
 /** An admin, or a client of the company with the publish right, withdraws one company-owned LinkedIn grant without deleting publishing history. */
 export async function DELETE(request: Request) {

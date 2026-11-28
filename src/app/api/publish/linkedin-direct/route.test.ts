@@ -48,7 +48,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/hospitality/pack-guard", () => ({ refuseHospitality: async () => null }));
 vi.mock("@/lib/content/piece-media", () => ({ resolvePieceMedia: () => state.media }));
 
-import { GET, POST, DELETE } from "./route";
+import { GET, POST, DELETE, PATCH } from "./route";
 import { pieceVersionHash } from "@/lib/content/version-hash";
 
 const approval = (extra: Record<string, unknown> = {}) => ({
@@ -264,3 +264,97 @@ describe("company page publishing", () => {
     expect(state.updates[0].filters).toEqual(expect.arrayContaining([["id", "page-1"], ["platform", "linkedin_company"]]));
   });
 });
+
+describe("default LinkedIn page", () => {
+  const page = (id: string, name: string, extra: Record<string, unknown> = {}) => ({ id, company_id: "company-1", platform: "linkedin_company", account_id: `urn-${id}`, account_name: name, access_token_encrypted: "ciphertext", token_expires_at: new Date(Date.now() + 86400000).toISOString(), is_active: true, platform_metadata: {}, ...extra });
+  const pagePiece = () => ({ ...(state.tables.content_pieces as Record<string, unknown>[])[0], post_type: "agency_product_story" });
+  const patch = (body: Record<string, unknown>) => PATCH(new Request("http://localhost/api/publish/linkedin-direct", { method: "PATCH", body: JSON.stringify({ companyId: "company-1", ...body }) }));
+  beforeEach(() => {
+    state.profile = { id: "admin-1", role: "admin", company_id: "company-1", can_publish: true };
+    state.tables.content_pieces = [pagePiece()];
+    state.tables.company_social_accounts = [
+      ...(state.tables.company_social_accounts as Record<string, unknown>[]),
+      page("page-1", "AGENCY", { platform_metadata: { default_page: true } }),
+      page("page-2", "Rebus MedicoLegal"),
+    ];
+  });
+
+  it("queues to the default page with no extra confirmation", async () => {
+    expect((await POST(request(input({ socialAccountId: "page-1" })))).status).toBe(201);
+  });
+
+  it("refuses a non-default page with no confirmation, naming both pages, and queues nothing", async () => {
+    const res = await POST(request(input({ socialAccountId: "page-2" })));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body).toMatchObject({ code: "non_default_page", pageName: "Rebus MedicoLegal", defaultPageName: "AGENCY" });
+    expect(body.error).toBe("Post to Rebus MedicoLegal, not AGENCY?");
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("refuses a confirmation that names a different page, or a bare true", async () => {
+    expect((await POST(request(input({ socialAccountId: "page-2", confirmNonDefaultPage: "page-1" })))).status).toBe(409);
+    expect((await POST(request(input({ socialAccountId: "page-2", confirmNonDefaultPage: true })))).status).toBe(409);
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  it("queues to a non-default page once the confirmation names that page", async () => {
+    const res = await POST(request(input({ socialAccountId: "page-2", confirmNonDefaultPage: "page-2" })));
+    expect(res.status).toBe(201);
+    expect(state.inserts[0].row).toMatchObject({ social_account_id: "page-2", target_platform: "linkedin_company" });
+  });
+
+  it("asks for the confirmation when no page is the default", async () => {
+    state.tables.company_social_accounts = (state.tables.company_social_accounts as Record<string, unknown>[]).map((a) => ({ ...a, platform_metadata: {} }));
+    const res = await POST(request(input({ socialAccountId: "page-1" })));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("No default LinkedIn page is set. Post to AGENCY?");
+  });
+
+  it("lists which page is the default, and the switched-off pages only when asked", async () => {
+    state.tables.company_social_accounts = [...(state.tables.company_social_accounts as Record<string, unknown>[]), page("page-3", "Old page", { is_active: false })];
+    const plain = await (await GET(new Request("http://localhost/api/publish/linkedin-direct?companyId=company-1"))).json();
+    expect(plain.accounts.map((a: { id: string }) => a.id)).not.toContain("page-3");
+    expect(plain.accounts.find((a: { id: string }) => a.id === "page-1")).toMatchObject({ isDefault: true });
+    expect(plain.accounts.find((a: { id: string }) => a.id === "page-2")).toMatchObject({ isDefault: false });
+    const all = await (await GET(new Request("http://localhost/api/publish/linkedin-direct?companyId=company-1&includeInactive=1"))).json();
+    expect(all.accounts.find((a: { id: string }) => a.id === "page-3")).toMatchObject({ active: false, isDefault: false });
+  });
+
+  it("makes another active page the default and clears the flag on the rest", async () => {
+    const res = await patch({ socialAccountId: "page-2", action: "set_default" });
+    expect(res.status).toBe(200);
+    const written = Object.fromEntries(state.updates.map((u) => [String(u.filters.find(([k]) => k === "id")?.[1]), u.values.platform_metadata]));
+    expect(written["page-2"]).toMatchObject({ default_page: true });
+    expect(written["page-1"]).not.toHaveProperty("default_page");
+  });
+
+  it("refuses to make a switched-off page the default", async () => {
+    state.tables.company_social_accounts = (state.tables.company_social_accounts as Record<string, unknown>[]).map((a) => a.id === "page-2" ? { ...a, is_active: false } : a);
+    expect((await patch({ socialAccountId: "page-2", action: "set_default" })).status).toBe(409);
+    expect(state.updates).toHaveLength(0);
+  });
+
+  it("refuses to switch off the default page, and switches another page off or on without touching the default", async () => {
+    const refused = await patch({ socialAccountId: "page-1", action: "switch_off" });
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error).toMatch(/default/i);
+    expect(state.updates).toHaveLength(0);
+    expect((await patch({ socialAccountId: "page-2", action: "switch_off" })).status).toBe(200);
+    expect(state.updates).toHaveLength(1);
+    expect(state.updates[0].values).toEqual({ is_active: false });
+    expect((await patch({ socialAccountId: "page-2", action: "switch_on" })).status).toBe(200);
+    expect(state.updates[1].values).toEqual({ is_active: true });
+  });
+
+  it("refuses a personal profile, another company's page, an unknown action and a user who cannot manage channels", async () => {
+    expect((await patch({ socialAccountId: "account-1", action: "set_default" })).status).toBe(404);
+    state.tables.company_social_accounts = [...(state.tables.company_social_accounts as Record<string, unknown>[]), page("page-x", "Other", { company_id: "company-2" })];
+    expect((await patch({ socialAccountId: "page-x", action: "set_default" })).status).toBe(404);
+    expect((await patch({ socialAccountId: "page-2", action: "explode" })).status).toBe(400);
+    state.profile = { id: "user-1", role: "client", company_id: "company-1", can_publish: false };
+    expect((await patch({ socialAccountId: "page-2", action: "set_default" })).status).toBe(403);
+    expect(state.updates).toHaveLength(0);
+  });
+});
+
