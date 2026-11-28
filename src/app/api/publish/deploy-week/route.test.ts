@@ -121,13 +121,58 @@ describe("POST /api/publish/deploy-week: deploy", () => {
     }
   });
 
-  it("never queues an unapproved piece: a week with one is refused and nothing is queued", async () => {
+  it("never queues an unapproved piece: it is refused and listed, and the approved pieces still go", async () => {
     state.tables.content_pieces.push(piece("waiting", { approval_status: "pending" }));
     const res = await deploy();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.refused).toEqual([expect.objectContaining({ pieceId: "waiting" })]);
+    expect(queued().map((q) => q.row.content_piece_id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("refuses when nothing at all is approved, and queues nothing", async () => {
+    state.tables.content_pieces = [piece("waiting", { approval_status: "pending" })];
+    const res = await deploy();
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/approve/i);
     expect(state.inserts).toHaveLength(0);
-    expect(state.websiteCalls).toHaveLength(0);
+  });
+
+  it("is idempotent: running it twice never creates a second job for the same piece", async () => {
+    await deploy();
+    const second = await (await deploy()).json();
+    expect(queued()).toHaveLength(2);
+    expect(second.queued).toHaveLength(0);
+    expect(second.alreadyQueued.map((a: Row) => a.pieceId).sort()).toEqual(["a", "b"]);
+  });
+
+  it("schedules only the ticked days", async () => {
+    state.tables.content_pieces = [piece("a", { scheduled_date: future }), piece("b", { scheduled_date: "2099-01-02" })];
+    const body = await (await deploy({ days: [future] })).json();
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
+    expect(body.unselected.map((u: Row) => u.pieceId)).toEqual(["b"]);
+  });
+
+  it("previews each post's time, account, text, media and first comment, and queues nothing", async () => {
+    state.tables.content_pieces[0].first_comment = "Link in the first comment";
+    decide("a");
+    const res = await POST(new Request("http://localhost/api/publish/deploy-week", { method: "POST", body: JSON.stringify({ weekId: "week-1", preview: true }) }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(state.inserts).toHaveLength(0);
+    const a = body.items.find((i: Row) => i.pieceId === "a");
+    expect(a).toMatchObject({ account: "Profile", text: "Approved text a", media: "Text only", firstComment: "Link in the first comment", warnings: [] });
+    expect(Date.parse(a.scheduledFor)).toBeGreaterThan(Date.now());
+  });
+
+  it("warns in the preview about a ＠name that is not in the mention list, and does not warn about a listed one", async () => {
+    state.tables.content_pieces[0].markdown_body = "Thanks ＠Jane Smith and ＠Nobody Known";
+    decide("a");
+    state.tables.linkedin_mentions = [{ company_id: "company-1", name: "Jane Smith", urn: "urn:li:person:abc123", kind: "person" }];
+    const body = await (await POST(new Request("http://localhost/api/publish/deploy-week", { method: "POST", body: JSON.stringify({ weekId: "week-1", preview: true }) }))).json();
+    const a = body.items.find((i: Row) => i.pieceId === "a");
+    expect(a.warnings).toEqual(["Nobody Known"]);
+    expect(a.mentions).toEqual(["Jane Smith"]);
+    expect(a.text).toContain("＠Jane Smith");
   });
 
   it("refuses a request without the confirmation, so a link or page load can never deploy", async () => {
@@ -137,7 +182,7 @@ describe("POST /api/publish/deploy-week: deploy", () => {
   });
 
   it("lists a post whose time has passed or that has no time for the scheduler export instead of queueing it", async () => {
-    state.tables.content_pieces = [piece("a"), piece("late", { scheduled_date: "2020-01-06" }), piece("untimed", { scheduled_time: null })];
+    state.tables.content_pieces = [piece("a"), piece("late", { scheduled_date: "2020-01-06" }), piece("untimed", { scheduled_date: null, scheduled_time: null })];
     decide("late"); decide("untimed");
     const body = await (await deploy()).json();
     expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);

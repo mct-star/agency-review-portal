@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   pages: [] as Array<Record<string, unknown>>,
   updates: [] as Array<Record<string, unknown>>,
   assets: [] as Array<Record<string, unknown>>,
+  mentions: [] as Array<Record<string, unknown>>,
   filters: [] as Array<[string, string, unknown]>,
 }));
 vi.mock("@/lib/crypto", () => ({ decrypt: () => "access-token" }));
@@ -41,7 +42,7 @@ function fakeSupabase() {
       chain.not = () => chain;
       chain.update = (patch: Record<string, unknown>) => { action = "update"; values = patch; state.updates.push(patch); return chain; };
       chain.maybeSingle = async () => ({ data: table === "content_pieces" ? state.piece : table === "company_social_accounts" ? state.account : table === "companies" ? state.company : state.actor, error: null });
-      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: table === "content_assets" ? state.assets : table === "company_social_accounts" ? state.pages : [], error: null }).then(resolve);
+      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: table === "content_assets" ? state.assets : table === "linkedin_mentions" ? state.mentions : table === "company_social_accounts" ? state.pages : [], error: null }).then(resolve);
       return chain;
     },
   };
@@ -51,6 +52,7 @@ beforeEach(() => {
   vi.mocked(createPost).mockResolvedValue({ postUrn: "urn:li:share:post-1", postUrl: "https://www.linkedin.com/feed/update/post-1/" });
   state.updates = [];
   state.assets = [];
+  state.mentions = [];
   state.filters = [];
   vi.mocked(addComment).mockReset().mockResolvedValue({ commentUrn: "urn:li:comment:1" });
   state.piece = { id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved text", first_comment: null, title: "Post", cover_image_url: null };
@@ -68,6 +70,41 @@ describe("processLinkedInDirectJob", () => {
     expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Approved text", undefined);
     expect(state.updates.at(-1)).toMatchObject({ status: "published", external_id: "urn:li:share:post-1" });
 
+  });
+
+  it("converts a listed ＠name to mention markup only at publish time, and leaves an unlisted name as plain text", async () => {
+    state.piece.markdown_body = "Thanks ＠Jane Smith and ＠Nobody Known";
+    state.mentions = [{ name: "Jane Smith", urn: "urn:li:person:abc123", kind: "person" }];
+    // The queued payload is the approved text, escaped, with no markup in it.
+    const queued = { ...job, publish_payload: { ...job.publish_payload, commentary: "Thanks ＠Jane Smith and ＠Nobody Known" } };
+    expect(await processLinkedInDirectJob(fakeSupabase() as never, queued)).toBe("published");
+    expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Thanks @[Jane Smith](urn:li:person:abc123) and ＠Nobody Known", undefined);
+  });
+
+  describe("uploaded PDF document posts", () => {
+    const url = "https://publishing-test.supabase.co/storage/v1/object/public/media/guide.pdf";
+    const withPdf = { ...job, publish_payload: { ...job.publish_payload, document_url: url, document_title: "The guide" } };
+    beforeEach(() => {
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://publishing-test.supabase.co");
+      state.assets = [{ asset_type: "pdf_file", file_url: url, text_content: "", asset_metadata: {} }];
+      vi.mocked(createPost).mockClear();
+      vi.mocked(uploadDocument).mockReset().mockResolvedValue({ documentUrn: "urn:li:document:doc-1" });
+    });
+
+    it("uploads the PDF through the Documents API and posts it with the document title", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(Buffer.from("%PDF-1.4\n<< /Type /Page >>"), { headers: { "Content-Type": "application/pdf" } })));
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withPdf)).toBe("published");
+      expect(uploadDocument).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", expect.any(Buffer));
+      expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Approved text", "urn:li:document:doc-1", "The guide");
+    });
+
+    it("refuses a file that is not a PDF before LinkedIn sees anything", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response("<html></html>", { headers: { "Content-Type": "text/html" } })));
+      expect(await processLinkedInDirectJob(fakeSupabase() as never, withPdf)).toBe("failed");
+      expect(uploadDocument).not.toHaveBeenCalled();
+      expect(createPost).not.toHaveBeenCalled();
+      expect(state.updates.at(-1)).toMatchObject({ status: "failed", error_message: expect.stringMatching(/PDF/) });
+    });
   });
 
   const withdrawnCases: Array<[string, () => void]> = [

@@ -41,7 +41,7 @@ describe("planWeekDeploy", () => {
     const plan = planWeekDeploy([
       piece({ id: "future" }),
       piece({ id: "past", day_of_week: "monday", scheduled_time: "08:00" }),
-      piece({ id: "untimed", scheduled_time: null }),
+      piece({ id: "untimed", day_of_week: null, scheduled_time: null }),
       piece({ id: "blog", content_type: "blog_article" }),
       piece({ id: "news", content_type: "linkedin_article" }),
       piece({ id: "guide", content_type: "pdf_guide" }),
@@ -54,10 +54,11 @@ describe("planWeekDeploy", () => {
     expect(plan.newsletters.map((n) => n.id)).toEqual(["news"]);
   });
 
-  it("is not ready while any piece is unapproved, and never offers an unapproved piece", () => {
+  it("refuses an unapproved piece and lists it, never offering it, without holding back approved ones", () => {
     const plan = planWeekDeploy([piece({ id: "ok" }), piece({ id: "waiting", approval_status: "pending" })], "2026-11-16", now);
-    expect(plan.ready).toBe(false);
+    expect(plan.ready).toBe(true);
     expect(plan.unapproved).toBe(1);
+    expect(plan.unapprovedPieces.map((p) => p.pieceId)).toEqual(["waiting"]);
     expect(plan.social.map((s) => s.pieceId)).toEqual(["ok"]);
   });
 
@@ -79,5 +80,37 @@ describe("planWeekDeploy", () => {
   it("never says the scheduler export carries a video whose time has passed", () => {
     const plan = planWeekDeploy([piece({ id: "late", content_type: "video", day_of_week: "monday", scheduled_time: "08:00" })], "2026-11-16", now);
     expect(plan.manualSocial[0]).toMatchObject({ pieceId: "late", next: "by_hand" });
+  });
+});
+
+describe("default slots and day selection", () => {
+  const now = new Date("2026-11-16T09:00:00Z");
+  const profile = (id: string, day: string, extra: Partial<DeployPiece> = {}) =>
+    piece({ id, day_of_week: day, scheduled_time: null, post_type: "personal", ...extra });
+  const page = (id: string, day: string) => piece({ id, day_of_week: day, scheduled_time: null, post_type: "agency_story" });
+
+  it("puts the profile at 10:30 Monday to Saturday and never on a Sunday", () => {
+    const plan = planWeekDeploy([profile("sat", "saturday"), profile("sun", "sunday"), profile("tue", "tuesday")], "2026-11-16", now);
+    expect(plan.social.find((s) => s.pieceId === "sat")?.scheduledFor).toBe("2026-11-21T10:30:00.000Z");
+    expect(plan.social.find((s) => s.pieceId === "tue")?.scheduledFor).toBe("2026-11-17T10:30:00.000Z");
+    expect(plan.manualSocial.map((s) => s.pieceId)).toEqual(["sun"]);
+  });
+
+  it("puts the AGENCY page at 09:00 and 12:00, the day's first and second page post, and a third has no slot", () => {
+    const plan = planWeekDeploy([page("a", "tuesday"), page("b", "tuesday"), page("c", "tuesday")], "2026-11-16", now);
+    expect(plan.social.map((s) => s.scheduledFor)).toEqual(["2026-11-17T09:00:00.000Z", "2026-11-17T12:00:00.000Z"]);
+    expect(plan.manualSocial.map((s) => s.pieceId)).toEqual(["c"]);
+  });
+
+  it("keeps a piece's own time over the default", () => {
+    const plan = planWeekDeploy([profile("own", "tuesday", { scheduled_time: "07:15" })], "2026-11-16", now);
+    expect(plan.social[0].scheduledFor).toBe("2026-11-17T07:15:00.000Z");
+  });
+
+  it("schedules only the ticked days and lists the rest as unselected", () => {
+    const plan = planWeekDeploy([profile("tue", "tuesday"), profile("wed", "wednesday"), profile("thu", "thursday")], "2026-11-16", now, { days: ["2026-11-17", "2026-11-19"] });
+    expect(plan.social.map((s) => s.pieceId).sort()).toEqual(["thu", "tue"]);
+    expect(plan.unselected.map((s) => s.pieceId)).toEqual(["wed"]);
+    expect(planWeekDeploy([profile("tue", "tuesday")], "2026-11-16", now, { days: [] }).social).toHaveLength(0);
   });
 });

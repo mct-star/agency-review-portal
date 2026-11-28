@@ -67,11 +67,11 @@ describe("deploy week page", () => {
     expect(html).not.toContain(LONG_DASH);
   });
 
-  it("offers no deploy action until every piece is approved", async () => {
+  it("lists an unapproved piece as refused and never plans it", async () => {
     s.pending = true;
     const html = await render();
-    expect(html).not.toContain("DEPLOY-PANEL");
-    expect(html).toContain('href="/review/example-week"');
+    expect(html).toContain("Refused, not approved: A post");
+    expect(html).toContain("queue=0");
   });
 
   it("offers no deploy action to a client without the publish right", async () => {

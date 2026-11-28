@@ -9,8 +9,8 @@ describe("what a direct LinkedIn post may carry", () => {
   afterEach(() => { vi.unstubAllEnvs(); });
 
   it("accepts one video from our storage on a social post or a video piece", () => {
-    expect(linkedInDirectMedia("social_post", video())).toEqual({ imageUrls: [], videoUrl: ours, thumbnailUrl: thumbnail });
-    expect(linkedInDirectMedia("video", video())).toEqual({ imageUrls: [], videoUrl: ours, thumbnailUrl: thumbnail });
+    expect(linkedInDirectMedia("social_post", video())).toEqual({ imageUrls: [], videoUrl: ours, thumbnailUrl: thumbnail, documentUrl: null });
+    expect(linkedInDirectMedia("video", video())).toEqual({ imageUrls: [], videoUrl: ours, thumbnailUrl: thumbnail, documentUrl: null });
   });
 
   it("refuses a video with no thumbnail, or one held outside our storage", () => {
@@ -18,22 +18,30 @@ describe("what a direct LinkedIn post may carry", () => {
     expect(linkedInDirectMedia("video", video(ours, "https://example.com/still.jpg"))).toEqual({ error: "The post contains an unsupported thumbnail location." });
   });
 
+  it("takes one uploaded PDF from our storage on a social post as a document", () => {
+    const pdf = ours.replace("film.mp4", "guide.pdf");
+    expect(linkedInDirectMedia("social_post", { shape: "document", items: [{ kind: "document", url: pdf, alt: "" }] }))
+      .toEqual({ imageUrls: [], videoUrl: null, thumbnailUrl: null, documentUrl: pdf });
+  });
+
   it("refuses a script, an outside address, a document, and a non-post without a video", () => {
     expect(linkedInDirectMedia("video_script", video())).toHaveProperty("error");
     expect(linkedInDirectMedia("social_post", video("https://example.com/film.mp4"))).toHaveProperty("error");
-    expect(linkedInDirectMedia("social_post", { shape: "document", items: [{ kind: "document", url: ours, alt: "" }] })).toHaveProperty("error");
+    expect(linkedInDirectMedia("video", { shape: "document", items: [{ kind: "document", url: ours, alt: "" }] })).toHaveProperty("error");
+    expect(linkedInDirectMedia("social_post", { shape: "document", items: [{ kind: "document", url: "https://example.com/a.pdf", alt: "" }] })).toHaveProperty("error");
+    expect(linkedInDirectMedia("social_post", { shape: "document", items: [] })).toHaveProperty("error");
     expect(linkedInDirectMedia("video", { shape: "none", items: [] })).toHaveProperty("error");
   });
 
   it("keeps text and one image for social posts", () => {
-    expect(linkedInDirectMedia("social_post", { shape: "none", items: [] })).toEqual({ imageUrls: [], videoUrl: null, thumbnailUrl: null });
+    expect(linkedInDirectMedia("social_post", { shape: "none", items: [] })).toEqual({ imageUrls: [], videoUrl: null, thumbnailUrl: null, documentUrl: null });
     const image = { kind: "image" as const, url: ours.replace("film.mp4", "a.png"), alt: "" };
-    expect(linkedInDirectMedia("social_post", { shape: "image", items: [image] })).toEqual({ imageUrls: [image.url], videoUrl: null, thumbnailUrl: null });
+    expect(linkedInDirectMedia("social_post", { shape: "image", items: [image] })).toEqual({ imageUrls: [image.url], videoUrl: null, thumbnailUrl: null, documentUrl: null });
   });
 
   it("takes several images, in order, to post as one PDF document, and refuses more than twenty or one outside our storage", () => {
     const image = (name: string) => ({ kind: "image" as const, url: ours.replace("film.mp4", name), alt: "" });
-    expect(linkedInDirectMedia("social_post", { shape: "images", items: [image("1.png"), image("2.png")] })).toEqual({ imageUrls: [image("1.png").url, image("2.png").url], videoUrl: null, thumbnailUrl: null });
+    expect(linkedInDirectMedia("social_post", { shape: "images", items: [image("1.png"), image("2.png")] })).toEqual({ imageUrls: [image("1.png").url, image("2.png").url], videoUrl: null, thumbnailUrl: null, documentUrl: null });
     const many = Array.from({ length: 21 }, (_v, i) => image(`${i}.png`));
     expect(linkedInDirectMedia("social_post", { shape: "images", items: many })).toHaveProperty("error");
     expect(linkedInDirectMedia("social_post", { shape: "images", items: [image("1.png"), { kind: "image", url: "https://example.com/2.png", alt: "" }] })).toHaveProperty("error");

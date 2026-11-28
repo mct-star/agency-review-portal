@@ -104,11 +104,12 @@ export async function POST(request: Request) {
       image_urls: media.imageUrls,
       video_url: media.videoUrl,
       thumbnail_url: media.thumbnailUrl,
+      document_url: media.documentUrl,
       first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
       // Several images post as one PDF document; its title is the first line as the reader sees it, as on the Mac.
       // The page the person confirmed, so the worker can tell a chosen non-default page from a stale one.
       ...(account.platform === "linkedin_company" && body.confirmNonDefaultPage === account.id && !isDefaultPost ? { confirmed_non_default_page: account.id } : {}),
-      ...(media.imageUrls.length > 1 ? { document_title: defaultCarouselTitle(postText) } : {}),
+      ...(media.imageUrls.length > 1 || media.documentUrl ? { document_title: defaultCarouselTitle(postText) } : {}),
     },
   };
   const { data: job, error } = await supabase.from("publishing_jobs").insert(queuedJob)

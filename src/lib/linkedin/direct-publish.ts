@@ -41,7 +41,7 @@ export function isLinkedInDirectType(contentType: string): boolean {
   return (LINKEDIN_DIRECT_TYPES as readonly string[]).includes(contentType);
 }
 
-export type LinkedInDirectMedia = { imageUrls: string[]; videoUrl: string | null; thumbnailUrl: string | null };
+export type LinkedInDirectMedia = { imageUrls: string[]; videoUrl: string | null; thumbnailUrl: string | null; documentUrl: string | null };
 
 /**
  * What a direct LinkedIn post may carry, decided once for the queue route and
@@ -51,20 +51,27 @@ export type LinkedInDirectMedia = { imageUrls: string[]; videoUrl: string | null
  * thumbnail, so LinkedIn never picks the frame. Media must be in our own storage.
  */
 export function linkedInDirectMedia(contentType: string, media: PieceMedia): LinkedInDirectMedia | { error: string } {
-  if (media.shape === "document") return { error: "Publishing documents to LinkedIn is not available yet." };
+  if (media.shape === "document") {
+    // An uploaded PDF posts as a LinkedIn document. Its type, size and page count are checked when it is downloaded to publish.
+    if (contentType !== "social_post") return { error: "Only approved social posts and videos can be published to LinkedIn." };
+    const url = media.items[0]?.url;
+    if (media.items.length !== 1 || !url) return { error: "A LinkedIn document post carries exactly one PDF." };
+    if (!isOurStorageUrl(url)) return { error: "The post contains an unsupported document location." };
+    return { imageUrls: [], videoUrl: null, thumbnailUrl: null, documentUrl: url };
+  }
   if (media.shape === "video") {
     if (!isLinkedInDirectType(contentType)) return { error: "Only approved social posts and videos can be published to LinkedIn." };
     if (media.items.length !== 1 || media.items[0].kind !== "video") return { error: "A LinkedIn video post carries exactly one video." };
     if (!isOurStorageUrl(media.items[0].url)) return { error: "The post contains an unsupported video location." };
     if (!media.thumbnailUrl) return { error: "This video has no thumbnail. Add one before publishing to LinkedIn." };
     if (!isOurStorageUrl(media.thumbnailUrl)) return { error: "The post contains an unsupported thumbnail location." };
-    return { imageUrls: [], videoUrl: media.items[0].url, thumbnailUrl: media.thumbnailUrl };
+    return { imageUrls: [], videoUrl: media.items[0].url, thumbnailUrl: media.thumbnailUrl, documentUrl: null };
   }
   if (contentType !== "social_post") return { error: "Only approved social posts and videos can be published to LinkedIn." };
   const imageUrls = media.items.filter((item) => item.kind === "image").map((item) => item.url);
   if (imageUrls.length > LINKEDIN_DOCUMENT_MAX_IMAGES) return { error: `A LinkedIn carousel takes at most ${LINKEDIN_DOCUMENT_MAX_IMAGES} images.` };
   if (imageUrls.some((url) => !isOurStorageUrl(url))) return { error: "The post contains an unsupported image location." };
-  return { imageUrls, videoUrl: null, thumbnailUrl: null };
+  return { imageUrls, videoUrl: null, thumbnailUrl: null, documentUrl: null };
 }
 
 /** Stable job identity makes one piece/account pair idempotent without schema changes. */
