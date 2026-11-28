@@ -139,7 +139,9 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     }
 
     // Mentions are converted here and only here: the approved text and the queued payload stay exactly as approved.
-    const { data: mentionRows } = await supabase.from("linkedin_mentions").select("name, urn, kind").eq("company_id", job.company_id);
+    const { data: mentionRows, error: mentionsError } = await supabase.from("linkedin_mentions").select("name, urn, kind").eq("company_id", job.company_id);
+    // Never publish without mentions silently: a failed lookup is a retryable error (before the post request, so the one safe retry applies).
+    if (mentionsError) throw Object.assign(new Error("The mention list could not be read"), { code: "ECONNRESET" });
     const finalCommentary = applyMentions(toLinkedInText(piece.markdown_body || ""), (mentionRows || []) as MentionEntry[]).commentary;
 
     createRequestStarted = true;

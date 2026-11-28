@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   inserts: [] as Array<{ table: string; row: Row }>,
   websiteCalls: [] as Row[],
   failPiece: null as string | null,
+  docUrl: null as string | null,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -48,7 +49,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 // A piece named in failPiece carries a document, which the queue refuses:
 // a failure part way through a deploy.
 vi.mock("@/lib/content/piece-media", () => ({
-  resolvePieceMedia: (piece: { id: string }) => piece.id === state.failPiece ? { shape: "document", items: [] } : { shape: "none", items: [] },
+  resolvePieceMedia: (piece: { id: string }) => piece.id === state.failPiece ? { shape: "document", items: [] }
+    : piece.id === "a" && state.docUrl ? { shape: "document", items: [{ kind: "document", url: state.docUrl, alt: "" }] }
+    : { shape: "none", items: [] },
 }));
 vi.mock("@/app/api/publish/website/route", () => ({
   POST: vi.fn(async (request: Request) => {
@@ -61,6 +64,8 @@ vi.mock("@/app/api/publish/website/route", () => ({
 
 import { POST } from "./route";
 import { pieceVersionHash } from "@/lib/content/version-hash";
+import { documentMediaHash } from "@/lib/content/media-approval";
+const notRefusedForApproval = (body: { notQueued: Array<Row> }) => body.notQueued.filter((n) => /after approval/i.test(String(n.reason)));
 
 const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 const deploy = (body: Row = {}) => POST(new Request("http://localhost/api/publish/deploy-week", {
@@ -73,11 +78,12 @@ const piece = (id: string, extra: Row = {}): Row => ({
 });
 let decisions = 0;
 /** Record a decision on the piece's current text, as /api/content/approve does. */
-const decide = (id: string, decision = "approved") => {
+const decide = (id: string, decision = "approved", mediaHash: string | null = null) => {
   const p = state.tables.content_pieces.find((r) => r.id === id)!;
   state.tables.content_approvals.push({
     piece_id: id, company_id: p.company_id, version_hash: pieceVersionHash(p as never), decision,
     decided_at: new Date(Date.UTC(2026, 10, 1) + ++decisions * 1000).toISOString(),
+    ...(mediaHash ? { media_hash: mediaHash } : {}),
   });
 };
 const queued = () => state.inserts.filter((i) => i.table === "publishing_jobs" && i.row.target_platform === "linkedin_personal");
@@ -104,6 +110,7 @@ beforeEach(() => {
     content_images: [], content_assets: [], publishing_jobs: [], content_approvals: [],
   };
   state.failPiece = null;
+  state.docUrl = null;
   for (const id of ["a", "b", "x"]) decide(id);
 });
 
@@ -128,6 +135,20 @@ describe("POST /api/publish/deploy-week: deploy", () => {
     const body = await res.json();
     expect(body.refused).toEqual([expect.objectContaining({ pieceId: "waiting" })]);
     expect(queued().map((q) => q.row.content_piece_id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("refuses a document post whose PDF was swapped after approval, and still queues it once re-approved", async () => {
+    state.docUrl = "https://x.test/approved.pdf";
+    const approved = documentMediaHash({ shape: "document", items: [{ kind: "document", url: state.docUrl, alt: "" }] });
+    decide("a", "approved", approved);
+    expect(notRefusedForApproval(await (await deploy()).json())).toEqual([]);
+    state.inserts = []; state.tables.publishing_jobs = [];
+    state.docUrl = "https://x.test/swapped.pdf";
+    const body = await (await deploy()).json();
+    expect(body.notQueued).toEqual([expect.objectContaining({ pieceId: "a", next: "approve", reason: expect.stringMatching(/PDF.*after approval/i) })]);
+    expect(queued().map((q) => q.row.content_piece_id)).toContain("b");
+    decide("a", "approved", documentMediaHash({ shape: "document", items: [{ kind: "document", url: state.docUrl, alt: "" }] }));
+    expect(notRefusedForApproval(await (await deploy()).json())).toEqual([]);
   });
 
   it("refuses when nothing at all is approved, and queues nothing", async () => {

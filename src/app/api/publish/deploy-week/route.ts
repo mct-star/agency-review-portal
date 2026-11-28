@@ -11,6 +11,7 @@ import { POST as queueLinkedInPost } from "@/app/api/publish/linkedin-direct/rou
 import { linkedInPlatformForPostType } from "@/lib/linkedin/direct-publish";
 import { resolveDefaultPage, type PageRow } from "@/lib/linkedin/default-page";
 import { POST as sendBlogToWebsite } from "@/app/api/publish/website/route";
+import { loadDocumentHashes } from "@/lib/content/media-approval";
 import { linkedInPublishReview } from "@/lib/publishing/week-preview";
 
 export const maxDuration = 60;
@@ -76,7 +77,8 @@ export async function POST(request: Request) {
 
   const { data: pieceRows, error: piecesError } = await supabase.from("content_pieces")
     .select("id, title, content_type, post_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
-    .eq("week_id", weekId).eq("company_id", companyId);
+    .eq("week_id", weekId).eq("company_id", companyId)
+    .order("sort_order", { ascending: true }).order("id", { ascending: true });
   if (piecesError) return NextResponse.json({ error: "Could not read the week." }, { status: 500 });
   const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start as string, new Date(), { days });
   if (!plan.ready) {
@@ -116,9 +118,10 @@ export async function POST(request: Request) {
   // already there, never as not queued, so nobody schedules it again.
   const planned = [...plan.social, ...plan.manualSocial];
   const plannedIds = planned.map((s) => s.pieceId);
-  const [live, approvals] = await Promise.all([
+  const [live, approvals, documentHashes] = await Promise.all([
     liveLinkedInJobsByPiece(supabase, companyId, plannedIds),
     newestApprovals(supabase, companyId, plannedIds),
+    loadDocumentHashes(supabase, companyId, plannedIds),
   ]);
   if (!live) return NextResponse.json({ error: "Could not read the LinkedIn queue, so nothing was deployed." }, { status: 500 });
   const pieceById = new Map(((pieceRows || []) as GatePiece[]).map((p) => [p.id, p]));
@@ -126,8 +129,8 @@ export async function POST(request: Request) {
   // newest recorded approval must match the piece as it is now.
   const approvalRefusalFor = (pieceId: string) => {
     const piece = pieceById.get(pieceId);
-    if (!piece || !approvals) return APPROVAL_REFUSALS.unreadable;
-    return approvalRefusal(piece, approvals.get(pieceId));
+    if (!piece || !approvals || !documentHashes) return APPROVAL_REFUSALS.unreadable;
+    return approvalRefusal(piece, approvals.get(pieceId), documentHashes.get(pieceId) ?? null);
   };
 
   for (const m of plan.manualSocial) {

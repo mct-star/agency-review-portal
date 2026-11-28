@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   updates: [] as Array<Record<string, unknown>>,
   assets: [] as Array<Record<string, unknown>>,
   mentions: [] as Array<Record<string, unknown>>,
+  mentionsError: null as unknown,
   filters: [] as Array<[string, string, unknown]>,
 }));
 vi.mock("@/lib/crypto", () => ({ decrypt: () => "access-token" }));
@@ -42,7 +43,7 @@ function fakeSupabase() {
       chain.not = () => chain;
       chain.update = (patch: Record<string, unknown>) => { action = "update"; values = patch; state.updates.push(patch); return chain; };
       chain.maybeSingle = async () => ({ data: table === "content_pieces" ? state.piece : table === "company_social_accounts" ? state.account : table === "companies" ? state.company : state.actor, error: null });
-      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : { data: table === "content_assets" ? state.assets : table === "linkedin_mentions" ? state.mentions : table === "company_social_accounts" ? state.pages : [], error: null }).then(resolve);
+      chain.then = (resolve: (value: unknown) => void) => Promise.resolve(action === "update" ? { data: values, error: null } : table === "linkedin_mentions" && state.mentionsError ? { data: null, error: state.mentionsError } : { data: table === "content_assets" ? state.assets : table === "linkedin_mentions" ? state.mentions : table === "company_social_accounts" ? state.pages : [], error: null }).then(resolve);
       return chain;
     },
   };
@@ -53,6 +54,7 @@ beforeEach(() => {
   state.updates = [];
   state.assets = [];
   state.mentions = [];
+  state.mentionsError = null;
   state.filters = [];
   vi.mocked(addComment).mockReset().mockResolvedValue({ commentUrn: "urn:li:comment:1" });
   state.piece = { id: "piece-1", company_id: "company-1", approval_status: "approved", content_type: "social_post", markdown_body: "Approved text", first_comment: null, title: "Post", cover_image_url: null };
@@ -79,6 +81,16 @@ describe("processLinkedInDirectJob", () => {
     const queued = { ...job, publish_payload: { ...job.publish_payload, commentary: "Thanks ＠Jane Smith and ＠Nobody Known" } };
     expect(await processLinkedInDirectJob(fakeSupabase() as never, queued)).toBe("published");
     expect(createPost).toHaveBeenCalledWith("access-token", "urn:li:person:person-1", "Thanks @[Jane Smith](urn:li:person:abc123) and ＠Nobody Known", undefined);
+  });
+
+  it("does not publish without mentions when the list cannot be read: nothing is posted, and the failure is a transient one the retry accepts", async () => {
+    state.mentionsError = { message: "down" };
+    // The fake database cannot arrange the retry, so the job ends failed; what matters is that nothing was posted and it is not an uncertain outcome.
+    expect(await processLinkedInDirectJob(fakeSupabase() as never, job)).toBe("failed");
+    expect(createPost).not.toHaveBeenCalled();
+    expect(state.updates.at(-1)).toMatchObject({ status: "failed", response_payload: { outcome_uncertain: false } });
+    const { transientReason } = await import("@/lib/publishing/retry");
+    expect(transientReason(Object.assign(new Error("The mention list could not be read"), { code: "ECONNRESET" }))).toBe("network");
   });
 
   describe("uploaded PDF document posts", () => {

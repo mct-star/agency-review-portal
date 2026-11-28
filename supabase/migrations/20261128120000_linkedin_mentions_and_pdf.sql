@@ -21,3 +21,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS linkedin_mentions_company_name_idx
 
 -- Every route uses the service role and filters on company_id; no client policy is granted.
 ALTER TABLE linkedin_mentions ENABLE ROW LEVEL SECURITY;
+
+-- Approval covers an uploaded PDF: the approval records which PDF was approved
+-- (sha256 of its address). Null for every other piece, so existing approvals stay valid.
+ALTER TABLE content_approvals ADD COLUMN IF NOT EXISTS media_hash text;

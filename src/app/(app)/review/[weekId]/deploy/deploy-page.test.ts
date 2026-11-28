@@ -40,7 +40,7 @@ vi.mock("@/lib/supabase/admin", async () => {
           : table === "content_approvals" ? [{ piece_id: "post", decision: "approved", decided_at: "2026-11-10T09:00:00.000Z", version_hash: pieceVersionHash({ title: "A post", markdown_body: "Approved words", first_comment: null }) }]
           : Array.from({ length: s.accounts }, (_, i) => ({ id: `acc-${i}`, account_name: `Profile ${i}` }));
         const q: Record<string, unknown> = {};
-        q.select = () => q; q.eq = () => q; q.in = () => q; q.order = () => q;
+        q.select = () => q; q.eq = () => q; q.in = () => q; q.order = () => q; q.not = () => q;
         q.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data, error: null }).then(resolve);
         return q;
       },

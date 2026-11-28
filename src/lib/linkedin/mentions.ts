@@ -23,9 +23,11 @@ export function validateMentionUrn(kind: string, urn: string): string | null {
   return "Choose person or organisation.";
 }
 
-/** A ＠ followed by up to four capitalised words: the shape of a name someone typed. */
-const UNLISTED_NAME = /^([\p{Lu}][\p{L}'’.-]*(?: [\p{Lu}][\p{L}'’.-]*){0,3})/u;
+/** A ＠ followed by a word (any case), then up to three capitalised words: the shape of a name someone typed. */
+const UNLISTED_NAME = /^(\p{L}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3})/u;
 const WORD_CHAR = /[\p{L}\p{N}]/u;
+/** Before a ＠ these mean it is part of an address, not a mention: a letter, a digit or a slash (medium.com/＠Jane). */
+const INSIDE_ADDRESS = /[\p{L}\p{N}/]/u;
 
 export interface MentionResult {
   /** Escaped little text, with mention markup for every listed name. */
@@ -51,7 +53,7 @@ export function applyMentions(plainText: string, list: MentionEntry[]): MentionR
   for (const mark of plainText.matchAll(/[＠@]/g)) {
     const at = mark.index ?? 0;
     if (at < last) continue;
-    if (at > 0 && WORD_CHAR.test(plainText[at - 1])) continue;
+    if (at > 0 && INSIDE_ADDRESS.test(plainText[at - 1])) continue;
     const rest = plainText.slice(at + 1);
     const hit = longestFirst.find((m) => {
       const name = m.name.trim().replace(/\s+/g, " ");

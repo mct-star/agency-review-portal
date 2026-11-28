@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import DeployWeekPanel from "@/components/review/DeployWeekPanel";
 import { planWeekDeploy, type DeployPiece } from "@/lib/publishing/deploy-week";
+import { loadDocumentHashes } from "@/lib/content/media-approval";
 import { APPROVAL_REFUSALS, approvalRefusal, newestApprovals, type GatePiece } from "@/lib/content/approval-gate";
 import { liveLinkedInJobsByPiece, liveLinkedInNote } from "@/lib/publishing/live-linkedin-jobs";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
@@ -38,7 +39,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
 
   const { data: pieceRows } = await supabase.from("content_pieces")
     .select("id, title, content_type, post_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
-    .eq("week_id", weekId).eq("company_id", company.id).order("sort_order", { ascending: true });
+    .eq("week_id", weekId).eq("company_id", company.id).order("sort_order", { ascending: true }).order("id", { ascending: true });
   const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start);
   const canPublish = profile.role === "admin" || !!profile.can_publish;
 
@@ -51,14 +52,15 @@ export default async function DeployWeekPage({ params }: PageProps) {
   // Deploy week will do: a post already in the LinkedIn queue is not queued
   // again, and a post whose approval does not match its text is not queued.
   const plannedIds = [...plan.social, ...plan.manualSocial].map((p) => p.pieceId);
-  const [live, approvals] = await Promise.all([
+  const [live, approvals, documentHashes] = await Promise.all([
     liveLinkedInJobsByPiece(admin, company.id, plannedIds),
     newestApprovals(admin, company.id, plannedIds),
+    loadDocumentHashes(admin, company.id, plannedIds),
   ]);
   const pieceById = new Map(((pieceRows || []) as GatePiece[]).map((p) => [p.id, p]));
   const refusalFor = (id: string) => {
     const piece = pieceById.get(id);
-    return !piece || !approvals ? APPROVAL_REFUSALS.unreadable : approvalRefusal(piece, approvals.get(id));
+    return !piece || !approvals || !documentHashes ? APPROVAL_REFUSALS.unreadable : approvalRefusal(piece, approvals.get(id), documentHashes.get(id) ?? null);
   };
   const already = [...plan.social, ...plan.manualSocial].flatMap((p) => {
     const status = live?.get(p.pieceId);

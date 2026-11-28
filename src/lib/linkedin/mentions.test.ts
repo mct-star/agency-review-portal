@@ -44,6 +44,22 @@ describe("applyMentions", () => {
   });
 });
 
+describe("applyMentions: warnings and addresses", () => {
+  it("warns on a lower-case ＠word that is not in the list", () => {
+    const r = applyMentions("Thanks ＠michael for this", list);
+    expect(r.unknown).toEqual(["michael"]);
+    expect(r.commentary).toBe("Thanks ＠michael for this");
+  });
+
+  it("leaves an email address and a link containing ＠ alone, with no warning", () => {
+    for (const text of ["Mail me a@b.com", "Read medium.com/＠Jane Smith today", "https://medium.com/@Jane"]) {
+      const r = applyMentions(text, list);
+      expect(r.unknown).toEqual([]);
+      expect(r.converted).toEqual([]);
+    }
+  });
+});
+
 describe("validateMentionUrn", () => {
   it("accepts a URN of the right kind and refuses a wrong one", () => {
     expect(validateMentionUrn("person", "urn:li:person:AbC-1_2")).toBeNull();
