@@ -7,6 +7,19 @@ const row = (extra: Record<string, unknown> = {}) => ({
   piece_id: "p1", version_hash: pieceVersionHash(piece), decision: "approved", decided_at: "2026-11-10T09:00:00.000Z", ...extra,
 });
 
+describe("approvalRefusal: document posts", () => {
+  it("refuses a PDF swapped or added after approval, and accepts the approved one", () => {
+    expect(approvalRefusal(piece, row({ media_hash: "pdf-1" }), "pdf-1")).toBeNull();
+    expect(approvalRefusal(piece, row({ media_hash: "pdf-1" }), "pdf-2")).toBe(APPROVAL_REFUSALS.documentChanged);
+    expect(approvalRefusal(piece, row(), "pdf-1")).toBe(APPROVAL_REFUSALS.documentChanged);
+  });
+
+  it("leaves every piece without a PDF exactly as before, so existing approvals stay valid", () => {
+    expect(approvalRefusal(piece, row(), null)).toBeNull();
+    expect(approvalRefusal(piece, row({ media_hash: "stray" }), null)).toBeNull();
+  });
+});
+
 describe("approvalRefusal", () => {
   it("lets through a piece whose newest approval matches its current text", () => {
     expect(approvalRefusal(piece, row())).toBeNull();

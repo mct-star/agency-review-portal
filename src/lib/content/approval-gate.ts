@@ -25,6 +25,8 @@ export interface RecordedApproval {
   version_hash: string;
   decision: string;
   decided_at: string;
+  /** Set only when the approved piece was a document post: the PDF that was approved. */
+  media_hash?: string | null;
 }
 
 /** Columns a caller selects on content_pieces before calling the gate. */
@@ -34,16 +36,19 @@ export const APPROVAL_REFUSALS = {
   notApproved: "It is not approved.",
   noRecord: "It has no recorded approval. Approve it again before publishing.",
   changesRequested: "Its newest decision asked for changes. Approve it before publishing.",
+  documentChanged: "Its PDF was changed or added after approval. Approve the current version before publishing.",
   edited: "It was edited after approval. Approve the current version before publishing.",
   unreadable: "Its approval record could not be checked, so it was not queued.",
 } as const;
 
 /** The plain reason a piece may not be queued, or null when it may. Pure. */
-export function approvalRefusal(piece: GatePiece, newest: RecordedApproval | null | undefined): string | null {
+export function approvalRefusal(piece: GatePiece, newest: RecordedApproval | null | undefined, documentHash: string | null = null): string | null {
   if (piece.approval_status !== "approved") return APPROVAL_REFUSALS.notApproved;
   if (!newest) return APPROVAL_REFUSALS.noRecord;
   if (newest.decision !== "approved") return APPROVAL_REFUSALS.changesRequested;
   if (newest.version_hash !== pieceVersionHash(piece)) return APPROVAL_REFUSALS.edited;
+  // A document post is also pinned to the PDF that was approved.
+  if (documentHash && newest.media_hash !== documentHash) return APPROVAL_REFUSALS.documentChanged;
   return null;
 }
 
@@ -59,7 +64,7 @@ export async function newestApprovals(
   const newest = new Map<string, RecordedApproval>();
   if (!pieceIds.length) return newest;
   const { data, error } = await supabase.from("content_approvals")
-    .select("piece_id, version_hash, decision, decided_at")
+    .select("*")
     .eq("company_id", companyId).in("piece_id", pieceIds)
     .order("decided_at", { ascending: false });
   if (error) return null;
@@ -75,8 +80,9 @@ export async function recordedApprovalRefusal(
   supabase: SupabaseClient,
   companyId: string,
   piece: GatePiece,
+  documentHash: string | null = null,
 ): Promise<string | null> {
   const newest = await newestApprovals(supabase, companyId, [piece.id]);
   if (!newest) return APPROVAL_REFUSALS.unreadable;
-  return approvalRefusal(piece, newest.get(piece.id));
+  return approvalRefusal(piece, newest.get(piece.id), documentHash);
 }

@@ -11,6 +11,8 @@ import { POST as queueLinkedInPost } from "@/app/api/publish/linkedin-direct/rou
 import { linkedInPlatformForPostType } from "@/lib/linkedin/direct-publish";
 import { resolveDefaultPage, type PageRow } from "@/lib/linkedin/default-page";
 import { POST as sendBlogToWebsite } from "@/app/api/publish/website/route";
+import { loadDocumentHashes } from "@/lib/content/media-approval";
+import { linkedInPublishReview } from "@/lib/publishing/week-preview";
 
 export const maxDuration = 60;
 
@@ -45,11 +47,15 @@ interface AlreadyQueued { pieceId: string; title: string; status: LiveLinkedInSt
  */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
-    weekId?: unknown; confirm?: unknown; socialAccountId?: unknown; ctaCluster?: unknown;
+    weekId?: unknown; confirm?: unknown; socialAccountId?: unknown; ctaCluster?: unknown; days?: unknown; preview?: unknown;
   } | null;
+  // A preview changes nothing, so it needs no confirmation; every real deploy does.
+  const preview = body?.preview === true;
+  // Ticked days as YYYY-MM-DD. Omitted means every day; an empty list means none.
+  const days = Array.isArray(body?.days) ? body.days.filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) : undefined;
   const weekId = typeof body?.weekId === "string" ? body.weekId : "";
   if (!weekId) return NextResponse.json({ error: "weekId is required" }, { status: 400 });
-  if (body?.confirm !== true) return NextResponse.json({ error: "Confirm Deploy week to go ahead." }, { status: 400 });
+  if (!preview && body?.confirm !== true) return NextResponse.json({ error: "Confirm Deploy week to go ahead." }, { status: 400 });
 
   const supabase = await createAdminSupabaseClient();
   const { data: week } = await supabase.from("weeks").select("id, company_id, week_number, date_start")
@@ -71,13 +77,14 @@ export async function POST(request: Request) {
 
   const { data: pieceRows, error: piecesError } = await supabase.from("content_pieces")
     .select("id, title, content_type, post_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
-    .eq("week_id", weekId).eq("company_id", companyId);
+    .eq("week_id", weekId).eq("company_id", companyId)
+    .order("sort_order", { ascending: true }).order("id", { ascending: true });
   if (piecesError) return NextResponse.json({ error: "Could not read the week." }, { status: 500 });
-  const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start as string);
+  const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start as string, new Date(), { days });
   if (!plan.ready) {
     return NextResponse.json({
       error: plan.unapproved > 0
-        ? `Approve every piece first: ${plan.unapproved} ${plan.unapproved === 1 ? "is" : "are"} not approved yet.`
+        ? `Nothing is approved yet: ${plan.unapproved} ${plan.unapproved === 1 ? "piece is" : "pieces are"} waiting for approval.`
         : "This week has nothing to deploy.",
     }, { status: 409 });
   }
@@ -111,9 +118,10 @@ export async function POST(request: Request) {
   // already there, never as not queued, so nobody schedules it again.
   const planned = [...plan.social, ...plan.manualSocial];
   const plannedIds = planned.map((s) => s.pieceId);
-  const [live, approvals] = await Promise.all([
+  const [live, approvals, documentHashes] = await Promise.all([
     liveLinkedInJobsByPiece(supabase, companyId, plannedIds),
     newestApprovals(supabase, companyId, plannedIds),
+    loadDocumentHashes(supabase, companyId, plannedIds),
   ]);
   if (!live) return NextResponse.json({ error: "Could not read the LinkedIn queue, so nothing was deployed." }, { status: 500 });
   const pieceById = new Map(((pieceRows || []) as GatePiece[]).map((p) => [p.id, p]));
@@ -121,8 +129,8 @@ export async function POST(request: Request) {
   // newest recorded approval must match the piece as it is now.
   const approvalRefusalFor = (pieceId: string) => {
     const piece = pieceById.get(pieceId);
-    if (!piece || !approvals) return APPROVAL_REFUSALS.unreadable;
-    return approvalRefusal(piece, approvals.get(pieceId));
+    if (!piece || !approvals || !documentHashes) return APPROVAL_REFUSALS.unreadable;
+    return approvalRefusal(piece, approvals.get(pieceId), documentHashes.get(pieceId) ?? null);
   };
 
   for (const m of plan.manualSocial) {
@@ -139,6 +147,22 @@ export async function POST(request: Request) {
     const refused = approvalRefusalFor(s.pieceId);
     if (refused) { notQueued.push({ pieceId: s.pieceId, title: s.title, contentType: s.contentType, reason: refused, next: "approve" }); continue; }
     toQueue.push(s);
+  }
+
+  if (preview) {
+    const review = await linkedInPublishReview(supabase, companyId, toQueue, pieceById as Map<string, GatePiece & Record<string, unknown>>, (s) => {
+      const toPage = pieceFeedPlatform(s.pieceId) === "linkedin_company";
+      const target = toPage ? pageId : accountId;
+      return (accountRows || []).find((a) => a.id === target)?.account_name as string | null ?? null;
+    });
+    return NextResponse.json({
+      preview: true,
+      items: review,
+      alreadyQueued,
+      notQueued,
+      refused: plan.unapprovedPieces,
+      unselected: plan.unselected,
+    }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   }
 
   for (const s of toQueue) {
@@ -198,6 +222,8 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     queued,
+    refused: plan.unapprovedPieces,
+    unselected: plan.unselected,
     alreadyQueued,
     notQueued,
     blogs,

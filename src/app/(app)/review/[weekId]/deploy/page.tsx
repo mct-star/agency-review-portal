@@ -5,6 +5,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { resolveBlogTarget } from "@/lib/publishing/blog-target";
 import DeployWeekPanel from "@/components/review/DeployWeekPanel";
 import { planWeekDeploy, type DeployPiece } from "@/lib/publishing/deploy-week";
+import { loadDocumentHashes } from "@/lib/content/media-approval";
 import { APPROVAL_REFUSALS, approvalRefusal, newestApprovals, type GatePiece } from "@/lib/content/approval-gate";
 import { liveLinkedInJobsByPiece, liveLinkedInNote } from "@/lib/publishing/live-linkedin-jobs";
 import { formatWeekLabel } from "@/lib/utils/format-week-label";
@@ -37,8 +38,8 @@ export default async function DeployWeekPage({ params }: PageProps) {
   if (company.post_pack === "hospitality") redirect("/review");
 
   const { data: pieceRows } = await supabase.from("content_pieces")
-    .select("id, title, content_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
-    .eq("week_id", weekId).eq("company_id", company.id).order("sort_order", { ascending: true });
+    .select("id, title, content_type, post_type, approval_status, day_of_week, scheduled_time, scheduled_date, markdown_body, first_comment")
+    .eq("week_id", weekId).eq("company_id", company.id).order("sort_order", { ascending: true }).order("id", { ascending: true });
   const plan = planWeekDeploy((pieceRows || []) as DeployPiece[], week.date_start);
   const canPublish = profile.role === "admin" || !!profile.can_publish;
 
@@ -51,14 +52,15 @@ export default async function DeployWeekPage({ params }: PageProps) {
   // Deploy week will do: a post already in the LinkedIn queue is not queued
   // again, and a post whose approval does not match its text is not queued.
   const plannedIds = [...plan.social, ...plan.manualSocial].map((p) => p.pieceId);
-  const [live, approvals] = await Promise.all([
+  const [live, approvals, documentHashes] = await Promise.all([
     liveLinkedInJobsByPiece(admin, company.id, plannedIds),
     newestApprovals(admin, company.id, plannedIds),
+    loadDocumentHashes(admin, company.id, plannedIds),
   ]);
   const pieceById = new Map(((pieceRows || []) as GatePiece[]).map((p) => [p.id, p]));
   const refusalFor = (id: string) => {
     const piece = pieceById.get(id);
-    return !piece || !approvals ? APPROVAL_REFUSALS.unreadable : approvalRefusal(piece, approvals.get(id));
+    return !piece || !approvals || !documentHashes ? APPROVAL_REFUSALS.unreadable : approvalRefusal(piece, approvals.get(id), documentHashes.get(id) ?? null);
   };
   const already = [...plan.social, ...plan.manualSocial].flatMap((p) => {
     const status = live?.get(p.pieceId);
@@ -74,6 +76,13 @@ export default async function DeployWeekPage({ params }: PageProps) {
       return { pieceId: p.pieceId, line: refused ? `${p.title}. ${refused}` : `${p.title}. ${p.reason} ${p.next === "export" ? "It goes in the scheduler export." : "Publish it by hand: the scheduler export does not carry it."}` };
     }),
   ];
+  // The days with a post to queue, for the day ticks (UK dates).
+  const ukDate = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  const dayCounts = new Map<string, number>();
+  for (const p of toQueue) dayCounts.set(ukDate(p.scheduledFor), (dayCounts.get(ukDate(p.scheduledFor)) ?? 0) + 1);
+  const days = [...dayCounts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({
+    date, count, label: new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }),
+  }));
   const isPlatformCompany = company.slug === (process.env.PLATFORM_COMPANY_SLUG || "agency-bristol");
   const showCtaPicker = profile.role === "admin" && isPlatformCompany && plan.blogs.length > 0;
   // The services the blog can point to are the company's own publish target.
@@ -97,7 +106,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
         {!plan.ready ? (
           <p className="mt-4 text-sm text-gray-700">
             {plan.unapproved > 0
-              ? `${plan.unapproved} ${plan.unapproved === 1 ? "piece is" : "pieces are"} not approved yet. Approve the whole week before deploying it.`
+              ? `Nothing is approved yet: ${plan.unapproved} ${plan.unapproved === 1 ? "piece is" : "pieces are"} waiting for approval.`
               : "This week has nothing to deploy."}{" "}
             <Link href={`/review/${weekId}`} className="underline">Back to the week</Link>
           </p>
@@ -119,6 +128,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
 
             <h2 className="mt-6 text-sm font-semibold text-gray-900">What stays manual</h2>
             <ul className="mt-2 space-y-1 text-sm text-gray-700">
+              {plan.unapprovedPieces.map((p) => <li key={p.pieceId}>Refused, not approved: {p.title}. Approve it, then deploy again.</li>)}
               {notQueued.map((n) => <li key={n.pieceId}>Not queued: {n.line}</li>)}
               {plan.blogs.length > 0 && <li>Publishing the blog post: merging its pull request.</li>}
               <li>Uploading the scheduler export for channels without direct publishing.</li>
@@ -127,7 +137,7 @@ export default async function DeployWeekPage({ params }: PageProps) {
 
             <div className="mt-6">
               {canPublish
-                ? <DeployWeekPanel weekId={weekId} accounts={accounts} queueCount={toQueue.length} showCtaPicker={showCtaPicker} clusters={clusters} />
+                ? <DeployWeekPanel weekId={weekId} days={days} accounts={accounts} queueCount={toQueue.length} showCtaPicker={showCtaPicker} clusters={clusters} />
                 : <p className="text-sm text-gray-700">Your account cannot publish. Ask AGENCY to switch publishing on.</p>}
             </div>
           </>

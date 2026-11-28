@@ -21,6 +21,7 @@ const B2B_TABS: Tab[] = [
   { label: "Topics", href: "/topics" },
   { label: "Schedule", href: "/schedule" },
   { label: "Connections", href: "/social" },
+  { label: "Mentions", href: "/mentions" },
   { label: "Brand style", href: "/brand-style" },
   { label: "Image mapping", href: "/image-mapping" },
   { label: "Blueprint", href: "/blueprint" },

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadDocumentHashes } from "@/lib/content/media-approval";
 
 /**
  * The version of a piece that a recorded approval refers to.
@@ -49,6 +50,11 @@ export async function recordDecisions(
 ): Promise<string | null> {
   if (!pieces.length) return null;
   if (!decidedBy) return "A decision needs the person who made it.";
+  // A document post's approval also records which PDF was approved. Other pieces carry none.
+  // If the media cannot be read, the approval is still recorded without a PDF hash: the publish gate then refuses that document post until it is approved again, so this never lets a swapped PDF through.
+  const documentHashes = decision === "approved"
+    ? await loadDocumentHashes(supabase, pieces[0].company_id, pieces.map((p) => p.id)).catch(() => null) ?? new Map<string, string | null>()
+    : new Map<string, string | null>();
   const rows = pieces.map((p) => ({
     piece_id: p.id,
     company_id: p.company_id,
@@ -57,6 +63,7 @@ export async function recordDecisions(
     decided_by: decidedBy,
     decided_via: via,
     note: note ?? null,
+    ...(documentHashes.get(p.id) ? { media_hash: documentHashes.get(p.id) } : {}),
   }));
   const { error } = await supabase.from("content_approvals").insert(rows);
   return error ? error.message : null;

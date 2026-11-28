@@ -9,6 +9,7 @@ import { linkedInApp } from "@/lib/linkedin/app";
 import { defaultCarouselTitle } from "@/lib/linkedin/publish-preview";
 import { LINKEDIN_PLATFORMS, directLinkedInJobId, linkedInDirectMedia, linkedInFeedMismatch } from "@/lib/linkedin/direct-publish";
 import { recordedApprovalRefusal } from "@/lib/content/approval-gate";
+import { documentMediaHash } from "@/lib/content/media-approval";
 import { confirmNonDefaultMessage, isFlaggedDefault, resolveDefaultPage, withDefaultFlag, type PageRow } from "@/lib/linkedin/default-page";
 
 /** Queue an approved LinkedIn post for one explicitly selected account: a personal profile, or a company page for company page pieces. */
@@ -51,7 +52,12 @@ export async function POST(request: Request) {
   if (piece.approval_status !== "approved") return NextResponse.json({ error: "Approve the post before publishing it." }, { status: 400 });
   // Only the text someone approved is queued: the newest recorded approval
   // must match the piece as it is now (Deploy week calls this route too).
-  const approvalRefused = await recordedApprovalRefusal(supabase, body.companyId, piece);
+  const [{ data: images }, { data: assets }] = await Promise.all([
+    supabase.from("content_images").select("public_url, filename, sort_order, dimensions").eq("content_piece_id", piece.id),
+    supabase.from("content_assets").select("asset_type, file_url, text_content, asset_metadata").eq("content_piece_id", piece.id).not("file_url", "is", null),
+  ]);
+  const pieceMedia = resolvePieceMedia(piece, images || [], assets || []);
+  const approvalRefused = await recordedApprovalRefusal(supabase, body.companyId, piece, documentMediaHash(pieceMedia));
   if (approvalRefused) return NextResponse.json({ error: approvalRefused, code: "approval_mismatch" }, { status: 409 });
   if (!account) return NextResponse.json({ error: "Choose an active LinkedIn account connected to this company." }, { status: 404 });
   const mismatch = linkedInFeedMismatch(piece.post_type, account.platform);
@@ -78,11 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This LinkedIn connection needs reconnecting before it can publish." }, { status: 409 });
   }
 
-  const [{ data: images }, { data: assets }] = await Promise.all([
-    supabase.from("content_images").select("public_url, filename, sort_order, dimensions").eq("content_piece_id", piece.id),
-    supabase.from("content_assets").select("asset_type, file_url, text_content, asset_metadata").eq("content_piece_id", piece.id).not("file_url", "is", null),
-  ]);
-  const media = linkedInDirectMedia(piece.content_type, resolvePieceMedia(piece, images || [], assets || []));
+  const media = linkedInDirectMedia(piece.content_type, pieceMedia);
   if ("error" in media) return NextResponse.json({ error: media.error }, { status: 422 });
 
   const postText = toLinkedInText(piece.markdown_body || "");
@@ -104,11 +106,12 @@ export async function POST(request: Request) {
       image_urls: media.imageUrls,
       video_url: media.videoUrl,
       thumbnail_url: media.thumbnailUrl,
+      document_url: media.documentUrl,
       first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
       // Several images post as one PDF document; its title is the first line as the reader sees it, as on the Mac.
       // The page the person confirmed, so the worker can tell a chosen non-default page from a stale one.
       ...(account.platform === "linkedin_company" && body.confirmNonDefaultPage === account.id && !isDefaultPost ? { confirmed_non_default_page: account.id } : {}),
-      ...(media.imageUrls.length > 1 ? { document_title: defaultCarouselTitle(postText) } : {}),
+      ...(media.imageUrls.length > 1 || media.documentUrl ? { document_title: defaultCarouselTitle(postText) } : {}),
     },
   };
   const { data: job, error } = await supabase.from("publishing_jobs").insert(queuedJob)

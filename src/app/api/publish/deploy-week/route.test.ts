@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   inserts: [] as Array<{ table: string; row: Row }>,
   websiteCalls: [] as Row[],
   failPiece: null as string | null,
+  docUrl: null as string | null,
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -48,7 +49,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 // A piece named in failPiece carries a document, which the queue refuses:
 // a failure part way through a deploy.
 vi.mock("@/lib/content/piece-media", () => ({
-  resolvePieceMedia: (piece: { id: string }) => piece.id === state.failPiece ? { shape: "document", items: [] } : { shape: "none", items: [] },
+  resolvePieceMedia: (piece: { id: string }) => piece.id === state.failPiece ? { shape: "document", items: [] }
+    : piece.id === "a" && state.docUrl ? { shape: "document", items: [{ kind: "document", url: state.docUrl, alt: "" }] }
+    : { shape: "none", items: [] },
 }));
 vi.mock("@/app/api/publish/website/route", () => ({
   POST: vi.fn(async (request: Request) => {
@@ -61,6 +64,8 @@ vi.mock("@/app/api/publish/website/route", () => ({
 
 import { POST } from "./route";
 import { pieceVersionHash } from "@/lib/content/version-hash";
+import { documentMediaHash } from "@/lib/content/media-approval";
+const notRefusedForApproval = (body: { notQueued: Array<Row> }) => body.notQueued.filter((n) => /after approval/i.test(String(n.reason)));
 
 const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 const deploy = (body: Row = {}) => POST(new Request("http://localhost/api/publish/deploy-week", {
@@ -73,11 +78,12 @@ const piece = (id: string, extra: Row = {}): Row => ({
 });
 let decisions = 0;
 /** Record a decision on the piece's current text, as /api/content/approve does. */
-const decide = (id: string, decision = "approved") => {
+const decide = (id: string, decision = "approved", mediaHash: string | null = null) => {
   const p = state.tables.content_pieces.find((r) => r.id === id)!;
   state.tables.content_approvals.push({
     piece_id: id, company_id: p.company_id, version_hash: pieceVersionHash(p as never), decision,
     decided_at: new Date(Date.UTC(2026, 10, 1) + ++decisions * 1000).toISOString(),
+    ...(mediaHash ? { media_hash: mediaHash } : {}),
   });
 };
 const queued = () => state.inserts.filter((i) => i.table === "publishing_jobs" && i.row.target_platform === "linkedin_personal");
@@ -104,6 +110,7 @@ beforeEach(() => {
     content_images: [], content_assets: [], publishing_jobs: [], content_approvals: [],
   };
   state.failPiece = null;
+  state.docUrl = null;
   for (const id of ["a", "b", "x"]) decide(id);
 });
 
@@ -121,13 +128,72 @@ describe("POST /api/publish/deploy-week: deploy", () => {
     }
   });
 
-  it("never queues an unapproved piece: a week with one is refused and nothing is queued", async () => {
+  it("never queues an unapproved piece: it is refused and listed, and the approved pieces still go", async () => {
     state.tables.content_pieces.push(piece("waiting", { approval_status: "pending" }));
     const res = await deploy();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.refused).toEqual([expect.objectContaining({ pieceId: "waiting" })]);
+    expect(queued().map((q) => q.row.content_piece_id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("refuses a document post whose PDF was swapped after approval, and still queues it once re-approved", async () => {
+    state.docUrl = "https://x.test/approved.pdf";
+    const approved = documentMediaHash({ shape: "document", items: [{ kind: "document", url: state.docUrl, alt: "" }] });
+    decide("a", "approved", approved);
+    expect(notRefusedForApproval(await (await deploy()).json())).toEqual([]);
+    state.inserts = []; state.tables.publishing_jobs = [];
+    state.docUrl = "https://x.test/swapped.pdf";
+    const body = await (await deploy()).json();
+    expect(body.notQueued).toEqual([expect.objectContaining({ pieceId: "a", next: "approve", reason: expect.stringMatching(/PDF.*after approval/i) })]);
+    expect(queued().map((q) => q.row.content_piece_id)).toContain("b");
+    decide("a", "approved", documentMediaHash({ shape: "document", items: [{ kind: "document", url: state.docUrl, alt: "" }] }));
+    expect(notRefusedForApproval(await (await deploy()).json())).toEqual([]);
+  });
+
+  it("refuses when nothing at all is approved, and queues nothing", async () => {
+    state.tables.content_pieces = [piece("waiting", { approval_status: "pending" })];
+    const res = await deploy();
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/approve/i);
     expect(state.inserts).toHaveLength(0);
-    expect(state.websiteCalls).toHaveLength(0);
+  });
+
+  it("is idempotent: running it twice never creates a second job for the same piece", async () => {
+    await deploy();
+    const second = await (await deploy()).json();
+    expect(queued()).toHaveLength(2);
+    expect(second.queued).toHaveLength(0);
+    expect(second.alreadyQueued.map((a: Row) => a.pieceId).sort()).toEqual(["a", "b"]);
+  });
+
+  it("schedules only the ticked days", async () => {
+    state.tables.content_pieces = [piece("a", { scheduled_date: future }), piece("b", { scheduled_date: "2099-01-02" })];
+    const body = await (await deploy({ days: [future] })).json();
+    expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
+    expect(body.unselected.map((u: Row) => u.pieceId)).toEqual(["b"]);
+  });
+
+  it("previews each post's time, account, text, media and first comment, and queues nothing", async () => {
+    state.tables.content_pieces[0].first_comment = "Link in the first comment";
+    decide("a");
+    const res = await POST(new Request("http://localhost/api/publish/deploy-week", { method: "POST", body: JSON.stringify({ weekId: "week-1", preview: true }) }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(state.inserts).toHaveLength(0);
+    const a = body.items.find((i: Row) => i.pieceId === "a");
+    expect(a).toMatchObject({ account: "Profile", text: "Approved text a", media: "Text only", firstComment: "Link in the first comment", warnings: [] });
+    expect(Date.parse(a.scheduledFor)).toBeGreaterThan(Date.now());
+  });
+
+  it("warns in the preview about a ＠name that is not in the mention list, and does not warn about a listed one", async () => {
+    state.tables.content_pieces[0].markdown_body = "Thanks ＠Jane Smith and ＠Nobody Known";
+    decide("a");
+    state.tables.linkedin_mentions = [{ company_id: "company-1", name: "Jane Smith", urn: "urn:li:person:abc123", kind: "person" }];
+    const body = await (await POST(new Request("http://localhost/api/publish/deploy-week", { method: "POST", body: JSON.stringify({ weekId: "week-1", preview: true }) }))).json();
+    const a = body.items.find((i: Row) => i.pieceId === "a");
+    expect(a.warnings).toEqual(["Nobody Known"]);
+    expect(a.mentions).toEqual(["Jane Smith"]);
+    expect(a.text).toContain("＠Jane Smith");
   });
 
   it("refuses a request without the confirmation, so a link or page load can never deploy", async () => {
@@ -137,7 +203,7 @@ describe("POST /api/publish/deploy-week: deploy", () => {
   });
 
   it("lists a post whose time has passed or that has no time for the scheduler export instead of queueing it", async () => {
-    state.tables.content_pieces = [piece("a"), piece("late", { scheduled_date: "2020-01-06" }), piece("untimed", { scheduled_time: null })];
+    state.tables.content_pieces = [piece("a"), piece("late", { scheduled_date: "2020-01-06" }), piece("untimed", { scheduled_date: null, scheduled_time: null })];
     decide("late"); decide("untimed");
     const body = await (await deploy()).json();
     expect(queued().map((q) => q.row.content_piece_id)).toEqual(["a"]);
