@@ -3,6 +3,16 @@ import { requireAdmin, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { encrypt } from "@/lib/crypto";
 
 /**
+ * LinkedIn page rows carry the default page flag and the on/off switch, and
+ * removing or rewriting one can change which page company posts go to. They
+ * are managed only through the LinkedIn connection and the publishing
+ * settings, never through this generic route.
+ */
+const MANAGED_PAGE_PLATFORM = "linkedin_company";
+const MANAGED_PAGE_MESSAGE =
+  "LinkedIn pages are managed from the LinkedIn connection in publishing settings.";
+
+/**
  * GET /api/config/social-accounts?companyId=uuid
  * List all social accounts for a company.
  */
@@ -86,6 +96,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if (platform === MANAGED_PAGE_PLATFORM) {
+    return NextResponse.json({ error: MANAGED_PAGE_MESSAGE }, { status: 409 });
+  }
+
   const supabase = await createAdminSupabaseClient();
 
   const row: Record<string, unknown> = {
@@ -149,10 +163,27 @@ export async function DELETE(request: Request) {
   }
 
   const supabase = await createAdminSupabaseClient();
+  const { data: account, error: readError } = await supabase
+    .from("company_social_accounts")
+    .select("id,platform")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (readError) {
+    return NextResponse.json({ error: readError.message }, { status: 500 });
+  }
+  if (!account) {
+    return NextResponse.json({ error: "Account not found" }, { status: 404 });
+  }
+  if (account.platform === MANAGED_PAGE_PLATFORM) {
+    return NextResponse.json({ error: MANAGED_PAGE_MESSAGE }, { status: 409 });
+  }
+
   const { error } = await supabase
     .from("company_social_accounts")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .neq("platform", MANAGED_PAGE_PLATFORM);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
