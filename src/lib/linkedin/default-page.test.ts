@@ -14,8 +14,15 @@ describe("resolveDefaultPage", () => {
   it("has no default when two pages are active and none is flagged", () => {
     expect(resolveDefaultPage([page("a"), page("b")])).toBeNull();
   });
-  it("treats a company's only active page as its default when nothing is flagged", () => {
-    expect(resolveDefaultPage([page("a"), page("b", { is_active: false })])?.id).toBe("a");
+  it("treats an unflagged page as the default only when it is the company's one page in total", () => {
+    expect(resolveDefaultPage([page("a")])?.id).toBe("a");
+  });
+  it("has no default when the only active page sits beside a switched-off one and nothing is flagged", () => {
+    expect(resolveDefaultPage([page("agency", { is_active: false }), page("rebus")])).toBeNull();
+    expect(resolveDefaultPage([page("agency"), page("rebus", { is_active: false })])).toBeNull();
+  });
+  it("has no default for a lone page that is switched off", () => {
+    expect(resolveDefaultPage([page("a", { is_active: false })])).toBeNull();
   });
   it("fails closed when more than one page is flagged", () => {
     expect(resolveDefaultPage([flagged("a"), flagged("b")])).toBeNull();
@@ -26,10 +33,11 @@ describe("resolveDefaultPage", () => {
 });
 
 describe("firstPageBecomesDefault", () => {
-  it("is true only when the company has no page rows at all", () => {
-    expect(firstPageBecomesDefault([])).toBe(true);
-    expect(firstPageBecomesDefault([page("a", { is_active: false })])).toBe(false);
-    expect(firstPageBecomesDefault([flagged("a")])).toBe(false);
+  it("is true only when the company has no page rows at all and one page is being connected", () => {
+    expect(firstPageBecomesDefault([], 1)).toBe(true);
+    expect(firstPageBecomesDefault([], 2)).toBe(false);
+    expect(firstPageBecomesDefault([page("a", { is_active: false })], 1)).toBe(false);
+    expect(firstPageBecomesDefault([flagged("a")], 1)).toBe(false);
   });
 });
 

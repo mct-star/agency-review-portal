@@ -356,5 +356,27 @@ describe("default LinkedIn page", () => {
     expect((await patch({ socialAccountId: "page-2", action: "set_default" })).status).toBe(403);
     expect(state.updates).toHaveLength(0);
   });
-});
 
+  it("is admin-only: a client with the publish right gets 403 on every page action", async () => {
+    state.profile = { id: "user-1", role: "client", company_id: "company-1", can_publish: true };
+    for (const action of ["set_default", "switch_on", "switch_off"]) expect((await patch({ socialAccountId: "page-2", action })).status).toBe(403);
+    expect(state.updates).toHaveLength(0);
+  });
+
+  it("switching off AGENCY when no page is flagged does not make Rebus the default", async () => {
+    state.tables.company_social_accounts = (state.tables.company_social_accounts as Record<string, unknown>[]).map((a) => ({ ...a, platform_metadata: {} }));
+    expect((await patch({ socialAccountId: "page-1", action: "switch_off" })).status).toBe(200);
+    state.tables.company_social_accounts = (state.tables.company_social_accounts as Record<string, unknown>[]).map((a) => a.id === "page-1" ? { ...a, is_active: false } : a);
+    const res = await POST(request(input({ socialAccountId: "page-2" })));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("non_default_page");
+  });
+
+  it("records the confirmed page on the queued job", async () => {
+    await POST(request(input({ socialAccountId: "page-2", confirmNonDefaultPage: "page-2" })));
+    expect(state.inserts[0].row.publish_payload).toMatchObject({ confirmed_non_default_page: "page-2" });
+    state.inserts = []; state.tables.publishing_jobs = [];
+    await POST(request(input({ socialAccountId: "page-1" })));
+    expect(state.inserts[0].row.publish_payload).not.toHaveProperty("confirmed_non_default_page");
+  });
+});

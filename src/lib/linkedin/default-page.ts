@@ -21,19 +21,19 @@ export function isFlaggedDefault(row: PageRow): boolean {
  * The page company page posts go to, from ALL of the company's company-page
  * rows (switched-off ones included). Fails closed: no flag and several active
  * pages, several flags, or a flagged page that is switched off all give null.
- * A company with one active page and no flag at all has that page as its
- * default, so a single-page company needs no setup.
+ * An unflagged page is the default only when it is the company's one page row
+ * in total (switched-off rows count), so a single-page company needs no setup
+ * but a second page appearing, going off or coming on can never promote one.
  */
 export function resolveDefaultPage<T extends PageRow>(pages: T[]): T | null {
   const flagged = pages.filter(isFlaggedDefault);
   if (flagged.length > 0) return flagged.length === 1 && flagged[0].is_active === true ? flagged[0] : null;
-  const active = pages.filter((row) => row.is_active === true);
-  return active.length === 1 ? active[0] : null;
+  return pages.length === 1 && pages[0].is_active === true ? pages[0] : null;
 }
 
-/** A page becomes the default on connection only when the company has never had a page. */
-export function firstPageBecomesDefault(existing: PageRow[]): boolean {
-  return existing.length === 0;
+/** A page becomes the default on connection only when the company has never had a page and exactly one is being connected. */
+export function firstPageBecomesDefault(existing: PageRow[], connecting: number): boolean {
+  return existing.length === 0 && connecting === 1;
 }
 
 export function withDefaultFlag(metadata: Record<string, unknown> | null | undefined, isDefault: boolean): Record<string, unknown> {

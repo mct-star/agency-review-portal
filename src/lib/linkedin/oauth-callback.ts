@@ -119,13 +119,13 @@ export async function handleLinkedInCallback(request: Request): Promise<NextResp
         const pages = await getAdministeredOrganizations(tokens.accessToken);
         // Reconnecting refreshes a page's token and details and nothing else: a page the
         // user switched off stays off, and the default never moves. Only a company that
-        // has never had a page gets one (the first) as its default.
+        // has never had a page, connecting exactly one, gets a default.
         const { data: existingData, error: existingErr } = await supabase.from("company_social_accounts")
           .select("id, account_id, is_active, platform_metadata").eq("company_id", verified.companyId).eq("platform", "linkedin_company");
         if (existingErr) throw new Error(`could not read the company's existing pages: ${existingErr.message}`);
         const existing = (Array.isArray(existingData) ? existingData : []) as Array<PageRow & { account_id: string | null }>;
         const byAccount = new Map(existing.map((row) => [row.account_id, row]));
-        const makeFirstDefault = firstPageBecomesDefault(existing);
+        const makeFirstDefault = firstPageBecomesDefault(existing, pages.length);
         let savedPages = 0;
         for (const [index, page] of pages.entries()) {
           const known = byAccount.get(page.id);

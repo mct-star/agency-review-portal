@@ -183,6 +183,16 @@ describe("LinkedIn callback through the AGENCY Content Publisher app", () => {
     expect(pageUpserts()[0].platform_metadata).toMatchObject({ default_page: true });
   });
 
+  it("does not pick a default when the first connection brings several pages", async () => {
+    state.organisations.mockResolvedValue([
+      { id: "111", urn: "urn:li:organization:111", name: "AGENCY", vanityName: "agency-bristol" },
+      { id: "222", urn: "urn:li:organization:222", name: "Rebus MedicoLegal", vanityName: "rebus" },
+    ]);
+    existingPages([]);
+    await connect();
+    for (const row of pageUpserts()) expect(row.platform_metadata).not.toHaveProperty("default_page");
+  });
+
   it("does not make a page the default when the company already has pages, and keeps the default it has", async () => {
     state.organisations.mockResolvedValue([
       { id: "111", urn: "urn:li:organization:111", name: "AGENCY", vanityName: "agency-bristol" },

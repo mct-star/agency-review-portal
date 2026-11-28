@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { requireAdmin, requireCompanyUser, createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { authoriseChannelManager } from "@/lib/auth/channel-manager";
 import { refuseHospitality } from "@/lib/hospitality/pack-guard";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
@@ -58,11 +58,13 @@ export async function POST(request: Request) {
   if (mismatch) return NextResponse.json({ error: mismatch, code: "wrong_feed" }, { status: 409 });
   // Only the default page is posted to without asking. Any other page needs
   // the person to confirm that exact page, so a page can never be reached by accident.
+  let isDefaultPost = false;
   if (account.platform === "linkedin_company") {
     const { data: pages, error: pagesError } = await supabase.from("company_social_accounts")
       .select("id, account_name, is_active, platform_metadata").eq("company_id", body.companyId).eq("platform", "linkedin_company");
     if (pagesError) return NextResponse.json({ error: "Could not check the company's LinkedIn pages, so nothing was queued." }, { status: 500 });
     const def = resolveDefaultPage((pages || []) as PageRow[]);
+    isDefaultPost = def?.id === account.id;
     if (def?.id !== account.id && body.confirmNonDefaultPage !== account.id) {
       const pageName = account.account_name || "this page";
       return NextResponse.json({
@@ -104,6 +106,8 @@ export async function POST(request: Request) {
       thumbnail_url: media.thumbnailUrl,
       first_comment: piece.first_comment ? toLinkedInText(piece.first_comment) : null,
       // Several images post as one PDF document; its title is the first line as the reader sees it, as on the Mac.
+      // The page the person confirmed, so the worker can tell a chosen non-default page from a stale one.
+      ...(account.platform === "linkedin_company" && body.confirmNonDefaultPage === account.id && !isDefaultPost ? { confirmed_non_default_page: account.id } : {}),
       ...(media.imageUrls.length > 1 ? { document_title: defaultCarouselTitle(postText) } : {}),
     },
   };
@@ -169,6 +173,7 @@ export async function GET(request: Request) {
 
 /**
  * Settings for a company's LinkedIn pages: which page is the default, and which are switched on.
+ * Admin only: a client with the publish right can post but cannot change where company page posts go.
  * set_default needs a switched-on page; the default page cannot be switched off; switching a
  * page on or off never changes the default.
  */
@@ -176,8 +181,8 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null) as { companyId?: string; socialAccountId?: string; action?: string } | null;
   if (!body?.companyId || !body.socialAccountId) return NextResponse.json({ error: "companyId and socialAccountId are required" }, { status: 400 });
   if (!["set_default", "switch_on", "switch_off"].includes(body.action || "")) return NextResponse.json({ error: "Choose set_default, switch_on or switch_off." }, { status: 400 });
-  const auth = await authoriseChannelManager(body.companyId);
-  if (!auth.ok) return auth.response;
+  const admin = await requireAdmin();
+  if (!admin) return NextResponse.json({ error: "Only an AGENCY admin can change which LinkedIn page is the default." }, { status: 403 });
   const supabase = await createAdminSupabaseClient();
   const { data, error: readError } = await supabase.from("company_social_accounts")
     .select("id, account_name, is_active, platform_metadata").eq("company_id", body.companyId).eq("platform", "linkedin_company");
