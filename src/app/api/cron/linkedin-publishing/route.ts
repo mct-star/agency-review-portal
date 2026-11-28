@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     .limit(1);
   if (error) return NextResponse.json({ error: "Could not read the LinkedIn queue." }, { status: 500 });
 
-  const totals = { published: 0, failed: 0, uncertain: staleMarked, claimed: 0 };
+  const totals = { published: 0, failed: 0, uncertain: staleMarked, claimed: 0, retrying: 0 };
   for (const candidate of candidates || []) {
     // Conditional update is the claim lock. A concurrent worker will receive
     // no row after the first process changes queued/scheduled to running.

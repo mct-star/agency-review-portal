@@ -7,6 +7,7 @@ import { imagesToPdf } from "@/lib/linkedin/images-pdf";
 import { defaultCarouselTitle } from "@/lib/linkedin/publish-preview";
 import { resolvePieceMedia } from "@/lib/content/piece-media";
 import { escapeLittleText, toLinkedInText } from "@/lib/linkedin/post-text";
+import { scheduleRetry } from "@/lib/publishing/schedule-retry";
 
 type PublishPayload = { provider?: string; commentary?: string; image_urls?: string[]; video_url?: string | null; thumbnail_url?: string | null; first_comment?: string | null; document_title?: string | null };
 type Job = { id: string; company_id: string; content_piece_id: string | null; social_account_id: string | null; triggered_by: string | null; target_platform?: string | null; publish_payload: PublishPayload };
@@ -37,7 +38,7 @@ async function markFailure(supabase: SupabaseClient, job: Job, error: unknown, u
   }).eq("id", job.id).eq("company_id", job.company_id).eq("status", "running");
 }
 
-/** Posts one already-claimed job and records a terminal result without automatic retry. */
+/** Posts one already-claimed job. A transient failure before the post was requested is retried once, five minutes on; every other result is terminal. */
 export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Job) {
   let createRequestStarted = false;
   try {
@@ -146,6 +147,8 @@ export async function processLinkedInDirectJob(supabase: SupabaseClient, job: Jo
     return "published" as const;
   } catch (error) {
     const uncertain = createRequestStarted && linkedinOutcomeMayBeUncertain(error);
+    // One safe retry for a transient failure before any post was requested.
+    if (!uncertain && await scheduleRetry(supabase, job, error, createRequestStarted)) return "retrying" as const;
     await markFailure(supabase, job, error, uncertain);
     return uncertain ? "uncertain" as const : "failed" as const;
   }

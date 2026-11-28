@@ -143,3 +143,19 @@ export async function listAuthorPosts(accessToken: string, authorUrn: string, { 
 function iso(ms: number | null): string | null {
   return ms === null ? null : new Date(ms).toISOString();
 }
+
+/**
+ * Whether a post URN still exists on LinkedIn, read with the account's own
+ * token. "missing" only for a 404 or a post that is no longer published;
+ * anything else (no permission, rate limit, a LinkedIn outage) is "unknown",
+ * so a token that cannot read posts never raises a false alarm.
+ */
+export async function linkedInPostStatus(accessToken: string, postUrn: string): Promise<"live" | "missing" | "unknown"> {
+  try {
+    const data = (await get(accessToken, `/rest/posts/${encodeURIComponent(postUrn)}`)) as { lifecycleState?: string } | null;
+    if (data?.lifecycleState && data.lifecycleState !== "PUBLISHED") return "missing";
+    return "live";
+  } catch (error) {
+    return error instanceof LinkedInApiError && error.status === 404 ? "missing" : "unknown";
+  }
+}
